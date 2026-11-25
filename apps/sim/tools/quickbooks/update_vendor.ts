@@ -16,6 +16,7 @@ export const quickbooksUpdateVendorTool: InternalToolConfig<
   name: 'QuickBooks Update Vendor',
   description: 'Read, merge, and full-update a vendor in QuickBooks Online',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

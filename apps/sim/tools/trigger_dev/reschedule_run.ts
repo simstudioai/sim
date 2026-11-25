@@ -20,6 +20,7 @@ export const triggerDevRescheduleRunTool: ToolConfig<
   description:
     'Reschedule a delayed Trigger.dev run with a new delay. Only valid while the run is in the DELAYED state.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

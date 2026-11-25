@@ -21,6 +21,7 @@ export const planeUpdateLabelTool: ToolConfig<PlaneUpdateLabelParams, PlaneUpdat
   name: 'Plane Update a label',
   description: 'Update a label in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

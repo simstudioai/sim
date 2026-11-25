@@ -8,6 +8,7 @@ export const zepAddUserTool: ToolConfig<any, ZepResponse> = {
   name: 'Add User',
   description: 'Create a new user in Zep',
   version: '1.0.0',
+  effect: 'write',
   oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {

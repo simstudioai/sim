@@ -7,6 +7,7 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
   name: 'Wikipedia Search',
   description: 'Search for Wikipedia pages by title or content.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

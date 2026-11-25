@@ -31,6 +31,7 @@ export const spotifyGetAudiobookChaptersTool: ToolConfig<
   name: 'Spotify Get Audiobook Chapters',
   description: 'Get chapters from an audiobook.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

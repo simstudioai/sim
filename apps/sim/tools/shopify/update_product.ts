@@ -16,6 +16,7 @@ export const shopifyUpdateProductTool: ToolConfig<
   name: 'Shopify Update Product',
   description: 'Update an existing product in your Shopify store',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -38,6 +38,7 @@ export const sportmonksGetFixturesByDateRangeForTeamTool: ToolConfig<
   name: 'Get Fixtures by Date Range for Team',
   description: 'Retrieve fixtures for a team within a date range (YYYY-MM-DD) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

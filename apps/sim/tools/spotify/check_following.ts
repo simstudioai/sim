@@ -28,6 +28,7 @@ export const spotifyCheckFollowingTool: ToolConfig<
   name: 'Spotify Check Following',
   description: 'Check if the user follows artists or users.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

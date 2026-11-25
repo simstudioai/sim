@@ -19,6 +19,7 @@ export const insertPageBreakTool: ToolConfig<
   description:
     'Insert a page break into a Google Docs document. When no index is provided, the page break is appended to the end of the document.',
   version: '1.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'google-docs',

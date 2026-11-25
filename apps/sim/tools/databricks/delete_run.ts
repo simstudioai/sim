@@ -13,6 +13,7 @@ export const deleteRunTool: ToolConfig<DatabricksDeleteRunParams, DatabricksSucc
   name: 'Databricks Delete Run',
   description: 'Delete a completed Databricks job run.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

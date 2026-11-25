@@ -9,6 +9,7 @@ export const asanaCreateProjectTool: InternalToolConfig<
   name: 'Asana Create Project',
   description: 'Create a new project in an Asana workspace',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -18,6 +18,7 @@ export const jamaGetItemTypeTool: ToolConfig<JamaGetItemTypeParams, JamaGetItemT
   name: 'Jama Get Item Type',
   description: "Get Item Type in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

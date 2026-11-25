@@ -12,6 +12,7 @@ export const createTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesCreateRe
   name: 'Create Google Slides Presentation',
   description: 'Create a new Google Slides presentation',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

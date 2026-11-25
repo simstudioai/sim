@@ -48,6 +48,7 @@ export const confluenceGetPageVersionTool: InternalToolConfig<
   name: 'Confluence Get Page Version',
   description: 'Get details about a specific version of a Confluence page.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

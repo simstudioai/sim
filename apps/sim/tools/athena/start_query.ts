@@ -38,6 +38,7 @@ export const startQueryTool: InternalToolConfig<AthenaStartQueryParams, AthenaSt
     name: 'Athena Start Query',
     description: 'Start an SQL query execution in AWS Athena',
     version: '1.0.0',
+    effect: 'write',
     oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {

@@ -13,6 +13,7 @@ export const deploymentsGetVersionTool: InternalToolConfig<
   description:
     'Fetch a single deployment version of a workflow, including its metadata and the full workflow state snapshot that was deployed.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     workflowId: {

@@ -13,6 +13,7 @@ export const getEventSourceMappingTool: InternalToolConfig<
   name: 'Lambda Get Event Source Mapping',
   description: 'Get details about an event source mapping',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

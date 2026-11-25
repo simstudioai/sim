@@ -11,6 +11,7 @@ export const netsuiteBatchDeleteRecordsTool: InternalToolConfig<
   name: 'NetSuite Batch Delete Records',
   description: 'Submit an asynchronous request to delete up to 100 records of one type.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

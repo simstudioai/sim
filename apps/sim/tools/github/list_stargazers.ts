@@ -33,6 +33,7 @@ export const listStargazersTool: ToolConfig<ListStargazersParams, ListStargazers
   name: 'GitHub List Stargazers',
   description: 'List users who have starred a repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -144,6 +145,7 @@ export const listStargazersV2Tool: ToolConfig<ListStargazersParams, any> = {
   name: listStargazersTool.name,
   description: listStargazersTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listStargazersTool.params,
   request: listStargazersTool.request,

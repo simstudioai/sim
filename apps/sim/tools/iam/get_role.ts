@@ -7,6 +7,7 @@ export const getRoleTool: InternalToolConfig<IAMGetRoleParams, IAMGetRoleRespons
   name: 'IAM Get Role',
   description: 'Get detailed information about an IAM role',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -16,6 +16,7 @@ export const uptimeRobotDeleteAlertContactTool: ToolConfig<
   name: 'UptimeRobot Delete Alert Contact',
   description: 'Permanently delete an UptimeRobot alert contact by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

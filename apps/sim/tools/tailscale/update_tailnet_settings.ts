@@ -18,6 +18,7 @@ export const tailscaleUpdateTailnetSettingsTool: ToolConfig<
   name: 'Tailscale Update Tailnet Settings',
   description: 'Update selected tailnet settings',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

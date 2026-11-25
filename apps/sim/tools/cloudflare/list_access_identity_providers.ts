@@ -23,6 +23,7 @@ export const listAccessIdentityProvidersTool: ToolConfig<
   description:
     'Lists the identity providers configured for Cloudflare Access (Zero Trust) in an account, such as Okta, Entra ID, Google Workspace, or a one-time PIN. Use the returned IDs to restrict an application with allowed_idps. Requires an API token with Account Access: Organizations, Identity Providers, and Groups Read.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

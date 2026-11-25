@@ -12,6 +12,7 @@ export const pitchbookLimitedPartnerCommitmentsDetailedTool: ToolConfig<
   description:
     'Retrieve every fund commitment a limited partner has made, with date, size, status, and the managers behind each fund',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

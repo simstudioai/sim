@@ -21,6 +21,7 @@ export const instagramListStoriesTool: ToolConfig<
   name: 'Instagram List Stories',
   description: 'List active stories on the Instagram professional account',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

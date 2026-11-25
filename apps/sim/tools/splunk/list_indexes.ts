@@ -21,6 +21,7 @@ export const listIndexesTool: ToolConfig<SplunkListIndexesParams, SplunkListInde
   description:
     'List the indexes configured on the Splunk instance with their size, event count, and retention settings.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {

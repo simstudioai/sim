@@ -11,6 +11,7 @@ export const attioListWebhooksTool: ToolConfig<AttioListWebhooksParams, AttioLis
     name: 'Attio List Webhooks',
     description: 'List all webhooks in the Attio workspace',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

@@ -14,6 +14,7 @@ export const attioCreateAttributeTool: ToolConfig<
   name: 'Attio Create Attribute',
   description: 'Create a new attribute (schema field) on an Attio object or list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

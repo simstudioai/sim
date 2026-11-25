@@ -9,6 +9,7 @@ export const jsmDeleteObjectTool: InternalToolConfig<
   name: 'JSM Delete Asset Object',
   description: 'Delete an Assets (Insight/CMDB) object by ID',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

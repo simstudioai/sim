@@ -11,6 +11,7 @@ export const upstashRedisHGetAllTool: ToolConfig<
   name: 'Upstash Redis HGETALL',
   description: 'Get all fields and values of a hash stored at a key in Upstash Redis.',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

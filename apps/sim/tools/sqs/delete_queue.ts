@@ -7,6 +7,7 @@ export const deleteQueueTool: InternalToolConfig<SqsDeleteQueueParams, SqsMessag
   name: 'SQS Delete Queue',
   description: 'Delete an Amazon SQS queue and every message still in it',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

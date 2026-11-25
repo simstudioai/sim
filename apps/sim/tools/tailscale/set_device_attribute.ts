@@ -15,6 +15,7 @@ export const tailscaleSetDeviceAttributeTool: ToolConfig<
   name: 'Tailscale Set Device Attribute',
   description: 'Create or update a custom device posture attribute with an optional expiry',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

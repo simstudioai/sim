@@ -10,6 +10,7 @@ export const resendUpdateContactTool: ToolConfig<UpdateContactParams, UpdateCont
   name: 'Update Contact',
   description: 'Update an existing contact in Resend',
   version: '1.0.0',
+  effect: 'write',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

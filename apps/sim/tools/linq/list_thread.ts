@@ -9,6 +9,7 @@ export const linqListThreadTool: ToolConfig<LinqListThreadParams, LinqListMessag
   name: 'List Thread Messages',
   description: 'List all messages in the thread that contains a given message',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const trelloListListsTool: ToolConfig<TrelloListListsParams, TrelloListLi
   name: 'Trello Get Lists',
   description: 'List all lists on a Trello board',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

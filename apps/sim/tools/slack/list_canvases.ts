@@ -9,6 +9,7 @@ export const slackListCanvasesTool: ToolConfig<SlackListCanvasesParams, SlackLis
     name: 'Slack List Canvases',
     description: 'List Slack canvases available to the authenticated user or bot',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

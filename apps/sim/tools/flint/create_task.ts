@@ -10,6 +10,7 @@ export const flintCreateTaskTool: ToolConfig<FlintCreateTaskParams, FlintCreateT
   description:
     'Start a background Flint agent task that modifies a site from a natural-language prompt.',
   version: '1.0.0',
+  effect: 'write',
   oauth: FLINT_CREDENTIAL_OAUTH,
 
   params: {

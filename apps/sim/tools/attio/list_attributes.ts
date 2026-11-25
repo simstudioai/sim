@@ -14,6 +14,7 @@ export const attioListAttributesTool: ToolConfig<
   name: 'Attio List Attributes',
   description: 'List the attributes (schema fields) defined on an Attio object or list',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

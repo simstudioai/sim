@@ -20,6 +20,7 @@ export const getWorkflowHistoryTool: ToolConfig<
   description:
     'Fetch the event history of a Temporal workflow execution, optionally filtered to just the close event.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     serverUrl: {

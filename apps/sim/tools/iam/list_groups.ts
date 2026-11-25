@@ -7,6 +7,7 @@ export const listGroupsTool: InternalToolConfig<IAMListGroupsParams, IAMListGrou
   name: 'IAM List Groups',
   description: 'List IAM groups in your AWS account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

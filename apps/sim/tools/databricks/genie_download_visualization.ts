@@ -20,6 +20,7 @@ export const genieDownloadVisualizationTool: ToolConfig<
   description:
     'Download a chart Genie generated as a PNG image, for example to post it to Slack. The message must be COMPLETED and asked with visualization enabled. Not supported on Private Link workspaces.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

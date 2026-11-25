@@ -26,6 +26,7 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
     description:
       'Capture a single event in PostHog. Use this to track user actions, page views, or custom events.',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       projectApiKey: {

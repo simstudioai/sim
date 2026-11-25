@@ -17,6 +17,7 @@ export const listTablesTool: ToolConfig<ExcelListParams, ExcelTablesResponse> = 
   name: 'Microsoft Excel List Tables',
   description: 'List Tables in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: { ...EXCEL_WORKBOOK_PARAMS, ...EXCEL_LIST_PARAMS },

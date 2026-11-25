@@ -17,6 +17,7 @@ export const clickupUpdateChecklistTool: ToolConfig<
   name: 'ClickUp Update Checklist',
   description: 'Rename or reorder a checklist on a ClickUp task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

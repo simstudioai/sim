@@ -6,7 +6,7 @@
  */
 
 import { compareStrings, escapeRegExp } from '@sim/utils/string'
-import type { BlockCatalog } from '@sim/workflow-code'
+import type { BlockCatalog, CatalogBlock, CatalogBuilder } from '@sim/workflow-code'
 import { suggestBuilder } from '@sim/workflow-code'
 import {
   catalogBlock,
@@ -34,6 +34,12 @@ export interface BuilderReference {
   /** `Block: Operation`. */
   summary: string
   operation?: string
+  /**
+   * What running the builder's block does outside Sim (`CatalogBlock.effect`, per operation where
+   * it differs): `read` changes nothing, `write` may. Absent for a trigger builder and for a block
+   * with no `tools.access`.
+   */
+  effect?: CatalogBlock['effect']
   /** An older block version's builder, kept so stored workflows print; write the current one. */
   legacy: boolean
   /** The block type that replaces a legacy block's, and the builders written for it. */
@@ -108,6 +114,13 @@ function replacementOf(
   return { blockType: replacedBy, builders }
 }
 
+/** The effect of the block a builder runs, narrowed to its operation; none for a trigger builder. */
+function builderEffect(catalog: BlockCatalog, builder: CatalogBuilder): BuilderReference['effect'] {
+  if (builder.triggerMode) return undefined
+  const block = catalogBlock(catalog, builder.type)
+  return (builder.operation && block?.operationEffects?.[builder.operation]) || block?.effect
+}
+
 /** The reference of the catalog builder `key`, or `null` when the catalog has none. */
 export function describeBuilder(catalog: BlockCatalog, key: string): BuilderReference | null {
   const entry = builderEntry(catalog, key)
@@ -123,6 +136,7 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
     ? `${entry.path.slice(0, -1).join('.')}.${TOOL_NAMESPACE}.${(types.tool.at(-1) ?? '').replace(/^export function /, '')}`
     : null
   const replacement = replacementOf(catalog, entry.builder.type, entry.builder.operation)
+  const effect = builderEffect(catalog, entry.builder)
   const note = builderNote(key)
   const noteDoc = note ? { doc: note } : {}
   return {
@@ -130,6 +144,7 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
     blockType: entry.builder.type,
     summary: types.summary,
     ...(entry.builder.operation ? { operation: entry.builder.operation } : {}),
+    ...(effect ? { effect } : {}),
     legacy: isLegacyBuilder(key),
     ...(replacement ? { replacement } : {}),
     ...(entry.special ? docOf(key) : noteDoc),
@@ -371,6 +386,7 @@ export function renderBuilderReference(reference: BuilderReference): string {
     .filter(Boolean)
     .join(', ')
   const lines = [`${reference.key} — ${reference.summary} (${where})`]
+  if (reference.effect) lines.push(effectNote(reference.effect))
   if (reference.legacy) lines.push(legacyNote(reference))
   if (reference.doc) lines.push('', reference.doc)
   lines.push('', reference.signature)
@@ -399,6 +415,13 @@ export function renderBuilderReference(reference: BuilderReference): string {
   return lines.join('\n')
 }
 
+/** Whether running the builder changes anything outside Sim. */
+function effectNote(effect: NonNullable<BuilderReference['effect']>): string {
+  return effect === 'read'
+    ? 'Effect: read (changes nothing outside Sim).'
+    : 'Effect: write (may create, update, delete, send, or trigger something outside Sim).'
+}
+
 /** The note on a legacy builder: it is an older block version, and which builder replaces it. */
 function legacyNote(reference: BuilderReference): string {
   const { replacement } = reference
@@ -413,7 +436,7 @@ function legacyNote(reference: BuilderReference): string {
 export interface CompactBuilderReference
   extends Pick<
     BuilderReference,
-    'key' | 'blockType' | 'summary' | 'operation' | 'legacy' | 'replacement' | 'doc'
+    'key' | 'blockType' | 'summary' | 'operation' | 'effect' | 'legacy' | 'replacement' | 'doc'
   > {
   /** An example call with the required params filled in. */
   call: string
@@ -442,6 +465,7 @@ export function compactBuilder(reference: BuilderReference): CompactBuilderRefer
     blockType: reference.blockType,
     summary: reference.summary,
     ...(reference.operation ? { operation: reference.operation } : {}),
+    ...(reference.effect ? { effect: reference.effect } : {}),
     legacy: reference.legacy,
     ...(reference.replacement ? { replacement: reference.replacement } : {}),
     ...(reference.doc ? { doc: reference.doc } : {}),
@@ -476,6 +500,7 @@ export function renderCompactBuilder(reference: BuilderReference): string {
   if (reference.legacy) lines.push(legacyNote(reference))
   if (reference.doc) lines.push(reference.doc)
   lines.push(builderSnippet(reference, Number.POSITIVE_INFINITY))
+  if (reference.effect) lines.push(`  ${effectNote(reference.effect)}`)
   if (reference.coreParams.length > 0) lines.push(`  signature: ${reference.signature}`)
   lines.push(
     `Every param's type, enum, default and doc: \`sim workflows source params ${reference.key} --full\`.`

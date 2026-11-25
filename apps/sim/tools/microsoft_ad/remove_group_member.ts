@@ -13,6 +13,7 @@ export const removeGroupMemberTool: ToolConfig<
   name: 'Remove Azure AD Group Member',
   description: 'Remove a member from a group in Azure AD (Microsoft Entra ID)',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

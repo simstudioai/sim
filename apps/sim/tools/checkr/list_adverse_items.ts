@@ -23,6 +23,7 @@ export const checkrListAdverseItemsTool: ToolConfig<
   description:
     'List the adverse items on a report that can be cited in an adverse action. The report must have a consider result and no active adverse action.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

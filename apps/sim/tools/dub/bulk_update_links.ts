@@ -9,6 +9,7 @@ export const bulkUpdateLinksTool: ToolConfig<DubBulkUpdateLinksParams, DubBulkUp
     description:
       'Apply the same set of field updates to up to 100 links at once, selected by link IDs or external IDs.',
     version: '1.0.0',
+    effect: 'write',
     oauth: DUB_CREDENTIAL_OAUTH,
 
     params: {

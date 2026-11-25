@@ -23,6 +23,7 @@ export const codaGetCustomDomainProviderTool: ToolConfig<
   description:
     'Look up the DNS provider (GoDaddy, Namecheap, Hover, Network Solutions, Google Domains, or Other) of a custom domain',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

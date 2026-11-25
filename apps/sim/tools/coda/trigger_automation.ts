@@ -22,6 +22,7 @@ export const codaTriggerAutomationTool: ToolConfig<
   description:
     'Trigger a webhook-invoked automation in a Coda doc, optionally passing a JSON payload the automation can read',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

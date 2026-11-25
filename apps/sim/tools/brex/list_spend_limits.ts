@@ -18,6 +18,7 @@ export const brexListSpendLimitsTool: ToolConfig<
   name: 'Brex List Spend Limits',
   description: 'List spend limits in the Brex account, optionally filtered by member user',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

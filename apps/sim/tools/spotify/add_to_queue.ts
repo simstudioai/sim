@@ -7,6 +7,7 @@ export const spotifyAddToQueueTool: ToolConfig<SpotifyAddToQueueParams, SpotifyA
     name: 'Spotify Add to Queue',
     description: "Add a track to the user's playback queue.",
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

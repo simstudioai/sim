@@ -13,6 +13,7 @@ export const gaugeGetAnswerTool: ToolConfig<GaugeGetAnswerParams, GaugeGetAnswer
   name: 'Gauge Get Answer',
   description: 'Read an AI answer with its prompt, brand mentions, source citations, and searches.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

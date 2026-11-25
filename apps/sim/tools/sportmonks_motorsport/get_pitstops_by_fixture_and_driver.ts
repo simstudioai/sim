@@ -31,6 +31,7 @@ export const sportmonksMotorsportGetPitstopsByFixtureAndDriverTool: ToolConfig<
   name: 'Get Pitstops by Fixture and Driver',
   description: 'Retrieve all pitstops for a motorsport fixture and driver from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

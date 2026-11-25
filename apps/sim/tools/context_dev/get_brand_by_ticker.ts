@@ -22,6 +22,7 @@ export const contextDevGetBrandByTickerTool: ToolConfig<
   name: 'Context.dev Get Brand by Ticker',
   description: 'Retrieve brand data for a public company by its stock ticker symbol.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevGetBrandByTickerParams>(),
 

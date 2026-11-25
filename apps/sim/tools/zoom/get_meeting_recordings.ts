@@ -13,6 +13,7 @@ export const zoomGetMeetingRecordingsTool: InternalToolConfig<
   name: 'Zoom Get Meeting Recordings',
   description: 'Get all recordings for a specific Zoom meeting',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

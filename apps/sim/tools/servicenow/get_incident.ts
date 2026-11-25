@@ -30,6 +30,7 @@ export const getIncidentTool: ToolConfig<
   description:
     'Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Reference fields are returned with both their sys_id and their label by default.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const deleteProblemCommentTool: ToolConfig<
   name: 'Dynatrace Delete Problem Comment',
   description: 'Delete a comment from a Dynatrace problem.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

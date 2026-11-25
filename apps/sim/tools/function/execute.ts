@@ -108,6 +108,7 @@ export const functionExecuteTool: InternalToolConfig<CodeExecutionInput, CodeExe
 To read a file, pass its id in \`files\`: each one is mounted read-only under ${SANDBOX_INPUT_DIR}. List that directory to find them rather than guessing a path — names are sanitized and de-duplicated, so they do not always match the original.
 To return a file from a Function sandbox, write it to ${SANDBOX_OUTPUT_DIR}. In a Mothership workbench, use the per-call SIM_OUTPUT_DIR instead (Python: os.environ["SIM_OUTPUT_DIR"], JavaScript: process.env.SIM_OUTPUT_DIR, shell: $SIM_OUTPUT_DIR). Files in the export directory come back in this tool's \`files\` output as platform file objects, which another tool that takes a file accepts directly — no upload step in between.`,
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     code: {

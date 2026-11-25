@@ -21,6 +21,7 @@ export const salesforceGetDashboardTool: ToolConfig<
   name: 'Get Dashboard from Salesforce',
   description: 'Get details and results for a specific dashboard',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

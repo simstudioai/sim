@@ -18,6 +18,7 @@ export const listTableRowsTool: ToolConfig<ExcelListRowsParams, ExcelRowsRespons
   name: 'Microsoft Excel List Table Rows',
   description: 'List Table Rows in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: { ...EXCEL_WORKBOOK_PARAMS, ...EXCEL_LIST_PARAMS, tableName: EXCEL_TABLE_PARAM },

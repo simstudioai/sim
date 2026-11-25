@@ -14,6 +14,7 @@ export const youtubeChannelVideosTool: ToolConfig<
   description:
     'Search for videos from a specific YouTube channel with sorting options. For complete channel video list, use channel_info to get uploadsPlaylistId, then use playlist_items.',
   version: '1.1.0',
+  effect: 'read',
   oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     channelId: {

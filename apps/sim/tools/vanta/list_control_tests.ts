@@ -14,6 +14,7 @@ export const vantaListControlTestsTool: InternalToolConfig<
   name: 'Vanta List Control Tests',
   description: 'List the automated tests mapped to a specific Vanta control',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

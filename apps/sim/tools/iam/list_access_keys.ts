@@ -11,6 +11,7 @@ export const listAccessKeysTool: InternalToolConfig<
   description:
     "List an IAM user's access key IDs with their status and age — use to find stale keys and to confirm which keys remain after a rotation",
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const oracleFusionFinancialsGetGlJournalBatchTool: InternalToolConfig<
   name: 'Oracle Fusion Financials Get GL Journal Batch',
   description: 'Get an Oracle Fusion gl journal batch.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     glJournalBatchId: {

@@ -51,6 +51,7 @@ export const checkStarTool: ToolConfig<CheckStarParams, CheckStarResponse> = {
   name: 'GitHub Check Star',
   description: 'Check if you have starred a repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -121,6 +122,7 @@ export const checkStarV2Tool: ToolConfig<CheckStarParams, any> = {
   name: checkStarTool.name,
   description: checkStarTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: checkStarTool.params,
   request: checkStarTool.request,

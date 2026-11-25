@@ -37,6 +37,7 @@ export const createMilestoneTool: ToolConfig<CreateMilestoneParams, CreateMilest
   name: 'GitHub Create Milestone',
   description: 'Create a milestone in a repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -158,6 +159,7 @@ export const createMilestoneV2Tool: ToolConfig<CreateMilestoneParams, any> = {
   name: createMilestoneTool.name,
   description: createMilestoneTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createMilestoneTool.params,
   request: createMilestoneTool.request,

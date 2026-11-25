@@ -15,6 +15,7 @@ export const cbinsightsChatTool: InternalToolConfig<CbInsightsChatParams, CbInsi
     description:
       'Ask ChatCBI a question in natural language and get an answer grounded in CB Insights data, with its sources and suggested follow-ups. Uses generative AI and can be wrong — verify anything that matters.',
     version: '1.0.0',
+    effect: 'write',
     oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
     params: {

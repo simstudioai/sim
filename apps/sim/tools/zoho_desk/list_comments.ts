@@ -15,6 +15,7 @@ export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, Zo
   name: 'Zoho Desk List Comments',
   description: 'List comments on a Zoho Desk ticket.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'zoho-desk' },
 

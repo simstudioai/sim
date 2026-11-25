@@ -15,6 +15,7 @@ export const tailscaleGetDeviceRoutesTool: ToolConfig<
   name: 'Tailscale Get Device Routes',
   description: 'Get the advertised and approved subnet routes for a device',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -10,6 +10,7 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
   name: 'Zoom List Meetings',
   description: 'List all meetings for a Zoom user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

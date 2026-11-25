@@ -26,6 +26,7 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
   name: 'SendGrid Create Template Version',
   description: 'Create a new version of an email template in SendGrid',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

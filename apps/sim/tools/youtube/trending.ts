@@ -8,6 +8,7 @@ export const youtubeTrendingTool: ToolConfig<YouTubeTrendingParams, YouTubeTrend
   description:
     'Get the most popular/trending videos on YouTube. Can filter by region and video category.',
   version: '1.0.0',
+  effect: 'read',
   oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     regionCode: {

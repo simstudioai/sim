@@ -14,6 +14,7 @@ export const incidentRolesDeleteTool: ToolConfig<
   name: 'Delete Incident Role',
   description: 'Delete an incident role in incident.io',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

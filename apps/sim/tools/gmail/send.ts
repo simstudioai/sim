@@ -6,6 +6,7 @@ export const gmailSendTool: InternalToolConfig<GmailSendParams, GmailToolRespons
   name: 'Gmail Send',
   description: 'Send emails using Gmail',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -149,8 +150,8 @@ export const gmailSendV2Tool: InternalToolConfig<GmailSendParams, GmailSendV2Res
   name: 'Gmail Send',
   description: 'Send emails using Gmail.',
   version: '2.0.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'to', label: 'To', target: true },

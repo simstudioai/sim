@@ -9,6 +9,7 @@ export const gaugeListTagsTool: ToolConfig<GaugeListTagsParams, GaugeListTagsRes
   name: 'Gauge List Tags',
   description: 'List the tags available to organize prompts in an organization.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

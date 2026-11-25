@@ -13,6 +13,7 @@ export const docusignListRecipientsTool: InternalToolConfig<
   name: 'List DocuSign Recipients',
   description: 'Get the recipient status details for a DocuSign envelope',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -46,6 +46,7 @@ export const pitchbookCreditNewsBulkTool: ToolConfig<
   description:
     'Retrieve many credit analysis articles in full in a single call, reporting which IDs were found, missing, or duplicated',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

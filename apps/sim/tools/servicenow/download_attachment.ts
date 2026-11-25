@@ -55,6 +55,7 @@ export const downloadAttachmentTool = {
   name: 'Download ServiceNow Attachment',
   description: 'Download an attachment file from ServiceNow by its sys_id',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

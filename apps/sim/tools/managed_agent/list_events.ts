@@ -38,6 +38,7 @@ export const managedAgentListEventsTool: InternalToolConfig<
   name: 'Managed Agent List Events',
   description: "Read a Managed Agent session's event history and the agent's reply text.",
   version: '1.0.0',
+  effect: 'read',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

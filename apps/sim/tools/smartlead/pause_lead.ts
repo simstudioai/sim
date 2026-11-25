@@ -19,6 +19,7 @@ export const pauseLeadTool: ToolConfig<SmartleadCampaignLeadParams, SmartleadAct
   name: 'Smartlead Pause Lead',
   description: 'Pauses a lead in a Smartlead campaign so it stops receiving sequence emails.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

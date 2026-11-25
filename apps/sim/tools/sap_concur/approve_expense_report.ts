@@ -15,6 +15,7 @@ export const approveExpenseReportTool: InternalToolConfig<
   description:
     'Approve an expense report as a manager (PATCH /expensereports/v4/reports/{reportId}/approve). Optional body fields: comment, expenseRejectedComment (required if the report has rejected expenses), expectedStepCode, expectedStepSequence, statusId (default A_APPR).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

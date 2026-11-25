@@ -28,6 +28,7 @@ export const getActivitiesTool: ToolConfig<
   description:
     'Retrieves campaign activities and steps performed, including email opens, clicks, replies, and other events.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LEMLIST_CREDENTIAL_OAUTH,
 
   params: {

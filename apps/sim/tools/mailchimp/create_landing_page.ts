@@ -26,6 +26,7 @@ export const mailchimpCreateLandingPageTool: ToolConfig<
   name: 'Create Landing Page in Mailchimp',
   description: 'Create a new landing page in Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

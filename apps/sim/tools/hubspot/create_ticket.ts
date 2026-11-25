@@ -13,6 +13,7 @@ export const hubspotCreateTicketTool: ToolConfig<
   name: 'Create Ticket in HubSpot',
   description: 'Create a new ticket in HubSpot. Requires subject and hs_pipeline_stage properties',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

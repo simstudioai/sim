@@ -25,6 +25,7 @@ export const deleteCampaignWebhookTool: ToolConfig<
   name: 'Smartlead Delete Campaign Webhook',
   description: 'Deletes a webhook from a Smartlead campaign.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

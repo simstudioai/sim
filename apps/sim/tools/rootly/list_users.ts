@@ -8,6 +8,7 @@ export const rootlyListUsersTool: ToolConfig<RootlyListUsersParams, RootlyListUs
   name: 'Rootly List Users',
   description: 'List users from Rootly with optional search and email filtering.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

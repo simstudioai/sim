@@ -15,6 +15,7 @@ export const revenuecatGrantEntitlementTool: ToolConfig<
   name: 'RevenueCat Grant Entitlement',
   description: 'Grant a promotional entitlement to a subscriber',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

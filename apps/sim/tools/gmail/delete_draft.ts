@@ -21,6 +21,7 @@ export const gmailDeleteDraftV2Tool: ToolConfig<GmailDeleteDraftParams, GmailDel
     name: 'Gmail Delete Draft',
     description: 'Delete a specific draft from Gmail',
     version: '2.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

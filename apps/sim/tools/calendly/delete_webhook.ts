@@ -14,6 +14,7 @@ export const deleteWebhookTool: ToolConfig<
   name: 'Calendly Delete Webhook',
   description: 'Delete a webhook subscription',
   version: '1.0.0',
+  effect: 'write',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

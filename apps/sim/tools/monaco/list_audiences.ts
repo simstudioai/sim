@@ -22,6 +22,7 @@ export const monacoListAudiencesTool: ToolConfig<MonacoPageParams, MonacoListAud
   description:
     'List Monaco audiences, the reusable contact lists that campaigns enroll. The default page size returns every audience in one page.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

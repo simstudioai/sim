@@ -15,6 +15,7 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
   description:
     'Update up to 1000 existing accounts at once in your Apollo database (higher limit than contacts!). Each account must include an id field. Master key required.',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

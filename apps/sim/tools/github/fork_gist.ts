@@ -29,6 +29,7 @@ export const forkGistTool: ToolConfig<ForkGistParams, ForkGistResponse> = {
   name: 'GitHub Fork Gist',
   description: 'Fork a gist to create your own copy',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -108,6 +109,7 @@ export const forkGistV2Tool: ToolConfig<ForkGistParams, any> = {
   name: forkGistTool.name,
   description: forkGistTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: forkGistTool.params,
   request: forkGistTool.request,

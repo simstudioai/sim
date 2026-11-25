@@ -10,6 +10,7 @@ export const xGetFollowersTool: ToolConfig<XGetFollowersParams, XUserListRespons
   name: 'X Get Followers',
   description: 'Get the list of followers for a user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

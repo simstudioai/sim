@@ -8,6 +8,7 @@ export const createCallTool: ToolConfig<GongCreateCallParams, GongCreateCallResp
   name: 'Gong Create Call',
   description: 'Upload call metadata to Gong and let Gong pull the media from a URL.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

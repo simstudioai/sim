@@ -15,6 +15,7 @@ export const createAlertRuleTool: ToolConfig<
   name: 'Grafana Create Alert Rule',
   description: 'Create a new alert rule',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

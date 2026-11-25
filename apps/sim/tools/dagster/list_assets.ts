@@ -40,6 +40,7 @@ export const listAssetsTool: ToolConfig<DagsterListAssetsParams, DagsterListAsse
   name: 'Dagster List Assets',
   description: 'List assets tracked by a Dagster instance, optionally filtered by key prefix.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

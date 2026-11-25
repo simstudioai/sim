@@ -14,6 +14,7 @@ export const getIssueTool: ToolConfig<GetIssueParams, IssueResponse> = {
   name: 'GitHub Get Issue',
   description: 'Get detailed information about a specific issue in a GitHub repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -119,6 +120,7 @@ export const getIssueV2Tool: ToolConfig<GetIssueParams, any> = {
   name: getIssueTool.name,
   description: getIssueTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getIssueTool.params,
   request: getIssueTool.request,

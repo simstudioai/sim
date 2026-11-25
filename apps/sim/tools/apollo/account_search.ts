@@ -12,6 +12,7 @@ export const apolloAccountSearchTool: ToolConfig<
   description:
     "Search your team's accounts in Apollo. Display limit: 50,000 records (100 records per page, 500 pages max). Use filters to narrow results. Master key required.",
   version: '1.0.0',
+  effect: 'read',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

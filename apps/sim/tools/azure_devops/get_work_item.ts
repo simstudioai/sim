@@ -16,6 +16,7 @@ export const getWorkItemTool: ToolConfig<GetWorkItemParams, GetWorkItemResponse>
   description:
     'Fetch full details of a single work item by ID from Azure DevOps, including title, state, type, assignee, and area path.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

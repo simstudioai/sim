@@ -19,6 +19,7 @@ export const triggerDevImportEnvVarsTool: ToolConfig<
   description:
     'Upload multiple environment variables to a Trigger.dev project environment in one request.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

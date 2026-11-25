@@ -14,6 +14,7 @@ export const cancelBookingTool: ToolConfig<CalcomCancelBookingParams, CalcomCanc
     name: 'Cal.com Cancel Booking',
     description: 'Cancel an existing booking',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

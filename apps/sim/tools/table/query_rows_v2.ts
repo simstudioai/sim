@@ -24,6 +24,7 @@ export const tableQueryRowsV2Tool: InternalToolConfig<TableRowQueryV2Params, Tab
       'a page can end early at the byte budget: a non-null nextCursor means more rows exist — pass it back ' +
       'as cursor to continue; never infer completion from page size.',
     version: '1.0.0',
+    effect: 'read',
 
     /**
      * Without this the model never sees the table's real column names and has

@@ -12,6 +12,7 @@ export const googleMapsGeolocateTool: ToolConfig<
   name: 'Google Maps Geolocate',
   description: 'Geolocate a device using WiFi access points, cell towers, or IP address',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

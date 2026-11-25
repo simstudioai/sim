@@ -16,6 +16,7 @@ export const triggerDevGetLatestDeploymentTool: ToolConfig<
   name: 'Trigger.dev Get Latest Deployment',
   description: 'Retrieve the latest Trigger.dev deployment in the environment of the API key.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

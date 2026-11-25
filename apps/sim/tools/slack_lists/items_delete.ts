@@ -10,6 +10,7 @@ export const slackListsItemsDeleteTool: ToolConfig<SlackListsItemParams, SlackLi
   name: 'Slack Lists Delete Item',
   description: 'Delete a row from an existing Slack List.',
   version: '1.0.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'slack',

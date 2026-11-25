@@ -9,6 +9,7 @@ export const manageengineSdpDeleteAssetTool: ToolConfig<SdpDeleteAssetParams, Sd
   name: 'ManageEngine SDP Delete Asset',
   description: 'Delete an asset from the ManageEngine ServiceDesk Plus Cloud inventory.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

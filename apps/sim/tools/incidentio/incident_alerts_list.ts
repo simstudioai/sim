@@ -17,6 +17,7 @@ export const incidentAlertsListTool: ToolConfig<
   description:
     'List the connections between incidents and alerts in incident.io — which alerts triggered an incident, or which incident an alert was attached to',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

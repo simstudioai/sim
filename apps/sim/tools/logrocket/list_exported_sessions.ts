@@ -14,6 +14,7 @@ export const listExportedSessionsTool: ToolConfig<
   description:
     'List exported session files from the LogRocket Data Export API. Returns download URLs for JSON Lines exports, oldest first, plus a cursor for the next page.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

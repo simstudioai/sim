@@ -14,6 +14,7 @@ export const salesforceDeleteAccountTool: ToolConfig<
   name: 'Delete Account from Salesforce',
   description: 'Delete an account from Salesforce CRM',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

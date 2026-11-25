@@ -20,6 +20,7 @@ export const countWorkflowsTool: ToolConfig<
   description:
     'Count workflow executions in a Temporal namespace matching a visibility query, with optional GROUP BY aggregation.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     serverUrl: {

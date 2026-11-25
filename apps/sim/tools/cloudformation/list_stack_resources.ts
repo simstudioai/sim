@@ -13,6 +13,7 @@ export const listStackResourcesTool: InternalToolConfig<
   name: 'CloudFormation List Stack Resources',
   description: 'List all resources in a CloudFormation stack',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

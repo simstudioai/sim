@@ -10,6 +10,7 @@ export const profoundListCategoriesTool: ToolConfig<
   name: 'Profound List Categories',
   description: 'List all organization categories in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

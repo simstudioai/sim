@@ -15,6 +15,7 @@ export const intuneGetDeviceTool: ToolConfig<IntuneGetDeviceParams, IntuneGetDev
   name: 'Microsoft Intune Get Device',
   description: 'Read device details from Microsoft Intune',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

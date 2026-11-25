@@ -37,6 +37,7 @@ export const listInsightsTool: ToolConfig<PostHogListInsightsParams, PostHogList
     description:
       'List all insights in a PostHog project. Returns insight configurations and metadata.',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: 'posthog-errors',
 
     params: {

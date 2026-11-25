@@ -20,6 +20,7 @@ export const deleteRulesetTool: ToolConfig<
   name: 'Cloudflare Delete Ruleset',
   description: 'Deletes all versions of an existing zone ruleset.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {

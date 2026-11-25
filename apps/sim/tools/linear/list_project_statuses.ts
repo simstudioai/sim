@@ -14,6 +14,7 @@ export const linearListProjectStatusesTool: ToolConfig<
   name: 'Linear List Project Statuses',
   description: 'List all project statuses in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

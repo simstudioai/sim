@@ -34,6 +34,7 @@ export const sportmonksGetMatchFactsTool: ToolConfig<
   name: 'Get All Match Facts',
   description: 'Retrieve all available match facts within your Sportmonks subscription (beta)',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -29,6 +29,7 @@ export const deleteCommentReactionTool: ToolConfig<
   name: 'GitHub Delete Comment Reaction',
   description: 'Remove a reaction from an issue comment',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -110,6 +111,7 @@ export const deleteCommentReactionV2Tool: ToolConfig<DeleteCommentReactionParams
   name: deleteCommentReactionTool.name,
   description: deleteCommentReactionTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteCommentReactionTool.params,
   request: deleteCommentReactionTool.request,

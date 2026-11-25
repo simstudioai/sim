@@ -25,6 +25,7 @@ export const stripeCancelPaymentIntentTool: ToolConfig<
   name: 'Stripe Cancel Payment Intent',
   description: 'Cancel a Payment Intent',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

@@ -23,6 +23,7 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
   name: 'Zoho Desk Search Tickets',
   description: 'Search Tickets in Zoho Desk.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

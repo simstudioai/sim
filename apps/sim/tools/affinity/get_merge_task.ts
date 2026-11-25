@@ -22,6 +22,7 @@ export const affinityGetMergeTaskTool: ToolConfig<
   description:
     'Read one merge task and how its merges are progressing. Poll this after starting a merge.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

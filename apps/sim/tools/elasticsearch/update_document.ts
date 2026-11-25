@@ -14,6 +14,7 @@ export const updateDocumentTool: ToolConfig<
   name: 'Elasticsearch Update Document',
   description: 'Partially update a document in Elasticsearch using doc merge.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     deploymentType: {

@@ -15,6 +15,7 @@ export const zohoDeskDeleteCommentTool: ToolConfig<
   name: 'Zoho Desk Delete Comment',
   description: 'Delete Comment in Zoho Desk.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

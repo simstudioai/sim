@@ -14,6 +14,7 @@ export const agentphoneReactToMessageTool: ToolConfig<
   name: 'React to Message',
   description: 'Send an iMessage tapback reaction to a message (iMessage only)',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

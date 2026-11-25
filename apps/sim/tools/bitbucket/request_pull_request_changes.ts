@@ -23,6 +23,7 @@ export const bitbucketRequestPullRequestChangesTool: ToolConfig<
   name: 'Bitbucket Request Pull Request Changes',
   description: 'Request changes on a pull request as the authenticated account',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pullrequest:write'] },
   params: { ...BITBUCKET_PULL_REQUEST_PARAMS },
   request: {

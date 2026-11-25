@@ -9,6 +9,7 @@ export const squareListLocationsTool: ToolConfig<ListLocationsParams, LocationLi
   name: 'Square List Locations',
   description: 'List all locations associated with the Square account',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

@@ -17,6 +17,7 @@ export const deleteSubmissionTool: ToolConfig<
   name: 'Jotform Delete Submission',
   description: 'Delete a single Jotform submission.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

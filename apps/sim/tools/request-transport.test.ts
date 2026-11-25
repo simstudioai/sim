@@ -94,6 +94,7 @@ function createRequestTool(
     name: 'Request transport probe',
     description: 'Tests request transport trust decisions',
     version: '1.0.0',
+    effect: 'write',
     params: {},
     request: {
       url,

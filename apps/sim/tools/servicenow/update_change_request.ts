@@ -28,6 +28,7 @@ export const updateChangeRequestTool: ToolConfig<
   description:
     'Update fields on an existing ServiceNow change request. Only the fields you supply are changed. Use Move ServiceNow Change State for state transitions.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

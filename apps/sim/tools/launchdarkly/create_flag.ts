@@ -15,6 +15,7 @@ export const launchDarklyCreateFlagTool: ToolConfig<
   name: 'LaunchDarkly Create Flag',
   description: 'Create a new feature flag in a LaunchDarkly project.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

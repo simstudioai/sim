@@ -18,6 +18,7 @@ export const youComAnswerTool: ToolConfig<YouComAnswerParams, YouComAnswerRespon
   description:
     'Get a synthesized answer to a question with numbered citations and the web results used to write it.',
   version: '1.0.0',
+  effect: 'read',
   oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {

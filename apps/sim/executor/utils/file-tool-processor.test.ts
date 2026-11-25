@@ -50,6 +50,7 @@ const toolConfig = {
   name: 'Test File Output',
   description: 'Test file output',
   version: '1.0.0',
+  effect: 'write',
   params: {},
   request: {
     url: () => 'https://example.com',
@@ -249,6 +250,7 @@ describe('copilot tool execution context', () => {
     name: 'Test attachments',
     description: 'Downloads message attachments',
     version: '1.0.0',
+    effect: 'read',
     params: {},
     request: { url: 'https://example.com/messages', method: 'GET' },
     outputs: { files: { type: 'file[]' } },
@@ -397,6 +399,7 @@ describe('file output aliases', () => {
     name: 'Alias Test',
     description: 'File aliases',
     version: '1.0.0',
+    effect: 'write',
     params: {},
     outputs: { file: { type: 'file', description: 'Stored file' } },
   }

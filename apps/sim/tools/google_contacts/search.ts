@@ -15,6 +15,7 @@ export const searchTool: ToolConfig<GoogleContactsSearchParams, GoogleContactsSe
   name: 'Google Contacts Search',
   description: 'Search contacts in Google Contacts by name, email, phone, or organization',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -13,6 +13,7 @@ export const linearCreateIssueRelationTool: ToolConfig<
   name: 'Linear Create Issue Relation',
   description: 'Link two issues together in Linear (blocks, relates to, duplicates)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

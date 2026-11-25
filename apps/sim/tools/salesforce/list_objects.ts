@@ -21,6 +21,7 @@ export const salesforceListObjectsTool: ToolConfig<
   name: 'List Salesforce Objects',
   description: 'Get a list of all available Salesforce objects',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

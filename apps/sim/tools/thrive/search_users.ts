@@ -17,6 +17,7 @@ export const searchUsersTool: ToolConfig<ThriveSearchUsersParams, ThriveSearchUs
   name: 'Thrive Search Users',
   description: 'Search users in Thrive and return basic user information with pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

@@ -11,6 +11,7 @@ export const pitchbookInvestorGeneralServiceProvidersTool: ToolConfig<
   name: 'PitchBook Investor General Service Providers',
   description: 'Retrieve the current and former general service providers engaged by an investor',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -17,6 +17,7 @@ export const salesforceCreateOpportunityTool: ToolConfig<
   name: 'Create Opportunity in Salesforce',
   description: 'Create a new opportunity',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

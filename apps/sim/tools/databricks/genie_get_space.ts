@@ -23,6 +23,7 @@ export const genieGetSpaceTool: ToolConfig<
   description:
     "Get a Genie space's title, description, and SQL warehouse, optionally with its full configuration export (tables, instructions, sample questions).",
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

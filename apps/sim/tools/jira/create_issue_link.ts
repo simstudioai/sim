@@ -12,6 +12,7 @@ export const jiraCreateIssueLinkTool: ToolConfig<
   name: 'Jira Create Issue Link',
   description: 'Create a link relationship between two Jira issues',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

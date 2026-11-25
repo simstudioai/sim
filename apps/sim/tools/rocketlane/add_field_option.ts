@@ -18,6 +18,7 @@ export const rocketlaneAddFieldOptionTool: ToolConfig<
   name: 'Rocketlane Add Field Option',
   description: 'Add a new option to an existing SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

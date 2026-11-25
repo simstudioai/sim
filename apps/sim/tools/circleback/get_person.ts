@@ -20,6 +20,7 @@ export const getPersonTool: ToolConfig<CirclebackGetPersonParams, CirclebackPers
   description:
     'Gets a person by their profile ID from Circleback, including their profile details and external links.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

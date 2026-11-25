@@ -50,6 +50,7 @@ export const listSensorsTool: ToolConfig<DagsterListSensorsParams, DagsterListSe
   name: 'Dagster List Sensors',
   description: 'List all sensors in a Dagster repository, optionally filtered by status.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

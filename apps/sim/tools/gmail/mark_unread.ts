@@ -6,6 +6,7 @@ export const gmailMarkUnreadTool: InternalToolConfig<GmailMarkReadParams, GmailT
   name: 'Gmail Mark as Unread',
   description: 'Mark a Gmail message as unread',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -86,6 +87,7 @@ export const gmailMarkUnreadV2Tool: InternalToolConfig<GmailMarkReadParams, Gmai
     name: 'Gmail Mark as Unread',
     description: 'Mark a Gmail message as unread.',
     version: '2.0.0',
+    effect: 'write',
     oauth: gmailMarkUnreadTool.oauth,
     params: gmailMarkUnreadTool.params,
     operation: gmailMarkUnreadTool.operation,

@@ -11,6 +11,7 @@ export const listInboundDeliveriesTool: InternalToolConfig<
   description:
     'List inbound deliveries from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002, A_InbDeliveryHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

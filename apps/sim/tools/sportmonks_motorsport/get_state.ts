@@ -30,6 +30,7 @@ export const sportmonksMotorsportGetStateTool: ToolConfig<
   name: 'Get State by ID',
   description: 'Retrieve a single motorsport fixture state by its ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

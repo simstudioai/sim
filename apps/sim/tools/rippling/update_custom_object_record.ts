@@ -11,6 +11,7 @@ export const ripplingUpdateCustomObjectRecordTool: ToolConfig<RipplingUpdateCust
     name: 'Rippling Update Custom Object Record',
     description: 'Update a custom object record',
     version: '1.0.0',
+    effect: 'write',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

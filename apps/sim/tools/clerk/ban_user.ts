@@ -16,6 +16,7 @@ export const clerkBanUserTool: ToolConfig<ClerkBanUserParams, ClerkBanUserRespon
   name: 'Ban User in Clerk',
   description: 'Ban a user, preventing them from signing in',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

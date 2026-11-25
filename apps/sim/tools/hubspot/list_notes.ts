@@ -10,6 +10,7 @@ export const hubspotListNotesTool: ToolConfig<HubSpotListNotesParams, HubSpotLis
   name: 'List Notes from HubSpot',
   description: 'Retrieve all notes from HubSpot account with pagination support',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

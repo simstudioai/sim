@@ -11,6 +11,7 @@ export const getBudgetTool: InternalToolConfig<GetBudgetParams, SapConcurRespons
   name: 'SAP Concur Get Budget',
   description: 'Get a budget item header by ID (GET /budget/v4/budgetItemHeader/{id}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

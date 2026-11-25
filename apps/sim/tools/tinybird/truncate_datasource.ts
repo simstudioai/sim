@@ -22,6 +22,7 @@ export const truncateDatasourceTool: ToolConfig<
   name: 'Tinybird Truncate Data Source',
   description: 'Delete all rows from a Tinybird Data Source.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 

@@ -12,6 +12,7 @@ export const googleMapsPlacesSearchTool: ToolConfig<
   name: 'Google Maps Places Search',
   description: 'Search for places using a text query',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

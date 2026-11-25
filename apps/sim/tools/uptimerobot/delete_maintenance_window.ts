@@ -16,6 +16,7 @@ export const uptimeRobotDeleteMaintenanceWindowTool: ToolConfig<
   name: 'UptimeRobot Delete Maintenance Window',
   description: 'Permanently delete an UptimeRobot maintenance window by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

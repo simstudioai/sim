@@ -7,6 +7,7 @@ export const boxCreateFolderTool: ToolConfig<BoxCreateFolderParams, BoxFolderRes
   name: 'Box Create Folder',
   description: 'Create a new folder in Box',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

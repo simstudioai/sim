@@ -19,6 +19,7 @@ export const quickbooksCreateBillPaymentTool: InternalToolConfig<
   name: 'QuickBooks Create Bill Payment',
   description: 'Record a check or credit-card payment allocated to one or more bills',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

@@ -8,6 +8,7 @@ export const sendGridCreateTemplateTool: ToolConfig<CreateTemplateParams, Templa
   name: 'SendGrid Create Template',
   description: 'Create a new email template in SendGrid',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

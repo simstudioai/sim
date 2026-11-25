@@ -14,6 +14,7 @@ export const listIndicesTool: ToolConfig<
   description:
     'List all indices in the Elasticsearch cluster with their health, status, and statistics.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     deploymentType: {

@@ -10,6 +10,7 @@ export const getSkillLevelsTool: ToolConfig<ThriveGetSkillLevelsParams, ThriveSk
     name: 'Thrive Get Skill Levels',
     description: 'Get the available skill levels configured in Thrive.',
     version: '1.0.0',
+    effect: 'read',
     oauth: THRIVE_CREDENTIAL_OAUTH,
 
     params: {

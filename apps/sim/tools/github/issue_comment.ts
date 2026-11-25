@@ -10,6 +10,7 @@ export const issueCommentTool: ToolConfig<CreateIssueCommentParams, IssueComment
   name: 'GitHub Issue Comment Creator',
   description: 'Create a comment on a GitHub issue',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -112,6 +113,7 @@ export const issueCommentV2Tool: ToolConfig = {
   name: issueCommentTool.name,
   description: issueCommentTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: issueCommentTool.params,
   request: issueCommentTool.request,
   oauth: issueCommentTool.oauth,

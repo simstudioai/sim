@@ -36,6 +36,7 @@ export const sportmonksGetValueBetsByFixtureTool: ToolConfig<
   name: 'Get Value Bets by Fixture',
   description: 'Retrieve value bet predictions for a fixture by fixture ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

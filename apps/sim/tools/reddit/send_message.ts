@@ -7,6 +7,7 @@ export const sendMessageTool: ToolConfig<RedditSendMessageParams, RedditWriteRes
   name: 'Send Reddit Message',
   description: 'Send a private message to a Reddit user',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

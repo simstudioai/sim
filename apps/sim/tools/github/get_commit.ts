@@ -47,6 +47,7 @@ export const getCommitTool: ToolConfig<GetCommitParams, GetCommitResponse> = {
   description:
     'Get detailed information about a specific commit including files changed and stats. GitHub returns at most the first 300 changed files of a larger commit.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -194,6 +195,7 @@ export const getCommitV2Tool: ToolConfig<GetCommitParams, any> = {
   name: getCommitTool.name,
   description: getCommitTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getCommitTool.params,
   request: getCommitTool.request,

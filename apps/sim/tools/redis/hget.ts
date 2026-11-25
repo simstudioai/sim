@@ -6,6 +6,7 @@ export const redisHGetTool: InternalToolConfig<RedisHGetParams, RedisHGetRespons
   name: 'Redis HGET',
   description: 'Get the value of a field in a hash stored at a key in Redis.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

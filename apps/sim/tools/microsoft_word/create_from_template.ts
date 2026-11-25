@@ -15,6 +15,7 @@ export const createFromTemplateTool: InternalToolConfig<
   description:
     'Copy an existing Microsoft Word (.docx) template to a new document and fill its placeholders. The template keeps all of its formatting, styles, headers, and footers, and is never modified. An existing document with the same name is never overwritten — the new one is given a unique name instead.',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

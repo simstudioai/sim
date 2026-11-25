@@ -10,6 +10,7 @@ export const getPostDetailsTool: ToolConfig<
   name: 'Enrich Get Post Details',
   description: 'Get detailed information about a LinkedIn post by URL.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

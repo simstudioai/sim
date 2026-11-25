@@ -34,6 +34,7 @@ export const sportmonksGetValueBetsTool: ToolConfig<
   name: 'Get Value Bets',
   description: 'Retrieve all value bets available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

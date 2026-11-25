@@ -10,6 +10,7 @@ export const resendDeleteAudienceTool: ToolConfig<DeleteAudienceParams, DeleteAu
   name: 'Delete Audience',
   description: 'Delete an audience from Resend by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

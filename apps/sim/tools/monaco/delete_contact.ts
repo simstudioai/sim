@@ -11,6 +11,7 @@ export const monacoDeleteContactTool: ToolConfig<MonacoDeleteContactParams, Mona
     name: 'Monaco Delete Contact',
     description: 'Permanently delete a Monaco contact. This cannot be undone.',
     version: '1.0.0',
+    effect: 'write',
     oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
     errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

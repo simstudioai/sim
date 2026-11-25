@@ -28,6 +28,7 @@ export const mailchimpUpdateMergeFieldTool: ToolConfig<
   name: 'Update Merge Field in Mailchimp Audience',
   description: 'Update an existing merge field in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

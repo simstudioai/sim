@@ -35,6 +35,7 @@ export const notionAppendBlocksTool: ToolConfig<
   name: 'Notion Append Block Children',
   description: 'Append new block children (content) to a Notion page or block',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -117,6 +118,7 @@ export const notionAppendBlocksV2Tool: ToolConfig<
   name: 'Notion Append Block Children',
   description: 'Append new block children (content) to a Notion page or block',
   version: '2.0.0',
+  effect: 'write',
   oauth: notionAppendBlocksTool.oauth,
   params: notionAppendBlocksTool.params,
   request: notionAppendBlocksTool.request,

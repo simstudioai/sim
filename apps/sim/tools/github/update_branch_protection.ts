@@ -77,6 +77,7 @@ export const updateBranchProtectionTool: ToolConfig<
   description:
     'Update branch protection rules for a specific branch, including status checks, review requirements, admin enforcement, and push restrictions.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -290,6 +291,7 @@ export const updateBranchProtectionV2Tool: ToolConfig = {
   name: updateBranchProtectionTool.name,
   description: updateBranchProtectionTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: updateBranchProtectionTool.params,
   request: updateBranchProtectionTool.request,
   oauth: updateBranchProtectionTool.oauth,

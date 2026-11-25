@@ -18,6 +18,7 @@ export const rocketlaneGetTimeEntryTool: ToolConfig<
   name: 'Rocketlane Get Time Entry',
   description: 'Get a single Rocketlane time entry by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

@@ -23,6 +23,7 @@ export const rabbitmqListConsumersTool: ToolConfig<
   description:
     'List the consumers subscribed in a virtual host. An empty result for a queue with a backlog means nothing is processing it.',
   version: '1.0.0',
+  effect: 'read',
 
   params: { ...RABBITMQ_CONNECTION_PARAMS },
 

@@ -28,6 +28,7 @@ export const fivetranRunDestinationSetupTestsTool: ToolConfig<
   description:
     'Run the setup tests of a Fivetran destination, such as a Databricks workspace, and return each test result.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

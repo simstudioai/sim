@@ -13,6 +13,7 @@ export const elevenLabsSoundEffectsTool: InternalToolConfig<
   name: 'ElevenLabs Sound Effects',
   description: 'Generate a sound effect from a text prompt using ElevenLabs',
   version: '1.0.0',
+  effect: 'write',
   oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {

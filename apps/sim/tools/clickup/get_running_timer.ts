@@ -18,6 +18,7 @@ export const clickupGetRunningTimerTool: ToolConfig<
   description:
     'Get the currently running time entry in a ClickUp workspace (null when no timer is running)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

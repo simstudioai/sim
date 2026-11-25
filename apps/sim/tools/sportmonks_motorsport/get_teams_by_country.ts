@@ -37,6 +37,7 @@ export const sportmonksMotorsportGetTeamsByCountryTool: ToolConfig<
   description:
     'Retrieve all motorsport teams (constructors) for a country by country ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

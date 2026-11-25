@@ -18,6 +18,7 @@ export const uptimeRobotGetMaintenanceWindowTool: ToolConfig<
   name: 'UptimeRobot Get Maintenance Window',
   description: 'Get the details of a single UptimeRobot maintenance window by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

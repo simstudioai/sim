@@ -18,6 +18,7 @@ export const addAudienceManagersTool: ToolConfig<
   name: 'Thrive Add Audience Managers',
   description: 'Add managers to a Thrive audience with their permissions.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

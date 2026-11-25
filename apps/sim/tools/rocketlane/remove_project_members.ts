@@ -18,6 +18,7 @@ export const rocketlaneRemoveProjectMembersTool: ToolConfig<
   name: 'Rocketlane Remove Project Members',
   description: 'Remove team members from a Rocketlane project',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

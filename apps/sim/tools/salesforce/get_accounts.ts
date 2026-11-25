@@ -14,6 +14,7 @@ export const salesforceGetAccountsTool: ToolConfig<
   name: 'Get Accounts from Salesforce',
   description: 'Retrieve accounts from Salesforce CRM',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

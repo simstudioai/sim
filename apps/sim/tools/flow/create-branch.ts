@@ -16,6 +16,7 @@ export const flowCreateBranchTool: ToolConfig<FlowCreateBranchParams, FlowCreate
   description:
     'Create a working branch before modifying requirements, tests, or other project entities.',
   version: '1.0.0',
+  effect: 'write',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

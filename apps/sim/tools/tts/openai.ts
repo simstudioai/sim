@@ -6,6 +6,7 @@ export const openaiTtsTool: InternalToolConfig<OpenAiTtsParams, TtsBlockResponse
   name: 'OpenAI TTS',
   description: 'Convert text to speech using OpenAI TTS models',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     text: {

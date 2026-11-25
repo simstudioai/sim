@@ -7,6 +7,7 @@ export const ripplingCreateObjectCategoryTool: ToolConfig<RipplingCreateObjectCa
   name: 'Rippling Create ObjectCategory',
   description: 'Create a new object category',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

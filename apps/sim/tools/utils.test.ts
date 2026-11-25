@@ -133,6 +133,7 @@ describe('prepareToolRequest', () => {
       name: 'Test Tool',
       description: 'A test tool',
       version: '1.0.0',
+      effect: 'write',
       params: {},
       request: {
         url: 'https://api.example.com',
@@ -226,6 +227,7 @@ describe('validateRequiredParametersAfterMerge', () => {
       name: 'Test Tool',
       description: 'A test tool',
       version: '1.0.0',
+      effect: 'write',
       params: {
         required1: {
           type: 'string',

@@ -12,6 +12,7 @@ export const shopifyGetCollectionTool: ToolConfig<
   description:
     'Get a specific collection by ID, including its products. Use this to retrieve products within a collection.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

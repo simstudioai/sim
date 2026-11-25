@@ -26,6 +26,7 @@ export const pitchbookSandboxEntitiesTool: ToolConfig<
   description:
     'List the entities a sandbox API key is allowed to query, so test workflows have real IDs to run against',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

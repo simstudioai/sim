@@ -14,6 +14,7 @@ export const trelloGetActionsTool: ToolConfig<TrelloGetActionsParams, TrelloGetA
   name: 'Trello Get Actions',
   description: 'Get activity/actions from a board or card',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

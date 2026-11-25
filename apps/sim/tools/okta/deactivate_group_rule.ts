@@ -20,6 +20,7 @@ export const oktaDeactivateGroupRuleTool: ToolConfig<
   description:
     'Deactivate a group rule so Okta stops applying it. Existing memberships the rule created are left in place. A rule must be INACTIVE before it can be edited.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

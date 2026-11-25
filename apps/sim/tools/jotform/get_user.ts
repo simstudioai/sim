@@ -15,6 +15,7 @@ export const getUserTool: ToolConfig<JotformGetUserParams, JotformGetUserRespons
   description:
     'Get the Jotform account behind the API key, including its plan, status, time zone, and contact details.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

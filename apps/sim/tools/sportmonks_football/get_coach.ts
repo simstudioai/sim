@@ -30,6 +30,7 @@ export const sportmonksGetCoachTool: ToolConfig<
   name: 'Get Coach by ID',
   description: 'Retrieve a single football coach by their ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

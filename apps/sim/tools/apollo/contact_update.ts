@@ -11,6 +11,7 @@ export const apolloContactUpdateTool: ToolConfig<
   name: 'Apollo Update Contact',
   description: 'Update an existing contact in your Apollo database',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

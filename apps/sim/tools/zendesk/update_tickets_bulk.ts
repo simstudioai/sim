@@ -37,6 +37,7 @@ export const zendeskUpdateTicketsBulkTool: ToolConfig<
   name: 'Bulk Update Tickets in Zendesk',
   description: 'Update multiple tickets in Zendesk at once (max 100)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

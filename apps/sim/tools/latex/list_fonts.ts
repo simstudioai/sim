@@ -10,6 +10,7 @@ export const latexListFontsTool: ToolConfig<LatexListFontsParams, LatexListFonts
   description:
     'List the system fonts available to the LaTeX compiler, optionally filtered by name, e.g. to pick a font for xelatex or lualatex documents using fontspec.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

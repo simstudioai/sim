@@ -13,6 +13,7 @@ export const deploymentsListVersionsTool: InternalToolConfig<
   description:
     'List every deployment version of a workflow, newest first, including which version is currently live.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     workflowId: {

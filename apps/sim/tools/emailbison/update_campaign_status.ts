@@ -24,6 +24,7 @@ export const updateCampaignStatusTool: ToolConfig<
   name: 'Email Bison Update Campaign Status',
   description: 'Pauses, resumes, or archives an Email Bison campaign.',
   version: '1.0.0',
+  effect: 'write',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

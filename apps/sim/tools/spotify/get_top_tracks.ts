@@ -13,6 +13,7 @@ export const spotifyGetTopTracksTool: ToolConfig<
   name: 'Spotify Get Top Tracks',
   description: "Get the current user's top tracks based on listening history.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

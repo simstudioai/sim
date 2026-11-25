@@ -8,6 +8,7 @@ export const linearListTeamsTool: ToolConfig<LinearListTeamsParams, LinearListTe
   name: 'Linear List Teams',
   description: 'List all teams in the Linear workspace',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

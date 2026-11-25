@@ -18,6 +18,7 @@ export const incidentsListTool: ToolConfig<
   description:
     'List incidents from incident.io. Returns a list of incidents with their details including severity, status, and timestamps.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

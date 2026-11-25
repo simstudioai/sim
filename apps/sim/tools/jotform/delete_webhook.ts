@@ -15,6 +15,7 @@ export const deleteWebhookTool: ToolConfig<JotformDeleteWebhookParams, JotformWe
   description:
     'Remove a webhook from a form. Returns the webhooks that remain registered on the form.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

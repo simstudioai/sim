@@ -21,6 +21,7 @@ export const oktaAssignGroupToAppTool: ToolConfig<
   description:
     'Assign a group to an Okta application so every member of the group inherits access to it.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

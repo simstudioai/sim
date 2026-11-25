@@ -22,6 +22,7 @@ export const getAuditLogsTool: ToolConfig<
   description:
     'Read the Dynatrace audit log — who changed which configuration, when, and whether it succeeded.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

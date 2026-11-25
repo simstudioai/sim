@@ -13,6 +13,7 @@ export const jiraDeleteAttachmentTool: ToolConfig<
   name: 'Jira Delete Attachment',
   description: 'Delete an attachment from a Jira issue',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

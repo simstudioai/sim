@@ -12,6 +12,7 @@ export const pitchbookCompanySimilarCompaniesTool: ToolConfig<
   description:
     'Retrieve companies PitchBook scores as similar to a given company, flagging which are direct competitors',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

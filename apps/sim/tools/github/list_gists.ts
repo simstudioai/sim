@@ -37,6 +37,7 @@ export const listGistsTool: ToolConfig<ListGistsParams, ListGistsResponse> = {
   name: 'GitHub List Gists',
   description: 'List gists for a user or the authenticated user',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -165,6 +166,7 @@ export const listGistsV2Tool: ToolConfig<ListGistsParams, any> = {
   name: listGistsTool.name,
   description: listGistsTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listGistsTool.params,
   request: listGistsTool.request,

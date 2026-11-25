@@ -15,6 +15,7 @@ export const windchillDeleteDocumentsTool: InternalToolConfig<WindchillParams, W
     name: 'Windchill Delete Documents',
     description: 'Delete multiple documents atomically',
     version: '1.0.0',
+    effect: 'write',
     params: {
       baseUrl: {
         type: 'string',

@@ -11,6 +11,7 @@ export const listMediaTool: ToolConfig<WordPressListMediaParams, WordPressListMe
   name: 'WordPress List Media',
   description: 'List media items from the WordPress.com media library',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

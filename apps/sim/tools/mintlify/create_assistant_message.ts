@@ -77,6 +77,7 @@ export const mintlifyCreateAssistantMessageTool: ToolConfig<
   description:
     "Ask the Mintlify assistant, trained on your documentation, a question and get the assembled answer with its cited sources. Consumes the deployment's assistant credits.",
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     domain: {

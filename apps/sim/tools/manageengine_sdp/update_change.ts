@@ -17,6 +17,7 @@ export const manageengineSdpUpdateChangeTool: ToolConfig<SdpUpdateChangeParams, 
   description:
     'Update a ManageEngine ServiceDesk Plus Cloud change: move its stage or status, reschedule it, or change its assignment. ServiceDesk Plus requires a comment whenever the status changes.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

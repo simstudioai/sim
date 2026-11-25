@@ -20,6 +20,7 @@ export const dataverseAssociateTool: ToolConfig<
   description:
     'Associate two records in Microsoft Dataverse via a navigation property. Creates a relationship between a source record and a target record. Supports both collection-valued (POST) and single-valued (PUT) navigation properties.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

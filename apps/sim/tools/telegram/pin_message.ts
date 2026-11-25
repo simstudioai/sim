@@ -10,6 +10,7 @@ export const telegramPinMessageTool: ToolConfig<TelegramPinMessageParams, Telegr
     name: 'Telegram Pin Message',
     description: 'Pin a message in a Telegram chat through the Telegram Bot API.',
     version: '1.0.0',
+    effect: 'write',
     oauth: TELEGRAM_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

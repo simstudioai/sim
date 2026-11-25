@@ -7,6 +7,7 @@ export const changeJobTool: InternalToolConfig<WorkdayChangeJobParams, WorkdayCh
   description:
     'Perform a job change for a worker including transfers, promotions, demotions, and lateral moves.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     tenantUrl: {

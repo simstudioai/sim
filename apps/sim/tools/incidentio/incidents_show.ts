@@ -15,6 +15,7 @@ export const incidentsShowTool: ToolConfig<
   description:
     'Retrieve detailed information about a specific incident from incident.io by its ID. Returns full incident details including custom fields and role assignments.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

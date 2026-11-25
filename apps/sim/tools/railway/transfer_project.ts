@@ -22,6 +22,7 @@ export const railwayTransferProjectTool: ToolConfig<
   name: 'Railway Transfer Project',
   description: 'Transfer a Railway project to another workspace',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

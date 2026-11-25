@@ -11,6 +11,7 @@ export const xGetTrendsByWoeidTool: ToolConfig<XGetTrendsByWoeidParams, XTrendLi
   description:
     'Get trending topics for a specific location by WOEID (e.g., 1 for worldwide, 23424977 for US)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

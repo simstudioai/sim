@@ -16,6 +16,7 @@ export const youComGetAccountBalanceTool: ToolConfig<
   description:
     'Get the remaining You.com API credit balance for the account or organization that owns the API key.',
   version: '1.0.0',
+  effect: 'read',
   oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {

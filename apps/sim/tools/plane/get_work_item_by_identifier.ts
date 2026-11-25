@@ -26,6 +26,7 @@ export const planeGetWorkItemByIdentifierTool: ToolConfig<
   name: 'Plane Get a work item by identifier',
   description: 'Get a work item by identifier in Plane. Requires API v2.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

@@ -8,6 +8,7 @@ export const linqListChatsTool: ToolConfig<LinqListChatsParams, LinqListChatsRes
   name: 'List Chats',
   description: 'List chats, optionally filtered by sender or participant handle',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

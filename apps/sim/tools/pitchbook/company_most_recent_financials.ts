@@ -12,6 +12,7 @@ export const pitchbookCompanyMostRecentFinancialsTool: ToolConfig<
   description:
     'Retrieve the most recent reported financials for a private company: revenue, net income, EBITDA, assets, and debt',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -13,6 +13,7 @@ export const clickupUpdateTaskTool: ToolConfig<ClickUpUpdateTaskParams, ClickUpT
   name: 'ClickUp Update Task',
   description: 'Update an existing task in ClickUp',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

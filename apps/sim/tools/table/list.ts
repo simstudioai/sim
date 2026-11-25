@@ -7,6 +7,7 @@ export const tableListTool: InternalToolConfig<TableListParams, TableListRespons
   name: 'List Tables',
   description: 'List all tables in the workspace',
   version: '1.0.0',
+  effect: 'read',
 
   params: {},
 

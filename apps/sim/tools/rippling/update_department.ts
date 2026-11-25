@@ -8,6 +8,7 @@ export const ripplingUpdateDepartmentTool: ToolConfig<RipplingUpdateDepartmentPa
   name: 'Rippling Update Department',
   description: 'Update an existing department',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

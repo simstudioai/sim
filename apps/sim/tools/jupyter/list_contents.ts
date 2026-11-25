@@ -11,6 +11,7 @@ export const jupyterListContentsTool: InternalToolConfig<
   name: 'Jupyter List Contents',
   description: 'List files, notebooks, and subdirectories at a path on a Jupyter server',
   version: '1.0.0',
+  effect: 'read',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

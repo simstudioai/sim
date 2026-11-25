@@ -18,6 +18,7 @@ export const pitchbookDealSearchTool: ToolConfig<
   description:
     'Search PitchBook for deals by company, investor, deal type, size, date, and valuation',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

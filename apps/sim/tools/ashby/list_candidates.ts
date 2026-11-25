@@ -18,6 +18,7 @@ export const listCandidatesTool: ToolConfig<
   name: 'Ashby List Candidates',
   description: 'Lists all candidates in an Ashby organization with cursor-based pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

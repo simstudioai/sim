@@ -6,6 +6,7 @@ export const knowledgeListTagsTool: InternalToolConfig<any, KnowledgeListTagsRes
   name: 'Knowledge List Tags',
   description: 'List all tag definitions for a knowledge base',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     knowledgeBaseId: {

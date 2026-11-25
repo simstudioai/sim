@@ -14,6 +14,7 @@ export const linearListWorkflowStatesTool: ToolConfig<
   name: 'Linear List Workflow States',
   description: 'List all workflow states (statuses) in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

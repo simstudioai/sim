@@ -28,6 +28,7 @@ export const helpScoutListCustomFieldsTool: ToolConfig<
   description:
     'List the custom fields defined for a Help Scout inbox, with their IDs, types, and dropdown options.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

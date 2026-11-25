@@ -15,6 +15,7 @@ export const clickupSearchTasksTool: ToolConfig<ClickUpSearchTasksParams, ClickU
     description:
       'Search tasks across a ClickUp workspace with filters for lists, folders, spaces, statuses, assignees, tags, and due dates (100 tasks per page; increment page until an empty result to paginate)',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

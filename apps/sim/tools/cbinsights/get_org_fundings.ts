@@ -17,6 +17,7 @@ export const cbinsightsGetOrgFundingsTool: InternalToolConfig<
   description:
     'Retrieve the funding rounds one organization has received, its cap table history, and AI-generated insights extracting the key themes of each deal.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

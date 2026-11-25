@@ -18,6 +18,7 @@ export const hideTool: ToolConfig<RedditHideParams, RedditHideResponse> = {
   name: 'Hide Reddit Post',
   description: 'Hide one or more Reddit posts from your listings',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -101,6 +102,7 @@ export const unhideTool: ToolConfig<RedditHideParams, RedditHideResponse> = {
   name: 'Unhide Reddit Post',
   description: 'Unhide one or more previously hidden Reddit posts',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

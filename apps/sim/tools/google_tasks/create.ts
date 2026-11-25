@@ -12,6 +12,7 @@ export const createTool: ToolConfig<GoogleTasksCreateParams, GoogleTasksResponse
   name: 'Google Tasks Create Task',
   description: 'Create a new task in a Google Tasks list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

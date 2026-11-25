@@ -10,6 +10,7 @@ export const removeMemberTool: ToolConfig<GoogleGroupsRemoveMemberParams, Google
   name: 'Google Groups Remove Member',
   description: 'Remove a member from a Google Group',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

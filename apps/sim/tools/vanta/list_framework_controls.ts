@@ -17,6 +17,7 @@ export const vantaListFrameworkControlsTool: InternalToolConfig<
   name: 'Vanta List Framework Controls',
   description: 'List the controls that belong to a specific Vanta compliance framework',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

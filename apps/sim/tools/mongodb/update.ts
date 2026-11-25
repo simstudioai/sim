@@ -6,6 +6,7 @@ export const updateTool: InternalToolConfig<MongoDBUpdateParams, MongoDBResponse
   name: 'MongoDB Update',
   description: 'Update documents in MongoDB collection',
   version: '1.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -13,6 +13,7 @@ export const copySheetV2Tool: ToolConfig<
   name: 'Copy Sheet V2',
   description: 'Copy a sheet from one spreadsheet to another',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -33,6 +33,7 @@ export const confluenceCreateSpaceTool: InternalToolConfig<
   name: 'Confluence Create Space',
   description: 'Create a new Confluence space.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

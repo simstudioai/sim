@@ -14,6 +14,7 @@ export const clickupGetListsTool: ToolConfig<ClickUpGetListsParams, ClickUpListL
   description:
     'List the lists in a ClickUp folder, or the folderless lists in a space when a space ID is provided instead',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

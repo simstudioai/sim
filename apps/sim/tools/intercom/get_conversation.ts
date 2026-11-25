@@ -81,6 +81,7 @@ export const intercomGetConversationTool: ToolConfig<
   name: 'Get Conversation from Intercom',
   description: 'Retrieve a single conversation by ID from Intercom',
   version: '1.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...getConversationBase,
@@ -170,6 +171,7 @@ export const intercomGetConversationV2Tool: ToolConfig<
   name: 'Get Conversation from Intercom',
   description: 'Retrieve a single conversation by ID from Intercom',
   version: '2.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

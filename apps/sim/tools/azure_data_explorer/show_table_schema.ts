@@ -19,6 +19,7 @@ export const azureDataExplorerShowTableSchemaTool: InternalToolConfig<
   description:
     'Read the column schema of an Azure Data Explorer table in CSL form (e.g., "Timestamp:datetime,Level:string"). Use this before writing a KQL query against an unfamiliar table.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

@@ -6,6 +6,7 @@ export const createGroupTool: ToolConfig<GoogleGroupsCreateParams, GoogleGroupsR
   name: 'Google Groups Create Group',
   description: 'Create a new Google Group in the domain',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

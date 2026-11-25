@@ -19,6 +19,7 @@ export const monacoGetFieldSchemasTool: ToolConfig<
   description:
     "List the filterable and sortable fields for a Monaco entity, with each field's key, type, allowed filter operators, whether it is updatable, custom-field settings, and allowed enum values. Use it to build list filters and to interpret custom_field_<id> keys.",
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -31,6 +31,7 @@ export const semrushBacklinksIndexedPagesTool: ToolConfig<
   description:
     'List the pages of a target that attract backlinks, with response code and link counts.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

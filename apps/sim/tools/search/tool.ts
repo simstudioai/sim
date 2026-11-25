@@ -7,6 +7,7 @@ export const searchTool: InternalToolConfig<SearchParams, SearchResponse> = {
   description:
     'Search the web. Returns the most relevant web results, including title, link, snippet, and date for each result.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

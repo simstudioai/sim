@@ -7,6 +7,7 @@ export const getMemberTool: ToolConfig<GoogleGroupsGetMemberParams, GoogleGroups
   name: 'Google Groups Get Member',
   description: 'Get details of a specific member in a Google Group',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

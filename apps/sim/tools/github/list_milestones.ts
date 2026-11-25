@@ -39,6 +39,7 @@ export const listMilestonesTool: ToolConfig<ListMilestonesParams, ListMilestones
   name: 'GitHub List Milestones',
   description: 'List milestones in a repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -193,6 +194,7 @@ export const listMilestonesV2Tool: ToolConfig<ListMilestonesParams, any> = {
   name: listMilestonesTool.name,
   description: listMilestonesTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listMilestonesTool.params,
   request: listMilestonesTool.request,

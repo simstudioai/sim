@@ -26,6 +26,7 @@ export const listMetricsTool: ToolConfig<DynatraceListMetricsParams, DynatraceLi
     description:
       'Discover the metrics available in a Dynatrace environment, filtered by metric selector, free text, or metadata.',
     version: '1.0.0',
+    effect: 'read',
     oauth: DYNATRACE_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

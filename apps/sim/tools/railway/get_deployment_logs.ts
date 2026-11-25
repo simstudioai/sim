@@ -27,6 +27,7 @@ export const railwayGetDeploymentLogsTool: ToolConfig<
   name: 'Railway Get Deployment Logs',
   description: 'Retrieve runtime logs for a Railway deployment',
   version: '1.0.0',
+  effect: 'read',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

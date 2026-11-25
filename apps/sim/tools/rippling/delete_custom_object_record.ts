@@ -9,6 +9,7 @@ export const ripplingDeleteCustomObjectRecordTool: ToolConfig<RipplingDeleteCust
     name: 'Rippling Delete Custom Object Record',
     description: 'Delete a custom object record',
     version: '1.0.0',
+    effect: 'write',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

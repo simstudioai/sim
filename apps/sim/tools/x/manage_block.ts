@@ -9,6 +9,7 @@ export const xManageBlockTool: ToolConfig<XManageBlockParams, XManageBlockRespon
   name: 'X Manage Block',
   description: 'Block or unblock a user on X',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

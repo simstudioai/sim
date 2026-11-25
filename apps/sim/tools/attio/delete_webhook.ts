@@ -13,6 +13,7 @@ export const attioDeleteWebhookTool: ToolConfig<
   name: 'Attio Delete Webhook',
   description: 'Delete a webhook from Attio',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

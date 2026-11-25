@@ -9,6 +9,7 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
   name: 'Get User Threads',
   description: 'List all conversation threads for a specific user',
   version: '1.0.0',
+  effect: 'read',
   oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {

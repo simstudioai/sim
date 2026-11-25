@@ -13,6 +13,7 @@ export const deletePreparedStatementTool: InternalToolConfig<
   name: 'Athena Delete Prepared Statement',
   description: 'Delete a prepared statement from an Athena workgroup',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

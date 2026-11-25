@@ -26,6 +26,7 @@ export const addIncidentCommentTool: ToolConfig<
   description:
     'Append an internal work note or a customer-visible additional comment to a ServiceNow incident. Both are journal fields, so the text is appended rather than replacing earlier entries.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

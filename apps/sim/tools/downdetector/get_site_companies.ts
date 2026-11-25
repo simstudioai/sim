@@ -33,6 +33,7 @@ export const getSiteCompaniesTool: ToolConfig<
   description:
     'List the companies monitored on a Downdetector site, including each company’s current status. Useful for discovering the companies available on a regional status page.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     siteId: {

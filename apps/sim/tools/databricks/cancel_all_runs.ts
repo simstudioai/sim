@@ -20,6 +20,7 @@ export const cancelAllRunsTool: ToolConfig<
   name: 'Databricks Cancel All Runs',
   description: 'Request cancellation of active runs of a job or queued runs in the workspace.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

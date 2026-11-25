@@ -8,6 +8,7 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
   name: 'Search Reddit',
   description: 'Search for posts within a subreddit',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

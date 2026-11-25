@@ -6,6 +6,7 @@ export const knowledgeDeleteChunkTool: InternalToolConfig<any, KnowledgeDeleteCh
   name: 'Knowledge Delete Chunk',
   description: 'Delete a chunk from a document in a knowledge base',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     knowledgeBaseId: {

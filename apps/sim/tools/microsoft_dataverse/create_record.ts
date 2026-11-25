@@ -21,6 +21,7 @@ export const dataverseCreateRecordTool: ToolConfig<
   description:
     'Create a new record in a Microsoft Dataverse table. Requires the entity set name (plural table name) and record data as a JSON object.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

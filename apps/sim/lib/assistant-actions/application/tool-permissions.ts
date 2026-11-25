@@ -53,9 +53,14 @@ export const readOrganizationToolPermissions = defineAuthorizedOrganizationUseCa
                 toolId,
                 name: config.name,
                 description: config.description,
-                effect: config.assistant.effect,
+                effect: config.effect,
                 version: config.assistant.version,
-                policy: resolveAssistantToolPolicy(permissions, toolId, config.assistant),
+                policy: resolveAssistantToolPolicy(
+                  permissions,
+                  toolId,
+                  config.effect,
+                  config.assistant
+                ),
                 inherited: permissions.overrides[toolId] === undefined,
               },
             ]
@@ -113,11 +118,12 @@ export const updateOrganizationToolPermissions = defineAuthorizedOrganizationUse
         next[change.effect === 'read' ? 'readPolicy' : 'writePolicy'] =
           change.policy === 'allow' ? 'ask' : change.policy
         for (const toolId of Object.keys(next.overrides)) {
-          const operation = getToolMetadata(toolId)?.assistant
-          if (!operation || operation.effect === change.effect) delete next.overrides[toolId]
+          const metadata = getToolMetadata(toolId)
+          if (!metadata?.assistant || metadata.effect === change.effect)
+            delete next.overrides[toolId]
         }
         for (const tool of tools) {
-          if (tool.config.assistant?.effect !== change.effect) continue
+          if (!tool.config.assistant || tool.config.effect !== change.effect) continue
           if (change.policy === 'allow')
             next.overrides[tool.toolId] = {
               version: tool.config.assistant.version,

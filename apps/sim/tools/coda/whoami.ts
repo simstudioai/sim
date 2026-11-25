@@ -26,6 +26,7 @@ export const codaWhoamiTool: ToolConfig<CodaAuthParams, CodaWhoamiResponse> = {
   name: 'Coda Get Current User',
   description: 'Get the user and default workspace behind the connected Coda API token',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

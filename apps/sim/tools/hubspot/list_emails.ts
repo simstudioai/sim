@@ -11,6 +11,7 @@ export const hubspotListEmailsTool: ToolConfig<HubSpotListEmailsParams, HubSpotL
     name: 'List Emails from HubSpot',
     description: 'Retrieve all email engagements from HubSpot account with pagination support',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

@@ -58,6 +58,7 @@ export const moveTool: ToolConfig<GoogleCalendarMoveParams, GoogleCalendarMoveRe
   name: 'Google Calendar Move Event',
   description: 'Move an event to a different calendar',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -174,6 +175,7 @@ export const moveV2Tool: ToolConfig<GoogleCalendarMoveParams, GoogleCalendarMove
   name: 'Google Calendar Move Event',
   description: 'Move an event to a different calendar.',
   version: '2.0.0',
+  effect: 'write',
   oauth: moveTool.oauth,
   params: moveTool.params,
   request: moveTool.request,

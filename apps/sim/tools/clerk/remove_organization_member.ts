@@ -19,6 +19,7 @@ export const clerkRemoveOrganizationMemberTool: ToolConfig<
   name: 'Remove Organization Member from Clerk',
   description: 'Remove a member from a Clerk organization',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

@@ -30,6 +30,7 @@ export const getCompanyAttributionTool: ToolConfig<
   description:
     'Get the incident attribution for a Downdetector company while it is in an outage state — whether the issue is internal (isolated) or external (a dependency), the estimated user impact, and the related incident. Requires Incident Attribution access.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     companyId: {

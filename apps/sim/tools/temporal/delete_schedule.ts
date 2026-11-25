@@ -19,6 +19,7 @@ export const deleteScheduleTool: ToolConfig<
   description:
     'Delete a Temporal schedule. Workflows already started by the schedule keep running.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

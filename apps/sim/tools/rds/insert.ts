@@ -7,6 +7,7 @@ export const insertTool: InternalToolConfig<RdsInsertParams, RdsInsertResponse> 
   name: 'RDS Insert',
   description: 'Insert data into an Amazon RDS table using the Data API',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

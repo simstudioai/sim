@@ -10,6 +10,7 @@ export const getBuildLogTool: ToolConfig<GetBuildLogParams, GetBuildLogResponse>
   description:
     'Fetch the text content of a specific build log in Azure DevOps. Use List Build Logs first to get the log ID. Optionally retrieve only a line range with startLine/endLine.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

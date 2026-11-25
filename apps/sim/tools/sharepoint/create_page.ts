@@ -14,6 +14,7 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
   name: 'Create SharePoint Page',
   description: 'Create a new page in a SharePoint site',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

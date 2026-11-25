@@ -21,6 +21,7 @@ export const deleteWorkerRouteTool: ToolConfig<
   name: 'Cloudflare Delete Worker Route',
   description: 'Deletes a Worker route.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {

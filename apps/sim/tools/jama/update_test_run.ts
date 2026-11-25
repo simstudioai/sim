@@ -17,6 +17,7 @@ export const jamaUpdateTestRunTool: ToolConfig<JamaUpdateTestRunParams, JamaUpda
     name: 'Jama Update Test Run',
     description: "Update Test Run in Jama Connect using the connected user's access permissions.",
     version: '1.0.0',
+    effect: 'write',
     oauth: jamaOAuth,
     params: {
       ...jamaAuthParams,

@@ -28,6 +28,7 @@ export const gmailListThreadsV2Tool: ToolConfig<GmailListThreadsParams, GmailLis
     name: 'Gmail List Threads',
     description: 'List email threads in a Gmail account',
     version: '2.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

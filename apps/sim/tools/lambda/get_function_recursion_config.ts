@@ -13,6 +13,7 @@ export const getFunctionRecursionConfigTool: InternalToolConfig<
   name: 'Lambda Get Recursion Config',
   description: 'Get the recursive loop detection setting of a function',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const checkFileExistsTool: InternalToolConfig<SSHCheckFileExistsParams, S
   name: 'SSH Check File Exists',
   description: 'Check if a file or directory exists on the remote SSH server',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

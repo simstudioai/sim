@@ -11,6 +11,7 @@ export const attioGetRecordTool: ToolConfig<AttioGetRecordParams, AttioGetRecord
   name: 'Attio Get Record',
   description: 'Get a single record by ID from Attio',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

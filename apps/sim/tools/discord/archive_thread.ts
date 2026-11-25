@@ -14,6 +14,7 @@ export const discordArchiveThreadTool: ToolConfig<
   name: 'Discord Archive Thread',
   description: 'Archive or unarchive a thread in Discord',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

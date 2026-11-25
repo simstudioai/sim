@@ -14,6 +14,7 @@ export const triggerDevGetQueueTool: ToolConfig<TriggerDevQueueParams, TriggerDe
   description:
     'Retrieve a Trigger.dev queue by ID, task identifier, or custom queue name, including its running and queued counts.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

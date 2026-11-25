@@ -31,6 +31,7 @@ export const mailchimpGetMemberTagsTool: ToolConfig<
   name: 'Get Member Tags from Mailchimp',
   description: 'Retrieve tags associated with a member in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

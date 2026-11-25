@@ -9,6 +9,7 @@ export const pitchbookServicedInvestorsTool: ToolConfig<PitchbookProfileParams, 
     name: 'PitchBook Serviced Investors',
     description: 'Retrieve the investors a service provider currently and formerly serves',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

@@ -20,6 +20,7 @@ export const checkrGetCandidateTool: ToolConfig<CheckrCandidateIdParams, CheckrC
     name: 'Checkr Get Candidate',
     description: 'Retrieve a candidate by ID, including their report and geo IDs.',
     version: '1.0.0',
+    effect: 'read',
     oauth: CHECKR_CREDENTIAL_OAUTH,
     errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

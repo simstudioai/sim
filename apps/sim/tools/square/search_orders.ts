@@ -14,6 +14,7 @@ export const squareSearchOrdersTool: ToolConfig<SearchOrdersParams, OrderListRes
   name: 'Square Search Orders',
   description: 'Search orders across one or more locations using filters and sorting',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

@@ -23,6 +23,7 @@ export const helpScoutListCustomerPropertiesTool: ToolConfig<
   description:
     'List the customer property definitions in Help Scout (slug, type, and dropdown options) used by Update Customer Properties.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

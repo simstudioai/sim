@@ -21,6 +21,7 @@ export const findSimilarLinksTool: ToolConfig<
   description:
     'Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of Search — prefer Search for new workflows.',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     url: {

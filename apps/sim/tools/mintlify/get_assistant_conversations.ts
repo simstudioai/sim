@@ -47,6 +47,7 @@ export const mintlifyGetAssistantConversationsTool: ToolConfig<
   description:
     'Export paginated Mintlify AI assistant conversation history, including the query, response, cited sources, and whether the question was answered.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     projectId: {

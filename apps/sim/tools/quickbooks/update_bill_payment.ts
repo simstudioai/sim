@@ -19,6 +19,7 @@ export const quickbooksUpdateBillPaymentTool: InternalToolConfig<
   name: 'QuickBooks Update Bill Payment',
   description: 'Read, merge, and full-update a BillPayment without changing allocations',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

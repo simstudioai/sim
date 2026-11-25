@@ -8,6 +8,7 @@ export const discordGetInviteTool: ToolConfig<DiscordGetInviteParams, DiscordGet
   name: 'Discord Get Invite',
   description: 'Get information about a Discord invite',
   version: '1.0.0',
+  effect: 'read',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

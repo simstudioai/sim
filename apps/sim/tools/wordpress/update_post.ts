@@ -12,6 +12,7 @@ export const updatePostTool: ToolConfig<WordPressUpdatePostParams, WordPressUpda
   name: 'WordPress Update Post',
   description: 'Update an existing blog post in WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

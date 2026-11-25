@@ -11,6 +11,7 @@ export const hubspotGetQuoteTool: ToolConfig<HubSpotGetQuoteParams, HubSpotGetQu
   name: 'Get Quote from HubSpot',
   description: 'Retrieve a single quote by ID from HubSpot',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

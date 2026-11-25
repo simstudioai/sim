@@ -14,6 +14,7 @@ export const getQueryRuntimeStatisticsTool: InternalToolConfig<
   description:
     'Get runtime statistics (timeline, row counts, and output stage) for a completed Athena query execution',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

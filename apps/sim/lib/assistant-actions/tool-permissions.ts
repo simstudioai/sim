@@ -15,7 +15,7 @@ import { sameResourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { isManagedCredentialGroupBindingLive } from '@/lib/credential-groups/credentials'
 import { acquireAdvisoryXactLock, withLockTimeout } from '@/lib/db/advisory-locks'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import type { AssistantOperationMetadata } from '@/tools/types'
+import type { AssistantOperationMetadata, ToolEffect } from '@/tools/types'
 
 /** One serialization point for settings changes and admission, including accounts with no saved preference. */
 export async function lockAssistantToolPermissions(
@@ -107,15 +107,16 @@ export async function loadAssistantToolPermissions(
 export function resolveAssistantToolPolicy(
   permissions: AssistantToolPermissions,
   toolId: string,
-  operation: AssistantOperationMetadata
+  effect: ToolEffect,
+  assistant: Pick<AssistantOperationMetadata, 'version'>
 ) {
   const override = permissions.overrides[toolId]
   if (override) {
     if (override.policy === 'block') return 'block'
-    if (override.version !== operation.version) return 'ask'
+    if (override.version !== assistant.version) return 'ask'
     return override.policy
   }
-  return operation.effect === 'read' ? permissions.readPolicy : permissions.writePolicy
+  return effect === 'read' ? permissions.readPolicy : permissions.writePolicy
 }
 
 /** Caller holds the account policy lock and has already checked the expected revision. */

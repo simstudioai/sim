@@ -7,6 +7,7 @@ export const redisKeysTool: InternalToolConfig<RedisKeysParams, RedisKeysRespons
   description:
     'List all keys matching a pattern in Redis. Avoid using on large databases in production; use the Redis Command tool with SCAN for large key spaces.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

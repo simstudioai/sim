@@ -15,6 +15,7 @@ export const launchDarklyGetAuditLogTool: ToolConfig<
   name: 'LaunchDarkly Get Audit Log',
   description: 'List audit log entries from your LaunchDarkly account.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

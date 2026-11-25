@@ -18,6 +18,7 @@ export const moveTool: InternalToolConfig<GoogleDriveMoveParams, GoogleDriveMove
   name: 'Move Google Drive File',
   description: 'Move a file or folder to a different folder in Google Drive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

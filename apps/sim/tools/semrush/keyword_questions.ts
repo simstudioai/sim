@@ -21,6 +21,7 @@ export const semrushKeywordQuestionsTool: ToolConfig<
   name: 'Semrush Keyword Questions',
   description: 'Find question-form keywords containing a seed keyword, with volume and difficulty.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

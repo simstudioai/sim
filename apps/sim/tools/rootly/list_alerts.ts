@@ -8,6 +8,7 @@ export const rootlyListAlertsTool: ToolConfig<RootlyListAlertsParams, RootlyList
   name: 'Rootly List Alerts',
   description: 'List alerts from Rootly with optional filtering by status, source, and services.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

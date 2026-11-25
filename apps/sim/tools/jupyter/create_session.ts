@@ -14,6 +14,7 @@ export const jupyterCreateSessionTool: InternalToolConfig<
   name: 'Jupyter Create Session',
   description: 'Create a session that binds a notebook path to a (new or existing) kernel',
   version: '1.0.0',
+  effect: 'write',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

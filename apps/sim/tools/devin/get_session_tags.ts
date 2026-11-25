@@ -11,6 +11,7 @@ export const devinGetSessionTagsTool: ToolConfig<
   name: 'Devin Get Session Tags',
   description: 'Retrieve the tags currently applied to a Devin session.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {

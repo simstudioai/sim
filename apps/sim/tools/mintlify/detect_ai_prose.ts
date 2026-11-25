@@ -52,6 +52,7 @@ export const mintlifyDetectAiProseTool: ToolConfig<
   description:
     'Analyze a documentation page for AI-generated prose and return flagged passages with suggested human rewrites. Consumes one AI credit per checked page.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     projectId: {

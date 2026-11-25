@@ -24,6 +24,7 @@ export const cancelSearchJobTool: ToolConfig<
   name: 'Splunk Cancel Search Job',
   description: 'Cancel a running Splunk search job and delete its result cache.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {

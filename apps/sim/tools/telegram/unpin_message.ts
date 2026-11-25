@@ -13,6 +13,7 @@ export const telegramUnpinMessageTool: ToolConfig<
   description:
     'Unpin a pinned message in a Telegram chat through the Telegram Bot API. Unpins the most recent pinned message when no message ID is given.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

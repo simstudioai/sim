@@ -25,6 +25,7 @@ export const bufferGetAggregatedPostMetricsTool: ToolConfig<
   description:
     'Aggregate published post metrics across an organization or selected channels over a date range of up to 365 days',
   version: '1.0.0',
+  effect: 'read',
   oauth: BUFFER_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

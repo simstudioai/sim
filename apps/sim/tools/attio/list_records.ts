@@ -11,6 +11,7 @@ export const attioListRecordsTool: ToolConfig<AttioListRecordsParams, AttioListR
   name: 'Attio List Records',
   description: 'Query and list records for a given object type (e.g. people, companies)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

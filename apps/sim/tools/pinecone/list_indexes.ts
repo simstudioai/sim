@@ -25,6 +25,7 @@ export const listIndexesTool: ToolConfig<PineconeListIndexesParams, PineconeResp
   name: 'Pinecone List Indexes',
   description: 'List all Pinecone indexes in the project',
   version: '1.0',
+  effect: 'read',
 
   params: {
     apiKey: {

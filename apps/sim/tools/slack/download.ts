@@ -7,6 +7,7 @@ export const slackDownloadTool: InternalToolConfig<SlackDownloadParams, SlackDow
   name: 'Download File from Slack',
   description: 'Download a file from Slack',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

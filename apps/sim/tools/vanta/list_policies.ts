@@ -15,6 +15,7 @@ export const vantaListPoliciesTool: InternalToolConfig<
   description:
     'List the security policies in a Vanta account with approval status and version info',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

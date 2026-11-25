@@ -22,6 +22,7 @@ export const getProblemCommentTool: ToolConfig<
   name: 'Dynatrace Get Problem Comment',
   description: 'Get a single comment on a Dynatrace problem.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

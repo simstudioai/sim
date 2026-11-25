@@ -16,6 +16,7 @@ export const clerkGetSessionTool: ToolConfig<ClerkGetSessionParams, ClerkGetSess
   name: 'Get Session from Clerk',
   description: 'Retrieve a single session by ID from Clerk',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

@@ -20,6 +20,7 @@ export const greenhouseListJobsV2Tool: ToolConfig<
   name: 'Greenhouse List Jobs',
   description: 'Lists one page of jobs with cursor pagination and documented filters.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

@@ -21,6 +21,7 @@ export const listCalendarEventsTool: ToolConfig<
   description:
     'Lists upcoming calendar events from the authenticated user connected calendars, with pagination and a configurable time window.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

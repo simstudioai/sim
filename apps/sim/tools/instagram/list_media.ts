@@ -21,6 +21,7 @@ export const instagramListMediaTool: ToolConfig<
   name: 'Instagram List Media',
   description: 'List recent media on the Instagram professional account',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

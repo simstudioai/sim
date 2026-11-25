@@ -14,6 +14,7 @@ export const updateTravelRequestTool: InternalToolConfig<
   name: 'SAP Concur Update Travel Request',
   description: 'Update a travel request (PUT /travelrequest/v4/requests/{requestUuid}).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

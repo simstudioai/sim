@@ -32,6 +32,7 @@ export const confluenceListSpaceLabelsTool: InternalToolConfig<
   name: 'Confluence List Space Labels',
   description: 'List all labels associated with a Confluence space.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

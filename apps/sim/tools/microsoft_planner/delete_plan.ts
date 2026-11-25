@@ -17,6 +17,7 @@ export const deletePlanTool: ToolConfig<
   name: 'Delete Microsoft Planner Plan',
   description: 'Delete a Microsoft Planner plan',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

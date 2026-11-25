@@ -25,6 +25,7 @@ export const microsoftDynamics365CreateRecordTool: ToolConfig<
   description:
     'Create a new supported standard Microsoft Dynamics 365 CRM record using Dataverse logical column names.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

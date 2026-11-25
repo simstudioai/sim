@@ -17,6 +17,7 @@ export const pipedriveGetPipelineDealsTool: ToolConfig<
   name: 'Get Pipeline Deals from Pipedrive',
   description: 'Retrieve all deals in a specific pipeline',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

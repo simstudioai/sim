@@ -14,6 +14,7 @@ export const createCompletionTool: ToolConfig<
   name: 'Thrive Create Completion',
   description: 'Record a learning completion in Thrive for a user and content item.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

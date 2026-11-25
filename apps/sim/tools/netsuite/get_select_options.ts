@@ -11,6 +11,7 @@ export const netsuiteGetSelectOptionsTool: InternalToolConfig<
   name: 'NetSuite Get Select Options',
   description: 'Retrieve valid select values for one or more fields on a new or existing record.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

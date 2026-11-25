@@ -20,6 +20,7 @@ export const personaListAccountsTool: ToolConfig<
   description:
     'List accounts in your Persona organization, optionally filtered by reference ID. Results are cursor-paginated.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

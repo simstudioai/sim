@@ -12,6 +12,7 @@ export const docusignCreateFromTemplateTool: InternalToolConfig<
   name: 'Send from DocuSign Template',
   description: 'Create and send a DocuSign envelope using a pre-built template',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

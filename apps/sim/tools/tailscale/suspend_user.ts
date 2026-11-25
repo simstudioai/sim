@@ -12,6 +12,7 @@ export const tailscaleSuspendUserTool: ToolConfig<
   name: 'Tailscale Suspend User',
   description: 'Suspend a user’s access to the tailnet',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

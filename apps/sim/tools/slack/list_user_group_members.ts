@@ -6,6 +6,7 @@ export const slackListUserGroupMembersTool = createSlackWebApiTool({
   id: 'slack_list_user_group_members',
   name: 'Slack List User Group Members',
   description: 'Read the user IDs in a Slack user group.',
+  effect: 'read',
   endpoint: 'usergroups.users.list',
   method: 'GET',
   oauth: {

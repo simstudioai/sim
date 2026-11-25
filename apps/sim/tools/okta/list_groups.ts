@@ -12,6 +12,7 @@ export const oktaListGroupsTool: ToolConfig<OktaListGroupsParams, OktaListGroups
   name: 'List Groups from Okta',
   description: 'List all groups in your Okta organization with optional search and filtering',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

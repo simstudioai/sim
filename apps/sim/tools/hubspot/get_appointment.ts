@@ -17,6 +17,7 @@ export const hubspotGetAppointmentTool: ToolConfig<
   name: 'Get Appointment from HubSpot',
   description: 'Retrieve a single appointment by ID from HubSpot',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

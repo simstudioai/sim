@@ -12,6 +12,7 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
   description:
     'Perform multiple index, create, delete, or update operations in a single request for high performance.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     deploymentType: {

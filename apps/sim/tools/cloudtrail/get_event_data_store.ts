@@ -13,6 +13,7 @@ export const getEventDataStoreTool: InternalToolConfig<
   name: 'CloudTrail Get Event Data Store',
   description: 'Retrieve the configuration of a single CloudTrail Lake event data store',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

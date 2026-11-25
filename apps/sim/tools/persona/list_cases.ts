@@ -17,6 +17,7 @@ export const personaListCasesTool: ToolConfig<PersonaListCasesParams, PersonaLis
   description:
     'List manual review cases, optionally filtered by status, account ID, or reference ID. Results are cursor-paginated.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

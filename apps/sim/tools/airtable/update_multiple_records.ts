@@ -12,6 +12,7 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
   name: 'Airtable Update Multiple Records',
   description: 'Update multiple existing records in an Airtable table',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

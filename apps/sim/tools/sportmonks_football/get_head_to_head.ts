@@ -37,6 +37,7 @@ export const sportmonksGetHeadToHeadTool: ToolConfig<
   name: 'Get Head to Head',
   description: 'Retrieve the head-to-head fixtures between two teams from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

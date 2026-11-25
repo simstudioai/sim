@@ -13,6 +13,7 @@ export const removeAliasTool: ToolConfig<
   name: 'Google Groups Remove Alias',
   description: 'Remove an email alias from a Google Group',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

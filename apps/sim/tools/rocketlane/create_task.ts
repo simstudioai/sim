@@ -19,6 +19,7 @@ export const rocketlaneCreateTaskTool: ToolConfig<
   name: 'Rocketlane Create Task',
   description: 'Create a new task in a Rocketlane project',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

@@ -11,6 +11,7 @@ export const resendListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRes
   name: 'List Domains',
   description: 'List all verified domains in your Resend account',
   version: '1.0.0',
+  effect: 'read',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

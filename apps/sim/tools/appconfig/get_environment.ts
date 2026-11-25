@@ -13,6 +13,7 @@ export const getEnvironmentTool: InternalToolConfig<
   name: 'AppConfig Get Environment',
   description: 'Get details about a single AWS AppConfig environment',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

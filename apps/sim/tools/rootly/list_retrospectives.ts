@@ -14,6 +14,7 @@ export const rootlyListRetrospectivesTool: ToolConfig<
   name: 'Rootly List Retrospectives',
   description: 'List incident retrospectives (post-mortems) from Rootly.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

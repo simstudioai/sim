@@ -23,6 +23,7 @@ export const listTunnelsTool: ToolConfig<
   description:
     'Lists the Cloudflare Tunnels (cloudflared) in an account, with their health status and active connections. Requires an API token with Account Cloudflare Tunnel Read.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

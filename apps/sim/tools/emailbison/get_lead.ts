@@ -16,6 +16,7 @@ export const getLeadTool: ToolConfig<EmailBisonGetLeadParams, EmailBisonLeadResp
   name: 'Email Bison Get Lead',
   description: 'Retrieves a lead by Email Bison lead ID or email address.',
   version: '1.0.0',
+  effect: 'read',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

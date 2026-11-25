@@ -35,6 +35,7 @@ export const zendeskCreateTicketsBulkTool: ToolConfig<
   name: 'Bulk Create Tickets in Zendesk',
   description: 'Create multiple tickets in Zendesk at once (max 100)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

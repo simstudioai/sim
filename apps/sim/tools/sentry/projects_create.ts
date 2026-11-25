@@ -11,6 +11,7 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
     description:
       'Create a new Sentry project in an organization. Requires a team to associate the project with. Returns the created project details.',
     version: '1.0.0',
+    effect: 'write',
     oauth: SENTRY_CREDENTIAL_OAUTH,
 
     params: {

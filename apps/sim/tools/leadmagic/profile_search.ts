@@ -14,6 +14,7 @@ export const profileSearchTool: ToolConfig<
   description:
     'Enrich a LinkedIn profile with work history, education, skills, and contact data. Charges 1 credit per successful enrichment; free when profile not found.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: leadmagicHosting<LeadMagicProfileSearchParams>((_params, output) => {
     // 1 credit per successful enrichment, 0 when not found.

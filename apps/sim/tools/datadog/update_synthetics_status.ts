@@ -19,6 +19,7 @@ export const updateSyntheticsStatusTool: ToolConfig<
   name: 'Datadog Pause Or Start Synthetic Test',
   description: 'Pause or resume a Synthetic test by setting its status to "paused" or "live".',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

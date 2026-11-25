@@ -27,6 +27,7 @@ export const bitbucketTriggerPipelineTool: ToolConfig<
   name: 'Bitbucket Trigger Pipeline',
   description: 'Run the repository pipeline selected by a branch or ref target',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pipeline'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

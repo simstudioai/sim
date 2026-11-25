@@ -26,6 +26,7 @@ export const fivetranResyncConnectionTool: ToolConfig<
   description:
     'Run a full historical re-sync of a Fivetran connection, or only of the tables listed in scope. Fivetran returns 409 if a running sync cannot finish first.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

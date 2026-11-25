@@ -17,6 +17,7 @@ export const windchillCheckOutDocumentsTool: InternalToolConfig<
   name: 'Windchill Check Out Documents',
   description: 'Check out multiple documents atomically',
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

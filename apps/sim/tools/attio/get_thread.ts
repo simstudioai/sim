@@ -11,6 +11,7 @@ export const attioGetThreadTool: ToolConfig<AttioGetThreadParams, AttioGetThread
   name: 'Attio Get Thread',
   description: 'Get a single comment thread by ID from Attio',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

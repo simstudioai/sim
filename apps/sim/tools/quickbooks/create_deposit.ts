@@ -25,6 +25,7 @@ export const quickbooksCreateDepositTool: ToolConfig<
   name: 'QuickBooks Create Deposit',
   description: 'Create a deposit with bounded account lines',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

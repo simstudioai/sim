@@ -6,6 +6,7 @@ export const s3ListObjectsTool: InternalToolConfig = {
   name: 'S3 List Objects',
   description: 'List objects in an AWS S3 bucket',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

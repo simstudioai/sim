@@ -19,6 +19,7 @@ export const rocketlaneCreateTimeOffTool: ToolConfig<
   description:
     'Create a time-off for a team member in Rocketlane. Holidays and weekends within the date range are automatically excluded from the duration.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

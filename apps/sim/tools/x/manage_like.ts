@@ -9,6 +9,7 @@ export const xManageLikeTool: ToolConfig<XManageLikeParams, XManageLikeResponse>
   name: 'X Manage Like',
   description: 'Like or unlike a tweet on X',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

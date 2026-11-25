@@ -22,6 +22,7 @@ export const enrichCompanyTool: ToolConfig<
   description:
     'Enrich a company profile using a domain, company name, or SIREN number (France). Returns size, industry, revenue, and description. Uses 2 credits per match.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: datagmaHosting<DatagmaEnrichCompanyParams>((_params, output) => {
     const name = output.name as string | null

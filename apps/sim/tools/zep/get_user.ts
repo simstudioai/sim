@@ -9,6 +9,7 @@ export const zepGetUserTool: ToolConfig<any, ZepResponse> = {
   name: 'Get User',
   description: 'Retrieve user information from Zep',
   version: '1.0.0',
+  effect: 'read',
   oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const slackKickConversationTool = createSlackWebApiTool({
   id: 'slack_kick_conversation',
   name: 'Slack Remove User from Conversation',
   description: 'Remove a user from a Slack conversation, subject to workspace permissions.',
+  effect: 'write',
   endpoint: 'conversations.kick',
   method: 'POST',
   oauth: { required: true, provider: 'slack', requiredScopes: [] },

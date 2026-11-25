@@ -16,6 +16,7 @@ export const telegramSendAnimationTool: ToolConfig<
   name: 'Telegram Send Animation',
   description: 'Send animations (GIFs) to Telegram channels or users through the Telegram Bot API.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

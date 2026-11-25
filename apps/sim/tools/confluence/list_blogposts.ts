@@ -41,6 +41,7 @@ export const confluenceListBlogPostsTool: InternalToolConfig<
   name: 'Confluence List Blog Posts',
   description: 'List all blog posts across all accessible Confluence spaces.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

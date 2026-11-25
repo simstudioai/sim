@@ -6,6 +6,7 @@ export const asanaGetTaskTool: InternalToolConfig<AsanaGetTaskParams, AsanaGetTa
   name: 'Asana Get Task',
   description: 'Retrieve a single task by GID or get multiple tasks with filters',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

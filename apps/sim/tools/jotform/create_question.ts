@@ -18,6 +18,7 @@ export const createQuestionTool: ToolConfig<JotformCreateQuestionParams, Jotform
     name: 'Jotform Create Question',
     description: 'Add a question to an existing Jotform form.',
     version: '1.0.0',
+    effect: 'write',
     oauth: JOTFORM_CREDENTIAL_OAUTH,
 
     params: {

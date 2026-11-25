@@ -11,6 +11,7 @@ export const attioGetMemberTool: ToolConfig<AttioGetMemberParams, AttioGetMember
   name: 'Attio Get Member',
   description: 'Get a single workspace member by ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

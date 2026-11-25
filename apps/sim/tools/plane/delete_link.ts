@@ -17,6 +17,7 @@ export const planeDeleteLinkTool: ToolConfig<PlaneDeleteLinkParams, PlaneDeleteL
   name: 'Plane Delete a link',
   description: 'Delete a link in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

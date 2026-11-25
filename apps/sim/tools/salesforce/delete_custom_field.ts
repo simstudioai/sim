@@ -23,6 +23,7 @@ export const salesforceDeleteCustomFieldTool: ToolConfig<
   name: 'Delete Custom Field in Salesforce',
   description: 'Delete a custom field from a Salesforce object using the Tooling API',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

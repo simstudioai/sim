@@ -34,6 +34,7 @@ export const sportmonksGetAllPlayersTool: ToolConfig<
   name: 'Get All Players',
   description: 'Retrieve all football players available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -39,6 +39,7 @@ export const rabbitmqCreateBindingTool: ToolConfig<
   description:
     'Bind a queue or another exchange to a RabbitMQ exchange so messages matching a routing key are routed to it.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

@@ -18,6 +18,7 @@ export const rocketlaneGetInvoiceTool: ToolConfig<
   name: 'Rocketlane Get Invoice',
   description: 'Retrieve a Rocketlane invoice by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

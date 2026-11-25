@@ -12,6 +12,7 @@ export const getListItemTool: ToolConfig<SharepointToolParams, SharepointGetList
   name: 'Get SharePoint List Item',
   description: 'Get a single item (with field values) from a SharePoint list',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

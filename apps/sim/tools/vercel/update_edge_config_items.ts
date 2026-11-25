@@ -14,6 +14,7 @@ export const vercelUpdateEdgeConfigItemsTool: ToolConfig<
   name: 'Vercel Update Edge Config Items',
   description: 'Create, update, upsert, or delete items in an Edge Config store',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const devinListSessionAttachmentsTool: ToolConfig<
   name: 'Devin List Session Attachments',
   description: 'List the files uploaded to or produced by a Devin session.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {

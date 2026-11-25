@@ -9,6 +9,7 @@ export const ripplingListCustomObjectsTool: ToolConfig<RipplingListCustomObjects
   name: 'Rippling List Custom Objects',
   description: 'List all custom objects',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

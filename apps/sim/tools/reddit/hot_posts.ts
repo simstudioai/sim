@@ -14,6 +14,7 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
   name: 'Reddit Hot Posts',
   description: 'Fetch the most popular (hot) posts from a specified subreddit.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

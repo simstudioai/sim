@@ -6,6 +6,7 @@ export const gmailMoveTool: InternalToolConfig<GmailMoveParams, GmailToolRespons
   name: 'Gmail Move',
   description: 'Move emails between Gmail labels/folders',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -99,6 +100,7 @@ export const gmailMoveV2Tool: InternalToolConfig<GmailMoveParams, GmailModifyV2R
   name: 'Gmail Move',
   description: 'Move emails between labels/folders in Gmail.',
   version: '2.0.0',
+  effect: 'write',
   oauth: gmailMoveTool.oauth,
   params: gmailMoveTool.params,
   operation: gmailMoveTool.operation,

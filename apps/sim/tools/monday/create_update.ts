@@ -15,6 +15,7 @@ export const mondayCreateUpdateTool: ToolConfig<
   name: 'Monday Create Update',
   description: 'Add an update (comment) to a Monday.com item',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

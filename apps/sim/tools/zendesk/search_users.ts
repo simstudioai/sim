@@ -45,6 +45,7 @@ export const zendeskSearchUsersTool: ToolConfig<
   name: 'Search Users in Zendesk',
   description: 'Search for users in Zendesk using a query string',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

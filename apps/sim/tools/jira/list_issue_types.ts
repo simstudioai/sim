@@ -17,6 +17,7 @@ export const jiraListIssueTypesTool: ToolConfig<
   description:
     'List all issue types visible to the user across projects (e.g., Task, Bug, Story, Epic, Subtask). Useful for discovering valid issue types before creating an issue.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

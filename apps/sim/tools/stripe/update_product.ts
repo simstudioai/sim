@@ -21,6 +21,7 @@ export const stripeUpdateProductTool: ToolConfig<
   name: 'Stripe Update Product',
   description: 'Update an existing product',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

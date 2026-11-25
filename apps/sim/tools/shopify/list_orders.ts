@@ -8,6 +8,7 @@ export const shopifyListOrdersTool: ToolConfig<ShopifyListOrdersParams, ShopifyO
   name: 'Shopify List Orders',
   description: 'List orders from your Shopify store with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -22,6 +22,7 @@ export const deleteSurveyTool: ToolConfig<PostHogDeleteSurveyParams, PostHogDele
     name: 'PostHog Delete Survey',
     description: 'Delete a survey from PostHog. Use this to remove expired or unused surveys.',
     version: '1.0.0',
+    effect: 'write',
     errorExtractor: 'posthog-errors',
 
     params: {

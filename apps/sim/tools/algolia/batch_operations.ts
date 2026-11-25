@@ -14,6 +14,7 @@ export const batchOperationsTool: ToolConfig<
   description:
     'Perform batch add, update, partial update, or delete operations on records in an Algolia index',
   version: '1.0',
+  effect: 'write',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

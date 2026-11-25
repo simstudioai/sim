@@ -17,6 +17,7 @@ export const getSloTool: ToolConfig<DynatraceGetSloParams, DynatraceGetSloRespon
   description:
     'Get a single service-level objective with its evaluated attainment, error budget, and burn rate.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

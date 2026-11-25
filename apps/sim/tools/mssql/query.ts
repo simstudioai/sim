@@ -7,6 +7,7 @@ export const queryTool: InternalToolConfig<MSSQLQueryParams, MSSQLQueryResponse>
   name: 'Microsoft SQL Server Query',
   description: 'Execute a SELECT query on a Microsoft SQL Server database',
   version: '1.0',
+  effect: 'write',
   oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {

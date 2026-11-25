@@ -22,6 +22,7 @@ export const contextDevScrapeStyleguideTool: ToolConfig<
   description:
     "Extract a domain's design system: colors, typography, spacing, shadows, and UI components.",
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevScrapeStyleguideParams>(),
 

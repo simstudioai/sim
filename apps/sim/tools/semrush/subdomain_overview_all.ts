@@ -22,6 +22,7 @@ export const semrushSubdomainOverviewAllTool: ToolConfig<
   description:
     'Get organic and paid search totals for a subdomain across every regional Semrush database.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

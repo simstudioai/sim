@@ -14,6 +14,7 @@ export const rampListVendorsTool: ToolConfig<RampListVendorsParams, RampListVend
   name: 'Ramp List Vendors',
   description: 'List vendors in one page in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

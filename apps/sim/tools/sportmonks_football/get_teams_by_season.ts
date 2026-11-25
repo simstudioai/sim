@@ -36,6 +36,7 @@ export const sportmonksGetTeamsBySeasonTool: ToolConfig<
   name: 'Get Teams by Season',
   description: 'Retrieve all teams for a season ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

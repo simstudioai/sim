@@ -66,6 +66,7 @@ export const sortRangeTool: ToolConfig<
   name: 'Sort Microsoft Excel Range',
   description: 'Sort a range or table by one or more fields in a Microsoft Excel worksheet',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

@@ -11,6 +11,7 @@ export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDele
     name: 'Jira Delete Comment',
     description: 'Delete a comment from a Jira issue',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

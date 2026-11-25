@@ -11,6 +11,7 @@ export const clickupDeleteTaskTool: ToolConfig<ClickUpDeleteTaskParams, ClickUpD
   name: 'ClickUp Delete Task',
   description: 'Delete a task from ClickUp',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

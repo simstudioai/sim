@@ -7,6 +7,7 @@ export const boxDeleteFolderTool: ToolConfig<BoxDeleteFolderParams, ToolResponse
   name: 'Box Delete Folder',
   description: 'Delete a folder from Box',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

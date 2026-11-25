@@ -6,6 +6,7 @@ export const redisLRangeTool: InternalToolConfig<RedisLRangeParams, RedisLRangeR
   name: 'Redis LRANGE',
   description: 'Get a range of elements from a list stored at a key in Redis.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

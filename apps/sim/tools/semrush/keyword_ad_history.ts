@@ -22,6 +22,7 @@ export const semrushKeywordAdHistoryTool: ToolConfig<
   description:
     'List which domains advertised on a keyword month by month, with the copy each one used.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

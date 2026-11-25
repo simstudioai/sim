@@ -25,6 +25,7 @@ export const fivetranGetConnectorTypeTool: ToolConfig<
   description:
     'Get the configuration and authorization fields a Fivetran connector type takes, to build the config for Create Connection.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

@@ -8,6 +8,7 @@ export const boxSignCancelRequestTool: ToolConfig<BoxSignCancelRequestParams, Bo
   name: 'Box Sign Cancel Request',
   description: 'Cancel a pending Box Sign request',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

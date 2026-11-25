@@ -8,6 +8,7 @@ export const deleteTagsTool: InternalToolConfig<Ec2DeleteTagsParams, Ec2DeleteTa
   name: 'EC2 Delete Tags',
   description: 'Remove tags from one or more EC2 resources',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

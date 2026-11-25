@@ -14,6 +14,7 @@ export const elevenLabsEditVoiceSettingsTool: ToolConfig<
   name: 'ElevenLabs Edit Voice Settings',
   description: 'Update the settings for a specific ElevenLabs voice',
   version: '1.0.0',
+  effect: 'write',
   oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {

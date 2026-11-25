@@ -46,6 +46,7 @@ export const zendeskUpdateTicketTool: ToolConfig<
   name: 'Update Ticket in Zendesk',
   description: 'Update an existing ticket in Zendesk with support for custom fields',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

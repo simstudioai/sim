@@ -9,6 +9,7 @@ export const discordUpdateRoleTool: ToolConfig<DiscordUpdateRoleParams, DiscordU
     name: 'Discord Update Role',
     description: 'Update a role in a Discord server',
     version: '1.0.0',
+    effect: 'write',
     oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {

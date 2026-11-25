@@ -8,6 +8,7 @@ export const executeTool: InternalToolConfig<RdsExecuteParams, RdsExecuteRespons
   name: 'RDS Execute',
   description: 'Execute raw SQL on Amazon RDS using the Data API',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

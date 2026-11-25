@@ -11,6 +11,7 @@ export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowLis
   name: 'Webflow List Items',
   description: 'List items from a Webflow CMS collection',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

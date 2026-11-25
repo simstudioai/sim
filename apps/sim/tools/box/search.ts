@@ -7,6 +7,7 @@ export const boxSearchTool: ToolConfig<BoxSearchParams, BoxSearchResponse> = {
   name: 'Box Search',
   description: 'Search for files and folders in Box',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

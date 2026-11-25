@@ -12,6 +12,7 @@ export const rootlyResolveAlertTool: ToolConfig<
   name: 'Rootly Resolve Alert',
   description: 'Resolve an alert in Rootly.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

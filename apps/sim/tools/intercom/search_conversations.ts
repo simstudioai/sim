@@ -124,6 +124,7 @@ export const intercomSearchConversationsTool: ToolConfig<
   name: 'Search Conversations in Intercom',
   description: 'Search for conversations in Intercom using a query',
   version: '1.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...searchConversationsBase,
@@ -216,6 +217,7 @@ export const intercomSearchConversationsV2Tool: ToolConfig<
   description:
     'Search for conversations in Intercom using a query. Returns API-aligned fields only.',
   version: '2.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

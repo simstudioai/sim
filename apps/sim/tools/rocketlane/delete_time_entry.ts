@@ -16,6 +16,7 @@ export const rocketlaneDeleteTimeEntryTool: ToolConfig<
   name: 'Rocketlane Delete Time Entry',
   description: 'Permanently delete a Rocketlane time entry by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

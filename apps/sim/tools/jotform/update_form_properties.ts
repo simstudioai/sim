@@ -22,6 +22,7 @@ export const updateFormPropertiesTool: ToolConfig<
   description:
     'Update form settings such as the thank-you redirect, submission limit, width, or styles. Only the supplied keys change.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

@@ -16,6 +16,7 @@ export const cbinsightsGetMosaicHistoryTool: InternalToolConfig<
   description:
     "Retrieve an organization's historical Mosaic Scores — overall plus the management, market, momentum, and money factors — so a trend can be read rather than a single snapshot.",
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

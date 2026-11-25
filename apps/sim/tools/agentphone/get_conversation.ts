@@ -15,6 +15,7 @@ export const agentphoneGetConversationTool: ToolConfig<
   name: 'Get Conversation',
   description: 'Get a conversation along with its recent messages',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

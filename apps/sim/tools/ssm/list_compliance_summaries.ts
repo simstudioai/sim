@@ -13,6 +13,7 @@ export const listComplianceSummariesTool: InternalToolConfig<
   name: 'SSM List Compliance Summaries',
   description: 'Read compliant and non-compliant counts per compliance type',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

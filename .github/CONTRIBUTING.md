@@ -473,6 +473,7 @@ In addition, you will need to update the registries:
      name: 'Pinecone Fetch',
      description: 'Fetch vectors from Pinecone database',
      version: '1.0.0',
+     effect: 'read', // 'write' unless it changes nothing outside Sim
 
      // OAuth configuration (if applicable)
      provider: 'pinecone', // ID of the OAuth provider

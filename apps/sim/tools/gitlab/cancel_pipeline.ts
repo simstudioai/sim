@@ -13,6 +13,7 @@ export const gitlabCancelPipelineTool: ToolConfig<
   name: 'GitLab Cancel Pipeline',
   description: 'Cancel a running GitLab pipeline',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

@@ -33,6 +33,7 @@ export const dispatchSavedSearchTool: ToolConfig<
   description:
     'Run a Splunk saved search immediately and return the search ID (sid) of the dispatched job.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {

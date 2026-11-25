@@ -16,6 +16,7 @@ export const mondayCreateBoardTool: ToolConfig<MondayCreateBoardParams, MondayCr
     name: 'Monday Create Board',
     description: 'Create a new board in Monday.com',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

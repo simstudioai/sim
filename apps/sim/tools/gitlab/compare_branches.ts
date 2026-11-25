@@ -15,6 +15,7 @@ export const gitlabCompareBranchesTool: ToolConfig<
   name: 'GitLab Compare Branches',
   description: 'Compare two branches, tags, or commits in a GitLab project repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

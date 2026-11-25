@@ -7,6 +7,7 @@ export const getSummaryTool: ToolConfig<FathomGetSummaryParams, FathomGetSummary
   name: 'Fathom Get Summary',
   description: 'Get the call summary for a specific meeting recording.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FATHOM_CREDENTIAL_OAUTH,
 
   params: {

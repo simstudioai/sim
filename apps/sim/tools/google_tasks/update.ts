@@ -12,6 +12,7 @@ export const updateTool: ToolConfig<GoogleTasksUpdateParams, GoogleTasksResponse
   name: 'Google Tasks Update Task',
   description: 'Update an existing task in a Google Tasks list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

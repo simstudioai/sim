@@ -22,6 +22,7 @@ export const helpScoutAssignConversationTool: ToolConfig<
   name: 'Help Scout Assign Conversation',
   description: 'Assign a Help Scout conversation to a user or team.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

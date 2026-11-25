@@ -14,6 +14,7 @@ export const createEventSourceMappingTool: InternalToolConfig<
   name: 'Lambda Create Event Source Mapping',
   description: 'Map an event source such as SQS, Kinesis, DynamoDB Streams, or Kafka to a function',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

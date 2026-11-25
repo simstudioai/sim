@@ -10,6 +10,7 @@ export const deleteAccessKeyTool: InternalToolConfig<
   name: 'IAM Delete Access Key',
   description: 'Delete an access key pair for an IAM user',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

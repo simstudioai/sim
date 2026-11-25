@@ -18,6 +18,7 @@ export const updateBucketTool: ToolConfig<
   name: 'Update Microsoft Planner Bucket',
   description: 'Update a bucket in Microsoft Planner',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

@@ -8,8 +8,8 @@ export const slackMessageTool: InternalToolConfig<SlackMessageParams, SlackMessa
   description:
     'Send messages to Slack channels or direct messages. Supports Slack mrkdwn formatting.',
   version: '1.0.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'channel', label: 'Channel', target: true },

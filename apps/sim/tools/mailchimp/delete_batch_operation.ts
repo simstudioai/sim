@@ -20,6 +20,7 @@ export const mailchimpDeleteBatchOperationTool: ToolConfig<
   name: 'Delete Batch Operation from Mailchimp',
   description: 'Delete a batch operation from Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

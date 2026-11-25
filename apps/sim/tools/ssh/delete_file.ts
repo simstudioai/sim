@@ -6,6 +6,7 @@ export const deleteFileTool: InternalToolConfig<SSHDeleteFileParams, SSHResponse
   name: 'SSH Delete File',
   description: 'Delete a file or directory from the remote SSH server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

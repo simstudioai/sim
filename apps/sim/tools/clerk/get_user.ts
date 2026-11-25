@@ -18,6 +18,7 @@ export const clerkGetUserTool: ToolConfig<ClerkGetUserParams, ClerkGetUserRespon
   name: 'Get User from Clerk',
   description: 'Retrieve a single user by their ID from Clerk',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
   name: 'Get Opportunities from Salesforce',
   description: 'Get opportunity(ies) from Salesforce',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

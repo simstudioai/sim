@@ -16,6 +16,7 @@ export const clerkDeleteUserTool: ToolConfig<ClerkDeleteUserParams, ClerkDeleteU
   name: 'Delete User from Clerk',
   description: 'Delete a user from your Clerk application',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

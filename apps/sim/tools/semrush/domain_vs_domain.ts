@@ -82,6 +82,7 @@ export const semrushDomainVsDomainTool: ToolConfig<
   description:
     'Compare up to five domains on the keywords they rank for, returning each domain’s position side by side.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

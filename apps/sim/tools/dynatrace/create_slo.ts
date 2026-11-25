@@ -15,6 +15,7 @@ export const createSloTool: ToolConfig<DynatraceCreateSloParams, DynatraceCreate
   description:
     'Create a service-level objective from a metric expression, target, and evaluation timeframe.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

@@ -190,6 +190,11 @@ Never point a tool at `/api/...`, construct an absolute URL back to Sim, declare
 resources. A real external/browser route and an in-process tool may share the same operation, but
 neither calls the other. Follow the full transport and handler rules in the `add-tools` skill.
 
+Every tool declares `effect: 'read' | 'write'`, classified from the API docs you researched in Step 1
+by the rules in `add-tools` → Declaring the effect. `bun run check:tool-effects` checks only that the
+label agrees with the HTTP method (or carries a `// tool-effect:` reason); classifying POST and
+in-process operations is on you.
+
 **types.ts:**
 ```typescript
 import type { ToolResponse } from '@/tools/types'
@@ -506,6 +511,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] No tool points to `/api/...`, constructs a URL back to Sim, declares `request.internal` or a
       `directExecution` property (fails `bun run check:tool-request-boundary`), or has an HTTP fallback for an in-process operation
 - [ ] All params have correct visibility
+- [ ] Every tool declares `effect` from its documented semantics; `bun run check:tool-effects` passes
 - [ ] All nullable fields use `?? null`
 - [ ] All optional outputs have `optional: true`
 - [ ] Created `index.ts` barrel export

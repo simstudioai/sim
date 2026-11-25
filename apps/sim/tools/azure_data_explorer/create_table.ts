@@ -21,6 +21,7 @@ export const azureDataExplorerCreateTableTool: InternalToolConfig<
   description:
     'Create a table in an Azure Data Explorer database from a CSL column schema. Succeeds without changing anything if a table of the same name already exists.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

@@ -14,6 +14,7 @@ export const getActiveUsersTool: ToolConfig<
   name: 'Amplitude Get Active Users',
   description: 'Get active or new user counts over a date range from the Dashboard REST API.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {

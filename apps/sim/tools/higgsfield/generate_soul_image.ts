@@ -25,6 +25,7 @@ export const higgsfieldGenerateSoulImageTool: ToolConfig<
   description:
     'Generate images with Higgsfield SOUL, optionally in a style or as a trained Soul ID character, then wait for the image URLs.',
   version: '1.0.0',
+  effect: 'write',
   oauth: higgsfieldOAuth,
   params: {
     ...higgsfieldAuthParams,

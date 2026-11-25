@@ -9,6 +9,7 @@ export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsRespon
   description:
     'List all groups in the Hex workspace with optional sorting, or only the groups a user belongs to.',
   version: '1.0.0',
+  effect: 'read',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

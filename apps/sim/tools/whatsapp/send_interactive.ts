@@ -23,6 +23,7 @@ export const sendInteractiveTool: ToolConfig<WhatsAppSendInteractiveParams, What
     name: 'WhatsApp Send Interactive',
     description: 'Send an interactive WhatsApp message with reply buttons or a selectable list.',
     version: '1.0.0',
+    effect: 'write',
     oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
     params: {

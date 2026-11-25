@@ -9,6 +9,7 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
   name: 'Supabase Delete Row',
   description: 'Delete rows from a Supabase table based on filter criteria',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

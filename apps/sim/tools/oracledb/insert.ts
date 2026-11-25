@@ -13,6 +13,7 @@ export const oracleInsertTool: InternalToolConfig<OracleInsertParams, OracleInse
   name: 'Oracle Database Insert',
   description: 'Insert one JSON object as a row in an Oracle Database table using bound values',
   version: '1.0.0',
+  effect: 'write',
   oauth: oracleDatabaseOAuth,
   params: {
     ...ORACLE_CONNECTION_PARAMS,

@@ -17,6 +17,7 @@ export const windchillDownloadPrimaryContentTool: InternalToolConfig<
   name: 'Windchill Download Primary Content',
   description: 'Download primary content into a canonical UserFile',
   version: '1.0.0',
+  effect: 'read',
   params: {
     baseUrl: {
       type: 'string',

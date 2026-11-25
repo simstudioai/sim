@@ -25,6 +25,7 @@ export const railwayUpdateProjectTool: ToolConfig<
   name: 'Railway Update Project',
   description: 'Update a Railway project name or description',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

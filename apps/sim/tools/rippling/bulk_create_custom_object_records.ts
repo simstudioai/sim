@@ -9,6 +9,7 @@ export const ripplingBulkCreateCustomObjectRecordsTool: ToolConfig<RipplingBulkC
     name: 'Rippling Bulk Create Custom Object Records',
     description: 'Bulk create custom object records',
     version: '1.0.0',
+    effect: 'write',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

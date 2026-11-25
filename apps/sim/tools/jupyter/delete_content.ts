@@ -14,6 +14,7 @@ export const jupyterDeleteContentTool: InternalToolConfig<
   name: 'Jupyter Delete Content',
   description: 'Delete a file, notebook, or directory on a Jupyter server',
   version: '1.0.0',
+  effect: 'write',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

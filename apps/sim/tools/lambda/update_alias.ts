@@ -11,6 +11,7 @@ export const updateAliasTool: InternalToolConfig<
   name: 'Lambda Update Alias',
   description: 'Update the target version, description, or traffic weights of an alias',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

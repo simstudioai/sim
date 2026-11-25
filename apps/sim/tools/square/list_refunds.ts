@@ -14,6 +14,7 @@ export const squareListRefundsTool: ToolConfig<ListRefundsParams, RefundListResp
   name: 'Square List Refunds',
   description: 'List payment refunds, optionally filtered by location, status, and time range',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

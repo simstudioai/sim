@@ -7,6 +7,7 @@ export const voteTool: ToolConfig<RedditVoteParams, RedditWriteResponse> = {
   name: 'Vote on Reddit Post/Comment',
   description: 'Upvote, downvote, or unvote a Reddit post or comment',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

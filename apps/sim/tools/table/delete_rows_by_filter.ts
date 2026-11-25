@@ -14,6 +14,7 @@ export const tableDeleteRowsByFilterTool: InternalToolConfig<
   description:
     'Delete multiple rows that match filter criteria. Use with caution - supports optional limit for safety.',
   version: '1.0.0',
+  effect: 'write',
 
   toolEnrichment: {
     dependsOn: 'tableId',

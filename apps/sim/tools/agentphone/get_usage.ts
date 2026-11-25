@@ -10,6 +10,7 @@ export const agentphoneGetUsageTool: ToolConfig<
   name: 'Get Usage',
   description: 'Retrieve current usage statistics for the AgentPhone account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

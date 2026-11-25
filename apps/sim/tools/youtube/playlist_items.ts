@@ -14,6 +14,7 @@ export const youtubePlaylistItemsTool: ToolConfig<
   description:
     'Get videos from a YouTube playlist. Can be used with a channel uploads playlist to get all channel videos.',
   version: '1.1.0',
+  effect: 'read',
   oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     playlistId: {

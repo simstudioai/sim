@@ -13,6 +13,7 @@ export const hubspotSearchEmailsTool: ToolConfig<
   name: 'Search Emails in HubSpot',
   description: 'Search for email engagements in HubSpot using filters, sorting, and queries',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -20,6 +20,7 @@ export const mintlifyTriggerAutomationTool: ToolConfig<
   description:
     'Run a scheduled Mintlify automation immediately instead of waiting for its next scheduled time. Only automations with a custom schedule can be triggered.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     projectId: {

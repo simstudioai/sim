@@ -18,7 +18,7 @@
  * or an id check don't pay for it:
  *
  *   tools/generated/tool-ids.ts        every registered tool id
- *   tools/generated/tool-metadata.ts   id -> { name, description, version, params, oauth }
+ *   tools/generated/tool-metadata.ts   id -> { name, description, version, effect, params, oauth }
  *   tools/generated/tool-outputs.ts    id -> outputs
  *
  * Ids are their own artifact because resolving a possibly-unversioned tool name
@@ -64,6 +64,7 @@ const METADATA_FIELDS = [
   'name',
   'description',
   'version',
+  'effect',
   'params',
   'oauth',
   'personalToken',
@@ -157,7 +158,7 @@ function build(registry: ToolRecord) {
           tool.oauth?.authoritativeParams?.some((name) => name === field.name) ||
           field.name === tool.personalToken?.tokenParam ||
           field.name === tool.personalToken?.hostParam ||
-          (field.editable && (field.target || tool.assistant.effect !== 'write'))
+          (field.editable && (field.target || tool.effect !== 'write'))
         ) {
           throw new Error(`${toolId}: Assistant review cannot edit authority or targets`)
         }

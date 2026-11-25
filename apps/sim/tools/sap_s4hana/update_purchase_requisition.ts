@@ -11,6 +11,7 @@ export const updatePurchaseRequisitionTool: InternalToolConfig<
   description:
     'Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV; deprecated since S/4HANA 2402, successor is API_PURCHASEREQUISITION_2 OData v4). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Header-only — deep updates across navigations are not supported (SAP KBA 2833338); use the A_PurchaseReqnItem entity directly to modify items. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     subdomain: {
       type: 'string',

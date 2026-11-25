@@ -7,6 +7,7 @@ export const grainListTeamsTool: ToolConfig<GrainListTeamsParams, GrainListTeams
   name: 'Grain List Teams',
   description: 'List all teams in the workspace',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAIN_CREDENTIAL_OAUTH,
 
   params: {

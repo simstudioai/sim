@@ -24,6 +24,7 @@ export const stripeCreatePaymentIntentTool: ToolConfig<
   name: 'Stripe Create Payment Intent',
   description: 'Create a new Payment Intent to process a payment',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

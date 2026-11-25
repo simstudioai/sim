@@ -13,6 +13,8 @@ export const reverseHashLookupTool: ToolConfig<
   name: 'Enrich Reverse Hash Lookup',
   description: 'Convert an MD5 email hash back to the original email address and display name.',
   version: '1.0.0',
+  // tool-effect: the GET spends Enrich credits to reveal the email behind a hash
+  effect: 'write',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

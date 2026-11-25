@@ -14,6 +14,7 @@ export const vercelPromoteDeploymentTool: ToolConfig<
   name: 'Vercel Promote Deployment',
   description: 'Promote a deployment by pointing the production deployment to the given deployment',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const deleteFeatureFlagTool: ToolConfig<DeleteFeatureFlagParams, DeleteFe
     name: 'PostHog Delete Feature Flag',
     description: 'Delete a feature flag from PostHog',
     version: '1.0.0',
+    effect: 'write',
     errorExtractor: 'posthog-errors',
 
     params: {

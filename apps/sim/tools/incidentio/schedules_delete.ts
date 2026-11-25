@@ -14,6 +14,7 @@ export const schedulesDeleteTool: ToolConfig<
   name: 'Delete Schedule',
   description: 'Delete a schedule in incident.io',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

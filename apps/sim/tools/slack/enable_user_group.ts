@@ -7,6 +7,7 @@ export const slackEnableUserGroupTool = createSlackWebApiTool({
   id: 'slack_enable_user_group',
   name: 'Slack Enable User Group',
   description: 'Reactivate a disabled Slack user group. Requires permission to manage user groups.',
+  effect: 'write',
   endpoint: 'usergroups.enable',
   method: 'POST',
   oauth: {

@@ -13,6 +13,7 @@ export const listChannelMembersTool: ToolConfig<
   name: 'List Microsoft Teams Channel Members',
   description: 'List all members of a Microsoft Teams channel',
   version: '1.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

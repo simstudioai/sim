@@ -8,6 +8,7 @@ export const listPoliciesTool: InternalToolConfig<IAMListPoliciesParams, IAMList
     name: 'IAM List Policies',
     description: 'List managed IAM policies',
     version: '1.0.0',
+    effect: 'read',
     oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {

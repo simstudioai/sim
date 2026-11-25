@@ -10,6 +10,7 @@ export const createFileTool: ToolConfig<CreateFileParams, FileOperationResponse>
   description:
     'Create a new file in a GitHub repository. The file content will be automatically Base64 encoded. Supports files up to 1MB.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -180,6 +181,7 @@ export const createFileV2Tool: ToolConfig = {
   name: createFileTool.name,
   description: createFileTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: createFileTool.params,
   request: createFileTool.request,
   oauth: createFileTool.oauth,

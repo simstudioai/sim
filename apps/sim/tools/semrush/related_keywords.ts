@@ -22,6 +22,7 @@ export const semrushRelatedKeywordsTool: ToolConfig<
   description:
     'Find keywords semantically related to a seed keyword, with volume, difficulty, and relevance.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

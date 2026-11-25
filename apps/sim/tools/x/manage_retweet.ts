@@ -9,6 +9,7 @@ export const xManageRetweetTool: ToolConfig<XManageRetweetParams, XManageRetweet
   name: 'X Manage Retweet',
   description: 'Retweet or unretweet a tweet on X',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

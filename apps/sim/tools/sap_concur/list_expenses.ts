@@ -12,6 +12,7 @@ export const listExpensesTool: InternalToolConfig<ListExpensesParams, SapConcurR
   description:
     'List expenses on a report (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

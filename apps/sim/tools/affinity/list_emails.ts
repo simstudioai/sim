@@ -14,6 +14,7 @@ export const affinityListEmailsTool: ToolConfig<
   description:
     'Page through email metadata — subject, participants, and timestamps. Affinity never exposes email bodies through the API.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

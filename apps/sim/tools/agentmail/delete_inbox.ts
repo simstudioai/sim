@@ -8,6 +8,7 @@ export const agentmailDeleteInboxTool: ToolConfig<DeleteInboxParams, DeleteInbox
   name: 'Delete Inbox',
   description: 'Delete an email inbox in AgentMail',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

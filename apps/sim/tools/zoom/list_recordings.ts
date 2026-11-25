@@ -13,6 +13,7 @@ export const zoomListRecordingsTool: ToolConfig<
   name: 'Zoom List Recordings',
   description: 'List all cloud recordings for a Zoom user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

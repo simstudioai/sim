@@ -52,6 +52,7 @@ export const checkrGetScreeningTool: ToolConfig<
   description:
     'Retrieve the results of one screening in a report, such as an SSN trace, county criminal search, or motor vehicle report. Get the screening ID from the report.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

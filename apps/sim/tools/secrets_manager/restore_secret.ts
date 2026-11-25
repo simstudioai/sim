@@ -14,6 +14,7 @@ export const restoreSecretTool: InternalToolConfig<
   description:
     'Cancel a scheduled deletion for a secret in AWS Secrets Manager, restoring access to it',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

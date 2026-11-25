@@ -14,6 +14,7 @@ export const clickupCreateListTool: ToolConfig<ClickUpCreateListParams, ClickUpL
   description:
     'Create a new list in a ClickUp folder, or a folderless list in a space when a space ID is provided instead',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

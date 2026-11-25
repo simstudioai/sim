@@ -12,6 +12,7 @@ export const rootlyDeleteIncidentTool: ToolConfig<
   name: 'Rootly Delete Incident',
   description: 'Delete an incident by ID from Rootly.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const updateFunctionConfigurationTool: InternalToolConfig<
   description:
     "Update a function's settings such as memory, timeout, role, and environment variables",
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

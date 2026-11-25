@@ -8,6 +8,7 @@ export const slackListFilesTool = createSlackWebApiTool({
   name: 'Slack List Files',
   description:
     'List one page of Slack files matching user, channel, type, or timestamp filters. Continue using paging.page and paging.pages.',
+  effect: 'read',
   endpoint: 'files.list',
   method: 'GET',
   oauth: { required: true, provider: 'slack', requiredScopes: ['files:read'] },

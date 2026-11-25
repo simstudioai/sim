@@ -13,6 +13,7 @@ export const queryLogsTool: InternalToolConfig<
   name: 'CloudWatch Query Logs',
   description: 'Run a CloudWatch Log Insights query against one or more log groups',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

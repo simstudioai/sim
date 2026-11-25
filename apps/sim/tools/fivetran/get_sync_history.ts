@@ -33,6 +33,7 @@ export const fivetranGetSyncHistoryTool: ToolConfig<
   description:
     'List the recent syncs of a Fivetran connection with their outcome, failure reason, and data volume per stage. The time window is at most 7 days and defaults to the last hour.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

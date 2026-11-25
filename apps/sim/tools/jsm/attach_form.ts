@@ -6,6 +6,7 @@ export const jsmAttachFormTool: InternalToolConfig<JsmAttachFormParams, JsmAttac
   name: 'JSM Attach Form',
   description: 'Attach a form template to an existing Jira issue or JSM request',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

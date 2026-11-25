@@ -21,6 +21,7 @@ export const mailchimpDeleteMergeFieldTool: ToolConfig<
   name: 'Delete Merge Field from Mailchimp Audience',
   description: 'Delete a merge field from a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

@@ -30,6 +30,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
   name: 'Supabase Query',
   description: 'Query data from a Supabase table',
   version: '1.0.0',
+  effect: 'read',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const createQuestionsTool: ToolConfig<
   name: 'Jotform Create Questions',
   description: 'Add several questions to an existing Jotform form in one call.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

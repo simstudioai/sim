@@ -12,6 +12,7 @@ export const mondayGetItemTool: ToolConfig<MondayGetItemParams, MondayGetItemRes
   name: 'Monday Get Item',
   description: 'Get a specific item by ID from Monday.com',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

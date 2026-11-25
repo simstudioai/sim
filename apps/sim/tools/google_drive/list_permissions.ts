@@ -23,6 +23,7 @@ export const listPermissionsTool: ToolConfig<
   name: 'List Google Drive Permissions',
   description: 'List all permissions (who has access) for a file in Google Drive',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

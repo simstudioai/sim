@@ -9,6 +9,7 @@ export const getConsentTool: ToolConfig<KetchGetConsentParams, KetchGetConsentRe
   description:
     'Retrieve consent status for a data subject. Returns the current consent preferences for each configured purpose.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     organizationCode: {

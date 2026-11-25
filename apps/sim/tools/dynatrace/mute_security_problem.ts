@@ -21,6 +21,7 @@ export const muteSecurityProblemTool: ToolConfig<
   description:
     'Mute a single Dynatrace vulnerability with a reason, for triaging false positives or accepted risk.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

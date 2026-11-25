@@ -23,6 +23,7 @@ export const salesforceCreateCustomObjectTool: ToolConfig<
   name: 'Create Custom Object in Salesforce',
   description: 'Create a custom object in Salesforce using the Tooling API',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

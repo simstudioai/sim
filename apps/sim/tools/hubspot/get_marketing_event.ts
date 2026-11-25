@@ -17,6 +17,7 @@ export const hubspotGetMarketingEventTool: ToolConfig<
   name: 'Get Marketing Event from HubSpot',
   description: 'Retrieve a single marketing event by ID from HubSpot',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

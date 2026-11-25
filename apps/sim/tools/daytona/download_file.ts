@@ -18,6 +18,7 @@ export const daytonaDownloadFileTool: ToolConfig<
   name: 'Daytona Download File',
   description: 'Download a file from a Daytona sandbox',
   version: '1.0.0',
+  effect: 'read',
   oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {

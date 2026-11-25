@@ -9,6 +9,7 @@ export const ripplingListDepartmentsTool: ToolConfig<RipplingListDepartmentsPara
   name: 'Rippling List Departments',
   description: 'List all departments',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

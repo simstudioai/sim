@@ -14,6 +14,7 @@ export const createSloTool: ToolConfig<CreateSloParams, CreateSloResponse> = {
   description:
     'Create a service level objective from a metric query, monitors, or a time-slice condition.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

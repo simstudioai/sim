@@ -12,6 +12,7 @@ export const agiloftAttachmentInfoTool: InternalToolConfig<
   name: 'Agiloft Attachment Info',
   description: 'Get information about file attachments on a record field.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     instanceUrl: {

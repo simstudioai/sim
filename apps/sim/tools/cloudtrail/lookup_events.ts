@@ -14,6 +14,7 @@ export const lookupEventsTool: InternalToolConfig<
   description:
     'Look up AWS CloudTrail management or Insights events from the last 90 days in a Region',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

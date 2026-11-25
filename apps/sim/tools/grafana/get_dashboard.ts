@@ -8,6 +8,7 @@ export const getDashboardTool: ToolConfig<GrafanaGetDashboardParams, GrafanaGetD
     name: 'Grafana Get Dashboard',
     description: 'Get a dashboard by its UID',
     version: '1.0.0',
+    effect: 'read',
     oauth: GRAFANA_CREDENTIAL_OAUTH,
 
     params: {

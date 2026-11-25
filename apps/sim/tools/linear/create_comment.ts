@@ -11,6 +11,7 @@ export const linearCreateCommentTool: ToolConfig<
   name: 'Linear Create Comment',
   description: 'Add a comment to an issue in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

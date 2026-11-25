@@ -30,6 +30,7 @@ export const zendeskGetUserTool: ToolConfig<ZendeskGetUserParams, ZendeskGetUser
   name: 'Get Single User from Zendesk',
   description: 'Get a single user by ID from Zendesk',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

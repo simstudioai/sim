@@ -28,6 +28,7 @@ export const listProblemCommentsTool: ToolConfig<
   name: 'Dynatrace List Problem Comments',
   description: 'List the comments recorded on a Dynatrace problem.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

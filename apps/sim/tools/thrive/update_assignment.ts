@@ -18,6 +18,7 @@ export const updateAssignmentTool: ToolConfig<
   name: 'Thrive Update Assignment',
   description: 'Update a compliance assignment in Thrive.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

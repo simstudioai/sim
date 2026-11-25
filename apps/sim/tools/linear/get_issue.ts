@@ -8,6 +8,7 @@ export const linearGetIssueTool: ToolConfig<LinearGetIssueParams, LinearGetIssue
   name: 'Linear Get Issue',
   description: 'Get a single issue by ID from Linear with full details',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

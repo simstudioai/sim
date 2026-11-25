@@ -25,6 +25,7 @@ export const quickbooksCreateCreditMemoTool: ToolConfig<
   name: 'QuickBooks Create Credit Memo',
   description: 'Create a customer credit memo with bounded sales lines',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

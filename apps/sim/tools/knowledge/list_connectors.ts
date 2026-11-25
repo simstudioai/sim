@@ -8,6 +8,7 @@ export const knowledgeListConnectorsTool: InternalToolConfig<any, KnowledgeListC
     description:
       'List all connectors for a knowledge base, showing sync status, type, and document counts',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       knowledgeBaseId: {

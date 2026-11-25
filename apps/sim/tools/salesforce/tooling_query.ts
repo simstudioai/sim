@@ -24,6 +24,7 @@ export const salesforceToolingQueryTool: ToolConfig<
   name: 'Run Tooling SOQL Query in Salesforce',
   description: 'Execute a SOQL query against the Tooling API to inspect metadata objects',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

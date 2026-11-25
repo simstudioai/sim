@@ -13,6 +13,7 @@ export const spotifyGetRecentlyPlayedTool: ToolConfig<
   name: 'Spotify Get Recently Played',
   description: "Get the user's recently played tracks.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

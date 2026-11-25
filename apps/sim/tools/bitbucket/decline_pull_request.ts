@@ -23,6 +23,7 @@ export const bitbucketDeclinePullRequestTool: ToolConfig<
   name: 'Bitbucket Decline Pull Request',
   description: 'Decline an open pull request',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pullrequest:write'] },
   params: { ...BITBUCKET_PULL_REQUEST_PARAMS },
   request: {

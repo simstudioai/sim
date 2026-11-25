@@ -19,6 +19,7 @@ export const mondayChangeColumnValueTool: ToolConfig<
   name: 'Monday Change Column Value',
   description: "Update a single column's value on a Monday.com item",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

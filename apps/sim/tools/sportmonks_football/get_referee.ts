@@ -30,6 +30,7 @@ export const sportmonksGetRefereeTool: ToolConfig<
   name: 'Get Referee by ID',
   description: 'Retrieve a single football referee by their ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

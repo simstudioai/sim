@@ -7,6 +7,7 @@ export const filesTool: InternalToolConfig<TypeformFilesParams, TypeformFilesRes
   name: 'Typeform Files',
   description: 'Download files uploaded in Typeform responses',
   version: '1.0.0',
+  effect: 'read',
   oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {

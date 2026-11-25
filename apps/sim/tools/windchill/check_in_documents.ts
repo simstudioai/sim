@@ -15,6 +15,7 @@ export const windchillCheckInDocumentsTool: InternalToolConfig<WindchillParams, 
     name: 'Windchill Check In Documents',
     description: 'Check in multiple documents atomically',
     version: '1.0.0',
+    effect: 'write',
     params: {
       baseUrl: {
         type: 'string',

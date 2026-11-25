@@ -13,6 +13,7 @@ export const describeAccountTool: InternalToolConfig<
   name: 'Identity Center Describe Account',
   description: 'Retrieve details about a specific AWS account by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

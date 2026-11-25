@@ -108,6 +108,7 @@ vi.mocked(getToolMetadata).mockImplementation((id) =>
       : id === 'gmail_send'
         ? {
             id,
+            effect: 'write',
             params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
             oauth: { required: true, provider: 'google-email' },
           }

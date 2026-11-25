@@ -9,6 +9,7 @@ export const cleanLocationTool: ToolConfig<PdlCleanLocationParams, PdlCleanLocat
   description:
     'Normalize a freeform location string into a structured locality/region/country record with coordinates.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,

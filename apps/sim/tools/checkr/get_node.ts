@@ -19,6 +19,7 @@ export const checkrGetNodeTool: ToolConfig<CheckrGetNodeParams, CheckrNodeRespon
   name: 'Checkr Get Node',
   description: 'Retrieve an account hierarchy node by its custom ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

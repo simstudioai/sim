@@ -10,6 +10,7 @@ export const manageengineSdpGetAssetTool: ToolConfig<SdpGetAssetParams, SdpRespo
   name: 'ManageEngine SDP Get Asset',
   description: 'Retrieve a single ManageEngine ServiceDesk Plus Cloud asset by ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

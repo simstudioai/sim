@@ -22,6 +22,7 @@ export const kalshiGetOrderbookTool: ToolConfig<
   name: 'Get Market Orderbook from Kalshi',
   description: 'Retrieve the orderbook (yes and no bids) for a specific market',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ticker: {
@@ -100,6 +101,7 @@ export const kalshiGetOrderbookV2Tool: ToolConfig<
   description:
     'Retrieve the orderbook (yes and no bids) for a specific market with depth and fixed-point fields',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     ticker: {

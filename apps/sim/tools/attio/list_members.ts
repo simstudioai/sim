@@ -10,6 +10,7 @@ export const attioListMembersTool: ToolConfig<AttioListMembersParams, AttioListM
   name: 'Attio List Members',
   description: 'List all workspace members in Attio',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

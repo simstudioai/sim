@@ -23,6 +23,7 @@ export const unstarGistTool: ToolConfig<UnstarGistParams, UnstarGistResponse> = 
   name: 'GitHub Unstar Gist',
   description: 'Unstar a gist',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -86,6 +87,7 @@ export const unstarGistV2Tool: ToolConfig<UnstarGistParams, any> = {
   name: unstarGistTool.name,
   description: unstarGistTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: unstarGistTool.params,
   request: unstarGistTool.request,

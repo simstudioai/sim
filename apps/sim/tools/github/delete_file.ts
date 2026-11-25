@@ -10,6 +10,7 @@ export const deleteFileTool: ToolConfig<DeleteFileParams, DeleteFileResponse> = 
   description:
     'Delete a file from a GitHub repository. Requires the file SHA. This operation cannot be undone through the API.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -157,6 +158,7 @@ export const deleteFileV2Tool: ToolConfig<DeleteFileParams, any> = {
   name: deleteFileTool.name,
   description: deleteFileTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteFileTool.params,
   request: deleteFileTool.request,

@@ -11,6 +11,7 @@ export const getItemTool: InternalToolConfig<OnePasswordGetItemParams, OnePasswo
     name: '1Password Get Item',
     description: 'Get full details of an item including all fields and secrets',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       connectionMode: {

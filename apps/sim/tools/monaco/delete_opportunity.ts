@@ -13,6 +13,7 @@ export const monacoDeleteOpportunityTool: ToolConfig<
   name: 'Monaco Delete Opportunity',
   description: 'Permanently delete a Monaco opportunity. This cannot be undone.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -17,6 +17,7 @@ export const triggerDevGetRunResultTool: ToolConfig<
   description:
     'Retrieve the result of a Trigger.dev run: whether it succeeded, its output, and error details. Lighter than Get Run when only the outcome is needed.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

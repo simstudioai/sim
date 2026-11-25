@@ -8,6 +8,7 @@ export const vercelListAliasesTool: ToolConfig<VercelListAliasesParams, VercelLi
     name: 'Vercel List Aliases',
     description: 'List aliases for a Vercel project or team',
     version: '1.0.0',
+    effect: 'read',
     oauth: VERCEL_CREDENTIAL_OAUTH,
 
     params: {

@@ -11,6 +11,7 @@ export const jupyterListSessionsTool: InternalToolConfig<
   name: 'Jupyter List Sessions',
   description: 'List active sessions (notebook-to-kernel bindings) on a Jupyter server',
   version: '1.0.0',
+  effect: 'read',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

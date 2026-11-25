@@ -8,6 +8,7 @@ export const stripeSearchChargesTool: ToolConfig<SearchChargesParams, ChargeList
   name: 'Stripe Search Charges',
   description: 'Search for charges using query syntax',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

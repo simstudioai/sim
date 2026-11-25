@@ -16,6 +16,7 @@ export const shopifyListInventoryItemsTool: ToolConfig<
   description:
     'List inventory items from your Shopify store. Use this to find inventory item IDs by SKU.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

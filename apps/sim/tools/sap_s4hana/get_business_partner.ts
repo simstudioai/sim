@@ -15,6 +15,7 @@ export const getBusinessPartnerTool: InternalToolConfig<
   description:
     'Retrieve a single business partner by BusinessPartner key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

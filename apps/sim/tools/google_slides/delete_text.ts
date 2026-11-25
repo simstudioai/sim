@@ -36,6 +36,7 @@ export const deleteTextTool: ToolConfig<DeleteTextParams, DeleteTextResponse> = 
   description:
     'Delete text from a shape or table cell. Use range type ALL to clear all text, or FIXED_RANGE / FROM_START_INDEX to delete a specific span.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

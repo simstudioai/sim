@@ -32,6 +32,7 @@ export const listTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordListResp
   description:
     'List or search Microsoft Word (.docx) documents in OneDrive or SharePoint. Non-Word items are filtered out of the results.',
   version: '1.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

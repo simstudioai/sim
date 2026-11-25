@@ -86,6 +86,7 @@ export const dataverseListRecordsTool: ToolConfig<
   description:
     'Query and list records from a Microsoft Dataverse table. Supports OData query options for filtering, selecting columns, ordering, and pagination.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

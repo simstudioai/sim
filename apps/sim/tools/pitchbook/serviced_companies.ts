@@ -9,6 +9,7 @@ export const pitchbookServicedCompaniesTool: ToolConfig<PitchbookProfileParams, 
     name: 'PitchBook Serviced Companies',
     description: 'Retrieve the companies a service provider currently and formerly serves',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

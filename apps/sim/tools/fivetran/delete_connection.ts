@@ -23,6 +23,7 @@ export const fivetranDeleteConnectionTool: ToolConfig<
   name: 'Fivetran Delete Connection',
   description: 'Delete a Fivetran connection. This cannot be undone.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

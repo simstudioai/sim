@@ -33,6 +33,7 @@ export const spotifyGetCurrentlyPlayingTool: ToolConfig<
   name: 'Spotify Get Currently Playing',
   description: "Get the user's currently playing track.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

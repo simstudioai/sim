@@ -10,6 +10,7 @@ export const shopifyDeleteProductTool: ToolConfig<
   name: 'Shopify Delete Product',
   description: 'Delete a product from your Shopify store',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

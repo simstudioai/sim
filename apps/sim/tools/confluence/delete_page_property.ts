@@ -27,6 +27,7 @@ export const confluenceDeletePagePropertyTool: InternalToolConfig<
   name: 'Confluence Delete Page Property',
   description: 'Delete a content property from a Confluence page by its property ID.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -12,6 +12,7 @@ export const searchUsersTool: InternalToolConfig<SearchUsersParams, SapConcurRes
   description:
     'Search users via SCIM .search endpoint (POST /profile/identity/v4.1/Users/.search).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

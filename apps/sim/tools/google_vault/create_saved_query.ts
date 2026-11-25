@@ -8,6 +8,7 @@ export const createSavedQueryTool: ToolConfig<GoogleVaultCreateSavedQueryParams>
   name: 'Vault Create Saved Query',
   description: 'Save a reusable search query in a matter',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

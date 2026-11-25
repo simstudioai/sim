@@ -23,6 +23,7 @@ export const listLeadListsTool: ToolConfig<
   name: 'Instantly List Lead Lists',
   description: 'Retrieves Instantly V2 lead lists with search and pagination filters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

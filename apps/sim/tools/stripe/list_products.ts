@@ -8,6 +8,7 @@ export const stripeListProductsTool: ToolConfig<ListProductsParams, ProductListR
   name: 'Stripe List Products',
   description: 'List all products',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

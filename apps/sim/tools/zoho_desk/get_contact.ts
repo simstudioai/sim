@@ -14,6 +14,7 @@ export const zohoDeskGetContactTool: ToolConfig<ZohoDeskGetContactParams, ZohoDe
   name: 'Zoho Desk Get Contact',
   description: 'Retrieve a Zoho Desk contact by ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'zoho-desk' },
 

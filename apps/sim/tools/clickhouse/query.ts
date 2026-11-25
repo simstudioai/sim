@@ -6,6 +6,7 @@ export const queryTool: InternalToolConfig<ClickHouseQueryParams, ClickHouseQuer
   name: 'ClickHouse Query',
   description: 'Execute a SELECT query on a ClickHouse database',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

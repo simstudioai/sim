@@ -16,6 +16,7 @@ export const rocketlaneDeleteTimeOffTool: ToolConfig<
   name: 'Rocketlane Delete Time-Off',
   description: 'Permanently delete a Rocketlane time-off by its ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

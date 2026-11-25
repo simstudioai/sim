@@ -14,6 +14,7 @@ export const createStackTool: InternalToolConfig<
   name: 'CloudFormation Create Stack',
   description: 'Create a new CloudFormation stack from a template',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

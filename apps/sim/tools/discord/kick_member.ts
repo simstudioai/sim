@@ -9,6 +9,7 @@ export const discordKickMemberTool: ToolConfig<DiscordKickMemberParams, DiscordK
     name: 'Discord Kick Member',
     description: 'Kick a member from a Discord server',
     version: '1.0.0',
+    effect: 'write',
     oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {

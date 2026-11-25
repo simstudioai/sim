@@ -23,6 +23,7 @@ export const contextDevGetBrandByEmailTool: ToolConfig<
   description:
     'Retrieve brand data from a work email address. Free/disposable emails are rejected (422).',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevGetBrandByEmailParams>(),
 

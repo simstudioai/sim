@@ -14,6 +14,7 @@ export const oktaResetFactorTool: ToolConfig<OktaResetFactorParams, OktaResetFac
   description:
     'Unenroll one specific MFA factor for a user so they can re-enroll it. Destructive and irreversible: the existing enrollment is removed. Unenrolling a push or signed_nonce factor also unenrolls the related Okta Verify factors. Factors cannot be unenrolled from a deactivated user.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

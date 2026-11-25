@@ -8,6 +8,7 @@ export const stripeSearchProductsTool: ToolConfig<SearchProductsParams, ProductL
   name: 'Stripe Search Products',
   description: 'Search for products using query syntax',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

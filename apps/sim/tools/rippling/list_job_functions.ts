@@ -9,6 +9,7 @@ export const ripplingListJobFunctionsTool: ToolConfig<RipplingListJobFunctionsPa
   name: 'Rippling List Job Functions',
   description: 'List all job functions',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

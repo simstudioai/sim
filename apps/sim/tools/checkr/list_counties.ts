@@ -18,6 +18,7 @@ export const checkrListCountiesTool: ToolConfig<
   description:
     'List US counties for one or more states, with their FIPS codes. Use the county names in report self-disclosures.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

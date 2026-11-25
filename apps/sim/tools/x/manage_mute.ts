@@ -9,6 +9,7 @@ export const xManageMuteTool: ToolConfig<XManageMuteParams, XManageMuteResponse>
   name: 'X Manage Mute',
   description: 'Mute or unmute a user on X',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

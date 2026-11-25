@@ -14,6 +14,7 @@ export const updateConfigurationProfileTool: InternalToolConfig<
   description:
     'Update the name, description, or retrieval role of an AppConfig configuration profile',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

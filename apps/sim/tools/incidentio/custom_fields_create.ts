@@ -10,6 +10,7 @@ export const customFieldsCreateTool: ToolConfig<
   name: 'incident.io Custom Fields Create',
   description: 'Create a new custom field in incident.io.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

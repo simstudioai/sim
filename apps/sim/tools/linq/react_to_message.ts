@@ -9,6 +9,7 @@ export const linqReactToMessageTool: ToolConfig<LinqReactToMessageParams, LinqQu
   name: 'React to Message',
   description: 'Add or remove a tapback reaction on a message',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

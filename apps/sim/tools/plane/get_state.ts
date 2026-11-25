@@ -21,6 +21,7 @@ export const planeGetStateTool: ToolConfig<PlaneGetStateParams, PlaneGetStateRes
   name: 'Plane Get a state',
   description: 'Get a state in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

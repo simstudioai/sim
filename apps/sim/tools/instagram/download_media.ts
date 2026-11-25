@@ -30,6 +30,7 @@ export const instagramDownloadMediaTool: InternalToolConfig<
   description:
     'Download Instagram media into canonical User Files for downstream file inputs (100 MB max per file)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -10,6 +10,7 @@ export const describeIndexStatsTool: ToolConfig<
   name: 'Pinecone Describe Index Stats',
   description: 'Get statistics about a Pinecone index, including per-namespace vector counts',
   version: '1.0',
+  effect: 'read',
 
   params: {
     indexHost: {

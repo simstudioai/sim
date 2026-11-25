@@ -10,6 +10,7 @@ export const pipedriveGetFilesTool: InternalToolConfig<
   name: 'Get Files from Pipedrive',
   description: 'Retrieve files from Pipedrive with optional filters',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

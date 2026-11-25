@@ -33,6 +33,7 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
     description:
       'Create a new release in Sentry. A release is a version of your code deployed to an environment. Can include commit information and associated projects. Returns the created release details.',
     version: '1.0.0',
+    effect: 'write',
     oauth: SENTRY_CREDENTIAL_OAUTH,
 
     params: {

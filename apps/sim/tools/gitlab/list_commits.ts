@@ -10,6 +10,7 @@ export const gitlabListCommitsTool: ToolConfig<GitLabListCommitsParams, GitLabLi
     name: 'GitLab List Commits',
     description: 'List commits in a GitLab project repository',
     version: '1.0.0',
+    effect: 'read',
     oauth: GITLAB_CREDENTIAL_OAUTH,
 
     params: {

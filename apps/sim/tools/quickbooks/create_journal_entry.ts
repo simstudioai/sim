@@ -25,6 +25,7 @@ export const quickbooksCreateJournalEntryTool: ToolConfig<
   name: 'QuickBooks Create Journal Entry',
   description: 'Post a balanced journal entry after explicit confirmation',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

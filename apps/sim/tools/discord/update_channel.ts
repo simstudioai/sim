@@ -14,6 +14,7 @@ export const discordUpdateChannelTool: ToolConfig<
   name: 'Discord Update Channel',
   description: 'Update a Discord channel',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const rootlyUnassignIncidentRoleTool: ToolConfig<
   name: 'Rootly Unassign Incident Role',
   description: 'Remove an incident role assignment from a user on a Rootly incident.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

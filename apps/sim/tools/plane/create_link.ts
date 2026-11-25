@@ -21,6 +21,7 @@ export const planeCreateLinkTool: ToolConfig<PlaneCreateLinkParams, PlaneCreateL
   name: 'Plane Create a link',
   description: 'Create a link in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

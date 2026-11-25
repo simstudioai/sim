@@ -21,6 +21,7 @@ export const manageengineSdpListChangeNotesTool: ToolConfig<SdpListChangeNotesPa
     name: 'ManageEngine SDP List Change Notes',
     description: 'List the notes on a ManageEngine ServiceDesk Plus Cloud change.',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: { required: true, provider: 'manageengine-sdp' },
 

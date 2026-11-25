@@ -13,6 +13,7 @@ export const gaugeGetPromptTool: ToolConfig<GaugeGetPromptParams, GaugeGetPrompt
   name: 'Gauge Get Prompt',
   description: 'Read a tracked question and its topic, tags, and sampling information.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

@@ -27,6 +27,7 @@ export const tableAddTool: ToolConfig<
   name: 'Add to Microsoft Excel Table',
   description: 'Add new rows to a Microsoft Excel table',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

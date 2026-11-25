@@ -22,6 +22,7 @@ export const rabbitmqListExchangeBindingsTool: ToolConfig<
   description:
     'List everything an exchange routes to, so you can see which routing keys reach which queues.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

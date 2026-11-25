@@ -3,11 +3,12 @@ import type { ToolConfig } from '@/tools/types'
 
 export const slackListMembersTool: ToolConfig<SlackListMembersParams, SlackListMembersResponse> = {
   id: 'slack_list_members',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Slack List Channel Members',
   description:
     'List all members (user IDs) in a Slack channel. Use with Get User Info to resolve IDs to names.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -18,6 +18,7 @@ export const codaGetAnalyticsLastUpdatedTool: ToolConfig<
   description:
     'Get the dates (Pacific time) Coda analytics were last refreshed, to know how current analytics data is',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

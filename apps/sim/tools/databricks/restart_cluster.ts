@@ -20,6 +20,7 @@ export const restartClusterTool: ToolConfig<
   name: 'Databricks Restart Cluster',
   description: 'Restart a running compute cluster.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

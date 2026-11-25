@@ -27,6 +27,7 @@ export const shareTool: ToolConfig<GoogleDriveShareParams, GoogleDriveShareRespo
   name: 'Share Google Drive File',
   description: 'Share a file with a user, group, domain, or make it public',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

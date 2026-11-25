@@ -17,6 +17,7 @@ export const manageengineSdpListSolutionsTool: ToolConfig<SdpListParams, SdpResp
   description:
     'Search the ManageEngine ServiceDesk Plus Cloud knowledge base, with optional search criteria, sorting and paging.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

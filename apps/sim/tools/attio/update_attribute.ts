@@ -14,6 +14,7 @@ export const attioUpdateAttributeTool: ToolConfig<
   name: 'Attio Update Attribute',
   description: 'Update an attribute (schema field) on an Attio object or list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

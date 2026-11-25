@@ -7,6 +7,7 @@ export const slackSetUserPresenceTool = createSlackWebApiTool({
   name: 'Slack Set Bot Presence',
   description:
     'Set the selected custom bot’s presence to away or automatic. This does not change a workspace member’s presence.',
+  effect: 'write',
   endpoint: 'users.setPresence',
   method: 'POST',
   oauth: {

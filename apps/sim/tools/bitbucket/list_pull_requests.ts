@@ -31,6 +31,7 @@ export const bitbucketListPullRequestsTool: ToolConfig<
   name: 'Bitbucket List Pull Requests',
   description: 'List pull requests in a Bitbucket Cloud repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pullrequest'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

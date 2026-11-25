@@ -23,6 +23,7 @@ export const planeUpdateWebhookTool: ToolConfig<
   name: 'Plane Update a webhook',
   description: 'Update a webhook in Plane. Requires API v2.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

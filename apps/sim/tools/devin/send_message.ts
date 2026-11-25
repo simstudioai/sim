@@ -10,6 +10,7 @@ export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendM
   description:
     'Send a message to a Devin session. If the session is suspended, it will be automatically resumed. Returns the updated session state.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {

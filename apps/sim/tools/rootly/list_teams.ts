@@ -8,6 +8,7 @@ export const rootlyListTeamsTool: ToolConfig<RootlyListTeamsParams, RootlyListTe
   name: 'Rootly List Teams',
   description: 'List teams (groups) configured in Rootly.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

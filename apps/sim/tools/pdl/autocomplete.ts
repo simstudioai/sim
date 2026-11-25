@@ -19,6 +19,7 @@ export const autocompleteTool: ToolConfig<PdlAutocompleteParams, PdlAutocomplete
   description:
     'Get autocomplete suggestions for a PDL field (title, skill, company, industry, location, school, major, role, sub_role).',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,

@@ -18,6 +18,7 @@ export const searchLogsTool: ToolConfig<DynatraceSearchLogsParams, DynatraceSear
   description:
     'Search log records in Dynatrace by query and timeframe, for troubleshooting and incident analysis.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

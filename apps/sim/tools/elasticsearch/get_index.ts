@@ -12,6 +12,7 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
     name: 'Elasticsearch Get Index',
     description: 'Retrieve index information including settings, mappings, and aliases.',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       deploymentType: {

@@ -22,6 +22,7 @@ export const otterListChannelsTool: ToolConfig<OtterListChannelsParams, OtterLis
     description:
       'List the Otter channels available to the authenticated user, in alphabetical order.',
     version: '1.0.0',
+    effect: 'read',
     oauth: OTTER_CREDENTIAL_OAUTH,
 
     params: {

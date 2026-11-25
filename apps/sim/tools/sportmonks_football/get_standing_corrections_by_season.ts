@@ -30,6 +30,7 @@ export const sportmonksGetStandingCorrectionsBySeasonTool: ToolConfig<
   name: 'Get Standing Corrections by Season',
   description: 'Retrieve point corrections (awarded or deducted) for a season ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

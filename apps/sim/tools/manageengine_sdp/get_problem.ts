@@ -10,6 +10,7 @@ export const manageengineSdpGetProblemTool: ToolConfig<SdpGetProblemParams, SdpR
   name: 'ManageEngine SDP Get Problem',
   description: 'Retrieve a single ManageEngine ServiceDesk Plus Cloud problem by ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

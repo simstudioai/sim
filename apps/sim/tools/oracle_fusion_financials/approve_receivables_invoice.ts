@@ -18,6 +18,7 @@ export const oracleFusionFinancialsApproveReceivablesInvoiceTool: InternalToolCo
   description:
     'Approve a pending-approval Oracle Fusion receivables invoice. Returns the action result, not a refreshed transaction.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     receivablesInvoiceId: {

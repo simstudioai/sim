@@ -14,6 +14,7 @@ export const agentphoneListConversationsTool: ToolConfig<
   name: 'List Conversations',
   description: 'List conversations (message threads) for this AgentPhone account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

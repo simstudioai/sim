@@ -20,6 +20,7 @@ export const dataverseUpdateMultipleTool: ToolConfig<
   description:
     'Update multiple records of the same table type in a single request. Each record must include its primary key. Only include columns that need to be changed. Recommended batch size: 100-1000 records.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

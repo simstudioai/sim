@@ -30,6 +30,7 @@ export const microsoftDynamics365CloseOpportunityTool: ToolConfig<
   name: 'Close Microsoft Dynamics 365 Opportunity',
   description: 'Close a Dynamics 365 Sales opportunity as won or lost.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

@@ -13,6 +13,7 @@ export const gaugeGetCategoryTool: ToolConfig<GaugeGetCategoryParams, GaugeGetCa
   name: 'Gauge Get Category',
   description: 'Read the details of an AI-search category.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

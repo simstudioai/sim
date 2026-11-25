@@ -17,6 +17,7 @@ export const pitchbookFundSearchTool: ToolConfig<
   name: 'PitchBook Fund Search',
   description: 'Search PitchBook for funds by manager, type, size, vintage, and performance',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

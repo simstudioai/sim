@@ -9,6 +9,7 @@ export const webflowUpdateItemTool: ToolConfig<WebflowUpdateItemParams, WebflowU
     name: 'Webflow Update Item',
     description: 'Update an existing item in a Webflow CMS collection',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

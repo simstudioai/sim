@@ -18,6 +18,7 @@ export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCrea
   name: 'Create ServiceNow Record',
   description: 'Create a new record in a ServiceNow table',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

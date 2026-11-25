@@ -7,6 +7,7 @@ export const a2aGetAgentCardTool: InternalToolConfig<A2AGetAgentCardParams, A2AA
     name: 'A2A Get Agent Card',
     description: 'Fetch the Agent Card (discovery document) for an external A2A agent.',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       agentUrl: {

@@ -29,6 +29,7 @@ export const rabbitmqListExchangesTool: ToolConfig<
   description:
     'List exchanges in a RabbitMQ virtual host with their type and declaration settings.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

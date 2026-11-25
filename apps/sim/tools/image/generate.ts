@@ -11,6 +11,7 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
   description:
     'Generate images with OpenAI GPT Image, Google Nano Banana, Higgsfield SOUL and Z-Image, or Fal.ai image models',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     provider: {

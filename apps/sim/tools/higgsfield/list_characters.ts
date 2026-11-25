@@ -26,6 +26,7 @@ export const higgsfieldListCharactersTool: ToolConfig<
   description:
     'List the Soul ID character references in the Higgsfield account, one page at a time.',
   version: '1.0.0',
+  effect: 'read',
   oauth: higgsfieldOAuth,
   params: {
     ...higgsfieldAuthParams,

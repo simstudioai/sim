@@ -22,6 +22,7 @@ export const modalChatCompletionTool: ToolConfig<
   name: 'Modal Chat Completion',
   description: 'Generate a chat completion from a model served by a Modal Endpoint',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     endpointUrl: {

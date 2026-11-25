@@ -20,6 +20,7 @@ export const oracleFusionFinancialsListReceivablesCreditMemosTool: InternalToolC
   name: 'Oracle Fusion Financials List Receivables Credit Memos',
   description: 'List one page of Oracle Fusion receivables credit memos.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     ...oracleFusionFinancialsListParamFields,

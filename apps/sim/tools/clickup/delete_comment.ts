@@ -14,6 +14,7 @@ export const clickupDeleteCommentTool: ToolConfig<
   name: 'ClickUp Delete Comment',
   description: 'Delete a comment from a ClickUp task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -35,6 +35,7 @@ export const higgsfieldGenerateTool: ToolConfig<
   description:
     "Submit a generation request to any Higgsfield image or video model endpoint with that model's documented JSON input, then wait for the output URLs.",
   version: '1.0.0',
+  effect: 'write',
   oauth: higgsfieldOAuth,
   params: {
     ...higgsfieldAuthParams,

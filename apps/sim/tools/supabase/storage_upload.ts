@@ -14,6 +14,7 @@ export const storageUploadTool: InternalToolConfig<
   name: 'Supabase Storage Upload',
   description: 'Upload a file to a Supabase storage bucket',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

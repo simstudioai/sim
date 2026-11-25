@@ -11,6 +11,7 @@ export const listPurchaseRequisitionsTool: InternalToolConfig<
   description:
     'List purchase requisitions from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand. Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

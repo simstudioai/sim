@@ -15,6 +15,7 @@ export const getFormTool: ToolConfig<JotformGetFormParams, JotformFormResponse> 
   description:
     'Get the details of a single Jotform form, including its status, URL, and submission counts.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

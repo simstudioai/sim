@@ -8,6 +8,7 @@ export const metricsTool: ToolConfig<AhrefsMetricsParams, AhrefsMetricsResponse>
   description:
     'Get a one-call organic and paid search overview for a target domain or URL: organic traffic, organic keywords, paid traffic, paid keywords, and estimated traffic cost.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {

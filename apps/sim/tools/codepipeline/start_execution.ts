@@ -13,6 +13,7 @@ export const startExecutionTool: InternalToolConfig<
   name: 'CodePipeline Start Execution',
   description: 'Start a CodePipeline pipeline execution, optionally overriding pipeline variables',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

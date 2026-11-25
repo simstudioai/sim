@@ -8,6 +8,7 @@ export const listProjectsTool: ToolConfig<ListProjectsParams, ListProjectsRespon
   description:
     'List GitHub Projects V2 for an organization or user. Returns up to 20 projects with their details including ID, title, number, URL, and status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -171,6 +172,7 @@ export const listProjectsV2Tool: ToolConfig<ListProjectsParams, any> = {
   name: listProjectsTool.name,
   description: listProjectsTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listProjectsTool.params,
   request: listProjectsTool.request,

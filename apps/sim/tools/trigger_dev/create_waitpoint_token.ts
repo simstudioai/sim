@@ -19,6 +19,7 @@ export const triggerDevCreateWaitpointTokenTool: ToolConfig<
   description:
     'Create a Trigger.dev waitpoint token that a task can wait on until it is completed from outside (e.g., a human approval).',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

@@ -24,6 +24,7 @@ export const quickbooksUpdateEstimateTool: ToolConfig<
   name: 'QuickBooks Update Estimate',
   description: 'Sparse-update an estimate using its current sync token',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

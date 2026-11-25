@@ -14,6 +14,7 @@ export const salesforceCreateLeadTool: ToolConfig<
   name: 'Create Lead in Salesforce',
   description: 'Create a new lead',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

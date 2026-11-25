@@ -8,6 +8,7 @@ export const addHeldAccountsTool: ToolConfig<GoogleVaultAddHeldAccountsParams> =
   name: 'Vault Add Held Accounts',
   description: 'Add accounts to an existing hold',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

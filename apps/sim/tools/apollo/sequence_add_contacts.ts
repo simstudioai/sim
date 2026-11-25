@@ -14,6 +14,7 @@ export const apolloSequenceAddContactsTool: ToolConfig<
   name: 'Apollo Add Contacts to Sequence',
   description: 'Add contacts to an Apollo sequence',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

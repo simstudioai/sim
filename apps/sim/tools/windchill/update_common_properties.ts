@@ -17,6 +17,7 @@ export const windchillUpdateCommonPropertiesTool: InternalToolConfig<
   name: 'Windchill Update Common Properties',
   description: "Update a document's Name, Number, and other common properties",
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

@@ -7,6 +7,7 @@ export const searchPostsTool: ToolConfig<EnrichSearchPostsParams, EnrichSearchPo
   name: 'Enrich Search Posts',
   description: 'Search LinkedIn posts by keywords with date filtering.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

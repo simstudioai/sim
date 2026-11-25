@@ -10,6 +10,7 @@ export const appendPeriodicNoteTool: ToolConfig<
   description:
     'Append content to the current periodic note (daily, weekly, monthly, quarterly, or yearly). Creates the note if it does not exist.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

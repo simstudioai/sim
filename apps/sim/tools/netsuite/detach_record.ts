@@ -11,6 +11,7 @@ export const netsuiteDetachRecordTool: InternalToolConfig<
   name: 'NetSuite Detach Record or File',
   description: 'Detach a contact or file from another NetSuite record.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

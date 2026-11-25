@@ -9,6 +9,7 @@ export const listCollectionsTool: ToolConfig<HexListCollectionsParams, HexListCo
     name: 'Hex List Collections',
     description: 'List all collections in the Hex workspace.',
     version: '1.0.0',
+    effect: 'read',
     oauth: HEX_CREDENTIAL_OAUTH,
 
     params: {

@@ -21,6 +21,7 @@ export const semrushUrlOverviewHistoryTool: ToolConfig<
   name: 'Semrush URL Overview History',
   description: 'Get the historical trend of a URL’s organic and paid search totals.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

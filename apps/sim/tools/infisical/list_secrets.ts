@@ -13,6 +13,7 @@ export const listSecretsTool: ToolConfig<InfisicalListSecretsParams, InfisicalLi
     description:
       'List all secrets in a project environment. Returns secret keys, values, comments, tags, and metadata.',
     version: '1.0.0',
+    effect: 'read',
     oauth: INFISICAL_CREDENTIAL_OAUTH,
 
     params: {

@@ -13,6 +13,7 @@ export const getGroupTool: InternalToolConfig<
   name: 'Identity Center Get Group',
   description: 'Look up a group in the Identity Store by display name',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

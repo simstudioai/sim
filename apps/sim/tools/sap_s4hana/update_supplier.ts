@@ -8,6 +8,7 @@ export const updateSupplierTool: InternalToolConfig<UpdateSupplierParams, SapS4H
   description:
     'Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. A_Supplier is limited to modifiable fields such as PostingIsBlocked, PurchasingIsBlocked, PaymentIsBlockedForSupplier, DeletionIndicator, and SupplierAccountGroup; company-code/purchasing-org segments must be updated via the `to_SupplierCompany` / `to_SupplierPurchasingOrg` deep-update endpoints. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     subdomain: {
       type: 'string',

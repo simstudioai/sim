@@ -10,6 +10,7 @@ export const revenuecatDeleteCustomerTool: ToolConfig<
   name: 'RevenueCat Delete Customer',
   description: 'Permanently delete a subscriber and all associated data',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

@@ -34,6 +34,7 @@ export const sportmonksCoreGetMyUsageTool: ToolConfig<
   name: 'Get My Usage',
   description: 'Retrieve your Sportmonks API usage aggregated per 5 minutes',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

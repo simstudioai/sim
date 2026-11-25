@@ -14,6 +14,7 @@ export const incidentRolesUpdateTool: ToolConfig<
   name: 'Update Incident Role',
   description: 'Update an existing incident role in incident.io',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

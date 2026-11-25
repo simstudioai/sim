@@ -20,6 +20,7 @@ export const triggerDevGetBatchResultsTool: ToolConfig<
   description:
     'Retrieve the execution results of every run in a Trigger.dev batch, including outputs and error details.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

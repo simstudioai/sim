@@ -14,6 +14,7 @@ export const linearListCustomerStatusesTool: ToolConfig<
   name: 'Linear List Customer Statuses',
   description: 'List all customer statuses in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

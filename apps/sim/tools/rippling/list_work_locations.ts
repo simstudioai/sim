@@ -9,6 +9,7 @@ export const ripplingListWorkLocationsTool: ToolConfig<RipplingListWorkLocations
   name: 'Rippling List Work Locations',
   description: 'List all work locations',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

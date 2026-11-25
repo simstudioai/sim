@@ -13,6 +13,7 @@ export const affinityListMeetingsTool: ToolConfig<
   name: 'Affinity List Meetings',
   description: 'Page through past and upcoming meetings with their organizer and attendees.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

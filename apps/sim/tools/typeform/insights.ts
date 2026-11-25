@@ -8,6 +8,7 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
   name: 'Typeform Insights',
   description: 'Retrieve insights and analytics for Typeform forms',
   version: '1.0.0',
+  effect: 'read',
   oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const describeInstanceInformationTool: InternalToolConfig<
   name: 'SSM Describe Instance Information',
   description: 'List managed nodes registered with AWS Systems Manager and their agent status',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

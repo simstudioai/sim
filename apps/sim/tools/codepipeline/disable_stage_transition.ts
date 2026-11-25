@@ -14,6 +14,7 @@ export const disableStageTransitionTool: InternalToolConfig<
   description:
     'Prevent artifacts from transitioning into or out of a CodePipeline stage, freezing the pipeline at that point',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

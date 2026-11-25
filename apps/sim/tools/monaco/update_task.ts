@@ -21,6 +21,7 @@ export const monacoUpdateTaskTool: ToolConfig<MonacoUpdateTaskParams, MonacoTask
   description:
     'Update a Monaco task. Only the fields you set are changed; setting status to DONE or CANCELLED marks it completed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

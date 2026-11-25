@@ -17,6 +17,7 @@ export const zohoDeskGetAccountTool: ToolConfig<
   name: 'Zoho Desk Get Account',
   description: 'Get Account in Zoho Desk.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

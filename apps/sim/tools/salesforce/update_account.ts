@@ -14,6 +14,7 @@ export const salesforceUpdateAccountTool: ToolConfig<
   name: 'Update Account in Salesforce',
   description: 'Update an existing account in Salesforce CRM',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -16,6 +16,7 @@ export const rocketlaneDeleteFieldTool: ToolConfig<
   name: 'Rocketlane Delete Field',
   description: 'Permanently delete a Rocketlane field by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

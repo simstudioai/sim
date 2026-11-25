@@ -10,6 +10,7 @@ export const deleteTagTool: ToolConfig<DynatraceDeleteTagParams, DynatraceDelete
   description:
     'Remove a custom tag from every monitored entity an entity selector matches. Deletes one key-value pair, or every tag with the key.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

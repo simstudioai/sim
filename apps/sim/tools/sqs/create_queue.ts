@@ -7,6 +7,7 @@ export const createQueueTool: InternalToolConfig<SqsCreateQueueParams, SqsCreate
   name: 'SQS Create Queue',
   description: 'Create a standard or FIFO Amazon SQS queue',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

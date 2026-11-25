@@ -16,6 +16,7 @@ export const gaugeGetOrganizationTool: ToolConfig<
   name: 'Gauge Get Organization',
   description: 'Read an organization and its enabled Gauge products.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

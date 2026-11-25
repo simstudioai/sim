@@ -13,6 +13,7 @@ export const latestCommitTool: InternalToolConfig<LatestCommitParams, LatestComm
   name: 'GitHub Latest Commit',
   description: 'Retrieve the latest commit from a GitHub repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -65,6 +66,7 @@ export const latestCommitV2Tool: InternalToolConfig = {
   name: latestCommitTool.name,
   description: latestCommitTool.description,
   version: '2.0.0',
+  effect: 'read',
   params: latestCommitTool.params,
   operation: latestCommitTool.operation,
   oauth: latestCommitTool.oauth,

@@ -17,6 +17,7 @@ export const uploadAttachmentTool: InternalToolConfig<
   name: 'Upload ServiceNow Attachment',
   description: 'Attach a file to a ServiceNow record',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

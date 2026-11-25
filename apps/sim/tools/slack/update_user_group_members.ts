@@ -8,6 +8,7 @@ export const slackUpdateUserGroupMembersTool = createSlackWebApiTool({
   name: 'Slack Update User Group Members',
   description:
     'Replace all members of a Slack user group with the supplied user IDs. An empty list is not supported; disable the group instead.',
+  effect: 'write',
   endpoint: 'usergroups.users.update',
   method: 'POST',
   oauth: {

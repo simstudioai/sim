@@ -30,6 +30,7 @@ export const sportmonksGetTotwByRoundTool: ToolConfig<
   name: 'Get Team of the Week by Round',
   description: 'Retrieve the Team of the Week (TOTW) for a round ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

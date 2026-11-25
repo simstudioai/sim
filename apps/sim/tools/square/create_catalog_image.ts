@@ -26,6 +26,7 @@ export const squareCreateCatalogImageTool: InternalToolConfig<
   name: 'Square Create Catalog Image',
   description: 'Upload an image and attach it to the catalog, optionally to a specific item',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
 
   params: {

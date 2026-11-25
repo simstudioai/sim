@@ -15,6 +15,7 @@ export const storageCreateBucketTool: ToolConfig<
   name: 'Supabase Storage Create Bucket',
   description: 'Create a new storage bucket in Supabase',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

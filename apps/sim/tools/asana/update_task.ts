@@ -9,6 +9,7 @@ export const asanaUpdateTaskTool: InternalToolConfig<
   name: 'Asana Update Task',
   description: 'Update an existing task in Asana',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

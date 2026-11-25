@@ -15,6 +15,7 @@ export const uploadResumeTool: InternalToolConfig<Params, AshbyGetCandidateRespo
   name: 'Ashby Upload Resume',
   description: 'Securely uploads a resume and sets it as the Ashby candidate resume.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

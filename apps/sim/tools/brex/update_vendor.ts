@@ -28,6 +28,7 @@ export const brexUpdateVendorTool: ToolConfig<
   name: 'Brex Update Vendor',
   description: 'Update an existing vendor in the Brex account',
   version: '1.0.0',
+  effect: 'write',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

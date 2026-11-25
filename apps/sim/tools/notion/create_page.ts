@@ -8,6 +8,7 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
   name: 'Notion Page Creator',
   description: 'Create a new page in Notion',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -155,6 +156,7 @@ export const notionCreatePageV2Tool: ToolConfig<
   name: 'Notion Page Creator',
   description: 'Create a new page in Notion',
   version: '2.0.0',
+  effect: 'write',
   oauth: notionCreatePageTool.oauth,
   params: notionCreatePageTool.params,
   request: notionCreatePageTool.request,

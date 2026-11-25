@@ -18,6 +18,7 @@ export const uptimeRobotGetIncidentTool: ToolConfig<
   name: 'UptimeRobot Get Incident',
   description: 'Get the details of a single UptimeRobot incident by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

@@ -23,6 +23,7 @@ const createFileReadTool = (config: {
   name: config.name,
   description: config.description,
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     fileId: {
@@ -84,6 +85,7 @@ export const fileGetTool: InternalToolConfig<FileGetParams, ToolResponse> = {
   name: 'File Get',
   description: 'Get a workspace file object from a selected file or canonical workspace file ID.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     fileId: {
@@ -150,6 +152,7 @@ export const fileGetContentTool: InternalToolConfig<FileGetContentParams, ToolRe
   description:
     'Extract workspace file text using the same parser mode as File Search. Use the returned fileId and offset/limit to read the matching line and surrounding context. For documents and spreadsheets, line numbers refer to extracted text, not page numbers or worksheet row numbers.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     fileId: {

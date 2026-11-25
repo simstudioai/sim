@@ -26,6 +26,7 @@ export const checkrUpdateSubscriptionTool: ToolConfig<
   name: 'Checkr Update Subscription',
   description: 'Change the package, schedule, node, or work locations of a subscription.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

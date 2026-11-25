@@ -9,6 +9,7 @@ export const pitchbookFundInvestmentsTool: ToolConfig<PitchbookProfileParams, Pi
   description:
     'Retrieve every investment a fund has made, active and exited, with the deals that opened and closed each position',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

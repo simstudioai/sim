@@ -8,6 +8,7 @@ export const listUsersTool: ToolConfig<HexListUsersParams, HexListUsersResponse>
   name: 'Hex List Users',
   description: 'List all users in the Hex workspace with optional filtering and sorting.',
   version: '1.0.0',
+  effect: 'read',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

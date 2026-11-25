@@ -17,6 +17,7 @@ export const crowdstrikePerformHostGroupActionTool: InternalToolConfig<
   description:
     'Add hosts to or remove hosts from a CrowdStrike Falcon static host group (POST /devices/entities/host-group-actions/v1). Group membership drives policy assignment, so changing it changes which policies apply to those hosts. Requires the "Host groups: Write" API scope.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

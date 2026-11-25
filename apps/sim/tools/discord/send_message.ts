@@ -10,6 +10,7 @@ export const discordSendMessageTool: InternalToolConfig<
   name: 'Discord Send Message',
   description: 'Send a message to a Discord channel',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

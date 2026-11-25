@@ -15,6 +15,7 @@ export const oktaRevokeSessionTool: ToolConfig<OktaRevokeSessionParams, OktaRevo
     description:
       'Revoke a single Okta session by ID, ending that sign-in immediately. Destructive and irreversible: the affected user must sign in again on that device.',
     version: '1.0.0',
+    effect: 'write',
     oauth: OKTA_CREDENTIAL_OAUTH,
 
     params: {

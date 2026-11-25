@@ -10,6 +10,7 @@ export const linearAddLabelToIssueTool: ToolConfig<
   name: 'Linear Add Label to Issue',
   description: 'Add a label to an issue in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

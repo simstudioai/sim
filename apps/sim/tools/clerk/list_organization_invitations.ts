@@ -19,6 +19,7 @@ export const clerkListOrganizationInvitationsTool: ToolConfig<
   name: 'List Organization Invitations from Clerk',
   description: 'List pending and past invitations for a Clerk organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

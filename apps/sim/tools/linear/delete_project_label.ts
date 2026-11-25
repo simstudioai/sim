@@ -13,6 +13,7 @@ export const linearDeleteProjectLabelTool: ToolConfig<
   name: 'Linear Delete Project Label',
   description: 'Delete a project label in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

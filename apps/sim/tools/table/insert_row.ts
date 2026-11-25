@@ -15,6 +15,7 @@ export const tableInsertRowTool: InternalToolConfig<TableRowInsertParams, TableR
   description:
     'Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.',
   version: '1.0.0',
+  effect: 'write',
 
   toolEnrichment: {
     dependsOn: 'tableId',

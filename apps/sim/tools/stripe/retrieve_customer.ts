@@ -9,6 +9,7 @@ export const stripeRetrieveCustomerTool: ToolConfig<RetrieveCustomerParams, Cust
   name: 'Stripe Retrieve Customer',
   description: 'Retrieve an existing customer by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

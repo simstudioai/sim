@@ -14,6 +14,7 @@ export const updateFunctionUrlConfigTool: InternalToolConfig<
   name: 'Lambda Update Function URL',
   description: 'Update the auth type, invoke mode, or CORS settings of a function URL',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

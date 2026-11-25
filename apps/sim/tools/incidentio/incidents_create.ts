@@ -14,6 +14,7 @@ export const incidentsCreateTool: ToolConfig<
   description:
     'Create a new incident in incident.io. Requires idempotency_key and visibility. Optionally accepts name, summary, severity_id, incident_type_id, and incident_status_id.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

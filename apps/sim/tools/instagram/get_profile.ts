@@ -22,6 +22,7 @@ export const instagramGetProfileTool: ToolConfig<
   name: 'Instagram Get Profile',
   description: 'Get the connected Instagram professional account profile',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -6,6 +6,7 @@ export const redisLPopTool: InternalToolConfig<RedisLPopParams, RedisLPopRespons
   name: 'Redis LPOP',
   description: 'Remove and return the first element of a list stored at a key in Redis.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

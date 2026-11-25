@@ -21,6 +21,7 @@ export const stripeCreateCustomerTool: ToolConfig<
   name: 'Stripe Create Customer',
   description: 'Create a new customer object',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

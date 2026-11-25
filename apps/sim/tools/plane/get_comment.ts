@@ -21,6 +21,7 @@ export const planeGetCommentTool: ToolConfig<PlaneGetCommentParams, PlaneGetComm
   name: 'Plane Get a comment',
   description: 'Get a comment in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

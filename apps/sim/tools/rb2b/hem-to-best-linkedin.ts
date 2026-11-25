@@ -10,6 +10,7 @@ export const rb2bHemToBestLinkedinTool: ToolConfig<Rb2bIdentifierParams, Rb2bLin
     description:
       'Return the most recently active LinkedIn profile URL for an email address or MD5-hashed email.',
     version: '1.0.0',
+    effect: 'read',
     oauth: RB2B_CREDENTIAL_OAUTH,
 
     params: {

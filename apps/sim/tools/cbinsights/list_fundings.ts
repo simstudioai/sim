@@ -17,6 +17,7 @@ export const cbinsightsListFundingsTool: InternalToolConfig<
   description:
     'Retrieve funding rounds and cap table history for up to 100 organizations at once, with AI-generated insights extracting the key themes of each deal.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

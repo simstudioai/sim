@@ -10,6 +10,7 @@ export const xGetTweetsByIdsTool: ToolConfig<XGetTweetsByIdsParams, XGetTweetsBy
   name: 'X Get Tweets By IDs',
   description: 'Look up multiple tweets by their IDs (up to 100)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

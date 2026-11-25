@@ -11,6 +11,7 @@ export const updateTagTool: ToolConfig<WordPressUpdateTagParams, WordPressUpdate
   name: 'WordPress Update Tag',
   description: 'Update an existing tag in WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

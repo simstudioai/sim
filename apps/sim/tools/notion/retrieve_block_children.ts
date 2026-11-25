@@ -20,6 +20,7 @@ export const notionRetrieveBlockChildrenTool: ToolConfig<
   name: 'Notion Retrieve Block Children',
   description: 'Retrieve the block children (content) of a Notion page or block',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -102,6 +103,7 @@ export const notionRetrieveBlockChildrenV2Tool: ToolConfig<
   name: 'Notion Retrieve Block Children',
   description: 'Retrieve the block children (content) of a Notion page or block',
   version: '2.0.0',
+  effect: 'read',
   oauth: notionRetrieveBlockChildrenTool.oauth,
   params: notionRetrieveBlockChildrenTool.params,
   request: notionRetrieveBlockChildrenTool.request,

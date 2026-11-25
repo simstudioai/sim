@@ -13,6 +13,7 @@ export const quickbooksAddAttachmentTool: InternalToolConfig<
   name: 'QuickBooks Add Attachment',
   description: 'Attach one supported file or one note to a fixed QuickBooks entity',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

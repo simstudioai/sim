@@ -20,6 +20,7 @@ export const shopifyCreateFulfillmentTool: ToolConfig<
   description:
     'Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (use List Fulfillment Orders to find it).',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

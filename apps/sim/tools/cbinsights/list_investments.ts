@@ -17,6 +17,7 @@ export const cbinsightsListInvestmentsTool: InternalToolConfig<
   description:
     'Retrieve the rounds up to 100 organizations participated in as investors, with AI-generated insights extracting the key themes of each deal.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

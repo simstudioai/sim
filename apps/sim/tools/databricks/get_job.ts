@@ -9,6 +9,7 @@ export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResp
   name: 'Databricks Get Job',
   description: 'Get the full definition and settings of a single Databricks job by its job ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

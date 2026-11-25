@@ -15,6 +15,7 @@ export const listAuditEventsTool: ToolConfig<
   description:
     'Lists workspace audit events from Granola, with optional action and date filters. Events are returned in collection order and retained for one year.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {

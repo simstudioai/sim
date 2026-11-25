@@ -19,6 +19,7 @@ export const polymarketGetSeriesTool: ToolConfig<
   name: 'Get Series from Polymarket',
   description: 'Retrieve series (related market groups) from Polymarket',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     limit: {

@@ -30,6 +30,7 @@ export const mem0SearchMemoriesTool: ToolConfig<Mem0SearchMemoriesParams, Mem0Re
   name: 'Search Memories',
   description: 'Search for memories in Mem0 using semantic search',
   version: '1.0.0',
+  effect: 'read',
   oauth: MEM0_CREDENTIAL_OAUTH,
 
   params: {

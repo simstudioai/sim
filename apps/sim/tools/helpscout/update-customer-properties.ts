@@ -38,6 +38,7 @@ export const helpScoutUpdateCustomerPropertiesTool: ToolConfig<
   description:
     'Set or remove customer property values (for example plan or MRR) on a Help Scout customer, keyed by property slug.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

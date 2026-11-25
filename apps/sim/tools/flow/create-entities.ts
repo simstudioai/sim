@@ -23,6 +23,7 @@ export const flowCreateEntitiesTool: ToolConfig<
   description:
     'Create 1\u2013100 entities atomically on a single branch. A timed-out request may already have committed; inspect the branch before retrying.',
   version: '1.0.0',
+  effect: 'write',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

@@ -22,6 +22,7 @@ export const planetScaleGetBranchTool: ToolConfig<
   name: 'PlanetScale Get Branch',
   description: 'Get a branch',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

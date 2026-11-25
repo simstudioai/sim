@@ -19,6 +19,7 @@ export const listCampaignsTool: ToolConfig<EmailBisonBaseParams, EmailBisonListC
     name: 'Email Bison List Campaigns',
     description: 'Retrieves Email Bison campaigns.',
     version: '1.0.0',
+    effect: 'read',
     oauth: EMAILBISON_CREDENTIAL_OAUTH,
     params: {
       ...emailBisonBaseParamFields,

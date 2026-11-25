@@ -25,6 +25,7 @@ export const jamaListItemCommentsTool: ToolConfig<
   name: 'Jama List Item Comments',
   description: "List Item Comments in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

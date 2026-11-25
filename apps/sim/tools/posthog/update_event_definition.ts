@@ -41,6 +41,7 @@ export const updateEventDefinitionTool: ToolConfig<
   description:
     'Update an event definition in PostHog. Can modify description, tags, and verification status to maintain clean event schemas.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'posthog-errors',
 
   params: {

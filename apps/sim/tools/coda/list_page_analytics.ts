@@ -42,6 +42,7 @@ export const codaListPageAnalyticsTool: ToolConfig<
   description:
     'Get daily analytics (views, sessions, users, time viewed) for each page of a Coda doc. Only available for docs in Enterprise workspaces.',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

@@ -9,6 +9,7 @@ export const ripplingListCompaniesTool: ToolConfig<RipplingListCompaniesParams> 
   name: 'Rippling List Companies',
   description: 'List all companies',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

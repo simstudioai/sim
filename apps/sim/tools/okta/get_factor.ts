@@ -14,6 +14,7 @@ export const oktaGetFactorTool: ToolConfig<OktaGetFactorParams, OktaGetFactorRes
   description:
     'Retrieve a single enrolled MFA factor for a user, including its type, provider, enrollment status, and factor-specific profile.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

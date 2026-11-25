@@ -11,6 +11,7 @@ export const revenuecatListOfferingsTool: ToolConfig<ListOfferingsParams, ListOf
   name: 'RevenueCat List Offerings',
   description: 'List all offerings configured for the project',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

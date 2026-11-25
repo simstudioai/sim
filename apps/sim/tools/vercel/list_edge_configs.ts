@@ -13,6 +13,7 @@ export const vercelListEdgeConfigsTool: ToolConfig<
   name: 'Vercel List Edge Configs',
   description: 'List all Edge Config stores for a team',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

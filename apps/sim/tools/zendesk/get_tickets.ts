@@ -48,6 +48,7 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
     name: 'Get Tickets from Zendesk',
     description: 'Retrieve a list of tickets from Zendesk with optional filtering',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: ZENDESK_CREDENTIAL_OAUTH,
 

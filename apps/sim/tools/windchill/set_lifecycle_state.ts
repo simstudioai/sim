@@ -17,6 +17,7 @@ export const windchillSetLifecycleStateTool: InternalToolConfig<
   name: 'Windchill Set Lifecycle State',
   description: 'Transition a document to a valid lifecycle state',
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

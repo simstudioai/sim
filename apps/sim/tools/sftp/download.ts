@@ -12,6 +12,7 @@ export const sftpDownloadTool = {
   name: 'SFTP Download',
   description: 'Download a file from a remote SFTP server',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

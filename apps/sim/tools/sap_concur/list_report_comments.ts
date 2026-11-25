@@ -16,6 +16,7 @@ export const listReportCommentsTool: InternalToolConfig<
   description:
     'List comments on a report (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/comments).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

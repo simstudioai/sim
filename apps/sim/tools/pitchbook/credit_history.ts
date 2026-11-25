@@ -10,6 +10,7 @@ export const pitchbookCreditHistoryTool: ToolConfig<PitchbookUsageWindowParams, 
     description:
       'Retrieve API credit usage and remaining balance per contract, for up to the last 90 days',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

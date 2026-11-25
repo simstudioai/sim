@@ -7,6 +7,7 @@ export const tagQueueTool: InternalToolConfig<SqsTagQueueParams, SqsMessageRespo
   name: 'SQS Tag Queue',
   description: 'Add or overwrite cost-allocation tags on an Amazon SQS queue',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

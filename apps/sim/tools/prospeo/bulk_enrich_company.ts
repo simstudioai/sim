@@ -16,6 +16,7 @@ export const bulkEnrichCompanyTool: ToolConfig<
   name: 'Prospeo Bulk Enrich Company',
   description: 'Enrich up to 50 company records at once.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
   hosting: prospeoHosting<ProspeoBulkEnrichCompanyParams>((_params, output) => {

@@ -23,6 +23,7 @@ export const sportmonksCoreGetEntityFiltersTool: ToolConfig<
   name: 'Get All Entity Filters',
   description: 'Retrieve all available filters grouped per entity from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

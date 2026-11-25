@@ -18,6 +18,7 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
   name: 'Read ServiceNow Records',
   description: 'Read records from a ServiceNow table',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

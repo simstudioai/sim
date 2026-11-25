@@ -9,6 +9,7 @@ export const commentTool: InternalToolConfig<CreateCommentParams, CreateCommentR
   name: 'GitHub PR Commenter',
   description: 'Create comments on GitHub PRs',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -93,6 +94,7 @@ export const commentV2Tool: InternalToolConfig<CreateCommentParams> = {
   name: commentTool.name,
   description: commentTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: commentTool.params,
   operation: {

@@ -17,6 +17,7 @@ export const manageengineSdpUpdateSolutionTool: ToolConfig<SdpUpdateSolutionPara
   description:
     'Update a ManageEngine ServiceDesk Plus Cloud knowledge base solution: revise its body, retitle it, or move it to another topic.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

@@ -36,6 +36,7 @@ export const sportmonksSearchTeamsTool: ToolConfig<
   name: 'Search Teams',
   description: 'Search for football teams by name from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

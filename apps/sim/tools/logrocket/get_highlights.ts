@@ -14,6 +14,7 @@ export const getHighlightsTool: ToolConfig<
   description:
     'Retrieve the result of a Galileo session highlights request. Status is PENDING until generation finishes, then READY or FAILED.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

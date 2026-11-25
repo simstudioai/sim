@@ -11,6 +11,7 @@ export const rebootInstancesTool: InternalToolConfig<
   name: 'EC2 Reboot Instances',
   description: 'Request a reboot of one or more EC2 instances',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

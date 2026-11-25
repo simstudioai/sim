@@ -19,6 +19,7 @@ export const uptimeRobotCreateMaintenanceWindowTool: ToolConfig<
   name: 'UptimeRobot Create Maintenance Window',
   description: 'Create a new maintenance window to suppress alerts during planned downtime',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

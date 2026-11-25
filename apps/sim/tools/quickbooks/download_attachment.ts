@@ -13,6 +13,7 @@ export const quickbooksDownloadAttachmentTool: InternalToolConfig<
   name: 'QuickBooks Download Attachment',
   description: 'Download a QuickBooks file attachment as a stored Sim file',
   version: '1.0.0',
+  effect: 'read',
   params: {
     accessToken: {
       type: 'string',

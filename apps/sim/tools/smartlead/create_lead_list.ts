@@ -21,6 +21,7 @@ export const createLeadListTool: ToolConfig<CreateLeadListParams, SmartleadLeadL
   name: 'Smartlead Create Lead List',
   description: 'Creates a lead list on the Smartlead account.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

@@ -7,6 +7,7 @@ export const stopQueryTool: InternalToolConfig<AthenaStopQueryParams, AthenaStop
   name: 'Athena Stop Query',
   description: 'Stop a running Athena query execution',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

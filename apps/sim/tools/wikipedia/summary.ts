@@ -11,6 +11,7 @@ export const pageSummaryTool: ToolConfig<WikipediaPageSummaryParams, WikipediaPa
     name: 'Wikipedia Page Summary',
     description: 'Get a summary and metadata for a specific Wikipedia page.',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       pageTitle: {

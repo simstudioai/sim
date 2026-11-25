@@ -10,6 +10,7 @@ export const createTravelRequestTool: InternalToolConfig<
   name: 'SAP Concur Create Travel Request',
   description: 'Create a travel request (POST /travelrequest/v4/requests).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

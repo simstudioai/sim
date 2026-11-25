@@ -16,6 +16,7 @@ export const cbinsightsListManagementAndBoardTool: InternalToolConfig<
   description:
     'Retrieve leadership teams, board members, and the Management factor of the Mosaic Score for up to 100 organizations at once.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

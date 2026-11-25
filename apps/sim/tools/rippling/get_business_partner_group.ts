@@ -11,6 +11,7 @@ export const ripplingGetBusinessPartnerGroupTool: ToolConfig<RipplingGetBusiness
     name: 'Rippling Get Business Partner Group',
     description: 'Get a specific business partner group by ID',
     version: '1.0.0',
+    effect: 'read',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

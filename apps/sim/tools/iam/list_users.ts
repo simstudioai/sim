@@ -7,6 +7,7 @@ export const listUsersTool: InternalToolConfig<IAMListUsersParams, IAMListUsersR
   name: 'IAM List Users',
   description: 'List IAM users in your AWS account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

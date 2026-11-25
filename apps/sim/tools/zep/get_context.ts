@@ -8,6 +8,7 @@ export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
   name: 'Get User Context',
   description: 'Retrieve user context from a thread with summary or basic mode',
   version: '1.0.0',
+  effect: 'read',
   oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {

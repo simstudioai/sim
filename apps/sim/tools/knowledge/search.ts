@@ -9,6 +9,7 @@ export const knowledgeSearchTool: InternalToolConfig<any, KnowledgeSearchRespons
   name: 'Knowledge Search',
   description: 'Search for similar content in a knowledge base by relevance',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     knowledgeBaseId: {

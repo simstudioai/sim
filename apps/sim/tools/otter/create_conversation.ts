@@ -17,6 +17,7 @@ export const otterCreateConversationTool: ToolConfig<
   description:
     'Import an audio or video recording into Otter as a new conversation from a publicly reachable file URL.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {

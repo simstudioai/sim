@@ -6,6 +6,7 @@ export const redisRPopTool: InternalToolConfig<RedisRPopParams, RedisRPopRespons
   name: 'Redis RPOP',
   description: 'Remove and return the last element of a list stored at a key in Redis.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

@@ -26,6 +26,7 @@ export const mailchimpGetAutomationsTool: ToolConfig<
   name: 'Get Automations from Mailchimp',
   description: 'Retrieve a list of automations from Mailchimp',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

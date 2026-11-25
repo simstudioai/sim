@@ -10,6 +10,7 @@ export const shopifyDeleteCustomerTool: ToolConfig<
   name: 'Shopify Delete Customer',
   description: 'Delete a customer from your Shopify store',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

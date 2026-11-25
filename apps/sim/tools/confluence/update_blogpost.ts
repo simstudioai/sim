@@ -31,6 +31,7 @@ export const confluenceUpdateBlogPostTool: InternalToolConfig<
   name: 'Confluence Update Blog Post',
   description: 'Update an existing Confluence blog post title and/or content.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

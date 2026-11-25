@@ -9,6 +9,7 @@ export const listWorkersTool: InternalToolConfig<
   name: 'List Workday Workers',
   description: 'List or search workers with optional filtering and pagination.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tenantUrl: {

@@ -10,6 +10,7 @@ export const linearArchiveProjectTool: ToolConfig<
   name: 'Linear Archive Project',
   description: 'Archive a project in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

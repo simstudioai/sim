@@ -23,6 +23,7 @@ export const slackSetSuggestedPromptsV2Tool: ToolConfig<
   name: 'Slack Set Agent Suggested Prompts',
   description: 'Set suggested prompts in Slack Agent View, optionally scoped to a specific thread.',
   version: '2.0.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'slack',

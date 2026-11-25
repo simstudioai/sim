@@ -28,6 +28,7 @@ export const helpScoutListWorkflowsTool: ToolConfig<
   description:
     'List Help Scout workflows, optionally filtered by inbox or by type (manual or automatic).',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

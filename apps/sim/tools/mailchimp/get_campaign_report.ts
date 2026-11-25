@@ -28,6 +28,7 @@ export const mailchimpGetCampaignReportTool: ToolConfig<
   name: 'Get Campaign Report from Mailchimp',
   description: 'Retrieve the report for a specific campaign from Mailchimp',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

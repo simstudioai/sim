@@ -6,6 +6,7 @@ export const outlookCopyTool: InternalToolConfig<OutlookCopyParams, OutlookCopyR
   name: 'Outlook Copy',
   description: 'Copy an Outlook message to another folder',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -8,6 +8,7 @@ export const slackGetCanvasTool: ToolConfig<SlackGetCanvasParams, SlackGetCanvas
   name: 'Slack Get Canvas Info',
   description: 'Get Slack canvas file metadata by canvas ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

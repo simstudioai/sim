@@ -12,6 +12,7 @@ export const purgeEmailAddressTool: ToolConfig<
   description:
     'Erase all Gong data (calls, email messages, leads, contacts) referencing an email address. Asynchronous and irreversible.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const monacoListTasksTool: ToolConfig<MonacoListTasksParams, MonacoListTa
   description:
     'List Monaco tasks with optional filters, sorting, and pagination. Email drafts are omitted from list results; use Get Task for them.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -40,6 +40,7 @@ export const listExperimentsTool: ToolConfig<
   name: 'PostHog List Experiments',
   description: 'List all experiments in a PostHog project',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

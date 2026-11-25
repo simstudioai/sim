@@ -28,6 +28,7 @@ export const mailchimpCreateMergeFieldTool: ToolConfig<
   name: 'Create Merge Field in Mailchimp Audience',
   description: 'Create a new merge field in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

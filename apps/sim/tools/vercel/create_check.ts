@@ -8,6 +8,7 @@ export const vercelCreateCheckTool: ToolConfig<VercelCreateCheckParams, VercelCh
   name: 'Vercel Create Check',
   description: 'Create a new deployment check',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

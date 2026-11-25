@@ -12,6 +12,7 @@ export const listAclTool: ToolConfig<GoogleCalendarListAclParams, GoogleCalendar
   name: 'Google Calendar List Sharing',
   description: 'List the access control rules (sharing) for a calendar',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -115,6 +116,7 @@ export const listAclV2Tool: ToolConfig<
   name: 'Google Calendar List Sharing',
   description: 'List the access control rules (sharing) for a calendar.',
   version: '2.0.0',
+  effect: 'read',
   oauth: listAclTool.oauth,
   params: listAclTool.params,
   request: listAclTool.request,

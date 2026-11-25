@@ -6,11 +6,12 @@ import type { ToolConfig } from '@/tools/types'
 
 export const jiraSearchUsersTool: ToolConfig<JiraSearchUsersParams, JiraSearchUsersResponse> = {
   id: 'jira_search_users',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Jira Search Users',
   description:
     'Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

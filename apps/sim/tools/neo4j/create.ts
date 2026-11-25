@@ -7,6 +7,7 @@ export const createTool: InternalToolConfig<Neo4jCreateParams, Neo4jResponse> = 
   description:
     'Execute CREATE statements to add new nodes and relationships to Neo4j graph database',
   version: '1.0',
+  effect: 'write',
 
   params: {
     host: {

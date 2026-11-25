@@ -19,6 +19,7 @@ export const rocketlaneAddTaskFollowersTool: ToolConfig<
   name: 'Rocketlane Add Task Followers',
   description: 'Add members as followers to a Rocketlane task',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

@@ -27,6 +27,7 @@ export const deleteWorksheetTool: ToolConfig<
   name: 'Delete Microsoft Excel Worksheet',
   description: 'Delete a worksheet (sheet) from a Microsoft Excel workbook',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

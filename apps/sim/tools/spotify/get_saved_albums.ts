@@ -35,6 +35,7 @@ export const spotifyGetSavedAlbumsTool: ToolConfig<
   name: 'Spotify Get Saved Albums',
   description: "Get the user's saved albums.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

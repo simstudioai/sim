@@ -20,6 +20,7 @@ export const googleMapsDistanceMatrixTool: ToolConfig<
   name: 'Google Maps Distance Matrix',
   description: 'Calculate travel distance and time between multiple origins and destinations',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

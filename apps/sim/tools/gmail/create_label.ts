@@ -25,6 +25,7 @@ export const gmailCreateLabelV2Tool: ToolConfig<GmailCreateLabelParams, GmailCre
     name: 'Gmail Create Label',
     description: 'Create a new label in Gmail',
     version: '2.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

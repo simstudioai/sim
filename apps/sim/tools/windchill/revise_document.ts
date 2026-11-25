@@ -14,6 +14,7 @@ export const windchillReviseDocumentTool: InternalToolConfig<WindchillParams, Wi
   name: 'Windchill Revise Document',
   description: 'Create a new revision of one document',
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

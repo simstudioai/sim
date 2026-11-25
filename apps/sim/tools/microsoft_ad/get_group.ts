@@ -11,6 +11,7 @@ export const getGroupTool: ToolConfig<MicrosoftAdGetGroupParams, MicrosoftAdGetG
   name: 'Get Azure AD Group',
   description: 'Get a group by ID from Azure AD (Microsoft Entra ID)',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

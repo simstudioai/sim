@@ -21,6 +21,7 @@ export const cancelRunTool: ToolConfig<TinyFishCancelRunParams, TinyFishCancelRu
   name: 'TinyFish Cancel Run',
   description: 'Cancel a queued or in-progress TinyFish automation run by its ID',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     runId: {

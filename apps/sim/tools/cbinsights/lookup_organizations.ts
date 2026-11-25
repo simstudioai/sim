@@ -20,6 +20,7 @@ export const cbinsightsLookupOrganizationsTool: InternalToolConfig<
   description:
     'Resolve company names or websites to CB Insights organization IDs. The integration contract describes lookup as credit-free; confirm current credit terms with CB Insights before requesting paid datasets.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

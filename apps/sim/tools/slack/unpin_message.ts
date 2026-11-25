@@ -6,6 +6,7 @@ export const slackUnpinMessageTool = createSlackWebApiTool({
   id: 'slack_unpin_message',
   name: 'Slack Unpin Message',
   description: 'Remove a message from its conversation’s pinned items.',
+  effect: 'write',
   endpoint: 'pins.remove',
   method: 'POST',
   oauth: {

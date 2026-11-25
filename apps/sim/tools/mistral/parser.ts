@@ -64,6 +64,7 @@ export const mistralParserTool: InternalToolConfig<MistralParserInput, MistralPa
   name: 'Mistral PDF Parser',
   description: 'Parse PDF documents using Mistral OCR API',
   version: '1.0.0',
+  effect: 'read',
   hosting: MISTRAL_OCR_HOSTING,
 
   params: {
@@ -434,6 +435,7 @@ export const mistralParserV2Tool: InternalToolConfig<MistralParserInput, Mistral
   name: 'Mistral PDF Parser',
   description: 'Parse PDF documents using Mistral OCR API',
   version: '2.0.0',
+  effect: 'read',
   hosting: MISTRAL_OCR_HOSTING,
 
   params: mistralParserTool.params,

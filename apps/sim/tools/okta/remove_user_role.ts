@@ -17,6 +17,7 @@ export const oktaRemoveUserRoleTool: ToolConfig<
   description:
     'Revoke an administrator role from a user. Destructive: the user immediately loses the admin permissions that role granted. Takes the role assignment ID, not the role type, which List User Roles returns as the role id field.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

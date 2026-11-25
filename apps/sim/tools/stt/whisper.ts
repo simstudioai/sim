@@ -20,6 +20,7 @@ export const whisperSttTool: InternalToolConfig<WhisperSttParams, SttResponse> =
   name: 'OpenAI Whisper STT',
   description: 'Transcribe audio to text using OpenAI Whisper',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     provider: {

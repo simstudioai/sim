@@ -11,6 +11,7 @@ export const listMaterialDocumentsTool: InternalToolConfig<
   description:
     'List material document headers (goods movements) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

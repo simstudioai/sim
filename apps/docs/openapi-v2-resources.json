@@ -6458,6 +6458,7 @@
                           "send": {
                             "toolId": "slack_message",
                             "toolName": "Slack Send Message",
+                            "effect": "write",
                             "description": "Send a message to a Slack channel.",
                             "inputs": {
                               "text": {
@@ -6488,6 +6489,7 @@
                             "name": "Slack Send Message",
                             "description": "Send a message to a Slack channel.",
                             "version": "1.0.0",
+                            "effect": "write",
                             "hostedApiKey": "none",
                             "oauth": {
                               "required": true,
@@ -6706,6 +6708,7 @@
                           "name": "Slack Send Message",
                           "description": "Send a message to a Slack channel.",
                           "version": "1.0.0",
+                          "effect": "write",
                           "hostedApiKey": "none",
                           "oauth": {
                             "required": true,
@@ -6815,6 +6818,7 @@
                         "name": "Slack Send Message",
                         "description": "Send a message to a Slack channel.",
                         "version": "1.0.0",
+                        "effect": "write",
                         "hostedApiKey": "none",
                         "oauth": {
                           "required": true,
@@ -21943,6 +21947,11 @@
             "description": "Tool version.",
             "type": "string"
           },
+          "effect": {
+            "type": "string",
+            "enum": ["read", "write"],
+            "description": "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no asynchronous provider job or query execution started (one with its own id that can keep running, even briefly; a synchronous read-only query is fine); no run, conversation, history item, or other resource left in an account; no contact data revealed for credits; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input. Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic lookups and verifications that only spend lookup credits are `read`."
+          },
           "hostedApiKey": {
             "type": "string",
             "enum": ["always", "conditional", "none"],
@@ -21992,7 +22001,7 @@
             "description": "Fields the tool produces."
           }
         },
-        "required": ["id", "name", "description", "hostedApiKey", "params", "outputs"],
+        "required": ["id", "name", "description", "effect", "hostedApiKey", "params", "outputs"],
         "additionalProperties": false,
         "title": "Tool",
         "description": "A built-in tool with its declared parameters and outputs."
@@ -22189,6 +22198,11 @@
                 "toolName": {
                   "description": "Display name of that tool.",
                   "type": "string"
+                },
+                "effect": {
+                  "description": "That tool's effect.",
+                  "type": "string",
+                  "enum": ["read", "write"]
                 },
                 "description": {
                   "description": "What the operation does.",
@@ -22559,6 +22573,7 @@
                 "send": {
                   "toolId": "slack_message",
                   "toolName": "Slack Send Message",
+                  "effect": "write",
                   "description": "Send a message to a Slack channel.",
                   "inputs": {
                     "text": {
@@ -22589,6 +22604,7 @@
                   "name": "Slack Send Message",
                   "description": "Send a message to a Slack channel.",
                   "version": "1.0.0",
+                  "effect": "write",
                   "hostedApiKey": "none",
                   "oauth": {
                     "required": true,
@@ -22657,6 +22673,11 @@
             "description": "Tool version.",
             "type": "string"
           },
+          "effect": {
+            "type": "string",
+            "enum": ["read", "write"],
+            "description": "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no asynchronous provider job or query execution started (one with its own id that can keep running, even briefly; a synchronous read-only query is fine); no run, conversation, history item, or other resource left in an account; no contact data revealed for credits; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input. Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic lookups and verifications that only spend lookup credits are `read`."
+          },
           "hostedApiKey": {
             "type": "string",
             "enum": ["always", "conditional", "none"],
@@ -22686,7 +22707,7 @@
             "additionalProperties": false
           }
         },
-        "required": ["id", "name", "description", "hostedApiKey"],
+        "required": ["id", "name", "description", "effect", "hostedApiKey"],
         "additionalProperties": false,
         "title": "Tool summary",
         "description": "List view of a built-in tool: identity, auth, and key hosting."
@@ -22725,6 +22746,7 @@
                 "name": "Slack Send Message",
                 "description": "Send a message to a Slack channel.",
                 "version": "1.0.0",
+                "effect": "write",
                 "hostedApiKey": "none",
                 "oauth": {
                   "required": true,
@@ -22756,6 +22778,7 @@
               "name": "Slack Send Message",
               "description": "Send a message to a Slack channel.",
               "version": "1.0.0",
+              "effect": "write",
               "hostedApiKey": "none",
               "oauth": {
                 "required": true,
@@ -32930,6 +32953,23 @@
                         },
                         "required": ["names"],
                         "additionalProperties": false
+                      }
+                    },
+                    "effect": {
+                      "description": "`read` when every tool the block can run changes nothing outside Sim, else `write`. Absent for a block with no `tools.access`.",
+                      "type": "string",
+                      "enum": ["read", "write"]
+                    },
+                    "operationEffects": {
+                      "description": "Per operation id: its tool's effect, where it differs from `effect`.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string",
+                        "enum": ["read", "write"],
+                        "description": "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no asynchronous provider job or query execution started (one with its own id that can keep running, even briefly; a synchronous read-only query is fine); no run, conversation, history item, or other resource left in an account; no contact data revealed for credits; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input. Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic lookups and verifications that only spend lookup credits are `read`."
                       }
                     },
                     "dynamicOutputs": {

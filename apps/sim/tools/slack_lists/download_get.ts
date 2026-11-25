@@ -7,6 +7,7 @@ export const slackListsDownloadGetTool = createSlackWebApiTool({
   name: 'Slack Get List Export',
   description:
     'Read a List export job status and its download URL when ready. Format, Include Threads, and Include Attachments must match Start List Export.',
+  effect: 'read',
   endpoint: 'slackLists.download.get',
   method: 'POST',
   oauth: {

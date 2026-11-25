@@ -30,6 +30,7 @@ export const sportmonksGetRoundTool: ToolConfig<
   name: 'Get Round by ID',
   description: 'Retrieve a single football round by its ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

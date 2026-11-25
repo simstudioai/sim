@@ -73,6 +73,7 @@ describe('GenericBlockHandler', () => {
       name: 'Some Custom Tool',
       description: 'Does something custom',
       version: '1.0',
+      effect: 'write',
       params: { param1: { type: 'string' } },
       request: {
         url: 'https://example.com/api',

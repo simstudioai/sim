@@ -14,6 +14,7 @@ export const clickupCreateFolderTool: ToolConfig<ClickUpCreateFolderParams, Clic
     name: 'ClickUp Create Folder',
     description: 'Create a new folder in a ClickUp space',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

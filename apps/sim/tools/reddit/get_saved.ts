@@ -34,6 +34,7 @@ export const getSavedTool: ToolConfig<GetSavedParams, GetSavedResponse> = {
   description:
     'Fetch your own saved posts (t3) and comments (t1). You can only read your own saved items',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

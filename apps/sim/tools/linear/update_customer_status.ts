@@ -14,6 +14,7 @@ export const linearUpdateCustomerStatusTool: ToolConfig<
   name: 'Linear Update Customer Status',
   description: 'Update a customer status in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

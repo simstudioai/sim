@@ -10,6 +10,7 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
   description:
     'Create and share Slack canvases in channels. Canvases are collaborative documents within Slack.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

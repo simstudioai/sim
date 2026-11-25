@@ -21,6 +21,7 @@ export const gmailDeleteLabelV2Tool: ToolConfig<GmailDeleteLabelParams, GmailDel
     name: 'Gmail Delete Label',
     description: 'Delete a label from Gmail',
     version: '2.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

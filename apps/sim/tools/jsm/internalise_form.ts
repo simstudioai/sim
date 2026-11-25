@@ -10,6 +10,7 @@ export const jsmInternaliseFormTool: InternalToolConfig<
   description:
     'Make a form internal only (not visible to customers) on a Jira issue or JSM request',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'jira' },
   params: {
     accessToken: {

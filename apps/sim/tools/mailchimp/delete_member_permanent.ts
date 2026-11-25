@@ -29,6 +29,7 @@ export const mailchimpDeleteMemberPermanentTool: ToolConfig<
   description:
     'Permanently delete a member and their personally identifiable data from a Mailchimp audience. This cannot be undone, and the address cannot be re-imported.',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

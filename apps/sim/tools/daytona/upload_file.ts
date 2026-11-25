@@ -10,6 +10,7 @@ export const daytonaUploadFileTool: InternalToolConfig<
   name: 'Daytona Upload File',
   description: 'Upload a file to a Daytona sandbox',
   version: '1.0.0',
+  effect: 'write',
   oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {

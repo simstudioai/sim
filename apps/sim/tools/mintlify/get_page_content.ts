@@ -21,6 +21,7 @@ export const mintlifyGetPageContentTool: ToolConfig<
   description:
     'Retrieve the full text content of a Mintlify documentation page by its path. Use it after a search to fetch the complete page.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     domain: {

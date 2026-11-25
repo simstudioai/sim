@@ -29,6 +29,7 @@ export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntros
   description:
     'Introspect Supabase database schema from its OpenAPI spec to get table and column structures, primary keys, and foreign keys',
   version: '1.0.0',
+  effect: 'read',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

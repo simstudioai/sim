@@ -21,6 +21,7 @@ export const updateWebhookEndpointTool: ToolConfig<
   description:
     'Updates a Granola webhook endpoint. Each supplied field replaces its current value; omitted fields are left unchanged. Use enabled to pause or resume deliveries.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {

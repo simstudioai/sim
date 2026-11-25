@@ -22,6 +22,7 @@ export const getStatementChunkTool: ToolConfig<
   description:
     'Retrieve one chunk of an INLINE SQL result using nextChunkIndex from Execute SQL or Get Statement.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

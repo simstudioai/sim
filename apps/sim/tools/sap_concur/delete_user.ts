@@ -12,6 +12,7 @@ export const deleteUserTool: InternalToolConfig<DeleteUserParams, SapConcurRespo
   description:
     'Hard delete a user identity (DELETE /profile/identity/v4.1/Users/{id}). Not recommended: SAP restricts hard delete to users with no transaction history and governs it by the Concur Data Retention policy. To deactivate a user instead, use SAP Concur Update User with a PATCH replacing active with false.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

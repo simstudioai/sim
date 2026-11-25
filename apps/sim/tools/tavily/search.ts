@@ -13,6 +13,7 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
   description:
     "Perform AI-powered web searches using Tavily's search API. Returns structured results with titles, URLs, snippets, and optional raw content, optimized for relevance and accuracy.",
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.TAVILY_ERRORS,
   oauth: TAVILY_CREDENTIAL_OAUTH,
 

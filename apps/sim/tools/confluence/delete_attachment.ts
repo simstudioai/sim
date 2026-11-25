@@ -24,6 +24,7 @@ export const confluenceDeleteAttachmentTool: InternalToolConfig<
   name: 'Confluence Delete Attachment',
   description: 'Delete an attachment from a Confluence page (moves to trash).',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

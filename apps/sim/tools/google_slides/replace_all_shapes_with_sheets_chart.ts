@@ -38,6 +38,7 @@ export const replaceAllShapesWithSheetsChartTool: ToolConfig<
   description:
     "Find every shape matching a text token (e.g. {{revenue-chart}}) and replace each with the same embedded Sheets chart, preserving the shape's position and bounds.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

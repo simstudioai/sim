@@ -13,6 +13,7 @@ export const createInviteeNoShowTool: ToolConfig<
   name: 'Calendly Mark Invitee No-Show',
   description: 'Mark an invitee of a scheduled event as a no-show',
   version: '1.0.0',
+  effect: 'write',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

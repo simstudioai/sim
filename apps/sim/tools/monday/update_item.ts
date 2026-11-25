@@ -13,6 +13,7 @@ export const mondayUpdateItemTool: ToolConfig<MondayUpdateItemParams, MondayUpda
   name: 'Monday Update Item',
   description: 'Update column values of an item on a Monday.com board',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

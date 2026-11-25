@@ -14,6 +14,7 @@ export const oktaUnlockUserTool: ToolConfig<OktaUnlockUserParams, OktaUnlockUser
   description:
     'Unlock a LOCKED_OUT user, or an ACTIVE user blocked from unknown devices, so they can sign in with their current password. Works only for Okta-sourced users, not directory-sourced accounts such as Active Directory.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

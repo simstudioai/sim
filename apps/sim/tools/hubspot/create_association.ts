@@ -17,6 +17,7 @@ export const hubspotCreateAssociationTool: ToolConfig<
   description:
     'Associate two HubSpot records. Creates the default (unlabeled) association unless an association type ID is provided',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

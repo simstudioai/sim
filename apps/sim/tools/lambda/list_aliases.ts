@@ -11,6 +11,7 @@ export const listAliasesTool: InternalToolConfig<
   name: 'Lambda List Aliases',
   description: 'List the aliases of a Lambda function',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -9,6 +9,7 @@ export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
   description:
     "Discover and visualize website structure using Tavily's map API. Maps out all accessible URLs from a base URL with depth control, path filtering, and domain restrictions.",
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.TAVILY_ERRORS,
   oauth: TAVILY_CREDENTIAL_OAUTH,
 

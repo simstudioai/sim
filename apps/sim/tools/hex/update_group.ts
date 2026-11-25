@@ -9,6 +9,7 @@ export const updateGroupTool: ToolConfig<HexUpdateGroupParams, HexUpdateGroupRes
   name: 'Hex Update Group',
   description: 'Rename a Hex group or add/remove members from it.',
   version: '1.0.0',
+  effect: 'write',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

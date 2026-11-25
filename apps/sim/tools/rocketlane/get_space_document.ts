@@ -18,6 +18,7 @@ export const rocketlaneGetSpaceDocumentTool: ToolConfig<
   name: 'Rocketlane Get Space Document',
   description: 'Retrieve a Rocketlane space document by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

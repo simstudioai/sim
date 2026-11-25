@@ -13,6 +13,7 @@ export const mondayCreateItemTool: ToolConfig<MondayCreateItemParams, MondayCrea
   name: 'Monday Create Item',
   description: 'Create a new item on a Monday.com board',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -9,6 +9,7 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
   name: 'incident.io Workflows Create',
   description: 'Create a new workflow in incident.io.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

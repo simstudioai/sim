@@ -11,11 +11,12 @@ function buildProjectUrl(cloudId: string, projectIdOrKey: string): string {
 
 export const jiraGetProjectTool: ToolConfig<JiraGetProjectParams, JiraGetProjectResponse> = {
   id: 'jira_get_project',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Jira Get Project',
   description:
     'Get the details of a single Jira project by its ID or key, including its type, lead, components, issue types, and versions.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

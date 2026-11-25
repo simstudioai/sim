@@ -19,6 +19,7 @@ export const oktaListAppGroupsTool: ToolConfig<OktaListAppGroupsParams, OktaList
     description:
       'List the groups assigned to an Okta application. Every member of an assigned group inherits access to the app, so this is the starting point for an app access review.',
     version: '1.0.0',
+    effect: 'read',
     oauth: OKTA_CREDENTIAL_OAUTH,
 
     params: {

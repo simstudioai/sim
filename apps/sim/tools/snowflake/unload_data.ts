@@ -13,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const unloadDataTool: ToolConfig<SnowflakeUnloadDataParams, SnowflakeStatementResponse> = {
   id: 'snowflake_unload_data',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Unload Data',
   description: 'Export a Snowflake table to files in a stage with COPY INTO.',

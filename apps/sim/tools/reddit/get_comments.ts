@@ -9,6 +9,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
   name: 'Get Reddit Comments',
   description: 'Fetch comments from a specific Reddit post',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

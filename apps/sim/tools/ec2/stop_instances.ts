@@ -11,6 +11,7 @@ export const stopInstancesTool: InternalToolConfig<
   name: 'EC2 Stop Instances',
   description: 'Stop one or more running EC2 instances',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const dropboxUploadTool: InternalToolConfig<DropboxUploadParams, DropboxU
   name: 'Dropbox Upload File',
   description: 'Upload a file to Dropbox',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

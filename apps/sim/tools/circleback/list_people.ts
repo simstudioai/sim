@@ -23,6 +23,7 @@ export const listPeopleTool: ToolConfig<CirclebackListPeopleParams, CirclebackPe
     description:
       'Lists the people who attend the authenticated user meetings, ordered by most recent meeting, with optional company and tag filters.',
     version: '1.0.0',
+    effect: 'read',
     oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
     params: {

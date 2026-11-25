@@ -13,6 +13,7 @@ export const listDeploymentsTool: InternalToolConfig<
   name: 'AppConfig List Deployments',
   description: 'List deployments for an AWS AppConfig environment',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

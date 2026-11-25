@@ -6,6 +6,7 @@ export const s3HeadObjectTool: InternalToolConfig = {
   name: 'S3 Head Object',
   description: 'Retrieve metadata for an S3 object without downloading its body',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

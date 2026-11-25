@@ -10,6 +10,7 @@ export const deleteAliasTool: InternalToolConfig<
   name: 'Lambda Delete Alias',
   description: 'Delete a Lambda function alias',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

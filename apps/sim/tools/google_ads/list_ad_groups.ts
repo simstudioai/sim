@@ -14,6 +14,7 @@ export const googleAdsListAdGroupsTool: ToolConfig<
   name: 'List Google Ads Ad Groups',
   description: 'List ad groups in a Google Ads campaign',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

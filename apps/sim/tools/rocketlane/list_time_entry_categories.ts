@@ -21,6 +21,7 @@ export const rocketlaneListTimeEntryCategoriesTool: ToolConfig<
   name: 'Rocketlane List Time Entry Categories',
   description: 'List the time entry categories configured in Rocketlane',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

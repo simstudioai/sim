@@ -31,6 +31,7 @@ export const railwayListProjectsTool: ToolConfig<
   name: 'Railway List Projects',
   description: 'List Railway projects visible to the provided token',
   version: '1.0.0',
+  effect: 'read',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

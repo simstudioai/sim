@@ -18,6 +18,7 @@ export const azureDataExplorerListFunctionsTool: InternalToolConfig<
   description:
     'List the stored functions in an Azure Data Explorer database, with their parameters and bodies, so an agent can reuse existing logic instead of rewriting it.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

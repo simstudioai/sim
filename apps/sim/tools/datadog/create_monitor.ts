@@ -14,6 +14,7 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
   description:
     'Create a new monitor/alert in Datadog. Monitors can track metrics, service checks, events, and more.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

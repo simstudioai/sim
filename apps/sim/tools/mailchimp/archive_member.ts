@@ -29,6 +29,7 @@ export const mailchimpArchiveMemberTool: ToolConfig<
   description:
     'Archive a member in a Mailchimp audience. Archived contacts keep their data and can be restored with Unarchive Member.',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

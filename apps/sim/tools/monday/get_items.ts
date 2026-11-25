@@ -48,6 +48,7 @@ export const mondayGetItemsTool: ToolConfig<MondayGetItemsParams, MondayGetItems
   name: 'Monday Get Items',
   description: 'Get items from a Monday.com board',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

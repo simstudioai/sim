@@ -10,6 +10,7 @@ export const linearCreateFavoriteTool: ToolConfig<
   name: 'Linear Create Favorite',
   description: 'Bookmark an issue, project, cycle, or label in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

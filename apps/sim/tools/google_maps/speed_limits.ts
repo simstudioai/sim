@@ -12,6 +12,7 @@ export const googleMapsSpeedLimitsTool: ToolConfig<
   name: 'Google Maps Speed Limits',
   description: 'Get speed limits for road segments. Requires either path coordinates or placeIds.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

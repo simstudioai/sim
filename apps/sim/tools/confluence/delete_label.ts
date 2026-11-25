@@ -27,6 +27,7 @@ export const confluenceDeleteLabelTool: InternalToolConfig<
   name: 'Confluence Delete Label',
   description: 'Remove a label from a Confluence page.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

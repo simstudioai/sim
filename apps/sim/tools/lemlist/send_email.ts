@@ -7,6 +7,7 @@ export const sendEmailTool: ToolConfig<LemlistSendEmailParams, LemlistSendEmailR
   name: 'Lemlist Send Email',
   description: 'Sends an email to a contact through the Lemlist inbox.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LEMLIST_CREDENTIAL_OAUTH,
 
   params: {

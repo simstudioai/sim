@@ -7,6 +7,7 @@ export const boxSignListRequestsTool: ToolConfig<BoxSignListRequestsParams, BoxS
   name: 'Box Sign List Requests',
   description: 'List all Box Sign requests',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

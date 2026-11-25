@@ -19,6 +19,7 @@ export const triggerDevCompleteWaitpointTokenTool: ToolConfig<
   description:
     'Complete a Trigger.dev waitpoint token, resuming any task waiting on it and passing it optional JSON data.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

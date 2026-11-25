@@ -16,6 +16,7 @@ export const checkrGetAccountTool: ToolConfig<CheckrGetAccountParams, CheckrGetA
   description:
     'Retrieve the authenticated Checkr account, including whether it is authorized to order checks and which screenings are available.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

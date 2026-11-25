@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetDriversTool: ToolConfig<
   name: 'Get Drivers',
   description: 'Retrieve all motorsport drivers from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

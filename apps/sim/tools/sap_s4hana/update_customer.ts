@@ -8,6 +8,7 @@ export const updateCustomerTool: InternalToolConfig<UpdateCustomerParams, SapS4H
   description:
     'Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. A_Customer is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlocked, BillingIsBlockedForCustomer (Edm.String reason codes like "01"), PostingIsBlocked, and DeletionIndicator (Edm.Boolean). If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     subdomain: {
       type: 'string',

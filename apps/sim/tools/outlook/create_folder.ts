@@ -10,6 +10,7 @@ export const outlookCreateFolderTool: ToolConfig<
   name: 'Outlook Create Folder',
   description: 'Create a new mail folder in the root of the Outlook mailbox',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

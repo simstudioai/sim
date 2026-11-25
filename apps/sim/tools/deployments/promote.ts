@@ -13,6 +13,7 @@ export const deploymentsPromoteTool: InternalToolConfig<
   description:
     'Make a specific deployment version the live one without creating a new version — the same operation as Promote to live in the deploy modal. Useful for rolling back to a known-good version. Also works on an undeployed workflow: it re-deploys the workflow live at that version. Requires admin permission on the workflow’s workspace.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     workflowId: {

@@ -34,6 +34,7 @@ export const mailchimpUpdateCampaignTool: ToolConfig<
   name: 'Update Campaign in Mailchimp',
   description: 'Update an existing campaign in Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const getLatestReleaseTool: ToolConfig<GetLatestReleaseParams, ReleaseRes
   description:
     'Get the latest published, non-draft, non-prerelease release for a GitHub repository. Returns release metadata including assets and download URLs.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -139,6 +140,7 @@ export const getLatestReleaseV2Tool: ToolConfig<GetLatestReleaseParams, any> = {
   name: getLatestReleaseTool.name,
   description: getLatestReleaseTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getLatestReleaseTool.params,
   request: getLatestReleaseTool.request,

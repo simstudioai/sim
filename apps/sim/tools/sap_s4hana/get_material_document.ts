@@ -15,6 +15,7 @@ export const getMaterialDocumentTool: InternalToolConfig<
   description:
     'Retrieve a single material document header by composite key (MaterialDocument + MaterialDocumentYear) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

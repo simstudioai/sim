@@ -14,6 +14,7 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
   description:
     'List the tasks in a ClickUp list (100 tasks per page; increment page until lastPage is true to paginate)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

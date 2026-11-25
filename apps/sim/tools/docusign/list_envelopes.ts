@@ -14,6 +14,7 @@ export const docusignListEnvelopesTool: InternalToolConfig<
   name: 'List DocuSign Envelopes',
   description: 'List envelopes from your DocuSign account with optional filters',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

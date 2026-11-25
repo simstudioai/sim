@@ -9,6 +9,7 @@ export const xDeleteBookmarkTool: ToolConfig<XDeleteBookmarkParams, XDeleteBookm
   name: 'X Delete Bookmark',
   description: "Remove a tweet from the authenticated user's bookmarks",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

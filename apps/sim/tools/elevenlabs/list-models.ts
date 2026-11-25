@@ -14,6 +14,7 @@ export const elevenLabsListModelsTool: ToolConfig<
   name: 'ElevenLabs List Models',
   description: 'List the models available in ElevenLabs',
   version: '1.0.0',
+  effect: 'read',
   oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {

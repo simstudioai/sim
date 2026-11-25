@@ -19,6 +19,7 @@ export const monacoUpdateSequenceTool: ToolConfig<
   description:
     'Apply a state transition (enqueue, pause, resume, stop, or exclude) to a Monaco sequence and return the refreshed sequence with its tasks. Enqueuing or resuming a sequence lets it send real emails and LinkedIn messages to the contact; stopping ends the sequence as failed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -13,6 +13,7 @@ export const googleBigQueryListTablesTool: ToolConfig<
   name: 'BigQuery List Tables',
   description: 'List all tables in a Google BigQuery dataset',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

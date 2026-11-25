@@ -13,6 +13,7 @@ export const mondayArchiveItemTool: ToolConfig<MondayArchiveItemParams, MondayAr
     name: 'Monday Archive Item',
     description: 'Archive an item on a Monday.com board',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

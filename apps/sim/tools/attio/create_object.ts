@@ -11,6 +11,7 @@ export const attioCreateObjectTool: ToolConfig<AttioCreateObjectParams, AttioCre
     name: 'Attio Create Object',
     description: 'Create a custom object in Attio',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

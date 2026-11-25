@@ -29,6 +29,7 @@ export const bitbucketListPullRequestCommitStatusesTool: ToolConfig<
   name: 'Bitbucket List Pull Request Commit Statuses',
   description: 'List commit statuses associated with a pull request',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pullrequest'] },
   params: {
     ...BITBUCKET_PULL_REQUEST_PARAMS,

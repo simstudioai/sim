@@ -10,6 +10,7 @@ export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProject
   description:
     'Retrieve detailed information about a specific Sentry project by its slug. Returns complete project details including teams, features, and configuration.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {

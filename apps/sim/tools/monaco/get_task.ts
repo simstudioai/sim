@@ -15,6 +15,7 @@ export const monacoGetTaskTool: ToolConfig<MonacoGetTaskParams, MonacoTaskRespon
   name: 'Monaco Get Task',
   description: 'Get one Monaco task by ID, including the email draft for EMAIL tasks.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

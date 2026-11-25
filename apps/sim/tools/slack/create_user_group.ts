@@ -8,6 +8,7 @@ export const slackCreateUserGroupTool = createSlackWebApiTool({
   name: 'Slack Create User Group',
   description:
     'Create a Slack user group with a mention handle and default channels. Requires a paid plan and permission to manage user groups.',
+  effect: 'write',
   endpoint: 'usergroups.create',
   method: 'POST',
   oauth: {

@@ -14,6 +14,7 @@ export const tiktokUploadVideoDraftTool: InternalToolConfig<
   description:
     "Send an uploaded video to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

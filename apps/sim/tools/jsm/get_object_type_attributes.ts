@@ -13,6 +13,7 @@ export const jsmGetObjectTypeAttributesTool: InternalToolConfig<
   description:
     'Get the attribute definitions for an Assets (Insight/CMDB) object type. Use the returned attribute IDs to build create/update payloads or map columns.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

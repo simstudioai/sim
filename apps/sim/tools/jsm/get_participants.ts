@@ -10,6 +10,7 @@ export const jsmGetParticipantsTool: InternalToolConfig<
   name: 'JSM Get Participants',
   description: 'Get participants for a request in Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

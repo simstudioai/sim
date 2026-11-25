@@ -7,6 +7,7 @@ export const listRolesTool: InternalToolConfig<IAMListRolesParams, IAMListRolesR
   name: 'IAM List Roles',
   description: 'List IAM roles in your AWS account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

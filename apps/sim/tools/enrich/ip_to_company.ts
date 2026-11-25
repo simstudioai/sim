@@ -7,6 +7,7 @@ export const ipToCompanyTool: ToolConfig<EnrichIpToCompanyParams, EnrichIpToComp
   name: 'Enrich IP to Company',
   description: 'Identify a company from an IP address with detailed firmographic information.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

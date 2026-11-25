@@ -35,6 +35,7 @@ export const sportmonksCoreGetTypesTool: ToolConfig<
   description:
     'Retrieve all types (reference data describing events, statistics, positions, etc.) from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

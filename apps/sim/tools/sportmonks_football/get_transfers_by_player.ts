@@ -36,6 +36,7 @@ export const sportmonksGetTransfersByPlayerTool: ToolConfig<
   name: 'Get Transfers by Player',
   description: 'Retrieve transfers for a player by player ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

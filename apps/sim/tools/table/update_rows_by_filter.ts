@@ -19,6 +19,7 @@ export const tableUpdateRowsByFilterTool: InternalToolConfig<
   description:
     'Update multiple rows that match filter criteria. Data is merged with existing row data.',
   version: '1.0.0',
+  effect: 'write',
 
   toolEnrichment: {
     dependsOn: 'tableId',

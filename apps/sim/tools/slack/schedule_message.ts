@@ -9,6 +9,7 @@ export const slackScheduleMessageTool: ToolConfig<
   name: 'Slack Schedule Message',
   description: 'Schedule a message to be sent to a Slack channel or DM at a future time.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

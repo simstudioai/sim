@@ -10,6 +10,7 @@ export const crawlTool: ToolConfig<TavilyCrawlParams, CrawlResponse> = {
   description:
     "Systematically crawl and extract content from websites using Tavily's crawl API. Supports depth control, path filtering, domain restrictions, and natural language instructions for targeted crawling.",
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.TAVILY_ERRORS,
   oauth: TAVILY_CREDENTIAL_OAUTH,
 

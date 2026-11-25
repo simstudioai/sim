@@ -7,6 +7,7 @@ export const executeTool: InternalToolConfig<MySQLExecuteParams, MySQLResponse> 
   name: 'MySQL Execute',
   description: 'Execute raw SQL query on MySQL database',
   version: '1.0',
+  effect: 'write',
   oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {

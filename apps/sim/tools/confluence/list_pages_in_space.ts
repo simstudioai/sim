@@ -51,6 +51,7 @@ export const confluenceListPagesInSpaceTool: InternalToolConfig<
   description:
     'List all pages within a specific Confluence space. Supports pagination and filtering by status.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

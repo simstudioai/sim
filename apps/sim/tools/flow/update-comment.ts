@@ -21,6 +21,7 @@ export const flowUpdateCommentTool: ToolConfig<FlowUpdateCommentParams, FlowUpda
     description:
       'Edit comment text or resolve/reopen its thread. Use the original comment to change the thread status.',
     version: '1.0.0',
+    effect: 'write',
     oauth: FLOW_OAUTH,
     params: {
       ...FLOW_AUTH_PARAMS,

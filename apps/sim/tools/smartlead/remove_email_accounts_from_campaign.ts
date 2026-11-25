@@ -25,6 +25,7 @@ export const removeEmailAccountsFromCampaignTool: ToolConfig<
   name: 'Smartlead Remove Email Accounts from Campaign',
   description: 'Detaches sending email accounts from a Smartlead campaign.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

@@ -16,6 +16,7 @@ export const telegramGetChatMemberTool: ToolConfig<
   name: 'Telegram Get Chat Member',
   description: 'Get information about a member of a Telegram chat through the Telegram Bot API.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

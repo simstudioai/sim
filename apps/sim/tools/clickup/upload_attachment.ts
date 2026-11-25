@@ -12,6 +12,7 @@ export const clickupUploadAttachmentTool: InternalToolConfig<
   name: 'ClickUp Upload Attachment',
   description: 'Upload a file to a ClickUp task as an attachment',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

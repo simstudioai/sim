@@ -37,6 +37,7 @@ export const semrushSubdomainOrganicKeywordsTool: ToolConfig<
   name: 'Semrush Subdomain Organic Keywords',
   description: 'List the keywords a subdomain ranks for in Google organic search.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

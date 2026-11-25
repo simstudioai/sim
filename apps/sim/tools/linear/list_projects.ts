@@ -11,6 +11,7 @@ export const linearListProjectsTool: ToolConfig<
   name: 'Linear List Projects',
   description: 'List projects in Linear with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

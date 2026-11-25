@@ -33,6 +33,7 @@ export const newRelicSearchEntitiesTool: ToolConfig<
   name: 'New Relic Search Entities',
   description: 'Search New Relic entities by name, GUID, domain type, tags, or reporting state.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NEW_RELIC_CREDENTIAL_OAUTH,
 
   params: {

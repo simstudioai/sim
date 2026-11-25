@@ -22,6 +22,7 @@ export const apolloPeopleSearchTool: ToolConfig<
   name: 'Apollo People Search',
   description: "Search Apollo's database for people using demographic filters",
   version: '1.0.0',
+  effect: 'read',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

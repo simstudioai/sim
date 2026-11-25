@@ -27,6 +27,7 @@ export const squareCreateCustomerTool: ToolConfig<
   name: 'Square Create Customer',
   description: 'Create a new customer profile in the Square customer directory',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

@@ -14,6 +14,7 @@ export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksEx
     description:
       'Execute a SQL statement against a Databricks SQL warehouse and return results inline. Supports parameterized queries and Unity Catalog.',
     version: '1.0.0',
+    effect: 'write',
     oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
     params: {

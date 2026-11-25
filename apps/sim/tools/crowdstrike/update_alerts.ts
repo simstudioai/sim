@@ -17,6 +17,7 @@ export const crowdstrikeUpdateAlertsTool: InternalToolConfig<
   description:
     'Update CrowdStrike Falcon alerts by composite ID: change status, assign or unassign an analyst, add or remove tags, append a comment, or toggle visibility (PATCH /alerts/entities/alerts/v3). This modifies live alerts in the Falcon console. Requires the "Alerts: Write" API scope.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

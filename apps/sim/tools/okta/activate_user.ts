@@ -14,6 +14,7 @@ export const oktaActivateUserTool: ToolConfig<OktaActivateUserParams, OktaActiva
   description:
     'Activate a user in your Okta organization. Can only be performed on users with STAGED or DEPROVISIONED status. Optionally sends an activation email.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

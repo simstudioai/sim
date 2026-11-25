@@ -19,6 +19,7 @@ export const checkrGetReportProgressiveStatusTool: ToolConfig<
   description:
     'Retrieve checkpoint progress for an Enterprise Progressive report, including which checkpoint is waiting on a review action.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

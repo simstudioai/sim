@@ -11,6 +11,7 @@ export const associateAddressTool: InternalToolConfig<
   name: 'EC2 Associate Address',
   description: 'Associate an Elastic IP address with an instance or network interface',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

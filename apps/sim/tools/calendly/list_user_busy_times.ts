@@ -15,6 +15,7 @@ export const listUserBusyTimesTool: ToolConfig<
   description:
     "Retrieve a user's internal and external busy times within a date range, based on their connected calendars",
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const linkedInGetProfileTool: ToolConfig<GetProfileParams, GetProfileResp
   name: 'Get LinkedIn Profile',
   description: 'Retrieve your LinkedIn profile information',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

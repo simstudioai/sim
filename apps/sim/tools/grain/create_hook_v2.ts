@@ -8,6 +8,7 @@ export const grainCreateHookV2Tool: ToolConfig<GrainCreateHookV2Params, GrainCre
     name: 'Grain Create Webhook',
     description: 'Create a webhook for a specific Grain event type (v2 API)',
     version: '2.0.0',
+    effect: 'write',
     oauth: GRAIN_CREDENTIAL_OAUTH,
 
     params: {

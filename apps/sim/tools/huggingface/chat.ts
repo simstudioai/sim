@@ -26,6 +26,7 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
   name: 'Hugging Face Chat',
   description: 'Generate completions using Hugging Face Inference API',
   version: '1.0',
+  effect: 'read',
   oauth: HUGGINGFACE_CREDENTIAL_OAUTH,
 
   params: {

@@ -36,6 +36,7 @@ export const sportmonksGetTopscorersByStageTool: ToolConfig<
   name: 'Get Topscorers by Stage',
   description: 'Retrieve topscorers for a stage by stage ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

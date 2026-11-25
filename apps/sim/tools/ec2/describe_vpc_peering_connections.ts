@@ -16,6 +16,7 @@ export const describeVpcPeeringConnectionsTool: InternalToolConfig<
   name: 'EC2 Describe VPC Peering Connections',
   description: 'List VPC peering connections with their status and both VPCs',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

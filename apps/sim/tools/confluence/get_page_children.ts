@@ -32,11 +32,12 @@ export const confluenceGetPageChildrenTool: InternalToolConfig<
   ConfluenceGetPageChildrenResponse
 > = {
   id: 'confluence_get_page_children',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Confluence Get Page Children',
   description:
     'Get all child pages of a specific Confluence page. Useful for navigating page hierarchies.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

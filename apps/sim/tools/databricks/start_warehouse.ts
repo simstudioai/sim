@@ -19,6 +19,7 @@ export const startWarehouseTool: ToolConfig<
   name: 'Databricks Start Warehouse',
   description: 'Start a stopped SQL warehouse.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

@@ -20,6 +20,7 @@ export const higgsfieldCancelRequestTool: ToolConfig<
   description:
     'Cancel a Higgsfield generation request that is still queued. Requests that have started processing cannot be canceled.',
   version: '1.0.0',
+  effect: 'write',
   oauth: higgsfieldOAuth,
   params: {
     ...higgsfieldAuthParams,

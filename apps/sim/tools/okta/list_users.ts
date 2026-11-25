@@ -13,6 +13,7 @@ export const oktaListUsersTool: ToolConfig<OktaListUsersParams, OktaListUsersRes
   description:
     'List users in your Okta organization with optional search and filtering. Users with a DEPROVISIONED status are omitted unless a search or filter expression selects them.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const notionListUsersTool: ToolConfig<NotionListUsersParams, NotionListUs
   name: 'Notion List Users',
   description: 'List all users (members and bots) in the Notion workspace',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -90,6 +91,7 @@ export const notionListUsersV2Tool: ToolConfig<NotionListUsersParams, NotionList
   name: 'Notion List Users',
   description: 'List all users (members and bots) in the Notion workspace',
   version: '2.0.0',
+  effect: 'read',
   oauth: notionListUsersTool.oauth,
   params: notionListUsersTool.params,
   request: notionListUsersTool.request,

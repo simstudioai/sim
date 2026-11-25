@@ -9,6 +9,7 @@ export const agiloftSavedSearchTool: InternalToolConfig<
   name: 'Agiloft Saved Search',
   description: 'List the saved searches defined for an Agiloft table.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     instanceUrl: {

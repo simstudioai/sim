@@ -16,6 +16,7 @@ export const shopifyCreateProductTool: ToolConfig<
   name: 'Shopify Create Product',
   description: 'Create a new product in your Shopify store',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

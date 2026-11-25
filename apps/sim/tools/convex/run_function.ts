@@ -14,6 +14,7 @@ export const runFunctionTool: ToolConfig<ConvexFunctionCallParams, ConvexFunctio
   description:
     'Run any Convex function (query, mutation, or action) by path without specifying its type',
   version: '1.0.0',
+  effect: 'write',
   oauth: CONVEX_CREDENTIAL_OAUTH,
 
   params: {

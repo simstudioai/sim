@@ -37,6 +37,7 @@ export const sportmonksMotorsportGetSchedulesBySeasonTool: ToolConfig<
   description:
     'Retrieve the full schedule (stages with nested fixtures and venues) for a season by season ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

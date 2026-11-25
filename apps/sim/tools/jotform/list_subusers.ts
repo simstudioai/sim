@@ -11,6 +11,7 @@ export const listSubUsersTool: ToolConfig<JotformListSubUsersParams, JotformList
     description:
       'List the sub-users on the account with the forms and folders each one can reach, and at what access level.',
     version: '1.0.0',
+    effect: 'read',
     oauth: JOTFORM_CREDENTIAL_OAUTH,
 
     params: {

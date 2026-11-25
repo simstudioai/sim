@@ -38,6 +38,7 @@ export const getLeadTool: ToolConfig<LemlistGetLeadParams, LemlistGetLeadRespons
   name: 'Lemlist Get Lead',
   description: 'Retrieves lead information by email address or lead ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LEMLIST_CREDENTIAL_OAUTH,
 
   params: {

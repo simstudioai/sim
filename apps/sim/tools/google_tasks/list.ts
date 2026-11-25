@@ -17,6 +17,7 @@ export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse
   name: 'Google Tasks List Tasks',
   description: 'List all tasks in a Google Tasks list',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

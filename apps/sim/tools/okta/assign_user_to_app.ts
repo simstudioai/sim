@@ -21,6 +21,7 @@ export const oktaAssignUserToAppTool: ToolConfig<
   description:
     'Assign a user to an Okta application, granting them access to it. Applications that require credentials also need the username the user signs in with.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

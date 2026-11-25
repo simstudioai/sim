@@ -12,6 +12,7 @@ export const showCreateTableTool: InternalToolConfig<
   name: 'ClickHouse Show Create Table',
   description: 'Get the CREATE TABLE statement (DDL) for a ClickHouse table',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

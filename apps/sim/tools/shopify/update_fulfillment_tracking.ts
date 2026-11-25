@@ -22,6 +22,7 @@ export const shopifyUpdateFulfillmentTrackingTool: ToolConfig<
   name: 'Shopify Update Fulfillment Tracking',
   description: 'Update tracking numbers, URLs, or carrier for an existing fulfillment',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'shopify', authoritativeParams: ['domain', 'idToken'] },
   params: {
     accessToken: {

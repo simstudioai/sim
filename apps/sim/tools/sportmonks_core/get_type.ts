@@ -29,6 +29,7 @@ export const sportmonksCoreGetTypeTool: ToolConfig<
   name: 'Get Type by ID',
   description: 'Retrieve a single type by its ID from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

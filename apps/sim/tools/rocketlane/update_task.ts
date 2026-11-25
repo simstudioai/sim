@@ -18,6 +18,7 @@ export const rocketlaneUpdateTaskTool: ToolConfig<
   name: 'Rocketlane Update Task',
   description: 'Update the properties of an existing Rocketlane task by its unique identifier',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

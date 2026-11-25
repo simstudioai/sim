@@ -27,6 +27,7 @@ export const fivetranListConnectionsTool: ToolConfig<
   description:
     'List Fivetran connections with their sync state, schedule, and last success or failure, optionally filtered by group or schema name.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

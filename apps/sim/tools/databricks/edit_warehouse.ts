@@ -22,6 +22,7 @@ export const editWarehouseTool: ToolConfig<
   name: 'Databricks Edit Warehouse',
   description: 'Update a SQL warehouse configuration.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

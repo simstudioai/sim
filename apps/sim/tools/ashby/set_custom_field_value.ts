@@ -34,6 +34,7 @@ export const setCustomFieldValueTool: ToolConfig<
   description:
     'Sets the value of a single custom field on an Ashby Application, Candidate, Job, or Opening. Custom fields are the only way to annotate a job or req, since Ashby has no job notes and no job tags. Requires the candidatesWrite permission.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

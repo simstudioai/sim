@@ -12,6 +12,7 @@ export const readTool: InternalToolConfig<MicrosoftWordToolParams, MicrosoftWord
   description:
     'Read the text content of a Microsoft Word (.docx) document stored in OneDrive or SharePoint.',
   version: '1.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

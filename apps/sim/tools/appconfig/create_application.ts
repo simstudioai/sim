@@ -13,6 +13,7 @@ export const createApplicationTool: InternalToolConfig<
   name: 'AppConfig Create Application',
   description: 'Create an application in AWS AppConfig',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

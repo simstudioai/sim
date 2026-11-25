@@ -26,6 +26,7 @@ export const fivetranListConnectorTypesTool: ToolConfig<
   description:
     'List the source connector types available in Fivetran, with the service ID to use when creating a connection.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

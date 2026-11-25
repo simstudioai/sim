@@ -23,6 +23,7 @@ export const attachLeadsToCampaignTool: ToolConfig<
   name: 'Email Bison Attach Leads to Campaign',
   description: 'Adds existing Email Bison leads to a campaign.',
   version: '1.0.0',
+  effect: 'write',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

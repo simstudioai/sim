@@ -10,6 +10,7 @@ export const resendCancelEmailTool: ToolConfig<CancelEmailParams, CancelEmailRes
   name: 'Cancel Email',
   description: 'Cancel a scheduled email before it is sent',
   version: '1.0.0',
+  effect: 'write',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const storageListBucketsTool: ToolConfig<
   name: 'Supabase Storage List Buckets',
   description: 'List all storage buckets in Supabase',
   version: '1.0.0',
+  effect: 'read',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

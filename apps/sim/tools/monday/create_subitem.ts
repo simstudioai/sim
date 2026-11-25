@@ -16,6 +16,7 @@ export const mondayCreateSubitemTool: ToolConfig<
   name: 'Monday Create Subitem',
   description: 'Create a subitem under a parent item on Monday.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

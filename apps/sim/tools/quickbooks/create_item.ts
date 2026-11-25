@@ -30,6 +30,7 @@ export const quickbooksCreateItemTool: ToolConfig<
   name: 'QuickBooks Create Item',
   description: 'Create a Service or Non-inventory item in QuickBooks Online',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

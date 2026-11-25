@@ -24,6 +24,7 @@ export const listAudienceMembersTool: ToolConfig<
   name: 'Thrive List Audience Members',
   description: 'List the members of a Thrive audience with pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

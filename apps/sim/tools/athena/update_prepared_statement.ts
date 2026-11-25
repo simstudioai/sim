@@ -14,6 +14,7 @@ export const updatePreparedStatementTool: InternalToolConfig<
   description:
     'Replace the SQL and description of an existing prepared statement in an Athena workgroup',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -27,6 +27,7 @@ export const updateMeetingTool: ToolConfig<
   description:
     'Updates the name, notes, or private notes of a Circleback meeting. The API returns only the fields that were updated.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

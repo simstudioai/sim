@@ -14,8 +14,8 @@ export const jiraWriteTool: InternalToolConfig<JiraWriteParams, JiraWriteRespons
   name: 'Jira Write',
   description: 'Create a new Jira issue',
   version: '1.0.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'domain', label: 'Jira site', target: true },

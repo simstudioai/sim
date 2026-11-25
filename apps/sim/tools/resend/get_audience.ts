@@ -10,6 +10,7 @@ export const resendGetAudienceTool: ToolConfig<GetAudienceParams, GetAudienceRes
   name: 'Get Audience',
   description: 'Retrieve details of an audience by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

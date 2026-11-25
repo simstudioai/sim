@@ -23,6 +23,7 @@ export const mailchimpStartAutomationTool: ToolConfig<
   name: 'Start Automation in Mailchimp',
   description: 'Start all emails in a Mailchimp automation workflow',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

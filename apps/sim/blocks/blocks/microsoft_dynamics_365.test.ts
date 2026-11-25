@@ -414,7 +414,7 @@ describe('MicrosoftDynamics365Block tool-call mapping', () => {
     vi.mocked(getToolMetadata).mockImplementationOnce(lookup).mockImplementationOnce(lookup)
     function lookup(toolId: string) {
       const tool = rowTools.find((candidate) => candidate.id === toolId)
-      return tool && { id: tool.id, params: tool.params }
+      return tool && { id: tool.id, effect: tool.effect, params: tool.params }
     }
     const rowFields = (toolId: string, operation: string) =>
       getSubBlocksForToolInput(

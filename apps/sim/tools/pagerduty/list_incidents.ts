@@ -14,6 +14,7 @@ export const listIncidentsTool: ToolConfig<
   name: 'PagerDuty List Incidents',
   description: 'List incidents from PagerDuty with optional filters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

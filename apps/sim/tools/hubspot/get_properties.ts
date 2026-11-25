@@ -18,6 +18,7 @@ export const hubspotGetPropertiesTool: ToolConfig<
   description:
     'Read property definitions and their enumeration (picklist) options for a HubSpot object type, e.g. the values for lifecyclestage or hs_lead_status on contacts',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

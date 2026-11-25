@@ -17,6 +17,7 @@ export const pipedriveGetPipelinesTool: ToolConfig<
   name: 'Get Pipelines from Pipedrive',
   description: 'Retrieve all pipelines from Pipedrive',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

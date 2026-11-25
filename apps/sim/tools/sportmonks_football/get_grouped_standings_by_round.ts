@@ -27,6 +27,7 @@ export const sportmonksGetGroupedStandingsByRoundTool: ToolConfig<
   description:
     'Retrieve the standing table for a round ID grouped by group where applicable from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

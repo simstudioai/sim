@@ -27,6 +27,7 @@ export const mailchimpGetSegmentsTool: ToolConfig<
   name: 'Get Segments from Mailchimp Audience',
   description: 'Retrieve a list of segments from a Mailchimp audience',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

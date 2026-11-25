@@ -33,6 +33,7 @@ export const listCandidateTagsTool: ToolConfig<
   name: 'Ashby List Candidate Tags',
   description: 'Lists all candidate tags configured in Ashby.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

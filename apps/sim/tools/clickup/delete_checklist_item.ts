@@ -14,6 +14,7 @@ export const clickupDeleteChecklistItemTool: ToolConfig<
   name: 'ClickUp Delete Checklist Item',
   description: 'Delete an item from a checklist on a ClickUp task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

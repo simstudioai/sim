@@ -37,6 +37,7 @@ export const semrushWinnersAndLosersTool: ToolConfig<
   description:
     'List the domains that gained or lost the most organic and paid search visibility in a database.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

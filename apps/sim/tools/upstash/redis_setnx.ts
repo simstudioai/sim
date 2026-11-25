@@ -10,6 +10,7 @@ export const upstashRedisSetnxTool: ToolConfig<UpstashRedisSetnxParams, UpstashR
     description:
       'Set the value of a key only if it does not already exist. Returns true if the key was set, false if it already existed.',
     version: '1.0.0',
+    effect: 'write',
     oauth: UPSTASH_CREDENTIAL_OAUTH,
 
     params: {

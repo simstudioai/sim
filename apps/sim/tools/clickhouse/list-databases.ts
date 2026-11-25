@@ -12,6 +12,7 @@ export const listDatabasesTool: InternalToolConfig<
   name: 'ClickHouse List Databases',
   description: 'List all databases on a ClickHouse server',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

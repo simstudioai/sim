@@ -7,6 +7,7 @@ export const spotifyGetDevicesTool: ToolConfig<SpotifyGetDevicesParams, SpotifyG
     name: 'Spotify Get Devices',
     description: "Get the user's available Spotify playback devices.",
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

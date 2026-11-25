@@ -8,6 +8,7 @@ export const daytonaGitCloneTool: ToolConfig<DaytonaGitCloneParams, DaytonaGitCl
   name: 'Daytona Git Clone',
   description: 'Clone a Git repository into a Daytona sandbox',
   version: '1.0.0',
+  effect: 'write',
   oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {

@@ -24,6 +24,7 @@ export const resumeLeadTool: ToolConfig<ResumeLeadParams, SmartleadActionRespons
   name: 'Smartlead Resume Lead',
   description: 'Resumes a paused lead in a Smartlead campaign, optionally after a delay.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

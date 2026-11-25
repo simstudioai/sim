@@ -14,6 +14,7 @@ export const linearCreateCustomerRequestTool: ToolConfig<
   description:
     'Create a customer request (need) in Linear. Assign to customer, set urgency (priority: 0 = Not important, 1 = Important), and link it to an issue (required for API calls).',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

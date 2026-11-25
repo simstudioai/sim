@@ -22,6 +22,7 @@ export const checkrCancelAdverseActionTool: ToolConfig<
   name: 'Checkr Cancel Adverse Action',
   description: 'Cancel an adverse action so the post-adverse action notice is not sent.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

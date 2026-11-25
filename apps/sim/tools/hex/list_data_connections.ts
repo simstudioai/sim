@@ -15,6 +15,7 @@ export const listDataConnectionsTool: ToolConfig<
   description:
     'List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, BigQuery).',
   version: '1.0.0',
+  effect: 'read',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

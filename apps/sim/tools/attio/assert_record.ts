@@ -13,6 +13,7 @@ export const attioAssertRecordTool: ToolConfig<AttioAssertRecordParams, AttioAss
     description:
       'Upsert a record in Attio — creates it if no match is found, updates it if a match exists',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

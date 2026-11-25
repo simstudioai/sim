@@ -6,6 +6,7 @@ export const slackMarkConversationReadTool = createSlackWebApiTool({
   id: 'slack_mark_conversation_read',
   name: 'Slack Mark Conversation Read',
   description: 'Move the authenticated identity’s read cursor to a message timestamp.',
+  effect: 'write',
   endpoint: 'conversations.mark',
   method: 'POST',
   oauth: { required: true, provider: 'slack', requiredScopes: [] },

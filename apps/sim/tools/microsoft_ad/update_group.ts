@@ -13,6 +13,7 @@ export const updateGroupTool: ToolConfig<
   name: 'Update Azure AD Group',
   description: 'Update group properties in Azure AD (Microsoft Entra ID)',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

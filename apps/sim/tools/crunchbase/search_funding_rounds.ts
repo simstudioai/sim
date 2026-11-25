@@ -19,6 +19,7 @@ export const crunchbaseSearchFundingRoundsTool: ToolConfig<
   description:
     'Search Crunchbase funding rounds with filter predicates on announced date, investment type, amount raised, and investors.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 

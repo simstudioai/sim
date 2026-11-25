@@ -59,6 +59,7 @@ export const addLeadsToCampaignTool: ToolConfig<
   description:
     'Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason counts for leads that were skipped as duplicates, blocked, bounced, or invalid.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

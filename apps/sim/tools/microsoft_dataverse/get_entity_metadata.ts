@@ -23,6 +23,7 @@ export const dataverseGetEntityMetadataTool: ToolConfig<
   description:
     'Retrieve table (entity) and column (attribute) definitions for a Microsoft Dataverse table by its singular logical name. Use this to look up the correct entity set name and column logical names before building record data for other operations.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

@@ -6,6 +6,7 @@ export const deepgramTtsTool: InternalToolConfig<DeepgramTtsParams, TtsBlockResp
   name: 'Deepgram TTS',
   description: 'Convert text to speech using Deepgram Aura',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     text: {

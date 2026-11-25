@@ -14,6 +14,7 @@ export const discordDeleteWebhookTool: ToolConfig<
   name: 'Discord Delete Webhook',
   description: 'Delete a Discord webhook',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

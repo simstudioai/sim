@@ -10,6 +10,7 @@ export const listMembersTool: ToolConfig<GoogleGroupsListMembersParams, GoogleGr
   name: 'Google Groups List Members',
   description: 'List all members of a Google Group',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

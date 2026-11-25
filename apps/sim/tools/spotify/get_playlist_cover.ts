@@ -23,6 +23,7 @@ export const spotifyGetPlaylistCoverTool: ToolConfig<
   name: 'Spotify Get Playlist Cover',
   description: "Get a playlist's cover image.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

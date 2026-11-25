@@ -20,6 +20,7 @@ export const oracleFusionFinancialsListReceivablesInvoiceLinesTool: InternalTool
   name: 'Oracle Fusion Financials List Receivables Invoice Lines',
   description: 'List one page of Oracle Fusion receivables invoice lines.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     ...oracleFusionFinancialsListParamFields,

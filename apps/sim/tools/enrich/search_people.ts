@@ -8,6 +8,7 @@ export const searchPeopleTool: ToolConfig<EnrichSearchPeopleParams, EnrichSearch
   description:
     'Search for professionals by various criteria including name, title, skills, education, and company.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

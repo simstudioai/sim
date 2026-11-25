@@ -18,6 +18,7 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
   name: 'Batch Insert Rows',
   description: `Insert multiple rows into a table at once (up to ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows)`,
   version: '1.0.0',
+  effect: 'write',
 
   toolEnrichment: {
     dependsOn: 'tableId',

@@ -11,6 +11,7 @@ export const linearGetActiveCycleTool: ToolConfig<
   name: 'Linear Get Active Cycle',
   description: 'Get the currently active cycle for a team',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

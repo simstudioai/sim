@@ -11,6 +11,7 @@ export const jsmCreateObjectTool: InternalToolConfig<
   description:
     'Create an Assets (Insight/CMDB) object of a given object type. Attributes use objectTypeAttributeId values from the object type definition.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

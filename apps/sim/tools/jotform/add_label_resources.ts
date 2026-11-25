@@ -20,6 +20,7 @@ export const addLabelResourcesTool: ToolConfig<
   name: 'Jotform Add Label Resources',
   description: 'Assign forms, workflows, sheets, or apps to a Jotform label.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

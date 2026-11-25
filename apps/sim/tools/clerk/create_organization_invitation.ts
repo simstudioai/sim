@@ -19,6 +19,7 @@ export const clerkCreateOrganizationInvitationTool: ToolConfig<
   name: 'Create Organization Invitation in Clerk',
   description: 'Invite a user by email to join a Clerk organization with a given role',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

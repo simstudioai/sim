@@ -14,8 +14,8 @@ export const salesforceUpdateTaskTool: ToolConfig<
   name: 'Update Task in Salesforce',
   description: 'Update an existing task',
   version: '1.0.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'taskId', label: 'Task', target: true },

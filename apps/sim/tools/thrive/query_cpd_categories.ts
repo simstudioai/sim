@@ -23,6 +23,7 @@ export const queryCpdCategoriesTool: ToolConfig<
   name: 'Thrive Query CPD Categories',
   description: 'Query CPD categories in Thrive and return results with pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

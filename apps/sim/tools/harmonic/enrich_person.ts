@@ -22,6 +22,7 @@ export const harmonicEnrichPersonTool: ToolConfig<
   description:
     'Resolve a LinkedIn profile URL or email address into a normalized Harmonic contact, queueing enrichment when the person is not yet in Harmonic.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 

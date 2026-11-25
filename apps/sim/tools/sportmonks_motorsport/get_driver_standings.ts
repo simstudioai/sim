@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetDriverStandingsTool: ToolConfig<
   name: 'Get All Driver Standings',
   description: 'Retrieve all driver championship standings from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -11,6 +11,7 @@ export const listBillingDocumentsTool: InternalToolConfig<
   description:
     'List billing documents (customer invoices) from SAP S/4HANA Cloud (API_BILLING_DOCUMENT_SRV, A_BillingDocument) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

@@ -14,6 +14,7 @@ export const telegramSendPhotoTool: ToolConfig<TelegramSendPhotoParams, Telegram
     name: 'Telegram Send Photo',
     description: 'Send photos to Telegram channels or users through the Telegram Bot API.',
     version: '1.0.0',
+    effect: 'write',
     oauth: TELEGRAM_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

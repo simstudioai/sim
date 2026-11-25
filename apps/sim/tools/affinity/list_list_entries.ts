@@ -23,6 +23,7 @@ export const affinityListListEntriesTool: ToolConfig<
   description:
     'Page through the rows of a list. Rows come back without field data unless Field IDs or Field Types asks for it.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

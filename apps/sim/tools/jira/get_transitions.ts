@@ -18,6 +18,7 @@ export const jiraGetTransitionsTool: ToolConfig<
   description:
     'Get the workflow transitions available for an issue in its current status. Use the returned transition IDs with the Transition Issue operation.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

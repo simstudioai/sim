@@ -20,6 +20,7 @@ export const zohoDeskGetDepartmentTool: ToolConfig<
   name: 'Zoho Desk Get Department',
   description: 'Get Department in Zoho Desk.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

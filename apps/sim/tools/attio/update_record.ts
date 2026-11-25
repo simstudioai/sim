@@ -12,6 +12,7 @@ export const attioUpdateRecordTool: ToolConfig<AttioUpdateRecordParams, AttioUpd
     name: 'Attio Update Record',
     description: 'Update an existing record in Attio (appends multiselect values)',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

@@ -14,6 +14,7 @@ export const removeDirectoryRoleMemberTool: ToolConfig<
   description:
     'Revoke an administrator role from a user in Microsoft Entra ID. Removes only the role membership; the user account itself is not deleted.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

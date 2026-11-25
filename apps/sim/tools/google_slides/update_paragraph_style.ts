@@ -51,6 +51,7 @@ export const updateParagraphStyleTool: ToolConfig<
   description:
     'Update paragraph styling — alignment, line spacing, indents, space above/below — for text in a shape or table cell.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

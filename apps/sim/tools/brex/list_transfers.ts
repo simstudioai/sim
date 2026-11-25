@@ -14,6 +14,7 @@ export const brexListTransfersTool: ToolConfig<BrexPaginationParams, BrexListTra
   name: 'Brex List Transfers',
   description: 'List money transfers in the Brex account',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const firefliesUploadAudioTool: InternalToolConfig<
   name: 'Fireflies Upload Audio',
   description: 'Upload an audio file URL to Fireflies.ai for transcription',
   version: '1.0.0',
+  effect: 'write',
   oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {

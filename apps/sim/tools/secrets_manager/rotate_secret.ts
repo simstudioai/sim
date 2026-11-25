@@ -13,6 +13,7 @@ export const rotateSecretTool: InternalToolConfig<
   name: 'Secrets Manager Rotate Secret',
   description: 'Start or reconfigure rotation for a secret in AWS Secrets Manager',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

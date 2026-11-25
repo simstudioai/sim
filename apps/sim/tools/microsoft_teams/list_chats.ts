@@ -11,7 +11,8 @@ export const listChatsTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsL
     name: 'List Microsoft Teams Chats',
     description: 'List the Microsoft Teams chats the current user is part of',
     version: '1.0',
-    assistant: { effect: 'read', version: 1 },
+    effect: 'read',
+    assistant: { version: 1 },
     errorExtractor: 'nested-error-object',
     oauth: {
       required: true,

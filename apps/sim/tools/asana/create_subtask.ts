@@ -9,6 +9,7 @@ export const asanaCreateSubtaskTool: InternalToolConfig<
   name: 'Asana Create Subtask',
   description: 'Create a subtask under an existing Asana task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

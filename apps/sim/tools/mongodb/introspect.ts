@@ -9,6 +9,7 @@ export const introspectTool: InternalToolConfig<
   name: 'MongoDB Introspect',
   description: 'Introspect MongoDB database to list databases, collections, and indexes',
   version: '1.0',
+  effect: 'read',
 
   params: {
     host: {

@@ -14,6 +14,7 @@ export const listFunctionEventInvokeConfigsTool: InternalToolConfig<
   name: 'Lambda List Async Invoke Configs',
   description: 'List the asynchronous invocation configurations of a function',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -10,6 +10,7 @@ export const ripplingBulkDeleteCustomObjectRecordsTool: ToolConfig<RipplingBulkD
     name: 'Rippling Bulk Delete Custom Object Records',
     description: 'Bulk delete custom object records',
     version: '1.0.0',
+    effect: 'write',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

@@ -11,6 +11,7 @@ export const getTravelRequestTool: InternalToolConfig<GetTravelRequestParams, Sa
   name: 'SAP Concur Get Travel Request',
   description: 'Get a single travel request (GET /travelrequest/v4/requests/{requestUuid}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

@@ -20,6 +20,7 @@ export const mailchimpDeleteTemplateTool: ToolConfig<
   name: 'Delete Template from Mailchimp',
   description: 'Delete a template from Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

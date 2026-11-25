@@ -23,6 +23,7 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
   name: 'QuickBooks Run Financial Report',
   description: 'Run a fixed QuickBooks financial report with verified accountant-focused filters',
   version: '1.0.0',
+  effect: 'read',
   params: {
     accessToken: {
       type: 'string',

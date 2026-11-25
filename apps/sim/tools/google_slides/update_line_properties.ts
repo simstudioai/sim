@@ -41,6 +41,7 @@ export const updateLinePropertiesTool: ToolConfig<
   name: 'Update Line Properties in Google Slides',
   description: 'Update line appearance — color, weight, dash style, arrows, link.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

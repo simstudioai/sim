@@ -12,6 +12,7 @@ export const truncateTableTool: InternalToolConfig<
   name: 'ClickHouse Truncate Table',
   description: 'Remove all rows from a ClickHouse table',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -44,6 +44,7 @@ export const updateExperimentTool: ToolConfig<
   description:
     'Update an existing experiment in PostHog. Use this to change dates, archive an experiment, or adjust its parameters and filters.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'posthog-errors',
 
   params: {

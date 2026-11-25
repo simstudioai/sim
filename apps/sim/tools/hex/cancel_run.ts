@@ -9,6 +9,7 @@ export const cancelRunTool: ToolConfig<HexCancelRunParams, HexCancelRunResponse>
   name: 'Hex Cancel Run',
   description: 'Cancel an active Hex project run.',
   version: '1.0.0',
+  effect: 'write',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

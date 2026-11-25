@@ -23,6 +23,7 @@ export const mailchimpUnpublishLandingPageTool: ToolConfig<
   name: 'Unpublish Landing Page in Mailchimp',
   description: 'Unpublish a landing page in Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

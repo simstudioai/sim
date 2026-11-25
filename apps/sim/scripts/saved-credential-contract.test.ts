@@ -20,6 +20,7 @@ function requestTool(
     name: 'Probe fixture',
     description: 'Fixture for the host-steering probe',
     version: '1.0.0',
+    effect: 'write',
     params: Object.fromEntries(
       Object.entries(params).map(([name, param]) => [
         name,

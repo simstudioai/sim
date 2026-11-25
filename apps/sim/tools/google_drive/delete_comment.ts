@@ -23,6 +23,7 @@ export const deleteCommentTool: ToolConfig<
   name: 'Delete Google Drive Comment',
   description: 'Delete a comment from a file in Google Drive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

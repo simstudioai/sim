@@ -17,6 +17,7 @@ export const spotifySetRepeatTool: ToolConfig<SpotifySetRepeatParams, SpotifySet
   name: 'Spotify Set Repeat',
   description: 'Set the repeat mode for playback.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

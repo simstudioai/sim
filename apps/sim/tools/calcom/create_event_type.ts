@@ -12,6 +12,7 @@ export const createEventTypeTool: ToolConfig<
   name: 'Cal.com Create Event Type',
   description: 'Create a new event type in Cal.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -169,6 +169,7 @@ export const intercomSearchContactsTool: ToolConfig<
   name: 'Search Contacts in Intercom',
   description: 'Search for contacts in Intercom using a query',
   version: '1.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...searchContactsBase,
@@ -331,6 +332,7 @@ export const intercomSearchContactsV2Tool: ToolConfig<
   name: 'Search Contacts in Intercom',
   description: 'Search for contacts in Intercom using a query',
   version: '2.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

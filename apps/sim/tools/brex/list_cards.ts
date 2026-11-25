@@ -13,6 +13,7 @@ export const brexListCardsTool: ToolConfig<BrexListCardsParams, BrexListCardsRes
   name: 'Brex List Cards',
   description: 'List cards in the Brex account, optionally filtered by card owner',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

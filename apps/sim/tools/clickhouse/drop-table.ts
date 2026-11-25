@@ -9,6 +9,7 @@ export const dropTableTool: InternalToolConfig<
   name: 'ClickHouse Drop Table',
   description: 'Drop a table from a ClickHouse database',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

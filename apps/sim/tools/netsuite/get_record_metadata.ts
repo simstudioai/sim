@@ -23,6 +23,7 @@ export const netsuiteGetRecordMetadataTool: InternalToolConfig<
   name: 'NetSuite Get Record Metadata',
   description: 'Retrieve account-specific metadata for one NetSuite record type.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

@@ -18,6 +18,7 @@ export const uptimeRobotListMonitorsTool: ToolConfig<
   name: 'UptimeRobot List Monitors',
   description: 'List monitors in your UptimeRobot account, with optional filters and pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

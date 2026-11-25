@@ -32,6 +32,7 @@ export const updateSlidePropertiesTool: ToolConfig<
   description:
     'Update slide-specific properties such as whether the slide is skipped during presentation.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

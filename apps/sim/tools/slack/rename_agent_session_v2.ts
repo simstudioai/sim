@@ -24,6 +24,7 @@ export const slackRenameAgentSessionV2Tool: ToolConfig<
   name: 'Slack Rename Agent Session',
   description: 'Rename the Slack agent session associated with a thread.',
   version: '2.0.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'slack',

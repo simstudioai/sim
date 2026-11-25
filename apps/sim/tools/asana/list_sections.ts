@@ -9,6 +9,7 @@ export const asanaListSectionsTool: InternalToolConfig<
   name: 'Asana List Sections',
   description: 'List all sections in an Asana project',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

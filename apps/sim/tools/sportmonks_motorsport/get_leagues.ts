@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetLeaguesTool: ToolConfig<
   name: 'Get All Leagues',
   description: 'Retrieve all motorsport leagues from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

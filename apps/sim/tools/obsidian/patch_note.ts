@@ -7,6 +7,7 @@ export const patchNoteTool: ToolConfig<ObsidianPatchNoteParams, ObsidianPatchNot
   description:
     'Insert or replace content at a specific heading, block reference, or frontmatter field in a note',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

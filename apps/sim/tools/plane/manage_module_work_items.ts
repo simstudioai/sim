@@ -35,6 +35,7 @@ export const planeManageModuleWorkItemsTool: ToolConfig<
   name: 'Plane Add or remove module work items',
   description: 'Add or remove module work items in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

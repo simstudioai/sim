@@ -20,6 +20,7 @@ export const searchUsersTool: ToolConfig<Params, Response> = {
   name: 'Ashby Search Users',
   description: 'Searches Ashby users by exact email address.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

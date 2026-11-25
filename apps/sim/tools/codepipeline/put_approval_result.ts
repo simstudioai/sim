@@ -14,6 +14,7 @@ export const putApprovalResultTool: InternalToolConfig<
   description:
     'Approve or reject a pending CodePipeline manual approval action. The approval token is available from Get Pipeline State on the pending approval action',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -32,6 +32,7 @@ export const confluenceCreatePagePropertyTool: InternalToolConfig<
   name: 'Confluence Create Page Property',
   description: 'Create a new custom property (metadata) on a Confluence page.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

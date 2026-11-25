@@ -292,6 +292,14 @@ function matchStatementPhrase(masked: string): string | null {
   return null
 }
 
+/**
+ * `NEXT VALUE FOR`, the one expression a single SELECT can use to change server
+ * state: each evaluation advances the sequence, permanently, even when the
+ * statement's transaction rolls back.
+ * @see https://learn.microsoft.com/en-us/sql/t-sql/functions/next-value-for-transact-sql
+ */
+const MSSQL_SEQUENCE_ADVANCE = /\bnext\s+value\s+for\b/i
+
 /** Extended, OLE-automation, and system stored procedures, called with or without `EXEC`. */
 const MSSQL_PROCEDURE_PATTERN = /\b(?:xp_|sp_)\w+/i
 
@@ -389,7 +397,8 @@ function hasUnreliableQuoting(value: string): boolean {
  * rather than by naming the anything; and it may not mention a
  * statement-introducing keyword or a stored procedure, which covers both the
  * semicolon-less batch and the `WITH x AS (...) DELETE FROM x` form that a
- * leading-token check alone would miss.
+ * leading-token check alone would miss, nor `NEXT VALUE FOR`, which advances a
+ * sequence from inside the SELECT itself.
  *
  * All screening runs over literal-masked text, so ordinary prose in a WHERE
  * clause does not trip it. The screens are lexical rather than a parser, so a
@@ -444,6 +453,7 @@ export function validateReadOnlyQuery(query: string): { isValid: boolean; error?
   const disallowed =
     MSSQL_STATEMENT_KEYWORDS.exec(masked)?.[0] ??
     MSSQL_PROCEDURE_PATTERN.exec(masked)?.[0] ??
+    MSSQL_SEQUENCE_ADVANCE.exec(masked)?.[0] ??
     matchStatementPhrase(masked)
   if (disallowed) {
     return {

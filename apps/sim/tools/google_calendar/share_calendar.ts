@@ -39,6 +39,7 @@ export const shareCalendarTool: ToolConfig<
   name: 'Google Calendar Share Calendar',
   description: 'Grant a user, group, or domain access to a calendar by creating an ACL rule',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -137,6 +138,7 @@ export const shareCalendarV2Tool: ToolConfig<
   name: 'Google Calendar Share Calendar',
   description: 'Grant a user, group, or domain access to a calendar.',
   version: '2.0.0',
+  effect: 'write',
   oauth: shareCalendarTool.oauth,
   params: shareCalendarTool.params,
   request: shareCalendarTool.request,

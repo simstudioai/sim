@@ -9,6 +9,7 @@ export const pitchbookFundCommitmentsTool: ToolConfig<PitchbookProfileParams, Pi
   description:
     'Retrieve the limited partners committed to a fund, with commitment date, size, status, and type',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

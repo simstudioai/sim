@@ -19,6 +19,7 @@ export const clerkDeleteAllowlistIdentifierTool: ToolConfig<
   name: 'Delete Allowlist Identifier from Clerk',
   description: 'Remove an identifier from your Clerk instance allowlist',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

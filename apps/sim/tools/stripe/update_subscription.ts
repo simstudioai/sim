@@ -22,6 +22,7 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
   name: 'Stripe Update Subscription',
   description: 'Update an existing subscription',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

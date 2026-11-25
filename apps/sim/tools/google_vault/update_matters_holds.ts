@@ -9,6 +9,7 @@ export const updateMattersHoldsTool: ToolConfig<GoogleVaultUpdateMattersHoldsPar
   description:
     'Replace the name, query, and scope of an existing hold. This is a full-resource update: fetch the current hold first (Vault List Holds) and resupply every field you want to keep — any field left blank is cleared, not left unchanged.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -17,6 +17,7 @@ export const pipedriveUpdateLeadTool: ToolConfig<
   name: 'Update Lead in Pipedrive',
   description: 'Update an existing lead in Pipedrive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

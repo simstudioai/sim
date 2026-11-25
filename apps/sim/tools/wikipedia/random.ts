@@ -7,6 +7,7 @@ export const randomPageTool: ToolConfig<Record<string, never>, WikipediaRandomPa
   name: 'Wikipedia Random Page',
   description: 'Get a random Wikipedia page.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {},
 

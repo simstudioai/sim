@@ -21,6 +21,7 @@ export const quartrListEventsTool: ToolConfig<QuartrListEventsParams, QuartrList
   description:
     'List corporate events (earnings calls, capital markets days, etc.) from Quartr, filterable by company, event type, and date range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

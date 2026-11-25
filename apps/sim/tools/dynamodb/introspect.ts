@@ -11,6 +11,7 @@ export const introspectTool: InternalToolConfig<
   description:
     'Introspect DynamoDB to list tables or get detailed schema information for a specific table',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

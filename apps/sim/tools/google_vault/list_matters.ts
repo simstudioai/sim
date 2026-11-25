@@ -8,6 +8,7 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
   name: 'Vault List Matters',
   description: 'List matters, or get a specific matter if matterId is provided',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

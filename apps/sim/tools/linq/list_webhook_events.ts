@@ -11,6 +11,7 @@ export const linqListWebhookEventsTool: ToolConfig<
   name: 'List Webhook Events',
   description: 'List all webhook event types available to subscribe to',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

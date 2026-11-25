@@ -14,6 +14,7 @@ export const generateFromTemplateTool: ToolConfig<
   name: 'Gamma Generate from Template',
   description: 'Generate a new Gamma by adapting an existing template with a prompt.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GAMMA_CREDENTIAL_OAUTH,
 
   params: {

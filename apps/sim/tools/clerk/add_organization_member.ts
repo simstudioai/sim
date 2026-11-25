@@ -19,6 +19,7 @@ export const clerkAddOrganizationMemberTool: ToolConfig<
   name: 'Add Organization Member in Clerk',
   description: 'Add a user as a member of a Clerk organization with a given role',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

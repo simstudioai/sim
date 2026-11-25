@@ -13,6 +13,7 @@ export const hubspotListTicketsTool: ToolConfig<
   name: 'List Tickets from HubSpot',
   description: 'Retrieve all tickets from HubSpot account with pagination support',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

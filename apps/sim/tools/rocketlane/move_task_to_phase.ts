@@ -18,6 +18,7 @@ export const rocketlaneMoveTaskToPhaseTool: ToolConfig<
   name: 'Rocketlane Move Task To Phase',
   description: 'Move a Rocketlane task to a given phase, associating the task with that phase',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

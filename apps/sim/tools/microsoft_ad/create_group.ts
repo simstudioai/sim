@@ -13,6 +13,7 @@ export const createGroupTool: ToolConfig<
   name: 'Create Azure AD Group',
   description: 'Create a new group in Azure AD (Microsoft Entra ID)',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

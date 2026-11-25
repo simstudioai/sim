@@ -18,6 +18,7 @@ export const tailscaleSetDnsConfigurationTool: ToolConfig<
   name: 'Tailscale Set DNS Configuration',
   description: 'Replace the full tailnet DNS configuration',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

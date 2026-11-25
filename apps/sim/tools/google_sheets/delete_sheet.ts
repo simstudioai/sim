@@ -26,6 +26,7 @@ export const deleteSheetV2Tool: ToolConfig<
   name: 'Delete Sheet V2',
   description: 'Delete a sheet/tab from a Google Sheets spreadsheet',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

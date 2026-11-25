@@ -21,6 +21,7 @@ export const genieListConversationsTool: ToolConfig<
   description:
     'List conversations in a Genie space, including whether each is a chat-mode or agent-mode conversation. By default only your own conversations are returned.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
     name: 'Get Leads from Pipedrive',
     description: 'Retrieve all leads or a specific lead from Pipedrive',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

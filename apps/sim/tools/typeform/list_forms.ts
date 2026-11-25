@@ -7,6 +7,7 @@ export const listFormsTool: ToolConfig<TypeformListFormsParams, TypeformListForm
   name: 'Typeform List Forms',
   description: 'Retrieve a list of all forms in your Typeform account',
   version: '1.0.0',
+  effect: 'read',
   oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {

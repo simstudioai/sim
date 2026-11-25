@@ -7,6 +7,7 @@ export const updateTool: InternalToolConfig<MySQLUpdateParams, MySQLResponse> = 
   name: 'MySQL Update',
   description: 'Update existing records in MySQL database',
   version: '1.0',
+  effect: 'write',
   oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {

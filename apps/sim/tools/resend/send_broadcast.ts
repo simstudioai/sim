@@ -10,6 +10,7 @@ export const resendSendBroadcastTool: ToolConfig<SendBroadcastParams, SendBroadc
   name: 'Send Broadcast',
   description: 'Send a broadcast immediately or schedule it for later',
   version: '1.0.0',
+  effect: 'write',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

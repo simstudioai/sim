@@ -14,6 +14,7 @@ export const sendMessageTool: ToolConfig<WhatsAppSendMessageParams, WhatsAppResp
   description:
     'Send a free-form text message through the WhatsApp Cloud API. Only works inside the 24-hour customer service window — use Send Template to start a conversation.',
   version: '1.0.0',
+  effect: 'write',
   oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {

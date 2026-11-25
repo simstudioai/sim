@@ -36,6 +36,7 @@ export const sportmonksMotorsportGetDriversBySeasonTool: ToolConfig<
   name: 'Get Drivers by Season',
   description: 'Retrieve all motorsport drivers for a season by season ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

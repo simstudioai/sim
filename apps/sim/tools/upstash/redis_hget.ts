@@ -8,6 +8,7 @@ export const upstashRedisHGetTool: ToolConfig<UpstashRedisHGetParams, UpstashRed
   name: 'Upstash Redis HGET',
   description: 'Get the value of a field in a hash stored at a key in Upstash Redis.',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

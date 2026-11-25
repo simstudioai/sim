@@ -11,6 +11,7 @@ export const pitchbookServicedLimitedPartnersTool: ToolConfig<
   name: 'PitchBook Serviced Limited Partners',
   description: 'Retrieve the limited partners a service provider currently and formerly serves',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

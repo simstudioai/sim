@@ -19,6 +19,7 @@ export const mintlifySearchTool: ToolConfig<MintlifySearchParams, MintlifySearch
   description:
     'Run a semantic and keyword search across a Mintlify documentation site, with optional version, language, tag, and group filters.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     domain: {

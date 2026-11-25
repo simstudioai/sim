@@ -14,6 +14,7 @@ export const identifyUserTool: ToolConfig<
   description:
     'Create or update a LogRocket user profile with demographic, financial, and engagement traits.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

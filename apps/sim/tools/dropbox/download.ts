@@ -69,6 +69,7 @@ export const dropboxDownloadTool = {
   name: 'Dropbox Download File',
   description: 'Download a file from Dropbox with metadata and content',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

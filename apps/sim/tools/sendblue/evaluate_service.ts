@@ -17,6 +17,7 @@ export const sendblueEvaluateServiceTool: ToolConfig<
   name: 'Sendblue Evaluate Service',
   description: 'Check whether a phone number can receive iMessage or only SMS.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...sendblueBaseParamFields,

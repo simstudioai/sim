@@ -17,6 +17,7 @@ export const oktaDeactivateUserTool: ToolConfig<
   description:
     'Deactivate a user in your Okta organization. This transitions the user to DEPROVISIONED status.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

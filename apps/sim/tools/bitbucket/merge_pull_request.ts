@@ -69,6 +69,7 @@ export const bitbucketMergePullRequestTool: ToolConfig<
   name: 'Bitbucket Merge Pull Request',
   description: 'Start an asynchronous pull request merge and return a task to poll when needed',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pullrequest:write'] },
   params: {
     ...BITBUCKET_PULL_REQUEST_PARAMS,

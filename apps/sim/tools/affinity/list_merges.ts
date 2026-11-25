@@ -21,6 +21,7 @@ export const affinityListMergesTool: ToolConfig<
   description:
     'Page through the company or person merges the organization has run, with the status and the records involved in each.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

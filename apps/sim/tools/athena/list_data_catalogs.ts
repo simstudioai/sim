@@ -13,6 +13,7 @@ export const listDataCatalogsTool: InternalToolConfig<
   name: 'Athena List Data Catalogs',
   description: 'List the data catalogs (data sources) registered in the AWS account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -35,6 +35,7 @@ export const createApplicationTool: ToolConfig<
   description:
     'Creates a new application for a candidate on a job. Optionally specify interview plan, stage, source, and credited user.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

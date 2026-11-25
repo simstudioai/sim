@@ -14,6 +14,7 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
   name: 'Databricks Get Run',
   description: 'Get the status, timing, and details of a Databricks job run by its run ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

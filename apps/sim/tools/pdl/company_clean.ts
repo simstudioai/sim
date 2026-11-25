@@ -9,6 +9,7 @@ export const cleanCompanyTool: ToolConfig<PdlCleanCompanyParams, PdlCleanCompany
   description:
     'Normalize a company string into a canonical company record. Provide at least one of name, website, or profile (LinkedIn URL).',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,

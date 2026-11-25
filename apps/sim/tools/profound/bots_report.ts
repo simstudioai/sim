@@ -10,6 +10,7 @@ export const profoundBotsReportTool: ToolConfig<
   name: 'Profound Bots Report',
   description: 'Query bot traffic report with hourly granularity for a domain in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

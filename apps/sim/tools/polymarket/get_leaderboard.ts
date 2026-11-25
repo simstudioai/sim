@@ -59,6 +59,7 @@ export const polymarketGetLeaderboardTool: ToolConfig<
   name: 'Get Leaderboard from Polymarket',
   description: 'Retrieve trader leaderboard rankings by profit/loss or volume',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     category: {

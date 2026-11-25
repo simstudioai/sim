@@ -25,6 +25,7 @@ export const salesforceQueryMoreTool: ToolConfig<
   name: 'Get More Query Results from Salesforce',
   description: 'Retrieve additional query results using the nextRecordsUrl from a previous query',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

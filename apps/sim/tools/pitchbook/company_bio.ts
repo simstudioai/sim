@@ -9,6 +9,7 @@ export const pitchbookCompanyBioTool: ToolConfig<PitchbookProfileParams, Pitchbo
   description:
     'Retrieve the core profile of a company: names, description, HQ, status, headcount, total raised, and social links',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

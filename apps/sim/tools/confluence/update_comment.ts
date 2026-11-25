@@ -25,6 +25,7 @@ export const confluenceUpdateCommentTool: InternalToolConfig<
   name: 'Confluence Update Comment',
   description: 'Update an existing comment on a Confluence page.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

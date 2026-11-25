@@ -31,6 +31,7 @@ export const getUserCommentsTool: ToolConfig<GetUserCommentsParams, GetUserComme
   name: 'Get Reddit User Comments',
   description: 'Fetch comments (t1) made by a Reddit user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

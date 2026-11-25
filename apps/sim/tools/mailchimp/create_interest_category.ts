@@ -28,6 +28,7 @@ export const mailchimpCreateInterestCategoryTool: ToolConfig<
   name: 'Create Interest Category in Mailchimp Audience',
   description: 'Create a new interest category in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const intuneListCompliancePolicyDeviceStatusesTool: ToolConfig<
   name: 'Microsoft Intune List Compliance Policy Device Statuses',
   description: 'Read one page of compliance policy device statuses from Microsoft Intune',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

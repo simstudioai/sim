@@ -14,6 +14,7 @@ export const uptimeRobotCreatePspTool: InternalToolConfig<
   name: 'UptimeRobot Create Status Page',
   description: 'Create a public status page in UptimeRobot, optionally with a logo and icon image',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

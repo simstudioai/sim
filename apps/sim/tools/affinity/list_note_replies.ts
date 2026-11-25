@@ -21,6 +21,7 @@ export const affinityListNoteRepliesTool: ToolConfig<
   name: 'Affinity List Note Replies',
   description: 'Page through the replies on one note, including AI Notetaker replies.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

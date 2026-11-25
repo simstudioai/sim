@@ -9,6 +9,7 @@ export const discordDeleteRoleTool: ToolConfig<DiscordDeleteRoleParams, DiscordD
     name: 'Discord Delete Role',
     description: 'Delete a role from a Discord server',
     version: '1.0.0',
+    effect: 'write',
     oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {

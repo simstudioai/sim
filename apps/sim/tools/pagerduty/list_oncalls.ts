@@ -12,6 +12,7 @@ export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyLi
     name: 'PagerDuty List On-Calls',
     description: 'List current on-call entries from PagerDuty.',
     version: '1.0.0',
+    effect: 'read',
     oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
     params: {

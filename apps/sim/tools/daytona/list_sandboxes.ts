@@ -21,6 +21,7 @@ export const daytonaListSandboxesTool: ToolConfig<
   name: 'Daytona List Sandboxes',
   description: 'List Daytona sandboxes in the organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {

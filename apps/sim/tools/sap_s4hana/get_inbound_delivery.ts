@@ -15,6 +15,7 @@ export const getInboundDeliveryTool: InternalToolConfig<
   description:
     'Retrieve a single inbound delivery by DeliveryDocument key from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002, A_InbDeliveryHeader).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

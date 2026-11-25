@@ -10,6 +10,7 @@ export const getUserByRefTool: ToolConfig<ThriveGetUserByRefParams, ThriveUserRe
   name: 'Thrive Get User by Ref',
   description: 'Get a single user in Thrive by their ref and return basic user information.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

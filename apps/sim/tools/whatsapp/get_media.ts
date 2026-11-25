@@ -8,6 +8,7 @@ export const getMediaTool: InternalToolConfig<WhatsAppGetMediaParams, WhatsAppGe
   description:
     'Download media a customer sent you. Takes the media ID from an incoming WhatsApp message and stores the file in the workflow.',
   version: '1.0.0',
+  effect: 'read',
   oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {

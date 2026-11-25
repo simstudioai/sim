@@ -13,6 +13,7 @@ export const firefliesListContactsTool: ToolConfig<
   name: 'Fireflies List Contacts',
   description: 'List all contacts from your Fireflies.ai meetings',
   version: '1.0.0',
+  effect: 'read',
   oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {

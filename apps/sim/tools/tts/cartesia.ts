@@ -6,6 +6,7 @@ export const cartesiaTtsTool: InternalToolConfig<CartesiaTtsParams, TtsBlockResp
   name: 'Cartesia TTS',
   description: 'Convert text to speech using Cartesia Sonic (ultra-low latency)',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     text: {

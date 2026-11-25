@@ -14,6 +14,7 @@ export const linearUpdateProjectMilestoneTool: ToolConfig<
   name: 'Linear Update Project Milestone',
   description: 'Update a project milestone in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

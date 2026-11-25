@@ -11,6 +11,7 @@ export const discordGetMessagesTool: ToolConfig<
   name: 'Discord Get Messages',
   description: 'Retrieve messages from a Discord channel',
   version: '1.0.0',
+  effect: 'read',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

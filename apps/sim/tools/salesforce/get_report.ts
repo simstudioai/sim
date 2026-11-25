@@ -21,6 +21,7 @@ export const salesforceGetReportTool: ToolConfig<
   name: 'Get Report Metadata from Salesforce',
   description: 'Get the describe (definition and metadata) for a specific report',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -10,6 +10,7 @@ export const brandfetchGetBrandTool: ToolConfig<
   description:
     'Retrieve brand assets including logos, colors, fonts, and company info by domain, ticker, ISIN, or crypto symbol',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: 'BRANDFETCH_API_KEY',

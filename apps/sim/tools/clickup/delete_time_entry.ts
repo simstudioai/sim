@@ -17,6 +17,7 @@ export const clickupDeleteTimeEntryTool: ToolConfig<
   name: 'ClickUp Delete Time Entry',
   description: 'Delete a time entry from a ClickUp workspace',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

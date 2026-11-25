@@ -9,6 +9,7 @@ export const agiloftSelectRecordsTool: InternalToolConfig<
   name: 'Agiloft Select Records',
   description: 'Select record IDs matching a SQL WHERE clause from an Agiloft table.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     instanceUrl: {

@@ -30,6 +30,7 @@ export const oktaCreateGroupRuleTool: ToolConfig<
   description:
     'Create a group rule that automatically assigns users matching an Okta expression to one or more groups. New rules are created INACTIVE, so run Activate Group Rule afterwards to start applying it.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

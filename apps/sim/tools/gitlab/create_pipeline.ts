@@ -12,6 +12,7 @@ export const gitlabCreatePipelineTool: ToolConfig<
   name: 'GitLab Create Pipeline',
   description: 'Trigger a new pipeline in a GitLab project',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

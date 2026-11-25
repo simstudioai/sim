@@ -14,6 +14,7 @@ export const triggerDevUpdateEnvVarTool: ToolConfig<
   name: 'Trigger.dev Update Env Var',
   description: 'Update the value of an environment variable in a Trigger.dev project environment.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

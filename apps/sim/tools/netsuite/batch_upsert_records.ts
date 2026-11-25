@@ -12,6 +12,7 @@ export const netsuiteBatchUpsertRecordsTool: InternalToolConfig<
   description:
     'Submit an asynchronous batch that creates or updates up to 100 records by external ID.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

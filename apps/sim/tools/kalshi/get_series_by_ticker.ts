@@ -22,6 +22,7 @@ export const kalshiGetSeriesByTickerTool: ToolConfig<
   name: 'Get Series by Ticker from Kalshi',
   description: 'Retrieve details of a specific market series by ticker',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     seriesTicker: {
@@ -111,6 +112,7 @@ export const kalshiGetSeriesByTickerV2Tool: ToolConfig<
   name: 'Get Series by Ticker from Kalshi V2',
   description: 'Retrieve details of a specific market series by ticker',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     seriesTicker: {

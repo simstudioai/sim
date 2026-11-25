@@ -135,6 +135,7 @@ export const intercomUpdateTicketV2Tool: ToolConfig<
   name: 'Update Ticket in Intercom',
   description: 'Update a ticket in Intercom (change state, assignment, attributes)',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

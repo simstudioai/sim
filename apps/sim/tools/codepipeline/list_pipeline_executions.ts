@@ -13,6 +13,7 @@ export const listPipelineExecutionsTool: InternalToolConfig<
   name: 'CodePipeline List Pipeline Executions',
   description: 'List recent executions of a CodePipeline pipeline with status and source revisions',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

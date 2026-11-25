@@ -6,6 +6,7 @@ export const outlookDeleteTool: InternalToolConfig<OutlookDeleteParams, OutlookD
   name: 'Outlook Delete',
   description: 'Delete an Outlook message (move to Deleted Items)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

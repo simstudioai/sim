@@ -9,6 +9,7 @@ export const stripeDeleteCustomerTool: ToolConfig<DeleteCustomerParams, Customer
   name: 'Stripe Delete Customer',
   description: 'Permanently delete a customer',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

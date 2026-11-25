@@ -11,6 +11,7 @@ export const describeRegionsTool: InternalToolConfig<
   name: 'EC2 Describe Regions',
   description: 'List AWS Regions available to the account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

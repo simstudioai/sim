@@ -8,6 +8,7 @@ export const deleteProjectTool: ToolConfig<DeleteProjectParams, ProjectResponse>
   description:
     'Delete a GitHub Project V2. This action is permanent and cannot be undone. Requires the project Node ID.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -134,6 +135,7 @@ export const deleteProjectV2Tool: ToolConfig<DeleteProjectParams, any> = {
   name: deleteProjectTool.name,
   description: deleteProjectTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteProjectTool.params,
   request: deleteProjectTool.request,

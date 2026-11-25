@@ -16,6 +16,7 @@ export const listSlosTool: ToolConfig<DynatraceListSlosParams, DynatraceListSlos
   description:
     'List service-level objectives with their current attainment, error budget, and burn rate.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

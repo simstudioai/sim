@@ -7,6 +7,7 @@ export const deleteMessageTool: InternalToolConfig<SqsDeleteMessageParams, SqsMe
   name: 'SQS Delete Message',
   description: 'Delete a received message from an Amazon SQS queue using its receipt handle',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

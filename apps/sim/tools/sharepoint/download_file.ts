@@ -9,6 +9,7 @@ export const downloadFileTool: InternalToolConfig<
   name: 'Download File from SharePoint',
   description: 'Download a file from a SharePoint document library',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

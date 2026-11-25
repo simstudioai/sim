@@ -13,6 +13,7 @@ export const mondayCreateGroupTool: ToolConfig<MondayCreateGroupParams, MondayCr
     name: 'Monday Create Group',
     description: 'Create a new group on a Monday.com board',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

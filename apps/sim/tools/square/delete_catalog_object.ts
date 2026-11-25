@@ -12,6 +12,7 @@ export const squareDeleteCatalogObjectTool: ToolConfig<
   name: 'Square Delete Catalog Object',
   description: 'Delete a catalog object and its children (e.g. an item and its variations)',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

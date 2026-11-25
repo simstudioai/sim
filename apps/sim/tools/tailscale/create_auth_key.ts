@@ -21,6 +21,7 @@ export const tailscaleCreateAuthKeyTool: ToolConfig<
   name: 'Tailscale Create Auth Key',
   description: 'Create a device enrollment auth key',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

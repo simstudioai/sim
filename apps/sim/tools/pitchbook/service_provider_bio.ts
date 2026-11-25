@@ -12,6 +12,7 @@ export const pitchbookServiceProviderBioTool: ToolConfig<
   description:
     'Retrieve the profile of a service provider: names, types, description, and how many companies, deals, investors, funds, and limited partners it has serviced',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -14,6 +14,7 @@ export const indexDocumentTool: ToolConfig<
   name: 'Elasticsearch Index Document',
   description: 'Index (create or update) a document in Elasticsearch.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     deploymentType: {

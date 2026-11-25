@@ -7,6 +7,7 @@ export const boxSignCreateRequestTool: ToolConfig<BoxSignCreateRequestParams, Bo
   name: 'Box Sign Create Request',
   description: 'Create a new Box Sign request to send documents for e-signature',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -19,6 +19,7 @@ export const triggerDevDeactivateScheduleTool: ToolConfig<
   name: 'Trigger.dev Deactivate Schedule',
   description: 'Deactivate an imperative Trigger.dev schedule so it stops triggering its task.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const contextDevMapTool: ToolConfig<ContextDevMapParams, ContextDevMapRes
   name: 'Context.dev Map',
   description: 'Build a sitemap of a domain and return every discovered page URL.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevMapParams>(),
 

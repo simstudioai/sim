@@ -7,6 +7,7 @@ export const jsmAddCustomerTool: InternalToolConfig<JsmAddCustomerParams, JsmAdd
     name: 'JSM Add Customer',
     description: 'Add customers to a service desk in Jira Service Management',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

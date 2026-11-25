@@ -22,6 +22,7 @@ export const getWorkerRouteTool: ToolConfig<
   name: 'Cloudflare Get Worker Route',
   description: 'Returns information about a Worker route, including URL pattern and Worker.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {

@@ -24,6 +24,7 @@ export const genieListMessagesTool: ToolConfig<
   description:
     'List the messages in a Genie conversation with their answers and generated SQL, for example to replay a conversation history.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

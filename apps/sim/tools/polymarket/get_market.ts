@@ -23,6 +23,7 @@ export const polymarketGetMarketTool: ToolConfig<
   name: 'Get Market from Polymarket',
   description: 'Retrieve details of a specific prediction market by ID or slug',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     marketId: {

@@ -13,6 +13,7 @@ export const describeStackDriftDetectionStatusTool: InternalToolConfig<
   name: 'CloudFormation Describe Stack Drift Detection Status',
   description: 'Check the status of a stack drift detection operation',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

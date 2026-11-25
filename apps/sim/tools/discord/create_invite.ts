@@ -11,6 +11,7 @@ export const discordCreateInviteTool: ToolConfig<
   name: 'Discord Create Invite',
   description: 'Create an invite link for a Discord channel',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

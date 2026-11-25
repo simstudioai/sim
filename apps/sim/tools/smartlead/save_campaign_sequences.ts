@@ -64,6 +64,7 @@ export const saveCampaignSequencesTool: ToolConfig<
   description:
     'Replaces the email sequence for a Smartlead campaign. Send every step in one call — steps omitted from the request are removed. An empty subject makes a step reply in the previous thread.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

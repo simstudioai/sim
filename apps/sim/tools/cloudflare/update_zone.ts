@@ -22,6 +22,7 @@ export const updateZoneTool: ToolConfig<CloudflareUpdateZoneParams, CloudflareUp
     name: 'Cloudflare Update Zone',
     description: 'Edits a zone. Only one zone property can be changed at a time.',
     version: '1.0.0',
+    effect: 'write',
     oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
     params: {
       zoneId: {

@@ -14,6 +14,7 @@ export const linearUpdateCustomerRequestTool: ToolConfig<
   description:
     'Update a customer request (need) in Linear. Can change urgency, description, customer assignment, and linked issue.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

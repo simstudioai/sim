@@ -9,6 +9,7 @@ export const boxListFolderItemsTool: ToolConfig<BoxListFolderItemsParams, BoxFol
     name: 'Box List Folder Items',
     description: 'List files and folders in a Box folder',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

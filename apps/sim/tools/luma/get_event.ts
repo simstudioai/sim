@@ -9,6 +9,7 @@ export const getEventTool: ToolConfig<LumaGetEventParams, LumaGetEventResponse> 
   description:
     'Retrieve details of a Luma event including name, time, location, hosts, and visibility settings.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {

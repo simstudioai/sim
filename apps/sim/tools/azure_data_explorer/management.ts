@@ -18,6 +18,7 @@ export const azureDataExplorerManagementTool: InternalToolConfig<
   description:
     'Run an Azure Data Explorer management command (a control command starting with ".") such as .show, .create, .alter, or .drop. Write commands can change data or configuration; use the Query operation for reads.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

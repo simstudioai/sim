@@ -36,6 +36,7 @@ export const sportmonksMotorsportSearchTeamsTool: ToolConfig<
   name: 'Search Teams',
   description: 'Search for motorsport teams (constructors) by name from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

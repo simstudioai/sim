@@ -6,6 +6,7 @@ export const jsmCopyFormsTool: InternalToolConfig<JsmCopyFormsParams, JsmCopyFor
   name: 'JSM Copy Forms',
   description: 'Copy forms from one Jira issue to another',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'jira' },
   params: {
     accessToken: {

@@ -10,6 +10,7 @@ export const untagResourceTool: InternalToolConfig<
   name: 'Lambda Untag Resource',
   description: 'Remove tags from a Lambda function',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

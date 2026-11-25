@@ -15,6 +15,7 @@ export const listSubmissionsTool: ToolConfig<JotformListParams, JotformListSubmi
   description:
     'List submissions across every form on the account, optionally narrowed to specific forms or a date range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

@@ -9,6 +9,7 @@ export const ripplingListObjectCategoriesTool: ToolConfig<RipplingListObjectCate
   name: 'Rippling List Object Categories',
   description: 'List all object categories',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

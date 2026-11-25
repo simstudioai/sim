@@ -25,6 +25,7 @@ export const monacoListMeetingsTool: ToolConfig<
   description:
     'List Monaco meetings with optional filters, sorting, and pagination. Use Get Meeting for the transcript, summary, and recording.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

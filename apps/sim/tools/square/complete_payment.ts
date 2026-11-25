@@ -14,6 +14,7 @@ export const squareCompletePaymentTool: ToolConfig<CompletePaymentParams, Paymen
   name: 'Square Complete Payment',
   description: 'Capture (complete) a payment that was authorized with delayed capture',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

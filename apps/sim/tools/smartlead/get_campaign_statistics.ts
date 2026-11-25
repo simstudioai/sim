@@ -34,6 +34,7 @@ export const getCampaignStatisticsTool: ToolConfig<
   description:
     'Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequence step, engagement status, and sent-time range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

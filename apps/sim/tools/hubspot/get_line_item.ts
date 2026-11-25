@@ -14,6 +14,7 @@ export const hubspotGetLineItemTool: ToolConfig<
   name: 'Get Line Item from HubSpot',
   description: 'Retrieve a single line item by ID from HubSpot',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

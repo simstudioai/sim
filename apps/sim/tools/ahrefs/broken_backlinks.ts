@@ -16,6 +16,7 @@ export const brokenBacklinksTool: ToolConfig<
   description:
     'Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const updateTool: UpdateToolConfig = {
   description:
     'Replace the entire contents of an existing Microsoft Word (.docx) document with new text. The previous content and its formatting are discarded — use Append to add to a document instead.',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

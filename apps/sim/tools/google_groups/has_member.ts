@@ -7,6 +7,7 @@ export const hasMemberTool: ToolConfig<GoogleGroupsHasMemberParams, GoogleGroups
   name: 'Google Groups Has Member',
   description: 'Check if a user is a member of a Google Group',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

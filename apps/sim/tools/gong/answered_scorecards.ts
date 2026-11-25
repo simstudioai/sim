@@ -14,6 +14,7 @@ export const answeredScorecardsTool: ToolConfig<
   name: 'Gong Answered Scorecards',
   description: 'Retrieve answered scorecards for reviewed users or by date range from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

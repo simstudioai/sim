@@ -15,6 +15,7 @@ export const tailscaleValidateAclTool: ToolConfig<
   name: 'Tailscale Validate ACL',
   description: 'Validate a policy file or run ACL tests without changing the tailnet policy',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

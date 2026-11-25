@@ -7,6 +7,7 @@ export const checkCreditsTool: ToolConfig<EnrichCheckCreditsParams, EnrichCheckC
   name: 'Enrich Check Credits',
   description: 'Check your Enrich API credit usage and remaining balance.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const addProblemCommentTool: ToolConfig<
   name: 'Dynatrace Add Problem Comment',
   description: 'Add a comment to a Dynatrace problem.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

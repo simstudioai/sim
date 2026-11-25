@@ -6,6 +6,7 @@ export const logsGetTool: InternalToolConfig<LogsGetParams, LogsGetResponse> = {
   name: 'Get Log by ID',
   description: 'Fetch a single workflow execution log entry by its log ID.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     id: {

@@ -13,6 +13,7 @@ export const deleteEventTypeTool: ToolConfig<
   name: 'Cal.com Delete Event Type',
   description: 'Delete an event type from Cal.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

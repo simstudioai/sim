@@ -19,6 +19,7 @@ export const updateSecretTool: ToolConfig<
   name: 'Infisical Update Secret',
   description: 'Update an existing secret in a project environment.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INFISICAL_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const flowRestoreEntityTool: ToolConfig<FlowRestoreEntityParams, FlowRest
     description:
       'Restore a deleted entity with its prior fields and links. Restoring a child does not restore its deleted parent.',
     version: '1.0.0',
+    effect: 'write',
     oauth: FLOW_OAUTH,
     params: {
       ...FLOW_AUTH_PARAMS,

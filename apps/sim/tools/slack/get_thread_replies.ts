@@ -18,6 +18,7 @@ export const slackGetThreadRepliesTool: InternalToolConfig<
   description:
     'Fetch every message in a Slack thread, automatically following pagination across all pages. Returns the parent message and the full set of replies.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

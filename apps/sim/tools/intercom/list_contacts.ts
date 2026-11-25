@@ -72,6 +72,7 @@ export const intercomListContactsTool: ToolConfig<
   name: 'List Contacts from Intercom',
   description: 'List all contacts from Intercom with pagination support',
   version: '1.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...listContactsBase,
@@ -167,6 +168,7 @@ export const intercomListContactsV2Tool: ToolConfig<
   name: 'List Contacts from Intercom',
   description: 'List all contacts from Intercom with pagination support',
   version: '2.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

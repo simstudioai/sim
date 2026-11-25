@@ -21,6 +21,7 @@ export const getStatementTool: ToolConfig<
   description:
     'Poll a SQL statement by its ID to retrieve status and results. Use this after Execute SQL when a query runs longer than the wait timeout.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

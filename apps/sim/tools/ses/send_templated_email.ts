@@ -11,6 +11,7 @@ export const sendTemplatedEmailTool: InternalToolConfig<
   name: 'SES Send Templated Email',
   description: 'Send an email using an SES email template with dynamic template data',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

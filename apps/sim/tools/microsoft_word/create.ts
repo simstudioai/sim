@@ -14,6 +14,7 @@ export const createTool: CreateToolConfig = {
   description:
     'Create a new Microsoft Word (.docx) document in OneDrive or SharePoint from text content. Supports Markdown headings (# ## ###), bullets (-), and inline **bold** / *italic*. An existing document with the same name is never overwritten — the new one is given a unique name instead.',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

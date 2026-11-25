@@ -93,6 +93,7 @@ export const intercomAssignConversationV2Tool: ToolConfig<
   name: 'Assign Conversation in Intercom',
   description: 'Assign a conversation to an admin or team in Intercom',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

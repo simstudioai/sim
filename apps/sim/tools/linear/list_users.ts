@@ -8,6 +8,7 @@ export const linearListUsersTool: ToolConfig<LinearListUsersParams, LinearListUs
   name: 'Linear List Users',
   description: 'List all users in the Linear workspace',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

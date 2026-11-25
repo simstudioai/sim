@@ -11,6 +11,7 @@ export const profoundListOptimizationsTool: ToolConfig<
   name: 'Profound List Optimizations',
   description: 'List content optimization entries for an asset in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

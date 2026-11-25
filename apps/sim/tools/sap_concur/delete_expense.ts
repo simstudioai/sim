@@ -12,6 +12,7 @@ export const deleteExpenseTool: InternalToolConfig<DeleteExpenseParams, SapConcu
   description:
     'Delete an expense (DELETE /expensereports/v4/reports/{reportId}/expenses/{expenseId}).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

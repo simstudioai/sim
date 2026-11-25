@@ -14,6 +14,7 @@ export const agentphoneGetUsageMonthlyTool: ToolConfig<
   name: 'Get Monthly Usage',
   description: 'Get monthly usage aggregation (messages, calls, webhooks) for the last N months',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

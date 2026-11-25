@@ -20,6 +20,7 @@ export const instagramGetAccountInsightsTool: ToolConfig<
   name: 'Instagram Get Account Insights',
   description: 'Get insights metrics for the Instagram professional account',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

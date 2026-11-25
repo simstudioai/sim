@@ -11,6 +11,7 @@ export const vercelUpdateProjectTool: ToolConfig<
   name: 'Vercel Update Project',
   description: 'Update an existing Vercel project',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

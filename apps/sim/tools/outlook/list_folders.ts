@@ -24,7 +24,8 @@ export const outlookListFoldersTool: ToolConfig<
   name: 'Outlook List Folders',
   description: 'List mail folders in the root of the Outlook mailbox',
   version: '1.0.0',
-  assistant: { effect: 'read', version: 1 },
+  effect: 'read',
+  assistant: { version: 1 },
 
   oauth: {
     required: true,

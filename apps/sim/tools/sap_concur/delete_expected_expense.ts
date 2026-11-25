@@ -14,6 +14,7 @@ export const deleteExpectedExpenseTool: InternalToolConfig<
   name: 'SAP Concur Delete Expected Expense',
   description: 'Delete an expected expense (DELETE /travelrequest/v4/expenses/{expenseUuid}).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

@@ -8,6 +8,7 @@ export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDel
   name: 'Stripe Delete Product',
   description: 'Permanently delete a product',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

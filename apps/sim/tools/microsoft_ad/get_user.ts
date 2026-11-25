@@ -26,6 +26,7 @@ export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUse
   name: 'Get Azure AD User',
   description: 'Get a user by ID or user principal name from Azure AD',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

@@ -7,6 +7,7 @@ export const executeTool: InternalToolConfig<MSSQLExecuteParams, MSSQLExecuteRes
   name: 'Microsoft SQL Server Execute',
   description: 'Execute a raw T-SQL statement on a Microsoft SQL Server database',
   version: '1.0',
+  effect: 'write',
   oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {

@@ -7,6 +7,7 @@ export const getQueueUrlTool: InternalToolConfig<SqsGetQueueUrlParams, SqsGetQue
   name: 'SQS Get Queue URL',
   description: 'Resolve an Amazon SQS queue name to its queue URL',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -8,6 +8,7 @@ export const ripplingDeleteCustomAppTool: ToolConfig<RipplingDeleteCustomAppPara
   name: 'Rippling Delete CustomApp',
   description: 'Delete a custom app',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

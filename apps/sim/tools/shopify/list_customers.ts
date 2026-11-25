@@ -14,6 +14,7 @@ export const shopifyListCustomersTool: ToolConfig<
   name: 'Shopify List Customers',
   description: 'List customers from your Shopify store with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

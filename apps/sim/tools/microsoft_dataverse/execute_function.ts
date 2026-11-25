@@ -20,6 +20,7 @@ export const dataverseExecuteFunctionTool: ToolConfig<
   description:
     'Execute a bound or unbound Dataverse function. Functions are read-only operations (e.g., RetrievePrincipalAccess, RetrieveTotalRecordCount, InitializeFrom). For bound functions, provide the entity set name and record ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

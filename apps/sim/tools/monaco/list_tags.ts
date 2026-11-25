@@ -14,6 +14,7 @@ export const monacoListTagsTool: ToolConfig<MonacoListTagsParams, MonacoListTags
   name: 'Monaco List Tags',
   description: 'List every Monaco tag defined for contacts, accounts, or opportunities.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

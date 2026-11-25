@@ -21,6 +21,7 @@ export const helpScoutUnassignConversationTool: ToolConfig<
   name: 'Help Scout Unassign Conversation',
   description: 'Remove the assignee from a Help Scout conversation.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

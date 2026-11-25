@@ -14,6 +14,7 @@ export const updatePageTool: ToolConfig<SharepointToolParams, SharepointUpdatePa
   name: 'Update SharePoint Page',
   description: 'Update the title and/or content of a SharePoint page',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

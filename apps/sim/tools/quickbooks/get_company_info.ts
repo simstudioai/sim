@@ -27,6 +27,7 @@ export const quickbooksGetCompanyInfoTool: ToolConfig<
   name: 'QuickBooks Get Company Info',
   description: 'Get information about the connected QuickBooks Online company',
   version: '1.0.0',
+  effect: 'read',
   params: {
     accessToken: {
       type: 'string',

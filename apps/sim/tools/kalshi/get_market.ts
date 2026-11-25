@@ -19,6 +19,7 @@ export const kalshiGetMarketTool: ToolConfig<KalshiGetMarketParams, KalshiGetMar
   name: 'Get Market from Kalshi',
   description: 'Retrieve details of a specific prediction market by ticker',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ticker: {
@@ -127,6 +128,7 @@ export const kalshiGetMarketV2Tool: ToolConfig<KalshiGetMarketParams, KalshiGetM
   name: 'Get Market from Kalshi V2',
   description: 'Retrieve details of a specific prediction market by ticker',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     ticker: {

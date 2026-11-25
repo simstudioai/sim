@@ -14,6 +14,7 @@ export const describeGroupTool: InternalToolConfig<
   description:
     'Resolve an Identity Store group ID to the group behind it. Use to turn the principalId on an account assignment into a group name.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

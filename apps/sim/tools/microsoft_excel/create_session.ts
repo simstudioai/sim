@@ -15,6 +15,7 @@ export const createSessionTool: ToolConfig<ExcelCreateSessionParams, ExcelCreate
   name: 'Microsoft Excel Create Session',
   description: 'Create Session in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: {

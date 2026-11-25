@@ -10,6 +10,7 @@ export const describeIndexTool: ToolConfig<PineconeDescribeIndexParams, Pinecone
   name: 'Pinecone Describe Index',
   description: 'Get the configuration and status of a Pinecone index by name',
   version: '1.0',
+  effect: 'read',
 
   params: {
     indexName: {

@@ -6,6 +6,7 @@ export const sftpDeleteTool: InternalToolConfig<SftpDeleteParams, SftpDeleteResu
   name: 'SFTP Delete',
   description: 'Delete a file or directory on a remote SFTP server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -21,6 +21,7 @@ export const instagramListConversationsTool: ToolConfig<
   name: 'Instagram List Conversations',
   description: 'List Instagram Direct conversations for the professional account',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -11,6 +11,7 @@ export const clickupAddTagToTaskTool: ToolConfig<ClickUpTaskTagParams, ClickUpTa
   name: 'ClickUp Add Tag To Task',
   description: 'Add an existing space tag to a ClickUp task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

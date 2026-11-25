@@ -89,6 +89,7 @@ export const getJobPostingTool: ToolConfig<AshbyGetJobPostingParams, AshbyGetJob
   name: 'Ashby Get Job Posting',
   description: 'Retrieves full details about a single job posting by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

@@ -24,6 +24,7 @@ export const affinityCreateListFieldDropdownOptionTool: ToolConfig<
   description:
     'Add a selectable option to a dropdown field on a list. A ranked or status option also needs a rank and a color.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

@@ -19,6 +19,7 @@ export const quickbooksUpdateCustomerPaymentTool: InternalToolConfig<
   name: 'QuickBooks Update Customer Payment',
   description: 'Read, merge, and full-update a customer payment using its current sync token',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

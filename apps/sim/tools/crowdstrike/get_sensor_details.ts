@@ -17,6 +17,7 @@ export const crowdstrikeGetSensorDetailsTool: InternalToolConfig<
   description:
     'Get CrowdStrike Identity Protection sensor details for one or more device IDs (POST /identity-protection/entities/devices/GET/v1). These are the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors. Requires the "Identity Protection Entities: Read" API scope.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

@@ -24,6 +24,7 @@ export const affinitySemanticSearchTool: ToolConfig<
   description:
     'Find companies from a description in plain language — industry, technology, stage, or business model. Currently searches companies only.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

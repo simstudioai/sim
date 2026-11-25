@@ -8,6 +8,7 @@ export const requestReviewersTool: ToolConfig<RequestReviewersParams, ReviewersR
   name: 'GitHub Request Reviewers',
   description: 'Request reviewers for a pull request',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -158,6 +159,7 @@ export const requestReviewersV2Tool: ToolConfig = {
   name: requestReviewersTool.name,
   description: requestReviewersTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: requestReviewersTool.params,
   request: requestReviewersTool.request,
   oauth: requestReviewersTool.oauth,

@@ -9,6 +9,7 @@ export const cbinsightsGetOrgOutlookTool: InternalToolConfig<CbInsightsOrgParams
   description:
     "Retrieve an organization's current Mosaic Score, Commercial Maturity level, and two-year IPO and M&A exit probabilities, with the signals driving each.",
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

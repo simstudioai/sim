@@ -14,6 +14,7 @@ export const userActivityTool: ToolConfig<
   name: 'Amplitude User Activity',
   description: 'Get the event stream for a specific user by their Amplitude ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {

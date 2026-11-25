@@ -14,6 +14,7 @@ export const getTemplateSummaryTool: InternalToolConfig<
   description:
     'Get a summary of a template or deployed stack: resource types, required capabilities, and parameters, without full validation',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

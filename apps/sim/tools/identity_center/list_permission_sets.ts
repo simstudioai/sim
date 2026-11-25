@@ -13,6 +13,7 @@ export const listPermissionSetsTool: InternalToolConfig<
   name: 'Identity Center List Permission Sets',
   description: 'List all permission sets defined in an IAM Identity Center instance',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

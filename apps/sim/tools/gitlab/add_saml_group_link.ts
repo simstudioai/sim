@@ -16,6 +16,7 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
   description:
     'Add a SAML group link that maps an identity-provider group to a GitLab group at a given access level (GitLab Premium/Ultimate)',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

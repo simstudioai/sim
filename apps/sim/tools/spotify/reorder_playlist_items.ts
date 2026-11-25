@@ -23,6 +23,7 @@ export const spotifyReorderPlaylistItemsTool: ToolConfig<
   name: 'Spotify Reorder Playlist Items',
   description: 'Move tracks to a different position in a playlist.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

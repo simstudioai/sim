@@ -10,6 +10,7 @@ export const pitchbookLookupTablesTool: ToolConfig<PitchbookLookupTablesParams, 
     description:
       'Retrieve the codes in one or more lookup tables. These are the codes the search filters expect, such as INDUSTRY or VERTICAL.',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

@@ -33,6 +33,7 @@ export const managedAgentUpdateSessionTool: InternalToolConfig<
   name: 'Managed Agent Update Session',
   description: "Update a Managed Agent session's title or metadata.",
   version: '1.0.0',
+  effect: 'write',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

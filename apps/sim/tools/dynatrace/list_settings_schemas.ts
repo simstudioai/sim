@@ -22,6 +22,7 @@ export const listSettingsSchemasTool: ToolConfig<
   description:
     'List the settings schemas available in the environment. Use it to find the schema ID for a configuration type such as builtin:alerting.profile.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

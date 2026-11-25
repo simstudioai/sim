@@ -20,6 +20,7 @@ export const spotifyUpdatePlaylistTool: ToolConfig<
   name: 'Spotify Update Playlist',
   description: "Update a playlist's name, description, or visibility.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

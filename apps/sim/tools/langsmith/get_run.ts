@@ -8,6 +8,7 @@ export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGet
   name: 'LangSmith Get Run',
   description: 'Retrieve a single LangSmith run by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     region: LANGSMITH_REGIONS.param,

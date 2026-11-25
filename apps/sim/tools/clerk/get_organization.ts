@@ -19,6 +19,7 @@ export const clerkGetOrganizationTool: ToolConfig<
   name: 'Get Organization from Clerk',
   description: 'Retrieve a single organization by ID or slug from Clerk',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

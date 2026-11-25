@@ -17,6 +17,7 @@ export const hubspotUpdateCompanyTool: ToolConfig<
   name: 'Update Company in HubSpot',
   description: 'Update an existing company in HubSpot by ID or domain',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

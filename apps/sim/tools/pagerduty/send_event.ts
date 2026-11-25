@@ -28,6 +28,7 @@ export const sendEventTool: ToolConfig<PagerDutySendEventParams, PagerDutySendEv
   description:
     'Send a trigger, acknowledge, or resolve event to PagerDuty Events API v2 using a service integration key. Used to page from monitoring/alerting sources without a PagerDuty user account.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     routingKey: {

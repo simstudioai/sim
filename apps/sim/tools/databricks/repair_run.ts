@@ -18,6 +18,7 @@ export const repairRunTool: ToolConfig<DatabricksRepairRunParams, DatabricksRepa
   name: 'Databricks Repair Run',
   description: 'Rerun failed or selected tasks within an existing Databricks run.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

@@ -16,6 +16,7 @@ export const personaGetCaseTool: ToolConfig<PersonaGetCaseParams, PersonaCaseRes
   description:
     'Retrieve a single manual review case by ID, including its status, resolution, and assignee.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

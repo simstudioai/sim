@@ -9,6 +9,7 @@ export const grainDeleteHookV2Tool: ToolConfig<GrainDeleteHookV2Params, GrainDel
     name: 'Grain Delete Webhook',
     description: 'Delete a webhook by ID (v2 API)',
     version: '2.0.0',
+    effect: 'write',
     oauth: GRAIN_CREDENTIAL_OAUTH,
 
     params: {

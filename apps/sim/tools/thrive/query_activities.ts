@@ -23,6 +23,7 @@ export const queryActivitiesTool: ToolConfig<
   name: 'Thrive Query Activities',
   description: 'Query activity records in Thrive with pagination and filtering options.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

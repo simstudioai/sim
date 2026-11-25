@@ -16,6 +16,7 @@ export const telegramForwardMessageTool: ToolConfig<
   name: 'Telegram Forward Message',
   description: 'Forward a message from one Telegram chat to another through the Telegram Bot API.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

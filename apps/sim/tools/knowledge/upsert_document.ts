@@ -17,6 +17,7 @@ export const knowledgeUpsertDocumentTool: InternalToolConfig<
   description:
     'Create or update a document in a knowledge base. If a document with the given ID or filename already exists, it will be replaced with the new content.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     knowledgeBaseId: {

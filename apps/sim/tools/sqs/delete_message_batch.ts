@@ -10,6 +10,7 @@ export const deleteMessageBatchTool: InternalToolConfig<
   name: 'SQS Delete Message Batch',
   description: 'Delete up to 10 received messages from an Amazon SQS queue in a single request',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

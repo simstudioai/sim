@@ -12,6 +12,7 @@ export const listUsersTool: InternalToolConfig<ListUsersParams, SapConcurRespons
   name: 'SAP Concur List Users',
   description: 'List Concur user identities (GET /profile/identity/v4.1/Users).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

@@ -19,6 +19,7 @@ export const triggerSyntheticsTestsTool: ToolConfig<
   name: 'Datadog Trigger Synthetic Tests',
   description: 'Trigger an immediate run of one or more Synthetic tests by public ID.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

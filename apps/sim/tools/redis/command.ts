@@ -7,6 +7,7 @@ export const redisCommandTool: InternalToolConfig<RedisCommandParams, RedisComma
   description:
     'Execute a raw Redis command as a JSON array (e.g. ["HSET", "key", "field", "value"]).',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

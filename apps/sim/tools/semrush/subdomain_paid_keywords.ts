@@ -37,6 +37,7 @@ export const semrushSubdomainPaidKeywordsTool: ToolConfig<
   name: 'Semrush Subdomain Paid Keywords',
   description: 'List the keywords a subdomain buys in Google Ads.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

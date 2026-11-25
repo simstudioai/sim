@@ -8,6 +8,7 @@ export const greenhouseGetJobTool: ToolConfig<GreenhouseGetJobParams, Greenhouse
   description:
     'Retrieves a specific job by ID with full details including hiring team, openings, and custom fields',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

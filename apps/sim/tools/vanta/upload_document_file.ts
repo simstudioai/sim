@@ -15,6 +15,7 @@ export const vantaUploadDocumentFileTool: InternalToolConfig<
   description:
     'Upload an evidence file to a Vanta document. Requires credentials with the vanta-api.documents:upload scope.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

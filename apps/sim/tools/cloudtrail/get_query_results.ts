@@ -13,6 +13,7 @@ export const getQueryResultsTool: InternalToolConfig<
   name: 'CloudTrail Get Query Results',
   description: 'Fetch a page of result rows from a finished CloudTrail Lake query',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const slackPinMessageTool = createSlackWebApiTool({
   id: 'slack_pin_message',
   name: 'Slack Pin Message',
   description: 'Pin a message to its Slack conversation.',
+  effect: 'write',
   endpoint: 'pins.add',
   method: 'POST',
   oauth: {

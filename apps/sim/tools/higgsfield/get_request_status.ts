@@ -19,6 +19,7 @@ export const higgsfieldGetRequestStatusTool: ToolConfig<
   description:
     'Get the status of a Higgsfield generation request and, once completed, its output URLs.',
   version: '1.0.0',
+  effect: 'read',
   oauth: higgsfieldOAuth,
   params: {
     ...higgsfieldAuthParams,

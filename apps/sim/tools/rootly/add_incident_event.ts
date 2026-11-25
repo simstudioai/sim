@@ -15,6 +15,7 @@ export const rootlyAddIncidentEventTool: ToolConfig<
   name: 'Rootly Add Incident Event',
   description: 'Add a timeline event to an existing incident in Rootly.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -9,6 +9,7 @@ export const linearCreateLabelTool: ToolConfig<LinearCreateLabelParams, LinearCr
     name: 'Linear Create Label',
     description: 'Create a new label in Linear',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

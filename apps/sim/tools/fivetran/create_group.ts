@@ -23,6 +23,7 @@ export const fivetranCreateGroupTool: ToolConfig<
   description:
     'Create a Fivetran group. Each group holds one destination, so create the group first, then its destination.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

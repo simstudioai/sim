@@ -15,6 +15,7 @@ export const createIncidentTool: ToolConfig<CreateIncidentParams, CreateIncident
   description:
     'Declare a new incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

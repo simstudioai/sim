@@ -35,6 +35,7 @@ export const semrushUrlOrganicKeywordsTool: ToolConfig<
   name: 'Semrush URL Organic Keywords',
   description: 'List the keywords a single URL ranks for in Google organic search.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

@@ -42,6 +42,7 @@ export const updateTableCellPropertiesTool: ToolConfig<
   name: 'Update Table Cell Properties in Google Slides',
   description: 'Update background fill and content alignment for a range of table cells.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

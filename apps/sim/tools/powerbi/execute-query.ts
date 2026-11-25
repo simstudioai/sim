@@ -28,6 +28,7 @@ export const powerbiExecuteQueryTool: ToolConfig<
   description:
     'Execute one DAX query returning one table. Requires workspace access, Read/Build permissions, and the tenant Execute Queries setting. Reported errors fail the action even with HTTP 200. Direct tool responses retain partial rows and typed errors; failed workflows expose only the standard error output. Sim limits workflow tool responses to 10 MiB; use summaries or TOPN for larger results.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: { required: true, provider: 'microsoft-powerbi' },
   params: {

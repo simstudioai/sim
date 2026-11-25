@@ -8,6 +8,7 @@ export const moveFolderTool: ToolConfig<GrafanaMoveFolderParams, GrafanaMoveFold
   description:
     'Move a folder under a different parent folder, or to the root by leaving the parent empty. Returns the folder with its new ancestry.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

@@ -16,6 +16,7 @@ export const ingestMetricsTool: ToolConfig<
   description:
     'Push custom metric data points into Dynatrace using the metric line protocol, one data point per line.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

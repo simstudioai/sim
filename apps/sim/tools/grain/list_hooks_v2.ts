@@ -7,6 +7,7 @@ export const grainListHooksV2Tool: ToolConfig<GrainListHooksV2Params, GrainListH
   name: 'Grain List Webhooks',
   description: 'List webhooks for the account (v2 API)',
   version: '2.0.0',
+  effect: 'read',
   oauth: GRAIN_CREDENTIAL_OAUTH,
 
   params: {

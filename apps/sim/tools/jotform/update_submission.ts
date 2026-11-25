@@ -25,6 +25,7 @@ export const updateSubmissionTool: ToolConfig<
   description:
     'Edit an existing Jotform submission. Only the question IDs supplied are changed; the rest keep their stored answers.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

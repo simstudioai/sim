@@ -6,6 +6,7 @@ export const s3ListBucketsTool: InternalToolConfig = {
   name: 'S3 List Buckets',
   description: 'List the S3 buckets owned by the authenticated AWS account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

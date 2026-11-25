@@ -14,6 +14,7 @@ export const profoundOptimizationAnalysisTool: ToolConfig<
   name: 'Profound Optimization Analysis',
   description: 'Get detailed content optimization analysis for a specific content item in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

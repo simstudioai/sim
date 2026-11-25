@@ -7,6 +7,7 @@ export const deleteRoleTool: InternalToolConfig<IAMDeleteRoleParams, IAMDeleteRo
   name: 'IAM Delete Role',
   description: 'Delete an IAM role',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -10,6 +10,7 @@ export const attioCreateListTool: ToolConfig<AttioCreateListParams, AttioCreateL
   name: 'Attio Create List',
   description: 'Create a new list in Attio',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -10,6 +10,7 @@ export const agiloftNlpSearchTool: InternalToolConfig<
   description:
     'Search Agiloft records by describing what you want in plain language, such as "active NDAs submitted last month".',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     instanceUrl: {

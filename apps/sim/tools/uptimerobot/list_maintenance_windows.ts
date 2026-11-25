@@ -18,6 +18,7 @@ export const uptimeRobotListMaintenanceWindowsTool: ToolConfig<
   name: 'UptimeRobot List Maintenance Windows',
   description: 'List maintenance windows in your UptimeRobot account',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

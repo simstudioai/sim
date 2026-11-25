@@ -11,6 +11,7 @@ export const linqCreateContactCardTool: ToolConfig<
   name: 'Create Contact Card',
   description: 'Set up a contact card (Name and Photo Sharing) for a phone number',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

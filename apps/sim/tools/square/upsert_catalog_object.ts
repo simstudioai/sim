@@ -33,6 +33,7 @@ export const squareUpsertCatalogObjectTool: ToolConfig<
   name: 'Square Upsert Catalog Object',
   description: 'Create or update a catalog object such as an item, variation, or category',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

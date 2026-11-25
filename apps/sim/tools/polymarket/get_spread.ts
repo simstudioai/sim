@@ -21,6 +21,7 @@ export const polymarketGetSpreadTool: ToolConfig<
   name: 'Get Spread from Polymarket',
   description: 'Retrieve the bid-ask spread for a specific token',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tokenId: {

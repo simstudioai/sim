@@ -21,6 +21,7 @@ export const findUserTool: ToolConfig<ServiceNowFindUserParams, ServiceNowRecord
   description:
     'Look up ServiceNow users by email, user name, or display name. Use this to resolve the sys_id needed by reference fields such as caller_id, assigned_to, and approver.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

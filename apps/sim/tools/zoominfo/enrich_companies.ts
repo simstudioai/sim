@@ -18,6 +18,7 @@ export const zoominfoEnrichCompaniesTool: InternalToolConfig<
   description:
     'Enrich up to 25 companies in one request with detailed firmographics, industry, financials, and more.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {

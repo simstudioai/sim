@@ -44,6 +44,7 @@ export const updateAclTool: ToolConfig<
   name: 'Google Calendar Update Sharing',
   description: 'Change the access role granted by an existing calendar sharing (ACL) rule',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -135,6 +136,7 @@ export const updateAclV2Tool: ToolConfig<
   name: 'Google Calendar Update Sharing',
   description: 'Change the access role granted by an existing calendar sharing (ACL) rule.',
   version: '2.0.0',
+  effect: 'write',
   oauth: updateAclTool.oauth,
   params: updateAclTool.params,
   request: updateAclTool.request,

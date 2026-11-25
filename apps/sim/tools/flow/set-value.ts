@@ -19,6 +19,7 @@ export const flowSetValueTool: ToolConfig<FlowSetValueParams, FlowSetValueRespon
   description:
     'Set one field on a Flow entity using a key from the data model and a JSON value of the documented field type.',
   version: '1.0.0',
+  effect: 'write',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

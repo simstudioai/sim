@@ -10,6 +10,7 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
   description:
     'Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iMessage only)',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

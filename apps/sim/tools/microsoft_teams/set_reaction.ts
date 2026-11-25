@@ -13,6 +13,7 @@ export const setReactionTool: ToolConfig<
   name: 'Add Reaction to Microsoft Teams Message',
   description: 'Add an emoji reaction to a message in Microsoft Teams',
   version: '1.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

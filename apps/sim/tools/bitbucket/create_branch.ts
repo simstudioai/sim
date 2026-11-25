@@ -24,6 +24,7 @@ export const bitbucketCreateBranchTool: ToolConfig<
   name: 'Bitbucket Create Branch',
   description: 'Create a branch at a commit hash or existing ref',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository:write'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

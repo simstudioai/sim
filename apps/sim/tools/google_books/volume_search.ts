@@ -39,6 +39,7 @@ export const googleBooksVolumeSearchTool: ToolConfig<
   name: 'Google Books Volume Search',
   description: 'Search for books using the Google Books API',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

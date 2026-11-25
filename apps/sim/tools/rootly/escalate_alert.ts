@@ -12,6 +12,7 @@ export const rootlyEscalateAlertTool: ToolConfig<
   name: 'Rootly Escalate Alert',
   description: 'Escalate a Rootly alert, optionally to a specific escalation policy or level.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

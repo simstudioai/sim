@@ -8,6 +8,7 @@ export const ripplingCreateBusinessPartnerGroupTool: ToolConfig<RipplingCreateBu
     name: 'Rippling Create Business Partner Group',
     description: 'Create a new business partner group',
     version: '1.0.0',
+    effect: 'write',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

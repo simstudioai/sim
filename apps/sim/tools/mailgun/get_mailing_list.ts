@@ -8,6 +8,7 @@ export const mailgunGetMailingListTool: ToolConfig<GetMailingListParams, GetMail
   name: 'Mailgun Get Mailing List',
   description: 'Get details of a mailing list',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {

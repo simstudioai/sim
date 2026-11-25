@@ -15,6 +15,7 @@ export const instagramPublishVideoTool: InternalToolConfig<
   description:
     'Create and publish a feed video from a Sim file (published as a Reel shared to the feed; polls until ready)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -16,6 +16,7 @@ export const rocketlaneDeletePhaseTool: ToolConfig<
   name: 'Rocketlane Delete Phase',
   description: 'Permanently delete a Rocketlane phase by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

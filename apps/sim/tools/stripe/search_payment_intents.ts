@@ -11,6 +11,7 @@ export const stripeSearchPaymentIntentsTool: ToolConfig<
   name: 'Stripe Search Payment Intents',
   description: 'Search for Payment Intents using query syntax',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

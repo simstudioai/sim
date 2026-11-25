@@ -14,6 +14,7 @@ export const windchillUpdateDocumentTool: InternalToolConfig<WindchillParams, Wi
   name: 'Windchill Update Document',
   description: "Update one document's editable attributes",
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

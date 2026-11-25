@@ -9,6 +9,7 @@ export const linqSendVoiceMemoTool: ToolConfig<LinqSendVoiceMemoParams, LinqSend
   name: 'Send Voice Memo',
   description: 'Send a voice memo to a chat from a URL or a pre-uploaded attachment',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

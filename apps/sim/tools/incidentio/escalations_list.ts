@@ -14,6 +14,7 @@ export const escalationsListTool: ToolConfig<
   description:
     'List escalations (pages sent to people) in incident.io. For escalation policies, use List Escalation Paths.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

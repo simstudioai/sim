@@ -15,6 +15,7 @@ export const deleteSettingsObjectTool: ToolConfig<
   name: 'Dynatrace Delete Settings Object',
   description: 'Delete a settings object. Dynatrace cannot undo this.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

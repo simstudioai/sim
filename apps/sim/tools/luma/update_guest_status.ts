@@ -11,6 +11,7 @@ export const updateGuestStatusTool: ToolConfig<
   description:
     "Update a guest's approval status on a Luma event — approve, decline, waitlist, or set to pending. Identify the guest by email or guest ID.",
   version: '1.0.0',
+  effect: 'write',
   oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {

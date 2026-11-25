@@ -16,6 +16,7 @@ export const describeSnapshotsTool: InternalToolConfig<
   name: 'EC2 Describe Snapshots',
   description: 'List EBS snapshots owned by the account (or by the owners you specify)',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

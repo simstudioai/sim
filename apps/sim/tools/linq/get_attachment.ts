@@ -9,6 +9,7 @@ export const linqGetAttachmentTool: ToolConfig<LinqGetAttachmentParams, LinqAtta
   name: 'Get Attachment',
   description: 'Retrieve metadata for an attachment, including its download URL and status',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

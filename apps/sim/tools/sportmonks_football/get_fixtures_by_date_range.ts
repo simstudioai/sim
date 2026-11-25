@@ -38,6 +38,7 @@ export const sportmonksGetFixturesByDateRangeTool: ToolConfig<
   description:
     'Retrieve football fixtures between two dates (YYYY-MM-DD) from Sportmonks. Max range is 100 days.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

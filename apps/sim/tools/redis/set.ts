@@ -6,6 +6,7 @@ export const redisSetTool: InternalToolConfig<RedisSetParams, RedisSetResponse> 
   name: 'Redis Set',
   description: 'Set the value of a key in Redis with an optional expiration time in seconds.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

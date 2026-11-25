@@ -21,6 +21,7 @@ export const affinityListNoteAttachedPersonsTool: ToolConfig<
   name: 'Affinity List Note Attached Persons',
   description: 'List the persons directly attached to one note.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

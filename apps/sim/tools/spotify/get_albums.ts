@@ -27,6 +27,7 @@ export const spotifyGetAlbumsTool: ToolConfig<SpotifyGetAlbumsParams, SpotifyGet
   name: 'Spotify Get Multiple Albums',
   description: 'Get details for multiple albums by their IDs.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

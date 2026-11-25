@@ -14,6 +14,7 @@ export const rootlyListFunctionalitiesTool: ToolConfig<
   name: 'Rootly List Functionalities',
   description: 'List functionalities configured in Rootly.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -29,6 +29,7 @@ export const unmergeTableCellsTool: ToolConfig<UnmergeTableCellsParams, UnmergeT
     name: 'Unmerge Table Cells in Google Slides',
     description: 'Unmerge any merged cells within the given table range.',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: { required: true, provider: 'google-drive' },
 

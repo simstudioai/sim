@@ -14,6 +14,7 @@ export const listProvisionedConcurrencyConfigsTool: InternalToolConfig<
   name: 'Lambda List Provisioned Concurrency',
   description: 'List the provisioned concurrency configurations of a function',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

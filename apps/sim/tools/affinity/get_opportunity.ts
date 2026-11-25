@@ -19,6 +19,7 @@ export const affinityGetOpportunityTool: ToolConfig<
   description:
     'Read one opportunity and the list it belongs to. Its field data lives on the list entry.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

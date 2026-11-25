@@ -6,6 +6,7 @@ export const s3CopyObjectTool: InternalToolConfig = {
   name: 'S3 Copy Object',
   description: 'Copy an object within or between AWS S3 buckets',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

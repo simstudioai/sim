@@ -13,7 +13,8 @@ export const listChannelsTool: ToolConfig<
   name: 'List Microsoft Teams Channels',
   description: 'List all channels in a Microsoft Teams team',
   version: '1.0',
-  assistant: { effect: 'read', version: 1 },
+  effect: 'read',
+  assistant: { version: 1 },
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

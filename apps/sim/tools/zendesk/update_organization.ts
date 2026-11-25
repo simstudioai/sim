@@ -42,6 +42,7 @@ export const zendeskUpdateOrganizationTool: ToolConfig<
   name: 'Update Organization in Zendesk',
   description: 'Update an existing organization in Zendesk',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

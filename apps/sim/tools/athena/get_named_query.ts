@@ -10,6 +10,7 @@ export const getNamedQueryTool: InternalToolConfig<
   name: 'Athena Get Named Query',
   description: 'Get details of a saved/named query in AWS Athena',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

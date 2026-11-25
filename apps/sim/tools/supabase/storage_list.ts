@@ -12,6 +12,7 @@ export const storageListTool: ToolConfig<SupabaseStorageListParams, SupabaseStor
   name: 'Supabase Storage List',
   description: 'List files in a Supabase storage bucket',
   version: '1.0.0',
+  effect: 'read',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

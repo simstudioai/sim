@@ -18,6 +18,7 @@ export const rocketlaneUpdatePhaseTool: ToolConfig<
   name: 'Rocketlane Update Phase',
   description: 'Update the name, dates, status, or privacy of an existing Rocketlane phase',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

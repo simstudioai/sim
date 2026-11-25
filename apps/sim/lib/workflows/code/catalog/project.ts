@@ -26,6 +26,7 @@ import {
   isMetadataOnlyBlockType,
   isSentinelBlockType,
 } from '@/executor/constants'
+import { getToolMetadata } from '@/tools/metadata'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { getSubBlockValueShape } from '@/tools/param-shape'
 import type { TriggerConfig } from '@/triggers/types'
@@ -463,22 +464,43 @@ function projectOutput(definition: unknown): CatalogOutput | undefined {
 }
 
 /**
- * Per operation, the block outputs its tool declares and which of them it may return as `null`,
- * when the operation picks the tool (`tools.selector: 'operation'`). Kept only where that differs
- * from every block output, non-null.
+ * Each operation's tool id, when the operation alone picks a tool in `tools.access` for every
+ * operation (`tools.selector: 'operation'`); `null` otherwise.
  */
-function projectOperationOutputs(
+function resolveOperationTools(
   block: BlockConfig,
-  operations: readonly string[],
-  outputNames: readonly string[]
-): CatalogBlock['operationOutputs'] {
+  operations: readonly string[]
+): Map<string, string> | null {
   const selectTool = block.tools.config?.tool
-  if (!selectTool) return undefined
-  const projected: NonNullable<CatalogBlock['operationOutputs']> = {}
+  if (!selectTool || operations.length === 0) return null
+  const access = new Set(block.tools.access)
+  const operationTools = new Map<string, string>()
   for (const operation of operations) {
     const probe = probeThunk(selectTool, { operation })
-    if (!probe.ok || typeof probe.result !== 'string') continue
-    const toolOutputs = getToolOutputsMetadata(probe.result)
+    if (
+      !probe.ok ||
+      !readsOnly(probe.reads, OPERATION_ONLY) ||
+      typeof probe.result !== 'string' ||
+      !access.has(probe.result)
+    ) {
+      return null
+    }
+    operationTools.set(operation, probe.result)
+  }
+  return operationTools
+}
+
+/**
+ * Per operation, the block outputs its tool declares and which of them it may return as `null`.
+ * Kept only where that differs from every block output, non-null.
+ */
+function projectOperationOutputs(
+  operationTools: ReadonlyMap<string, string>,
+  outputNames: readonly string[]
+): CatalogBlock['operationOutputs'] {
+  const projected: NonNullable<CatalogBlock['operationOutputs']> = {}
+  for (const [operation, toolId] of operationTools) {
+    const toolOutputs = getToolOutputsMetadata(toolId)
     if (!toolOutputs) continue
     const names = outputNames.filter((name) => Object.hasOwn(toolOutputs, name))
     const nullable = names.filter((name) => toolOutputs[name]?.nullable === true)
@@ -488,23 +510,39 @@ function projectOperationOutputs(
   return Object.keys(projected).length > 0 ? projected : undefined
 }
 
-function projectTools(block: BlockConfig, operations: readonly string[]): CatalogBlock['tools'] {
+/**
+ * The block's effect from its tools' declared effects, and, when the operation picks the tool, each
+ * operation whose tool differs from it. An id that is not a registered tool (the model providers an
+ * Agent, Router, or Evaluator calls) counts as `write`. An opaque selector cannot be probed, so its
+ * operations inherit the block effect.
+ */
+function projectEffects(
+  block: BlockConfig,
+  operationTools: ReadonlyMap<string, string> | null
+): Pick<CatalogBlock, 'effect' | 'operationEffects'> {
+  if (block.tools.access.length === 0) return {}
+  const accessEffects = new Map(
+    block.tools.access.map(
+      (toolId) => [toolId, getToolMetadata(toolId)?.effect ?? 'write'] as const
+    )
+  )
+  const effect = [...accessEffects.values()].every((entry) => entry === 'read') ? 'read' : 'write'
+  if (effect === 'read' || !operationTools) return { effect }
+  const operationEffects: NonNullable<CatalogBlock['operationEffects']> = {}
+  for (const [operation, toolId] of operationTools) {
+    const operationEffect = accessEffects.get(toolId) ?? 'write'
+    if (operationEffect !== effect) operationEffects[operation] = operationEffect
+  }
+  return Object.keys(operationEffects).length > 0 ? { effect, operationEffects } : { effect }
+}
+
+function projectTools(
+  block: BlockConfig,
+  operationTools: ReadonlyMap<string, string> | null
+): CatalogBlock['tools'] {
   const access = [...block.tools.access]
-  const selectTool = block.tools.config?.tool
-  if (!selectTool) return { access, selector: 'single' }
-  const accessSet = new Set(access)
-  const perOperation =
-    operations.length > 0 &&
-    operations.every((operation) => {
-      const probe = probeThunk(selectTool, { operation })
-      return (
-        probe.ok &&
-        readsOnly(probe.reads, OPERATION_ONLY) &&
-        typeof probe.result === 'string' &&
-        accessSet.has(probe.result)
-      )
-    })
-  return { access, selector: perOperation ? 'operation' : 'opaque' }
+  if (!block.tools.config?.tool) return { access, selector: 'single' }
+  return { access, selector: operationTools ? 'operation' : 'opaque' }
 }
 
 function projectGraph(block: BlockConfig): CatalogBlockGraph {
@@ -587,6 +625,7 @@ function builtInOutputs(block: BlockConfig): BlockConfig['outputs'] {
 /** Projects one registry block (built-in or custom) into the core-shard shape. */
 export function projectBlock(block: BlockConfig): CatalogBlock {
   const operations = operationOptions(block).map((operation) => operation.id)
+  const operationTools = resolveOperationTools(block, operations)
   const tagSurface = block.subBlocks.some((subBlock) => subBlockSurface(subBlock) === 'trigger')
   const ctx: SubBlockContext = {
     operations,
@@ -599,7 +638,7 @@ export function projectBlock(block: BlockConfig): CatalogBlock {
     name: block.name,
     category: block.category,
     subBlocks: block.subBlocks.map((subBlock) => projectSubBlock(subBlock, ctx)),
-    tools: projectTools(block, operations),
+    tools: projectTools(block, operationTools),
     outputs: projectOutputRecord(builtInOutputs(block)),
     graph: projectGraph(block),
   }
@@ -612,14 +651,11 @@ export function projectBlock(block: BlockConfig): CatalogBlock {
       ? { status: block.sunset.status, replacedBy: block.sunset.replacedBy }
       : { status: block.sunset.status }
   }
-  if (projected.tools.selector === 'operation') {
-    const operationOutputs = projectOperationOutputs(
-      block,
-      operations,
-      Object.keys(projected.outputs)
-    )
+  if (operationTools) {
+    const operationOutputs = projectOperationOutputs(operationTools, Object.keys(projected.outputs))
     if (operationOutputs) projected.operationOutputs = operationOutputs
   }
+  Object.assign(projected, projectEffects(block, operationTools))
   if (Object.keys(lifecycle).length > 0) projected.lifecycle = lifecycle
   if (block.hideFromToolbar) projected.addable = false
   assign(projected, 'triggerAllowed', block.triggerAllowed)

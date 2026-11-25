@@ -13,6 +13,7 @@ export const linearListNotificationsTool: ToolConfig<
   name: 'Linear List Notifications',
   description: 'List notifications for the current user in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

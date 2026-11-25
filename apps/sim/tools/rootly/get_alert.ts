@@ -9,6 +9,7 @@ export const rootlyGetAlertTool: ToolConfig<RootlyGetAlertParams, RootlyGetAlert
   name: 'Rootly Get Alert',
   description: 'Retrieve a single alert by ID from Rootly.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

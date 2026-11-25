@@ -21,6 +21,7 @@ export const listDnsRecordsTool: ToolConfig<
   name: 'Cloudflare List DNS Records',
   description: 'Lists DNS records for a specific zone.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

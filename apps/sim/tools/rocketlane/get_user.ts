@@ -15,6 +15,7 @@ export const rocketlaneGetUserTool: ToolConfig<RocketlaneGetUserParams, Rocketla
   name: 'Rocketlane Get User',
   description: 'Retrieve a Rocketlane user by their ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

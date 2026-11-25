@@ -11,6 +11,7 @@ export const rootlyListSeveritiesTool: ToolConfig<
   name: 'Rootly List Severities',
   description: 'List severity levels configured in Rootly.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

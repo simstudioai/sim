@@ -14,6 +14,7 @@ export const linkedInProfileTool: ToolConfig<
   description:
     'Enrich a LinkedIn profile URL with detailed information including positions, education, and social metrics.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

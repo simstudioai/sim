@@ -31,6 +31,7 @@ export const getFiredAlertsTool: ToolConfig<
   description:
     'List the unexpired triggered instances of a Splunk alert by saved search name, including severity, trigger time, and the search ID of each firing.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {

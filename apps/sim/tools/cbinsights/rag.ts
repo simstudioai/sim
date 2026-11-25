@@ -13,6 +13,7 @@ export const cbinsightsRagTool: InternalToolConfig<CbInsightsRagParams, CbInsigh
   description:
     'Retrieve the raw structured CB Insights data relevant to a question, for feeding your own model rather than reading a written answer. Uses generative AI and can be wrong — verify anything that matters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

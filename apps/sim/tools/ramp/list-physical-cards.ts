@@ -17,6 +17,7 @@ export const rampListPhysicalCardsTool: ToolConfig<
   name: 'Ramp List Physical Cards',
   description: 'List physical cards in one page in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

@@ -10,6 +10,7 @@ export const getCreditsTool: ToolConfig<ZeroBounceGetCreditsParams, ZeroBounceGe
     name: 'ZeroBounce Get Credits',
     description: 'Retrieve the remaining validation credits for the authenticated account.',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       apiKey: {

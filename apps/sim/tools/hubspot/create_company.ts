@@ -16,6 +16,7 @@ export const hubspotCreateCompanyTool: ToolConfig<
   name: 'Create Company in HubSpot',
   description: 'Create a new company in HubSpot',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

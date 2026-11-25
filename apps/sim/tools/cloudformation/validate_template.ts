@@ -13,6 +13,7 @@ export const validateTemplateTool: InternalToolConfig<
   name: 'CloudFormation Validate Template',
   description: 'Validate a CloudFormation template for syntax and structural correctness',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

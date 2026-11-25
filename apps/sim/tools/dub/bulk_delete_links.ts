@@ -9,6 +9,7 @@ export const bulkDeleteLinksTool: ToolConfig<DubBulkDeleteLinksParams, DubBulkDe
     description:
       'Delete up to 100 short links in a single request by their link IDs. Non-existing IDs are ignored.',
     version: '1.0.0',
+    effect: 'write',
     oauth: DUB_CREDENTIAL_OAUTH,
 
     params: {

@@ -11,6 +11,7 @@ export const apolloAccountCreateTool: ToolConfig<
   name: 'Apollo Create Account',
   description: 'Create a new account (company) in your Apollo database',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

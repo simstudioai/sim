@@ -18,6 +18,7 @@ export const updateRecordTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpda
   name: 'Update ServiceNow Record',
   description: 'Update an existing record in a ServiceNow table',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

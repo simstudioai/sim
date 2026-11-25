@@ -18,6 +18,7 @@ export const oracleFusionFinancialsGetGlLedgerTool: InternalToolConfig<
   name: 'Oracle Fusion Financials Get GL Ledger',
   description: 'Get an Oracle Fusion gl ledger.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     glLedgerId: {

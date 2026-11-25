@@ -20,6 +20,7 @@ export const triggerDevListDeploymentsTool: ToolConfig<
   description:
     'List Trigger.dev deployments in the environment of the API key, with optional status and creation-time filters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

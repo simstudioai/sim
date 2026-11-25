@@ -9,6 +9,7 @@ export const ripplingListTitlesTool: ToolConfig<RipplingListTitlesParams> = {
   name: 'Rippling List Titles',
   description: 'List all titles',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

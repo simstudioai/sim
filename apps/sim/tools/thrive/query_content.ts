@@ -17,6 +17,7 @@ export const queryContentTool: ToolConfig<ThriveQueryContentParams, ThriveQueryC
   name: 'Thrive Query Content',
   description: 'Query content records in Thrive with pagination and filtering options.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

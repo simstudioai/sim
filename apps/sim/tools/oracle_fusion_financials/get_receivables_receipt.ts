@@ -18,6 +18,7 @@ export const oracleFusionFinancialsGetReceivablesReceiptTool: InternalToolConfig
   name: 'Oracle Fusion Financials Get Receivables Receipt',
   description: 'Get Oracle Fusion receivables receipt.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     receivablesReceiptId: {

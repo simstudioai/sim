@@ -7,6 +7,7 @@ export const ripplingCreateCustomPageTool: ToolConfig<RipplingCreateCustomPagePa
   name: 'Rippling Create CustomPage',
   description: 'Create a new custom page',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

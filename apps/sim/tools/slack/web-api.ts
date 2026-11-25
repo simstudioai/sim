@@ -13,6 +13,7 @@ interface SlackWebApiDefinition<
   id: string
   name: string
   description: string
+  effect: ToolConfig['effect']
   assistant?: ToolConfig['assistant']
   method: 'GET' | 'POST'
   endpoint: string
@@ -36,6 +37,7 @@ export function createSlackWebApiTool<
     description: definition.description,
     ...(definition.assistant ? { assistant: definition.assistant } : {}),
     version: '1.0.0',
+    effect: definition.effect,
     oauth: definition.oauth,
     params: {
       accessToken: {

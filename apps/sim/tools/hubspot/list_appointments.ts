@@ -16,6 +16,7 @@ export const hubspotListAppointmentsTool: ToolConfig<
   name: 'List Appointments from HubSpot',
   description: 'Retrieve all appointments from HubSpot account with pagination support',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

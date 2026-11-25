@@ -9,6 +9,7 @@ export const rpcTool: ToolConfig<SupabaseRpcParams, SupabaseRpcResponse> = {
   name: 'Supabase RPC',
   description: 'Call a PostgreSQL function in Supabase',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

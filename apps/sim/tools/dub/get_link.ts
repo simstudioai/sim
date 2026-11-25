@@ -8,6 +8,7 @@ export const getLinkTool: ToolConfig<DubGetLinkParams, DubGetLinkResponse> = {
   description:
     'Retrieve information about a short link by its link ID, external ID, or domain + key combination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const affinityListFieldValueChangesTool: ToolConfig<
   description:
     'Page through field value changes across the whole workspace. Built for delta sync: follow nextCursor to the end of a run, then resume from the last cursor next time.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

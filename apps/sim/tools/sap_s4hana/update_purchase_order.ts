@@ -11,6 +11,7 @@ export const updatePurchaseOrderTool: InternalToolConfig<
   description:
     'Update fields on an A_PurchaseOrder header in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Header-only — line-item changes are not supported via deep update on the header (SAP KBA 2833338); use the A_PurchaseOrderItem entity directly to modify items. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     subdomain: {
       type: 'string',

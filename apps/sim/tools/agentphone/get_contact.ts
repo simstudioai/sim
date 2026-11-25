@@ -14,6 +14,7 @@ export const agentphoneGetContactTool: ToolConfig<
   name: 'Get Contact',
   description: 'Fetch a single contact by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

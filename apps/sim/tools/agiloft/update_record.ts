@@ -9,6 +9,7 @@ export const agiloftUpdateRecordTool: InternalToolConfig<
   name: 'Agiloft Update Record',
   description: 'Update an existing record in an Agiloft table.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     instanceUrl: {

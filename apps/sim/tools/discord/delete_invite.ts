@@ -11,6 +11,7 @@ export const discordDeleteInviteTool: ToolConfig<
   name: 'Discord Delete Invite',
   description: 'Delete a Discord invite',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

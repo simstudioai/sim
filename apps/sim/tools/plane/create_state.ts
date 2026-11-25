@@ -21,6 +21,7 @@ export const planeCreateStateTool: ToolConfig<PlaneCreateStateParams, PlaneCreat
   name: 'Plane Create a state',
   description: 'Create a state in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

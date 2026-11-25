@@ -6,6 +6,7 @@ export const memoryDeleteTool: InternalToolConfig<MemoryIdentifierParams, Memory
   name: 'Delete Memory',
   description: 'Delete memories by conversationId.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     conversationId: {

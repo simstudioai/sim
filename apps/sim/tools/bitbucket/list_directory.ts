@@ -31,6 +31,7 @@ export const bitbucketListDirectoryTool: ToolConfig<
   name: 'Bitbucket List Directory',
   description: 'List one shallow repository directory at a full commit SHA-1',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

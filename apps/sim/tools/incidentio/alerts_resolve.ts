@@ -15,6 +15,7 @@ export const alertsResolveTool: ToolConfig<
   description:
     'Resolve a currently firing alert in incident.io. Resolving an already-resolved alert is a no-op and returns it unchanged.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

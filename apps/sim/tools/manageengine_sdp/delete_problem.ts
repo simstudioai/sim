@@ -9,6 +9,7 @@ export const manageengineSdpDeleteProblemTool: ToolConfig<SdpDeleteProblemParams
   name: 'ManageEngine SDP Delete Problem',
   description: 'Delete a ManageEngine ServiceDesk Plus Cloud problem and its associated notes.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

@@ -59,6 +59,7 @@ Use the `test-audit` skill whenever you write, change, or review tests; mechanic
 Build order **Tools** → **Block** → **Icon** → optional **Trigger**, from the service's API docs, using `/add-integration` (or `/add-tools`, `/add-block`, `/add-trigger`).
 
 - **Tool IDs are `snake_case`** (`service_action`), registered in `tools/registry.ts`; blocks register alphabetically in `blocks/registry-maps.ts`.
+- **Every tool declares `effect: 'read' | 'write'`**: `read` only when the call changes nothing outside Sim, `write` otherwise and whenever unsure (`ToolEffect` in `tools/types.ts`; `check:tool-effects`; rules in `/add-tools` → Declaring the effect).
 - **Type coercions go in `tools.config.params`** (runs at execution), never `tools.config.tool` (runs at serialization, where `Number()` destroys `<Block.output>` references).
 - **Requests made for a workspace use `outboundFetch`** (`@/lib/core/network/outbound-fetch.server`), never the global `fetch` or another imported `fetch`, so an organization with a dedicated egress gateway keeps its static IPs; `check:organization-egress` enforces this, and a request that rightly goes direct (Sim's own infrastructure, an operator-local server) takes `// egress-direct: <reason>`. AWS SDK clients signing with customer credentials take `organizationAwsRequestHandler()`: no audit catches a missing one, so reviewers check it.
 - A surface listing integrations to a viewer reads `useIntegrationAccess`, never a raw catalog (`check:integration-access`).

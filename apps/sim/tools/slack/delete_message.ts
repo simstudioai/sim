@@ -10,6 +10,7 @@ export const slackDeleteMessageTool: InternalToolConfig<
   name: 'Slack Delete Message',
   description: 'Delete a message previously sent by the bot in Slack',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

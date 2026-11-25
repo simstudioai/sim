@@ -14,6 +14,7 @@ export const squareGetPaymentTool: ToolConfig<GetPaymentParams, PaymentResponse>
   name: 'Square Get Payment',
   description: 'Retrieve details for a single payment by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

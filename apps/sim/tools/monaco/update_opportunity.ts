@@ -25,6 +25,7 @@ export const monacoUpdateOpportunityTool: ToolConfig<
   description:
     'Update a Monaco opportunity: rename it, change its owner, move it to another stage or pipeline, or set its estimated value, close dates, notes, or tags. Only the fields you set are changed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

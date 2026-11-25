@@ -26,6 +26,7 @@ export const bitbucketGetCommitTool: ToolConfig<
   name: 'Bitbucket Get Commit',
   description: 'Get a repository commit by its full SHA-1',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

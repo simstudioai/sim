@@ -28,6 +28,7 @@ export const removeCandidateTagTool: ToolConfig<
   name: 'Ashby Remove Candidate Tag',
   description: 'Removes a tag from a candidate in Ashby and returns the updated candidate.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

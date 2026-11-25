@@ -25,6 +25,7 @@ export const stripeCapturePaymentIntentTool: ToolConfig<
   name: 'Stripe Capture Payment Intent',
   description: 'Capture an authorized Payment Intent',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

@@ -19,6 +19,7 @@ export const personaRedactAccountTool: ToolConfig<
   description:
     'Permanently delete all personally identifiable information stored on an account, for example to honor a data deletion request. This cannot be undone.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

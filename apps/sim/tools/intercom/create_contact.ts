@@ -213,6 +213,7 @@ export const intercomCreateContactTool: ToolConfig<
   name: 'Create Contact in Intercom',
   description: 'Create a new contact in Intercom with email, external_id, or role',
   version: '1.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...intercomCreateContactBase,
@@ -355,6 +356,7 @@ export const intercomCreateContactV2Tool: ToolConfig<
   description:
     'Create a new contact in Intercom with email, external_id, or role. Returns API-aligned fields only.',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

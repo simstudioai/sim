@@ -14,6 +14,7 @@ export const salesforceCreateCaseTool: ToolConfig<
   name: 'Create Case in Salesforce',
   description: 'Create a new case',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

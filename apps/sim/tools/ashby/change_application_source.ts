@@ -30,6 +30,7 @@ export const changeApplicationSourceTool: ToolConfig<
   description:
     'Changes the source attributed to an existing application, so programmatically created applications report correctly on the recruiting side. Requires the candidatesWrite permission.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

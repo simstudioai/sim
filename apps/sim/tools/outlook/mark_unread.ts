@@ -9,6 +9,7 @@ export const outlookMarkUnreadTool: InternalToolConfig<
   name: 'Outlook Mark as Unread',
   description: 'Mark an Outlook message as unread',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

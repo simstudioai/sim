@@ -16,6 +16,7 @@ export const getSettingsTool: ToolConfig<
   description:
     'Get the settings for a Google Group including access permissions, moderation, and posting options',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

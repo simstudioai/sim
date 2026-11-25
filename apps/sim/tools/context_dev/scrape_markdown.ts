@@ -21,6 +21,7 @@ export const contextDevScrapeMarkdownTool: ToolConfig<
   name: 'Context.dev Scrape Markdown',
   description: 'Scrape any URL and return clean, LLM-ready markdown content.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevScrapeMarkdownParams>(),
 

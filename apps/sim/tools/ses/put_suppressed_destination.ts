@@ -13,6 +13,7 @@ export const putSuppressedDestinationTool: InternalToolConfig<
   name: 'SES Put Suppressed Destination',
   description: 'Add an email address to the account-level SES suppression list',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

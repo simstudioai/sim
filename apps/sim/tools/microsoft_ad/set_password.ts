@@ -14,6 +14,7 @@ export const setPasswordTool: ToolConfig<
   description:
     'Set a specific password on a user by updating their password profile. Cannot be used for federated users. Requires an administrator role in Microsoft Entra ID.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

@@ -13,6 +13,7 @@ export const schedulesCreateTool: ToolConfig<
   name: 'Create Schedule',
   description: 'Create a new schedule in incident.io',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

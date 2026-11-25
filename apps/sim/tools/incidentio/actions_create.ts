@@ -14,6 +14,7 @@ export const actionsCreateTool: ToolConfig<
   name: 'Create Action',
   description: 'Create a new action on an incident in incident.io',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

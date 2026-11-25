@@ -7,6 +7,7 @@ export const patchActiveTool: ToolConfig<ObsidianPatchActiveParams, ObsidianPatc
   description:
     'Insert or replace content at a specific heading, block reference, or frontmatter field in the active file',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

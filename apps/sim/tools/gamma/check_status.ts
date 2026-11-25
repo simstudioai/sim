@@ -9,6 +9,7 @@ export const checkStatusTool: ToolConfig<GammaCheckStatusParams, GammaCheckStatu
   description:
     'Check the status of a Gamma generation job. Returns the gamma URL when completed, or error details if failed.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GAMMA_CREDENTIAL_OAUTH,
 
   params: {

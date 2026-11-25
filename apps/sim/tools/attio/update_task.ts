@@ -11,6 +11,7 @@ export const attioUpdateTaskTool: ToolConfig<AttioUpdateTaskParams, AttioUpdateT
   name: 'Attio Update Task',
   description: 'Update a task in Attio (deadline, completion status, linked records, assignees)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

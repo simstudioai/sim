@@ -8,6 +8,7 @@ export const createPRTool: ToolConfig<CreatePRParams, PRResponse> = {
   name: 'GitHub Create Pull Request',
   description: 'Create a new pull request in a GitHub repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -128,6 +129,7 @@ export const createPRV2Tool: ToolConfig<CreatePRParams, any> = {
   name: createPRTool.name,
   description: createPRTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createPRTool.params,
   request: createPRTool.request,

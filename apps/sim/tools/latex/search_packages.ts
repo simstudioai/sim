@@ -17,6 +17,7 @@ export const latexSearchPackagesTool: ToolConfig<
   description:
     'Search the TeX Live packages available to the LaTeX compiler by name or description, e.g. to check which packages can be used in a document.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

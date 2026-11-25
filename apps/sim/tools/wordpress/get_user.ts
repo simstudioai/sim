@@ -11,6 +11,7 @@ export const getUserTool: ToolConfig<WordPressGetUserParams, WordPressGetUserRes
   name: 'WordPress Get User',
   description: 'Get a specific user from WordPress.com by ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

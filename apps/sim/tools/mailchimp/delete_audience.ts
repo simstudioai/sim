@@ -20,6 +20,7 @@ export const mailchimpDeleteAudienceTool: ToolConfig<
   name: 'Delete Audience from Mailchimp',
   description: 'Delete an audience (list) from Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

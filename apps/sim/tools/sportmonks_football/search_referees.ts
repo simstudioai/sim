@@ -36,6 +36,7 @@ export const sportmonksSearchRefereesTool: ToolConfig<
   name: 'Search Referees',
   description: 'Search for football referees by name from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

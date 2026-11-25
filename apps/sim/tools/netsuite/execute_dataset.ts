@@ -11,6 +11,7 @@ export const netsuiteExecuteDatasetTool: InternalToolConfig<
   name: 'NetSuite Execute SuiteAnalytics Dataset',
   description: 'Execute one page of a standard or custom SuiteAnalytics Workbook dataset.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

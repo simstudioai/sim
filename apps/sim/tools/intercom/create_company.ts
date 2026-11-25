@@ -165,6 +165,7 @@ export const intercomCreateCompanyTool: ToolConfig<
   name: 'Create Company in Intercom',
   description: 'Create or update a company in Intercom',
   version: '1.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...createCompanyBase,
@@ -287,6 +288,7 @@ export const intercomCreateCompanyV2Tool: ToolConfig<
   name: 'Create Company in Intercom',
   description: 'Create or update a company in Intercom',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

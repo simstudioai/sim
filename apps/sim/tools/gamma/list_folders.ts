@@ -8,6 +8,7 @@ export const listFoldersTool: ToolConfig<GammaListFoldersParams, GammaListFolder
   description:
     'List available folders in your Gamma workspace. Returns folder IDs and names for organizing generated content.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GAMMA_CREDENTIAL_OAUTH,
 
   params: {

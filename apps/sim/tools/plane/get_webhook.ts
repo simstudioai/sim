@@ -20,6 +20,7 @@ export const planeGetWebhookTool: ToolConfig<PlaneGetWebhookParams, PlaneGetWebh
   name: 'Plane Get a webhook',
   description: 'Get a webhook in Plane. Requires API v2.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

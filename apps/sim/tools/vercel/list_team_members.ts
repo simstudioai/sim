@@ -14,6 +14,7 @@ export const vercelListTeamMembersTool: ToolConfig<
   name: 'Vercel List Team Members',
   description: 'List all members of a Vercel team',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

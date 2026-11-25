@@ -8,6 +8,7 @@ export const getLogsTool: ToolConfig<GongGetLogsParams, GongGetLogsResponse> = {
   name: 'Gong Get Logs',
   description: 'Retrieve Gong log entries of a specific type within a time range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

@@ -38,6 +38,7 @@ export const confluenceCreateBlogPostTool: InternalToolConfig<
   name: 'Confluence Create Blog Post',
   description: 'Create a new blog post in a Confluence space.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

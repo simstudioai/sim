@@ -14,6 +14,7 @@ export const squareGetRefundTool: ToolConfig<GetRefundParams, RefundResponse> = 
   name: 'Square Get Refund',
   description: 'Retrieve a single payment refund by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

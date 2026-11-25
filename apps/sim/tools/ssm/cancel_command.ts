@@ -10,6 +10,7 @@ export const cancelCommandTool: InternalToolConfig<
   name: 'SSM Cancel Command',
   description: 'Cancel an in-flight Run Command execution',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

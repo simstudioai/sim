@@ -19,6 +19,7 @@ export const updateTableRowTool: ToolConfig<ExcelUpdateRowParams, ExcelRowRespon
   name: 'Microsoft Excel Update Table Row',
   description: 'Update Table Row in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: {

@@ -9,6 +9,7 @@ export const searchCompanyTool: ToolConfig<EnrichSearchCompanyParams, EnrichSear
     description:
       'Search for companies by various criteria including name, industry, location, and size.',
     version: '1.0.0',
+    effect: 'read',
     oauth: ENRICH_CREDENTIAL_OAUTH,
 
     params: {

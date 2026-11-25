@@ -11,6 +11,7 @@ export const releaseAddressTool: InternalToolConfig<
   name: 'EC2 Release Address',
   description: 'Release an Elastic IP address back to AWS',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

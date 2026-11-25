@@ -14,6 +14,7 @@ export const putFunctionEventInvokeConfigTool: InternalToolConfig<
   name: 'Lambda Set Async Invoke Config',
   description: 'Configure retry limits and destinations for asynchronous invocations of a function',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

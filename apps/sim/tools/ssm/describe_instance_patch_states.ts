@@ -13,6 +13,7 @@ export const describeInstancePatchStatesTool: InternalToolConfig<
   name: 'SSM Describe Instance Patch States',
   description: 'Read patch compliance summaries for a set of managed nodes',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

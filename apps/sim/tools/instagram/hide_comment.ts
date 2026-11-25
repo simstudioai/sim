@@ -13,6 +13,7 @@ export const instagramHideCommentTool: ToolConfig<
   name: 'Instagram Hide Comment',
   description: 'Hide or unhide a comment on Instagram media',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

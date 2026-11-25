@@ -20,6 +20,7 @@ export const modalListModelsTool: ToolConfig<ModalListModelsParams, ModalListMod
   name: 'Modal List Models',
   description: 'List the model IDs a Modal proxy token can reach on an endpoint',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     endpointUrl: {

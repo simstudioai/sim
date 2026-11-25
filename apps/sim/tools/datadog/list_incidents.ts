@@ -19,6 +19,7 @@ export const listIncidentsTool: ToolConfig<ListIncidentsParams, ListIncidentsRes
   description:
     'List incidents for the organization. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

@@ -12,6 +12,7 @@ export const zoomGetMeetingInvitationTool: ToolConfig<
   name: 'Zoom Get Meeting Invitation',
   description: 'Get the meeting invitation text for a Zoom meeting',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

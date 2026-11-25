@@ -12,6 +12,7 @@ export const listEventsTool: ToolConfig<AmplitudeListEventsParams, AmplitudeList
   description:
     'List all event types in the Amplitude project with their weekly totals and unique counts.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {

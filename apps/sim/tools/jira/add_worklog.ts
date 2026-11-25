@@ -49,6 +49,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
   name: 'Jira Add Worklog',
   description: 'Add a time tracking worklog entry to a Jira issue',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

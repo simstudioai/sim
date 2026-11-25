@@ -7,6 +7,7 @@ export const insertTool: InternalToolConfig<PostgresInsertParams, PostgresInsert
   name: 'PostgreSQL Insert',
   description: 'Insert data into PostgreSQL database',
   version: '1.0',
+  effect: 'write',
   oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {

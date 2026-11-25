@@ -6,6 +6,7 @@ export const knowledgeTriggerSyncTool: InternalToolConfig<any, KnowledgeTriggerS
   name: 'Knowledge Trigger Sync',
   description: 'Trigger a manual sync for a knowledge base connector',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     knowledgeBaseId: {

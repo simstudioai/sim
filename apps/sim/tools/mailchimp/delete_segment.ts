@@ -21,6 +21,7 @@ export const mailchimpDeleteSegmentTool: ToolConfig<
   name: 'Delete Segment from Mailchimp Audience',
   description: 'Delete a segment from a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

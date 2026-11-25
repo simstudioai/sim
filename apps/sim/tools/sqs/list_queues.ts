@@ -7,6 +7,7 @@ export const listQueuesTool: InternalToolConfig<SqsListQueuesParams, SqsQueueLis
   name: 'SQS List Queues',
   description: 'List Amazon SQS queue URLs in a region, optionally filtered by name prefix',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

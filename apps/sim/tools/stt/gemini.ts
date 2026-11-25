@@ -6,6 +6,7 @@ export const geminiSttTool: InternalToolConfig<SttParams, SttResponse> = {
   name: 'Google Gemini STT',
   description: 'Transcribe audio to text using Google Gemini with multimodal capabilities',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     provider: {

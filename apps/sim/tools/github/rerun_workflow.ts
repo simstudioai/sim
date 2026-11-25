@@ -9,6 +9,7 @@ export const rerunWorkflowTool: ToolConfig<RerunWorkflowParams, RerunWorkflowRes
   description:
     'Rerun a workflow run. Optionally enable debug logging for the rerun. Returns 201 Created on success.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -109,6 +110,7 @@ export const rerunWorkflowV2Tool: ToolConfig = {
   name: rerunWorkflowTool.name,
   description: rerunWorkflowTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: rerunWorkflowTool.params,
   request: rerunWorkflowTool.request,
   oauth: rerunWorkflowTool.oauth,

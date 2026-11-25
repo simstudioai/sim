@@ -12,6 +12,7 @@ export const listPartitionsTool: InternalToolConfig<
   name: 'ClickHouse List Partitions',
   description: 'List active partitions for a ClickHouse table',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

@@ -21,6 +21,7 @@ export const codaGetRowTool: ToolConfig<CodaGetRowParams, CodaRowResponse> = {
   name: 'Coda Get Row',
   description: 'Get a single row from a Coda table, including all of its cell values',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

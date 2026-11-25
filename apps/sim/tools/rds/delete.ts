@@ -7,6 +7,7 @@ export const deleteTool: InternalToolConfig<RdsDeleteParams, RdsDeleteResponse> 
   name: 'RDS Delete',
   description: 'Delete data from an Amazon RDS table using the Data API',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

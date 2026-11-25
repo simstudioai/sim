@@ -13,6 +13,7 @@ export const executeChangeSetTool: InternalToolConfig<
   name: 'CloudFormation Execute Change Set',
   description: 'Apply a previously created and reviewed change set to its stack',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

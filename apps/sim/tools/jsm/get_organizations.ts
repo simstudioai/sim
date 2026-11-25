@@ -10,6 +10,7 @@ export const jsmGetOrganizationsTool: InternalToolConfig<
   name: 'JSM Get Organizations',
   description: 'Get organizations for a service desk in Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -13,6 +13,7 @@ export const getUserTool: InternalToolConfig<
   name: 'Identity Center Get User',
   description: 'Look up a user in the Identity Store by email address',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

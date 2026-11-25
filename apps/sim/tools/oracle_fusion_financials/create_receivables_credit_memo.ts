@@ -20,6 +20,7 @@ export const oracleFusionFinancialsCreateReceivablesCreditMemoTool: InternalTool
   name: 'Oracle Fusion Financials Create Receivables Credit Memo',
   description: 'Create Oracle Fusion receivables credit memo.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     businessUnit: {

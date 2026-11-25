@@ -8,6 +8,7 @@ export const stripeRetrieveEventTool: ToolConfig<RetrieveEventParams, EventRespo
   name: 'Stripe Retrieve Event',
   description: 'Retrieve an existing Event by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

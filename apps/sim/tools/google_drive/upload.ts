@@ -6,6 +6,7 @@ export const uploadTool: InternalToolConfig<GoogleDriveToolParams, GoogleDriveUp
   name: 'Upload to Google Drive',
   description: 'Upload a file to Google Drive with complete metadata returned',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

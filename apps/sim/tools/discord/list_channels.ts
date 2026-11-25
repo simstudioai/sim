@@ -11,6 +11,7 @@ export const discordListChannelsTool: ToolConfig<
   name: 'Discord List Channels',
   description: 'List all channels in a Discord server',
   version: '1.0.0',
+  effect: 'read',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

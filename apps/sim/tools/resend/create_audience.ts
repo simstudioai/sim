@@ -10,6 +10,7 @@ export const resendCreateAudienceTool: ToolConfig<CreateAudienceParams, CreateAu
   name: 'Create Audience',
   description: 'Create a new audience in Resend',
   version: '1.0.0',
+  effect: 'write',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

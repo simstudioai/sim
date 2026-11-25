@@ -14,6 +14,7 @@ export const deleteUserTool: ToolConfig<
   description:
     'Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a temporary container and can be restored within 30 days.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

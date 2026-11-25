@@ -11,6 +11,7 @@ export const netsuiteGetAsyncStatusTool: InternalToolConfig<
   name: 'NetSuite Get Async Status',
   description: 'Retrieve job status, list job tasks, or retrieve one task status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

@@ -25,6 +25,7 @@ export const spotifyGetShowTool: ToolConfig<SpotifyGetShowParams, SpotifyGetShow
   name: 'Spotify Get Show',
   description: 'Get details for a podcast show.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

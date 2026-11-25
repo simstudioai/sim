@@ -13,6 +13,7 @@ export const cancelQueryTool: InternalToolConfig<
   name: 'CloudTrail Cancel Query',
   description: 'Cancel a running CloudTrail Lake query',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

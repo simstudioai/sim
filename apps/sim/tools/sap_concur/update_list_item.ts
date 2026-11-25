@@ -11,6 +11,7 @@ export const updateListItemTool: InternalToolConfig<UpdateListItemParams, SapCon
   name: 'SAP Concur Update List Item',
   description: 'Update a list item (PUT /list/v4/items/{itemId}).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

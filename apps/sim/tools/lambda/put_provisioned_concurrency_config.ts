@@ -13,6 +13,7 @@ export const putProvisionedConcurrencyConfigTool: InternalToolConfig<
   name: 'Lambda Set Provisioned Concurrency',
   description: 'Allocate provisioned concurrency to a function version or alias',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

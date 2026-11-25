@@ -13,6 +13,7 @@ export const personSearchTool: ToolConfig<PdlPersonSearchParams, PdlPersonSearch
   description:
     'Search the People Data Labs person dataset using SQL or Elasticsearch DSL. Returns up to 100 matching records per call.',
   version: '1.0.0',
+  effect: 'write',
 
   hosting: {
     envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,

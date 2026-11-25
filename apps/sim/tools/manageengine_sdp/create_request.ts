@@ -20,6 +20,7 @@ export const manageengineSdpCreateRequestTool: ToolConfig<SdpCreateRequestParams
   description:
     'Create a request (ticket) in ManageEngine ServiceDesk Plus Cloud with a subject, description, requester and classification.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

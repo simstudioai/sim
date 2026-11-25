@@ -17,6 +17,7 @@ export const rocketlaneArchiveProjectTool: ToolConfig<
   description:
     'Archive a Rocketlane project by ID, making it dormant while preserving its details and history',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

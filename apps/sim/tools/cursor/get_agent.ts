@@ -33,6 +33,7 @@ export const getAgentTool: ToolConfig<GetAgentParams, GetAgentResponse> = {
   name: 'Cursor Get Agent',
   description: 'Retrieve the current status and results of a cloud agent.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...getAgentBase,
@@ -87,6 +88,7 @@ export const getAgentV2Tool: ToolConfig<GetAgentParams, GetAgentV2Response> = {
   description:
     'Retrieve the current status and results of a cloud agent. Returns API-aligned fields only.',
   version: '2.0.0',
+  effect: 'read',
   oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()

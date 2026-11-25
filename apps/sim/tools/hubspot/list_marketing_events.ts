@@ -20,6 +20,7 @@ export const hubspotListMarketingEventsTool: ToolConfig<
   name: 'List Marketing Events from HubSpot',
   description: 'Retrieve all marketing events from HubSpot account with pagination support',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

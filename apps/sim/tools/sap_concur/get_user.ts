@@ -12,6 +12,7 @@ export const getUserTool: InternalToolConfig<GetUserParams, SapConcurResponse> =
   name: 'SAP Concur Get User',
   description: 'Get a single user by UUID (GET /profile/identity/v4.1/Users/{id}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

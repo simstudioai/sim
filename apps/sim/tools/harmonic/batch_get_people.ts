@@ -21,6 +21,7 @@ export const harmonicBatchGetPeopleTool: ToolConfig<
   description:
     'Fetch full Harmonic person profiles for up to 500 combined numeric IDs and person URNs.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 

@@ -17,6 +17,7 @@ export const bitbucketStopPipelineTool: ToolConfig<
   name: 'Bitbucket Stop Pipeline',
   description: 'Stop a running pipeline',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pipeline:write'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

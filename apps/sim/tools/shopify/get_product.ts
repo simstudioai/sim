@@ -8,6 +8,7 @@ export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyP
   name: 'Shopify Get Product',
   description: 'Get a single product by ID from your Shopify store',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

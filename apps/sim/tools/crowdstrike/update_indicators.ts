@@ -17,6 +17,7 @@ export const crowdstrikeUpdateIndicatorsTool: InternalToolConfig<
   description:
     'Update custom CrowdStrike Falcon indicators of compromise by ID (PATCH /iocs/entities/indicators/v1). DESTRUCTIVE: omitted fields may be cleared, so read each indicator with crowdstrike_get_indicator_details first and resend its full field set with your edits applied. Changing action or scope changes prevention behavior fleet-wide. type and value are immutable. Requires the "IOC Management: Write" API scope.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

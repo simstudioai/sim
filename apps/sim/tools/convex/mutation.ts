@@ -13,6 +13,7 @@ export const mutationTool: ToolConfig<ConvexFunctionCallParams, ConvexFunctionCa
   name: 'Convex Run Mutation',
   description: 'Run a Convex mutation function to write data and return its result',
   version: '1.0.0',
+  effect: 'write',
   oauth: CONVEX_CREDENTIAL_OAUTH,
 
   params: {

@@ -27,6 +27,7 @@ export const squarePayOrderTool: ToolConfig<
   name: 'Square Pay Order',
   description: 'Pay for an order using one or more already-approved payments',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

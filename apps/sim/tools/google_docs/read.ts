@@ -19,6 +19,7 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
   name: 'Read Google Docs Document',
   description: 'Read content from a Google Docs document',
   version: '1.0',
+  effect: 'read',
 
   oauth: {
     required: true,

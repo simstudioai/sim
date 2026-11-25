@@ -12,6 +12,7 @@ export const agiloftRetrieveAttachmentTool: InternalToolConfig<
   name: 'Agiloft Retrieve Attachment',
   description: 'Download an attached file from an Agiloft record field.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     instanceUrl: {

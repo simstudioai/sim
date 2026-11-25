@@ -37,6 +37,7 @@ export const confluenceGetTaskTool: InternalToolConfig<
   name: 'Confluence Get Task',
   description: 'Get a specific Confluence inline task by ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

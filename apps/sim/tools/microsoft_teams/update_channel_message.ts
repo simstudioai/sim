@@ -14,6 +14,7 @@ export const updateChannelMessageTool: ToolConfig<
   name: 'Update Microsoft Teams Channel Message',
   description: 'Update an existing message in a Microsoft Teams channel',
   version: '1.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

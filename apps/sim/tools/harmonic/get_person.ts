@@ -14,6 +14,7 @@ export const harmonicGetPersonTool: ToolConfig<HarmonicGetPersonParams, Harmonic
     description:
       'Fetch one Harmonic person by numeric ID or URN, including any email resolved by a completed enrichment job.',
     version: '1.0.0',
+    effect: 'read',
     oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
     errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 

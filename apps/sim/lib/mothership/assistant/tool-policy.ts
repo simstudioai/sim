@@ -82,5 +82,5 @@ export function assertAssistantIntegrationCall(
       'Select one of your connected accounts for this integration.'
     )
   }
-  return { credentialId, operation: tool.assistant }
+  return { credentialId, operation: { effect: tool.effect, version: tool.assistant.version } }
 }

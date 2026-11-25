@@ -30,6 +30,7 @@ export const codaListFolderChildrenTool: ToolConfig<
   description:
     'List the direct subfolders of a Coda folder. Subfolders you cannot access but manage the parent of are returned with only an ID and restricted visibility.',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

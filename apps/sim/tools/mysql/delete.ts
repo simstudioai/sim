@@ -7,6 +7,7 @@ export const deleteTool: InternalToolConfig<MySQLDeleteParams, MySQLResponse> = 
   name: 'MySQL Delete',
   description: 'Delete records from MySQL database',
   version: '1.0',
+  effect: 'write',
   oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {

@@ -19,6 +19,7 @@ export const codaDeleteRowTool: ToolConfig<CodaRowParams, CodaRowMutationRespons
   name: 'Coda Delete Row',
   description: 'Delete a row from a Coda table or view. Applied asynchronously.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

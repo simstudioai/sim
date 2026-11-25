@@ -19,6 +19,7 @@ export const revenuecatRevokeGoogleSubscriptionTool: ToolConfig<
   description:
     'Immediately revoke access to a Google Play subscription and issue a refund (Google Play only)',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

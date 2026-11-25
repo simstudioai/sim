@@ -14,6 +14,7 @@ export const vercelGetEdgeConfigItemsTool: ToolConfig<
   name: 'Vercel Get Edge Config Items',
   description: 'Get all items in an Edge Config store',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

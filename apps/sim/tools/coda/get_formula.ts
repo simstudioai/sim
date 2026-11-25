@@ -19,6 +19,7 @@ export const codaGetFormulaTool: ToolConfig<CodaGetFormulaParams, CodaFormulaRes
   name: 'Coda Get Formula',
   description: 'Get the current computed value of a named formula in a Coda doc',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

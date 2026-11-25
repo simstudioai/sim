@@ -11,7 +11,8 @@ export const salesforceGetTasksTool: ToolConfig<
   name: 'Get Tasks from Salesforce',
   description: 'Get task(s) from Salesforce',
   version: '1.0.0',
-  assistant: { effect: 'read', version: 1 },
+  effect: 'read',
+  assistant: { version: 1 },
 
   oauth: {
     required: true,

@@ -13,6 +13,7 @@ export const deleteSuppressedDestinationTool: InternalToolConfig<
   name: 'SES Delete Suppressed Destination',
   description: 'Remove an email address from the account-level SES suppression list',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

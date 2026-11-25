@@ -34,6 +34,7 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
   name: 'Update Audience in Mailchimp',
   description: 'Update an existing audience (list) in Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

@@ -21,6 +21,7 @@ export const dataverseFetchXmlQueryTool: ToolConfig<
   description:
     'Execute a FetchXML query against a Microsoft Dataverse table. FetchXML supports aggregation, grouping, linked-entity joins, and complex filtering beyond OData capabilities.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

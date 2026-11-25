@@ -23,6 +23,7 @@ export const unsubscribeLeadFromCampaignTool: ToolConfig<
   description:
     'Unsubscribes a lead from a single Smartlead campaign, leaving it active in other campaigns.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

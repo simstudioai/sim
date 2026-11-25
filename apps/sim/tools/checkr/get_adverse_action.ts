@@ -22,6 +22,7 @@ export const checkrGetAdverseActionTool: ToolConfig<
   name: 'Checkr Get Adverse Action',
   description: 'Retrieve an adverse action by ID, including its status and notice delivery state.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

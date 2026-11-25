@@ -31,6 +31,7 @@ export const spotifyGetFollowedArtistsTool: ToolConfig<
   name: 'Spotify Get Followed Artists',
   description: "Get the user's followed artists.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

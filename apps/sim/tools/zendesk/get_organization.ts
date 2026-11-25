@@ -33,6 +33,7 @@ export const zendeskGetOrganizationTool: ToolConfig<
   name: 'Get Single Organization from Zendesk',
   description: 'Get a single organization by ID from Zendesk',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

@@ -10,6 +10,7 @@ export const getUserByIdTool: ToolConfig<ThriveGetUserByIdParams, ThriveUserResp
   name: 'Thrive Get User by ID',
   description: 'Get a single user in Thrive by their ID and return basic user information.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

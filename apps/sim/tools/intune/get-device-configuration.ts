@@ -21,6 +21,7 @@ export const intuneGetDeviceConfigurationTool: ToolConfig<
   name: 'Microsoft Intune Get Device Configuration',
   description: 'Read common metadata for an Intune device configuration',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

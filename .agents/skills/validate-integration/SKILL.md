@@ -77,6 +77,12 @@ For **every** tool file, check:
 - [ ] Tool `description` is a concise one-liner describing what it does
 - [ ] Tool `version` is set (`'1.0.0'` or `'2.0.0'` for V2)
 
+### Effect
+- [ ] Every tool declares `effect`, and the label matches the API docs, not the name (rules:
+      `add-tools` → Declaring the effect)
+- [ ] Any `// tool-effect: <reason>` sits on a genuine verb/label exception, and
+      `bun run check:tool-effects` passes
+
 ### Params
 - [ ] All required API params are marked `required: true`
 - [ ] All optional API params are marked `required: false`

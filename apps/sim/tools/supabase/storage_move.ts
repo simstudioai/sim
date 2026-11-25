@@ -12,6 +12,7 @@ export const storageMoveTool: ToolConfig<SupabaseStorageMoveParams, SupabaseStor
   name: 'Supabase Storage Move',
   description: 'Move a file within a Supabase storage bucket',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

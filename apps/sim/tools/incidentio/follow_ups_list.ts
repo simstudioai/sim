@@ -18,6 +18,7 @@ export const followUpsListTool: ToolConfig<
   description:
     'List follow-ups from incident.io, optionally filtered by incident ID. Without page_size or after, follows pages automatically and returns up to 2,500 follow-ups, oldest first; if more remain, pagination_meta.after is set. Pass page_size or after to fetch a single page.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const getSecretTool: InternalToolConfig<
   name: 'Secrets Manager Get Secret',
   description: 'Retrieve a secret value from AWS Secrets Manager',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

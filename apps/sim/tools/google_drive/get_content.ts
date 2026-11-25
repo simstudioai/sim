@@ -50,6 +50,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
   description:
     'Get content from a file in Google Drive with complete metadata (exports Google Workspace files automatically)',
   version: '1.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -23,6 +23,7 @@ export const updateCampaignTool: ToolConfig<
   name: 'Email Bison Update Campaign',
   description: 'Updates Email Bison campaign settings.',
   version: '1.0.0',
+  effect: 'write',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

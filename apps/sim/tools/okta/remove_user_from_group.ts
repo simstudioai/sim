@@ -19,6 +19,7 @@ export const oktaRemoveUserFromGroupTool: ToolConfig<
   name: 'Remove User from Group in Okta',
   description: 'Remove a user from a group in your Okta organization',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

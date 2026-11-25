@@ -9,6 +9,7 @@ export const spotifyGetTopArtistsTool: ToolConfig<
   name: 'Spotify Get Top Artists',
   description: "Get the current user's top artists based on listening history.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -4,10 +4,11 @@ import type { ToolConfig } from '@/tools/types'
 
 export const slackGetUserTool: ToolConfig<SlackGetUserParams, SlackGetUserResponse> = {
   id: 'slack_get_user',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Slack Get User Info',
   description: 'Get detailed information about a specific Slack user by their user ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

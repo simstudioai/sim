@@ -14,6 +14,7 @@ export const salesforceDeleteCaseTool: ToolConfig<
   name: 'Delete Case from Salesforce',
   description: 'Delete a case',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -11,6 +11,7 @@ export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpda
     description:
       'Update a Sentry project by changing its name, slug, platform, or other settings. Returns the updated project details.',
     version: '1.0.0',
+    effect: 'write',
     oauth: SENTRY_CREDENTIAL_OAUTH,
 
     params: {

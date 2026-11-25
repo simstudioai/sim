@@ -6,6 +6,7 @@ export const readFileContentTool: InternalToolConfig<SSHReadFileContentParams, S
   name: 'SSH Read File Content',
   description: 'Read the contents of a remote file',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

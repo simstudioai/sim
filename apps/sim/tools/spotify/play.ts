@@ -7,6 +7,7 @@ export const spotifyPlayTool: ToolConfig<SpotifyPlayParams, SpotifyPlayResponse>
   description:
     'Start or resume playback on Spotify. Can play specific tracks, albums, or playlists.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

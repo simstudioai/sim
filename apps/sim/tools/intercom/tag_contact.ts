@@ -64,6 +64,7 @@ export const intercomTagContactV2Tool: ToolConfig<
   name: 'Tag Contact in Intercom',
   description: 'Add a tag to a specific contact',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

@@ -34,6 +34,7 @@ export const sportmonksOddsGetMarketsTool: ToolConfig<
   name: 'Get Markets',
   description: 'Retrieve all betting markets from the Sportmonks Odds API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const salesforceUpdateLeadTool: ToolConfig<
   name: 'Update Lead in Salesforce',
   description: 'Update an existing lead',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

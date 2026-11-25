@@ -20,6 +20,7 @@ export const jamaDeleteRelationshipTool: ToolConfig<
   name: 'Jama Delete Relationship',
   description: "Delete Relationship in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'write',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

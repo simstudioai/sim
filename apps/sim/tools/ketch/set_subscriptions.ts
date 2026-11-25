@@ -14,6 +14,7 @@ export const setSubscriptionsTool: ToolConfig<
   description:
     'Update subscription preferences for a data subject. Sets topic and control statuses for email, SMS, and other contact methods.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     organizationCode: {

@@ -18,6 +18,7 @@ export const otterGetWorkspaceTool: ToolConfig<OtterGetWorkspaceParams, OtterGet
     description:
       'Get the Otter workspace of the authenticated user, including its ID, name, owner, member count, handle, and type.',
     version: '1.0.0',
+    effect: 'read',
     oauth: OTTER_CREDENTIAL_OAUTH,
 
     params: {

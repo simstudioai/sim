@@ -7,10 +7,11 @@ export const slackGetChannelInfoTool: ToolConfig<
   SlackGetChannelInfoResponse
 > = {
   id: 'slack_get_channel_info',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Slack Get Channel Info',
   description: 'Get detailed information about a Slack channel by its ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

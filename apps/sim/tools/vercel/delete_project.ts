@@ -11,6 +11,7 @@ export const vercelDeleteProjectTool: ToolConfig<
   name: 'Vercel Delete Project',
   description: 'Delete a Vercel project',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

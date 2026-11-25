@@ -23,6 +23,7 @@ export const fivetranCancelTransformationTool: ToolConfig<
   name: 'Fivetran Cancel Transformation',
   description: 'Cancel a running Fivetran transformation.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

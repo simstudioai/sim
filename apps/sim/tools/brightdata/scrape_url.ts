@@ -14,6 +14,7 @@ export const brightDataScrapeUrlTool: ToolConfig<
   description:
     'Fetch page content with Bright Data Web Unlocker, including its supported anti-bot, CAPTCHA, and IP-block handling. Access depends on the target site and zone configuration.',
   version: '1.0.0',
+  effect: 'read',
   oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {

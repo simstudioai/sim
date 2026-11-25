@@ -20,6 +20,7 @@ export const clickupUpdateChecklistItemTool: ToolConfig<
   name: 'ClickUp Update Checklist Item',
   description: 'Update a checklist item on a ClickUp task — rename, assign, resolve, or nest it',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -16,6 +16,7 @@ export const cbinsightsGetOrgManagementAndBoardTool: InternalToolConfig<
   description:
     "Retrieve an organization's leadership team and board members with their education, work history, and board seats, plus the Management factor of its Mosaic Score.",
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

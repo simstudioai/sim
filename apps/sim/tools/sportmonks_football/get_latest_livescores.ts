@@ -28,6 +28,7 @@ export const sportmonksGetLatestLivescoresTool: ToolConfig<
   name: 'Get Latest Updated Livescores',
   description: 'Retrieve all livescores that have received updates within the last 10 seconds',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

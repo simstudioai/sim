@@ -14,6 +14,7 @@ export const squareGetCustomerTool: ToolConfig<GetCustomerParams, CustomerRespon
   name: 'Square Get Customer',
   description: 'Retrieve a single customer profile by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

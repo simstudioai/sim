@@ -10,6 +10,7 @@ export const manageengineSdpDeleteRequestTool: ToolConfig<SdpDeleteRequestParams
   description:
     'Move a ManageEngine ServiceDesk Plus Cloud request to the trash. Deleting a request also removes its notes, tasks and worklogs.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

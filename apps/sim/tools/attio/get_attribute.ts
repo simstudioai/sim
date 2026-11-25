@@ -12,6 +12,7 @@ export const attioGetAttributeTool: ToolConfig<AttioGetAttributeParams, AttioGet
     name: 'Attio Get Attribute',
     description: 'Get a single attribute (schema field) on an Attio object or list',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

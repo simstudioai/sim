@@ -13,6 +13,7 @@ export const hubspotSearchNotesTool: ToolConfig<
   name: 'Search Notes in HubSpot',
   description: 'Search for notes in HubSpot using filters, sorting, and queries',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

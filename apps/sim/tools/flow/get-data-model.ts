@@ -19,6 +19,7 @@ export const flowGetDataModelTool: ToolConfig<FlowGetDataModelParams, FlowGetDat
   description:
     'Read the project categories and field definitions before interpreting values or writing custom fields.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

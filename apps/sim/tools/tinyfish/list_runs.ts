@@ -18,6 +18,7 @@ export const listRunsTool: ToolConfig<TinyFishListRunsParams, TinyFishListRunsRe
   description:
     'List TinyFish automation runs, optionally filtered by status, goal text, or creation date',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     status: {

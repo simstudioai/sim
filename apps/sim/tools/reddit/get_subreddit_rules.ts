@@ -33,6 +33,7 @@ export const getSubredditRulesTool: ToolConfig<
   name: 'Get Subreddit Rules',
   description: 'Get the rules and site-wide rules that apply to a subreddit',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -7,6 +7,7 @@ export const updateTool: InternalToolConfig<Neo4jUpdateParams, Neo4jResponse> = 
   description:
     'Execute SET statements to update properties of existing nodes and relationships in Neo4j',
   version: '1.0',
+  effect: 'write',
 
   params: {
     host: {

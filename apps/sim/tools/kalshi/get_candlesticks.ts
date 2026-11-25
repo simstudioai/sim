@@ -25,6 +25,7 @@ export const kalshiGetCandlesticksTool: ToolConfig<
   name: 'Get Market Candlesticks from Kalshi',
   description: 'Retrieve OHLC candlestick data for a specific market',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     seriesTicker: {
@@ -167,6 +168,7 @@ export const kalshiGetCandlesticksV2Tool: ToolConfig<
   name: 'Get Market Candlesticks from Kalshi V2',
   description: 'Retrieve OHLC candlestick data for a specific market',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     seriesTicker: {

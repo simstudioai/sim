@@ -17,6 +17,7 @@ export const pipedriveUpdateDealTool: ToolConfig<
   name: 'Update Deal in Pipedrive',
   description: 'Update an existing deal in Pipedrive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

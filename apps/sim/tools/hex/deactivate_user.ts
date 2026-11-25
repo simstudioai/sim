@@ -9,6 +9,7 @@ export const deactivateUserTool: ToolConfig<HexDeactivateUserParams, HexDeactiva
   name: 'Hex Deactivate User',
   description: 'Deactivate a user in the Hex workspace.',
   version: '1.0.0',
+  effect: 'write',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

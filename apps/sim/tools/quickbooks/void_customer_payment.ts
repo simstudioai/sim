@@ -24,6 +24,7 @@ export const quickbooksVoidCustomerPaymentTool: ToolConfig<
   name: 'QuickBooks Void Customer Payment',
   description: 'Void a customer payment after explicit confirmation',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

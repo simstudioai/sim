@@ -19,6 +19,7 @@ export const intuneListAppDevicesTool: ToolConfig<
   name: 'Microsoft Intune List App Devices',
   description: 'Read one page of managed devices that have a detected application installed',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

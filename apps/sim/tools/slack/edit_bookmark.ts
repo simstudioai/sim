@@ -7,6 +7,7 @@ export const slackEditBookmarkTool = createSlackWebApiTool({
   id: 'slack_edit_bookmark',
   name: 'Slack Edit Bookmark',
   description: 'Change a channel link bookmark’s title, URL, or emoji.',
+  effect: 'write',
   endpoint: 'bookmarks.edit',
   method: 'POST',
   oauth: {

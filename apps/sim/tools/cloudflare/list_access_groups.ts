@@ -23,6 +23,7 @@ export const listAccessGroupsTool: ToolConfig<
   description:
     'Lists the reusable Cloudflare Access (Zero Trust) groups in an account. Groups bundle identity rules that policies can reference by ID. Requires an API token with Account Access: Organizations, Identity Providers, and Groups Read.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

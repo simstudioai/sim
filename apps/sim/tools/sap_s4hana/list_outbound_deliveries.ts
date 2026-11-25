@@ -11,6 +11,7 @@ export const listOutboundDeliveriesTool: InternalToolConfig<
   description:
     'List outbound deliveries from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=0002, A_OutbDeliveryHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

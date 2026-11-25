@@ -19,6 +19,7 @@ export const clerkUpdateOrganizationMembershipTool: ToolConfig<
   name: 'Update Organization Membership in Clerk',
   description: "Change a member's role within a Clerk organization",
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

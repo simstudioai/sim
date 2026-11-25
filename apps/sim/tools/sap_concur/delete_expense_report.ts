@@ -14,6 +14,7 @@ export const deleteExpenseReportTool: InternalToolConfig<
   name: 'SAP Concur Delete Expense Report',
   description: 'Delete an expense report (DELETE /expensereports/v4/reports/{reportId}).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

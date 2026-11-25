@@ -11,6 +11,7 @@ export const getCallTranscriptTool: ToolConfig<
   name: 'Gong Get Call Transcript',
   description: 'Retrieve transcripts of calls from Gong by call IDs or date range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

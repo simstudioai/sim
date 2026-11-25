@@ -26,10 +26,11 @@ export const confluenceGetUserTool: InternalToolConfig<
   ConfluenceGetUserResponse
 > = {
   id: 'confluence_get_user',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Confluence Get User',
   description: 'Get display name and profile info for a Confluence user by account ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

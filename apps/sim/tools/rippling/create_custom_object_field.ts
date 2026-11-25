@@ -9,6 +9,7 @@ export const ripplingCreateCustomObjectFieldTool: ToolConfig<RipplingCreateCusto
     name: 'Rippling Create Custom Object Field',
     description: 'Create a field on a custom object',
     version: '1.0.0',
+    effect: 'write',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

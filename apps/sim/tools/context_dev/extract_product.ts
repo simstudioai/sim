@@ -22,6 +22,7 @@ export const contextDevExtractProductTool: ToolConfig<
   name: 'Context.dev Extract Product',
   description: 'Detect and extract structured product details from a single product page URL.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevExtractProductParams>(),
 

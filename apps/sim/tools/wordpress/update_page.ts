@@ -11,6 +11,7 @@ export const updatePageTool: ToolConfig<WordPressUpdatePageParams, WordPressUpda
   name: 'WordPress Update Page',
   description: 'Update an existing page in WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

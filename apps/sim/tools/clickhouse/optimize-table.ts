@@ -12,6 +12,7 @@ export const optimizeTableTool: InternalToolConfig<
   name: 'ClickHouse Optimize Table',
   description: 'Trigger a merge of table parts via OPTIMIZE TABLE',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -21,6 +21,7 @@ export const polymarketGetOrderbookTool: ToolConfig<
   name: 'Get Orderbook from Polymarket',
   description: 'Retrieve the order book summary for a specific token',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tokenId: {

@@ -7,6 +7,7 @@ export const resendSendTool: InternalToolConfig<MailSendParams, MailSendResult> 
   name: 'Send Email',
   description: 'Send an email using your own Resend API key and from address',
   version: '1.0.0',
+  effect: 'write',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

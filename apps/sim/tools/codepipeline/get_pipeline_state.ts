@@ -14,6 +14,7 @@ export const getPipelineStateTool: InternalToolConfig<
   description:
     'Get the current state of a CodePipeline pipeline, including stage and action status and pending approval tokens',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

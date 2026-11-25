@@ -28,6 +28,7 @@ export const sportmonksGetLatestFixturesTool: ToolConfig<
   name: 'Get Latest Updated Fixtures',
   description: 'Retrieve all fixtures that have received updates within the last 10 seconds',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

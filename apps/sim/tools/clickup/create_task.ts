@@ -13,6 +13,7 @@ export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpT
   name: 'ClickUp Create Task',
   description: 'Create a new task in a ClickUp list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

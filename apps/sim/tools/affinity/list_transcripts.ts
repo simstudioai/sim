@@ -17,6 +17,7 @@ export const affinityListTranscriptsTool: ToolConfig<
   description:
     'Page through meeting transcript metadata. Read one transcript to get what was actually said.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

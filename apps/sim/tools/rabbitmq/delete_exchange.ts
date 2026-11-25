@@ -20,6 +20,7 @@ export const rabbitmqDeleteExchangeTool: ToolConfig<
   description:
     'Delete a RabbitMQ exchange and every binding attached to it. Publishers targeting it will fail afterwards.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

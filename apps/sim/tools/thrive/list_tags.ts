@@ -17,6 +17,7 @@ export const listTagsTool: ToolConfig<ThriveListTagsParams, ThriveListTagsRespon
   name: 'Thrive List Tags',
   description: 'List tags in Thrive and return tag information with pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

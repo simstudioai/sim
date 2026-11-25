@@ -13,6 +13,7 @@ export const oktaUpdateUserTool: ToolConfig<OktaUpdateUserParams, OktaUpdateUser
   name: 'Update User in Okta',
   description: 'Update a user profile in your Okta organization',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

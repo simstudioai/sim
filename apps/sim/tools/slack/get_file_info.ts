@@ -15,6 +15,7 @@ export const slackGetFileInfoTool = createSlackWebApiTool({
   name: 'Slack Get File Info',
   description:
     'Read Slack file metadata and one page of legacy file comments. Continue with response_metadata.next_cursor.',
+  effect: 'read',
   endpoint: 'files.info',
   method: 'GET',
   oauth: { required: true, provider: 'slack', requiredScopes: ['files:read'] },

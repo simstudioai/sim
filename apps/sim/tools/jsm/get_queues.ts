@@ -7,6 +7,7 @@ export const jsmGetQueuesTool: InternalToolConfig<JsmGetQueuesParams, JsmGetQueu
   name: 'JSM Get Queues',
   description: 'Get queues for a service desk in Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

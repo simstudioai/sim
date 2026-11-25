@@ -24,6 +24,7 @@ function optionalCopyFlag(value: unknown): boolean | undefined {
 export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeStatementResponse> = {
   id: 'snowflake_load_data',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Load Data',
   description: 'Load files from an existing Snowflake stage with COPY INTO.',

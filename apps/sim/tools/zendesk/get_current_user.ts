@@ -31,6 +31,7 @@ export const zendeskGetCurrentUserTool: ToolConfig<
   name: 'Get Current User from Zendesk',
   description: 'Get the currently authenticated user from Zendesk',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

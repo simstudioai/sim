@@ -8,6 +8,7 @@ export const ripplingListEntitlementsTool: ToolConfig<RipplingListEntitlementsPa
   name: 'Rippling List Entitlements',
   description: 'List all entitlements',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

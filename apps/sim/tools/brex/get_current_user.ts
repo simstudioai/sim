@@ -8,6 +8,7 @@ export const brexGetCurrentUserTool: ToolConfig<BrexApiKeyParams, BrexGetUserRes
   name: 'Brex Get Current User',
   description: 'Get the Brex user associated with the API token',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

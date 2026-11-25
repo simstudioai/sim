@@ -8,6 +8,7 @@ export const mcpRunOperationTool: InternalToolConfig<
   id: 'mcp_run_operation',
   name: 'Run MCP operation',
   version: '1.0.0',
+  effect: 'write',
   description: 'Run an authorized MCP operation with its discovered input schema.',
   params: {
     server: {

@@ -19,6 +19,7 @@ export const uptimeRobotListIncidentsTool: ToolConfig<
   description:
     'List incidents across your UptimeRobot account (last 24 hours by default), with optional filters',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

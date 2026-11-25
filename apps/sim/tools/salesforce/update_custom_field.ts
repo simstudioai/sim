@@ -30,6 +30,7 @@ export const salesforceUpdateCustomFieldTool: InternalToolConfig<
   name: 'Update Custom Field in Salesforce',
   description: 'Update an existing custom field on a Salesforce object using the Tooling API',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

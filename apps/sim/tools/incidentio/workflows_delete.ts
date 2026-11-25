@@ -8,6 +8,7 @@ export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDel
   name: 'incident.io Workflows Delete',
   description: 'Delete a workflow in incident.io.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

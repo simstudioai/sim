@@ -8,11 +8,12 @@ export const gitlabListProjectsTool: ToolConfig<
   GitLabListProjectsResponse
 > = {
   id: 'gitlab_list_projects',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List Projects',
   description: 'List GitLab projects accessible to the authenticated user',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

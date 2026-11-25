@@ -7,6 +7,7 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
   name: 'Create Notion Database',
   description: 'Create a new database in Notion with custom properties',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -159,6 +160,7 @@ export const notionCreateDatabaseV2Tool: ToolConfig<
   name: 'Create Notion Database',
   description: 'Create a new database in Notion with custom properties',
   version: '2.0.0',
+  effect: 'write',
   oauth: notionCreateDatabaseTool.oauth,
   params: notionCreateDatabaseTool.params,
   request: notionCreateDatabaseTool.request,

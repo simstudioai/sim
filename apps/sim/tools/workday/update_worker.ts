@@ -9,6 +9,7 @@ export const updateWorkerTool: InternalToolConfig<
   name: 'Update Workday Worker',
   description: 'Update fields on an existing worker record in Workday.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     tenantUrl: {

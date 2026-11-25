@@ -39,6 +39,7 @@ export const updateCandidateTool: ToolConfig<
   name: 'Ashby Update Candidate',
   description: 'Updates an existing candidate record in Ashby. Only provided fields are changed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

@@ -10,6 +10,7 @@ export const hubspotListCartsTool: ToolConfig<HubSpotListCartsParams, HubSpotLis
   name: 'List Carts from HubSpot',
   description: 'Retrieve all carts from HubSpot account with pagination support',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

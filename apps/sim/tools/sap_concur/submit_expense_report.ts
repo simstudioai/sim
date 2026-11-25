@@ -15,6 +15,7 @@ export const submitExpenseReportTool: InternalToolConfig<
   description:
     'Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/{userId}/reports/{reportId}/submit). Takes no request body.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

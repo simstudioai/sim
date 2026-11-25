@@ -29,6 +29,7 @@ export const listProblemsTool: ToolConfig<
   description:
     'List Davis-detected problems in a Dynatrace environment, filtered by timeframe, problem selector, or entity selector.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

@@ -25,6 +25,7 @@ export const quickbooksCreatePurchaseTool: ToolConfig<
   name: 'QuickBooks Create Purchase',
   description: 'Record a cash, check, or credit-card purchase with bounded expense lines',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

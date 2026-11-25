@@ -37,6 +37,7 @@ export const addImageTool: ToolConfig<AddImageParams, AddImageResponse> = {
   name: 'Add Image to Google Slides',
   description: 'Insert an image into a specific slide in a Google Slides presentation',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

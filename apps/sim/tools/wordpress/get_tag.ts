@@ -11,6 +11,7 @@ export const getTagTool: ToolConfig<WordPressGetTagParams, WordPressGetTagRespon
   name: 'WordPress Get Tag',
   description: 'Get a single tag from WordPress.com by ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

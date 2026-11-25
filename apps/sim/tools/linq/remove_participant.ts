@@ -9,6 +9,7 @@ export const linqRemoveParticipantTool: ToolConfig<LinqParticipantParams, LinqQu
   name: 'Remove Participant',
   description: 'Remove a participant from a group chat (minimum 3 participants must remain)',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

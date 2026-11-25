@@ -13,6 +13,7 @@ export const brexListLocationsTool: ToolConfig<BrexNameFilterParams, BrexListLoc
   name: 'Brex List Locations',
   description: 'List locations in the Brex account, optionally filtered by name',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

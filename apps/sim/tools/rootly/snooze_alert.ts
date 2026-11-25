@@ -10,6 +10,7 @@ export const rootlySnoozeAlertTool: ToolConfig<RootlySnoozeAlertParams, RootlyAl
     name: 'Rootly Snooze Alert',
     description: 'Snooze a Rootly alert for a set number of minutes.',
     version: '1.0.0',
+    effect: 'write',
     oauth: ROOTLY_CREDENTIAL_OAUTH,
 
     params: {

@@ -14,6 +14,7 @@ export const deleteGroupTool: ToolConfig<
   description:
     'Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 groups can be restored within 30 days. Cloud security-group recovery is a public-cloud preview with tenant restrictions; confirm eligibility before deleting.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

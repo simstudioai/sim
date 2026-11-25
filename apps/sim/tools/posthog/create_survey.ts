@@ -62,6 +62,7 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
     description:
       'Create a new survey in PostHog. Supports question types: Basic (open), Link, Rating, and Multiple Choice.',
     version: '1.0.0',
+    effect: 'write',
     errorExtractor: 'posthog-errors',
 
     params: {

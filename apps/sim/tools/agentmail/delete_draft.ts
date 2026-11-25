@@ -8,6 +8,7 @@ export const agentmailDeleteDraftTool: ToolConfig<DeleteDraftParams, DeleteDraft
   name: 'Delete Draft',
   description: 'Delete an email draft in AgentMail',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

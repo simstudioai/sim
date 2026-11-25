@@ -14,6 +14,7 @@ export const deleteTool: ToolConfig<GoogleContactsDeleteParams, GoogleContactsDe
   name: 'Google Contacts Delete',
   description: 'Delete a contact from Google Contacts',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

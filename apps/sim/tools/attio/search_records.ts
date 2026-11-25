@@ -12,6 +12,7 @@ export const attioSearchRecordsTool: ToolConfig<
   name: 'Attio Search Records',
   description: 'Fuzzy search for records across object types in Attio',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

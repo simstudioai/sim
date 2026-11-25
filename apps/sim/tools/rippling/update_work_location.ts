@@ -8,6 +8,7 @@ export const ripplingUpdateWorkLocationTool: ToolConfig<RipplingUpdateWorkLocati
   name: 'Rippling Update Work Location',
   description: 'Update a work location',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

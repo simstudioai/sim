@@ -14,6 +14,7 @@ export const listScheduledEventsTool: ToolConfig<
   name: 'Calendly List Scheduled Events',
   description: 'Retrieve a list of scheduled events for a user or organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

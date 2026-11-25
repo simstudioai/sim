@@ -20,6 +20,7 @@ export const tiktokQueryVideosTool: ToolConfig<TikTokQueryVideosParams, TikTokQu
     description:
       'Query specific TikTok videos by their IDs to get fresh metadata including cover images, embed links, and video details.',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

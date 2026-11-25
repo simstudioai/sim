@@ -30,6 +30,7 @@ export const sportmonksGetFixtureTool: ToolConfig<
   name: 'Get Fixture by ID',
   description: 'Retrieve a single football fixture by its ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

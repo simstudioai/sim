@@ -14,6 +14,7 @@ export const createWatchTool: ToolConfig<
   name: 'Google Forms: Create Watch',
   description: 'Create a notification watch for form changes (schema changes or new responses)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

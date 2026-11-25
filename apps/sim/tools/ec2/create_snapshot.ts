@@ -15,6 +15,7 @@ export const createSnapshotTool: InternalToolConfig<
   name: 'EC2 Create Snapshot',
   description: 'Create a point-in-time snapshot of an EBS volume',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

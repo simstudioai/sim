@@ -34,6 +34,7 @@ export const sportmonksOddsGetAllInplayOddsTool: ToolConfig<
   name: 'Get All In-play Odds',
   description: 'Retrieve all available live (in-play) odds from the Sportmonks Odds API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

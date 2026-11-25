@@ -9,6 +9,7 @@ export const gitlabAddMemberTool: ToolConfig<GitLabAddMemberParams, GitLabAddMem
   name: 'GitLab Add Member',
   description: 'Add an existing GitLab user to a project or group at a given access level',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

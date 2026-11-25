@@ -20,6 +20,7 @@ export const rocketlaneGetInvoiceLineItemsTool: ToolConfig<
   name: 'Rocketlane Get Invoice Line Items',
   description: 'List line items of a Rocketlane invoice',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

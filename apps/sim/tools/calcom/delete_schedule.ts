@@ -10,6 +10,7 @@ export const deleteScheduleTool: ToolConfig<
   name: 'Cal.com Delete Schedule',
   description: 'Delete a schedule from Cal.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

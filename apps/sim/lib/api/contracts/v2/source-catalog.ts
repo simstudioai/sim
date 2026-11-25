@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { v2ToolEffectSchema } from '@/lib/api/contracts/v2/catalog'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -343,6 +344,15 @@ const catalogBlockSchema = z
       )
       .optional()
       .describe('Per operation id: the outputs its tool returns, where they differ.'),
+    effect: v2ToolEffectSchema
+      .optional()
+      .describe(
+        '`read` when every tool the block can run changes nothing outside Sim, else `write`. Absent for a block with no `tools.access`.'
+      ),
+    operationEffects: z
+      .record(z.string(), v2ToolEffectSchema)
+      .optional()
+      .describe("Per operation id: its tool's effect, where it differs from `effect`."),
     dynamicOutputs: z
       .object({
         source: z

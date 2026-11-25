@@ -14,6 +14,7 @@ export const createConfigurationSetTool: InternalToolConfig<
   description:
     'Create an SES configuration set to control tracking, delivery, reputation, sending, and suppression behavior for emails',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

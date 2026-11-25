@@ -13,6 +13,7 @@ export const getAccountSettingsTool: InternalToolConfig<
   name: 'Lambda Get Account Settings',
   description: 'Get the Lambda limits and usage of the current AWS account and region',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

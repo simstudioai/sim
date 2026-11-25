@@ -335,7 +335,7 @@ async function buildIntegrationToolSchemaVariant(
         ...(options.personalAccountsOnly && toolConfig.assistant
           ? {
               assistant: {
-                effect: toolConfig.assistant.effect,
+                effect: toolConfig.effect,
                 version: toolConfig.assistant.version,
               },
             }

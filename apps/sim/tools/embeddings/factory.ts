@@ -101,6 +101,7 @@ export function createEmbeddingTool(
     name,
     description,
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       input: {

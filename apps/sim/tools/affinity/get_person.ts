@@ -20,6 +20,7 @@ export const affinityGetPersonTool: ToolConfig<
   description:
     'Look up one person by ID. Field data is returned only for the Field IDs or Field Types asked for.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

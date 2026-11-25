@@ -11,6 +11,7 @@ export const hubspotGetCartTool: ToolConfig<HubSpotGetCartParams, HubSpotGetCart
   name: 'Get Cart from HubSpot',
   description: 'Retrieve a single cart by ID from HubSpot',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

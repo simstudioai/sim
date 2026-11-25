@@ -26,6 +26,7 @@ export const monacoListOpportunityContactsTool: ToolConfig<
   description:
     'List the contacts linked to a Monaco opportunity, with their email, name, title, and how each link was created.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

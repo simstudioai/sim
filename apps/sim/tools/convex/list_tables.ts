@@ -10,6 +10,7 @@ export const listTablesTool: ToolConfig<ConvexListTablesParams, ConvexListTables
   description:
     'List all tables in a Convex deployment along with their JSON schemas. Requires streaming export, available on Convex paid plans.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CONVEX_CREDENTIAL_OAUTH,
 
   params: {

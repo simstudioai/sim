@@ -11,6 +11,7 @@ export const getPostTool: ToolConfig<WordPressGetPostParams, WordPressGetPostRes
   name: 'WordPress Get Post',
   description: 'Get a single blog post from WordPress.com by ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

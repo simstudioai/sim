@@ -7,6 +7,7 @@ export const knowledgeListChunksTool: InternalToolConfig<any, KnowledgeListChunk
   description:
     'List chunks for a document in a knowledge base with optional filtering and pagination',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     knowledgeBaseId: {

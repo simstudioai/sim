@@ -40,6 +40,7 @@ export const setConsentTool: ToolConfig<KetchSetConsentParams, KetchSetConsentRe
   description:
     'Update consent preferences for a data subject. Sets the consent status for specified purposes with the appropriate legal basis.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     organizationCode: {

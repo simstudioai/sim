@@ -10,6 +10,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
   description:
     'List job runs in a Databricks workspace with optional filtering by job, status, and time range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

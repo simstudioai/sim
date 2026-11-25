@@ -22,6 +22,7 @@ export const affinityListSavedViewEntriesTool: ToolConfig<
   description:
     "Page through the rows of a saved view. The view's own filters and columns decide which rows and which field data come back.",
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

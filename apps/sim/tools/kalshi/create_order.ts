@@ -63,6 +63,7 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
     name: 'Create Order on Kalshi',
     description: 'Create a new order on a Kalshi prediction market',
     version: '1.0.0',
+    effect: 'write',
     oauth: KALSHI_CREDENTIAL_OAUTH,
 
     params: {
@@ -298,6 +299,7 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
   name: 'Create Order on Kalshi V2',
   description: 'Create a new order on a Kalshi prediction market',
   version: '2.0.0',
+  effect: 'write',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {

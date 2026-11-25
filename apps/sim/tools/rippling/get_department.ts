@@ -9,6 +9,7 @@ export const ripplingGetDepartmentTool: ToolConfig<RipplingGetDepartmentParams> 
   name: 'Rippling Get Department',
   description: 'Get a specific department by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

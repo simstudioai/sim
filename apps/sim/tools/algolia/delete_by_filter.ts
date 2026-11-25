@@ -13,6 +13,7 @@ export const deleteByFilterTool: ToolConfig<
   name: 'Algolia Delete By Filter',
   description: 'Delete all records matching a filter from an Algolia index',
   version: '1.0',
+  effect: 'write',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

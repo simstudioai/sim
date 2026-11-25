@@ -16,6 +16,7 @@ export const codaDeleteFolderTool: ToolConfig<CodaFolderParams, CodaDeleteFolder
   name: 'Coda Delete Folder',
   description: 'Delete an empty Coda folder (it must contain no docs)',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

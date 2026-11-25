@@ -10,6 +10,7 @@ export const suspendUserTool: ToolConfig<ThriveSuspendUserParams, ThriveUserResp
   name: 'Thrive Suspend User',
   description: 'Suspend a user in Thrive by ref, marking the account inactive.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

@@ -10,6 +10,7 @@ export const receiveMessageTool: InternalToolConfig<
   name: 'SQS Receive Message',
   description: 'Receive up to 10 messages from an Amazon SQS queue, with optional long polling',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -23,6 +23,7 @@ export const quartrListSlideDecksTool: ToolConfig<
   description:
     'List slide presentations from Quartr, filterable by company, event, document type, document group, and date range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

@@ -2144,7 +2144,7 @@ async function executeToolImplementation(
         if (
           tool.oauth?.retryOnUnauthorized &&
           tool.operation &&
-          !(operationContext?.requestMode === 'assistant' && tool.assistant?.effect === 'write')
+          !(operationContext?.requestMode === 'assistant' && tool.effect === 'write')
         ) {
           refreshCredential = resolveCredential
         }
@@ -3209,7 +3209,7 @@ async function executeToolRequest(
     })
 
     const retryConfig =
-      context?.requestMode === 'assistant' && tool.assistant?.effect === 'write'
+      context?.requestMode === 'assistant' && tool.effect === 'write'
         ? null
         : getRetryConfig(tool.request.retry, params, requestParams.method)
     const maxAttempts = retryConfig ? 1 + retryConfig.maxRetries : 1

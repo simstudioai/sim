@@ -43,6 +43,7 @@ export const getQrCodeTool = {
   description:
     'Generate a customizable QR code (PNG) for a short link, with control over size, error correction, colors, and margin.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {

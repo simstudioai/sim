@@ -9,6 +9,7 @@ export const vercelDeleteAliasTool: ToolConfig<VercelDeleteAliasParams, VercelDe
     name: 'Vercel Delete Alias',
     description: 'Delete an alias by its ID',
     version: '1.0.0',
+    effect: 'write',
     oauth: VERCEL_CREDENTIAL_OAUTH,
 
     params: {

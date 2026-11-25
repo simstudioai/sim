@@ -13,6 +13,7 @@ export const listDeploymentStrategiesTool: InternalToolConfig<
   name: 'AppConfig List Deployment Strategies',
   description: 'List deployment strategies available in AWS AppConfig',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const railwayRollbackDeploymentTool: ToolConfig<
   name: 'Railway Rollback Deployment',
   description: 'Roll a Railway service back to a previous deployment',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

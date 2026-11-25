@@ -11,6 +11,7 @@ export const createCollectionTool: ToolConfig<
   name: 'Hex Create Collection',
   description: 'Create a new collection in the Hex workspace to organize projects.',
   version: '1.0.0',
+  effect: 'write',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

@@ -56,6 +56,7 @@ export const icypeasFindEmailTool: ToolConfig<IcypeasFindEmailParams, IcypeasFin
   description:
     'Find a professional email address from a first name, last name, and company domain or name. Submits the search and polls until a result is available. Costs 1 credit per found email (https://www.icypeas.com/pricing).',
   version: '1.0.0',
+  effect: 'write',
 
   hosting: icypeasHosting<IcypeasFindEmailParams>((_params, output) => {
     const status = output.status as string | undefined

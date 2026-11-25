@@ -20,6 +20,7 @@ export const codaGetPageTool: ToolConfig<CodaPageParams, CodaPageResponse> = {
   name: 'Coda Get Page',
   description: 'Get metadata for a page in a Coda doc',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

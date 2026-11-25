@@ -10,6 +10,7 @@ export const getRunStatusTool: ToolConfig<HexGetRunStatusParams, HexGetRunStatus
   name: 'Hex Get Run Status',
   description: 'Check the status of a Hex project run by its run ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

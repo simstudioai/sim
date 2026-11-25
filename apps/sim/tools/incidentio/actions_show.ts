@@ -16,6 +16,7 @@ export const actionsShowTool: ToolConfig<
   name: 'incident.io Actions Show',
   description: 'Get detailed information about a specific action from incident.io.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

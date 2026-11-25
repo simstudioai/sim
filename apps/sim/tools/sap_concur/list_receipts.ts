@@ -12,6 +12,7 @@ export const listReceiptsTool: InternalToolConfig<ListReceiptsParams, SapConcurR
   description:
     'List receipts for a user (GET /receipts/v4/users/{userId}). Concur documents no query parameters for this endpoint, so page size and offset cannot be controlled; follow the "next" URL in the response to page forward.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

@@ -13,6 +13,7 @@ export const affinityListListsTool: ToolConfig<
   name: 'Affinity List Lists',
   description: 'Page through the lists in the organization that the caller can view.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

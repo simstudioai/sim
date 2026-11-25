@@ -6,6 +6,7 @@ export const queryTool: InternalToolConfig<MongoDBQueryParams, MongoDBResponse> 
   name: 'MongoDB Query',
   description: 'Execute find operation on MongoDB collection',
   version: '1.0',
+  effect: 'read',
 
   params: {
     host: {

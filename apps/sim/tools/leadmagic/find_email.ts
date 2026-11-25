@@ -8,6 +8,7 @@ export const findEmailTool: ToolConfig<LeadMagicFindEmailParams, LeadMagicFindEm
   description:
     "Find someone's verified work email from their name and company domain. Charges 1 credit when a valid email is found; free when no result.",
   version: '1.0.0',
+  effect: 'write',
 
   hosting: leadmagicHosting<LeadMagicFindEmailParams>((_params, output) => {
     // 1 credit per valid email found, 0 credits when not found.

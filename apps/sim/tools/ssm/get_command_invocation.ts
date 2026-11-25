@@ -13,6 +13,7 @@ export const getCommandInvocationTool: InternalToolConfig<
   name: 'SSM Get Command Invocation',
   description: 'Read the output and status of a Run Command execution on one managed node',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

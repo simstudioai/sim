@@ -17,6 +17,7 @@ export const salesforceDeleteContactTool: ToolConfig<
   name: 'Delete Contact from Salesforce',
   description: 'Delete a contact from Salesforce CRM',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'salesforce' },
 

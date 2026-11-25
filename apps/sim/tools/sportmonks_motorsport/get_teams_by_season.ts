@@ -37,6 +37,7 @@ export const sportmonksMotorsportGetTeamsBySeasonTool: ToolConfig<
   description:
     'Retrieve all motorsport teams (constructors) for a season by season ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const listTravelRequestsTool: InternalToolConfig<
   name: 'SAP Concur List Travel Requests',
   description: 'List travel requests (GET /travelrequest/v4/requests).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

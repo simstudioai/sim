@@ -12,6 +12,7 @@ export const sendGridRemoveContactsFromListTool: ToolConfig<
   name: 'SendGrid Remove Contacts from List',
   description: 'Remove contacts from a specific list in SendGrid',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

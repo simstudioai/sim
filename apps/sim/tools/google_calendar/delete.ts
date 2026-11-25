@@ -18,6 +18,7 @@ export const deleteTool: ToolConfig<GoogleCalendarDeleteParams, GoogleCalendarDe
   name: 'Google Calendar Delete Event',
   description: 'Delete an event from Google Calendar',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -111,6 +112,7 @@ export const deleteV2Tool: ToolConfig<GoogleCalendarDeleteParams, GoogleCalendar
     name: 'Google Calendar Delete Event',
     description: 'Delete an event from Google Calendar.',
     version: '2.0.0',
+    effect: 'write',
     oauth: deleteTool.oauth,
     params: deleteTool.params,
     request: deleteTool.request,

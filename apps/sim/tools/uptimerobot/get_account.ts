@@ -18,6 +18,7 @@ export const uptimeRobotGetAccountTool: ToolConfig<
   name: 'UptimeRobot Get Account',
   description: 'Get details about the authenticated UptimeRobot account, including plan and limits',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const codaListDocsTool: ToolConfig<CodaListDocsParams, CodaListDocsRespon
   description:
     'List Coda docs the user has opened, most recently used first, filtered by search, owner, publishing, stars, workspace, folder, or source doc',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

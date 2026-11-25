@@ -9,6 +9,7 @@ export const attioListThreadsTool: ToolConfig<AttioListThreadsParams, AttioListT
   name: 'Attio List Threads',
   description: 'List comment threads in Attio, optionally filtered by record or list entry',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

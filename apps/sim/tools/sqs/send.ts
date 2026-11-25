@@ -7,6 +7,7 @@ export const sendTool: InternalToolConfig<SqsSendMessageParams, SqsSendMessageRe
   name: 'SQS Send Message',
   description: 'Send a message to an Amazon SQS queue',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

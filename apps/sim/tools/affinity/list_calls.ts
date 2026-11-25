@@ -14,6 +14,7 @@ export const affinityListCallsTool: ToolConfig<
   description:
     'Page through logged calls and their participants. Only calls the API key holder can see are returned.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

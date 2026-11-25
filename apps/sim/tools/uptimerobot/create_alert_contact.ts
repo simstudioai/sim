@@ -19,6 +19,7 @@ export const uptimeRobotCreateAlertContactTool: ToolConfig<
   description:
     'Create an email alert contact in UptimeRobot. The contact must be confirmed via email before it can receive alerts.',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

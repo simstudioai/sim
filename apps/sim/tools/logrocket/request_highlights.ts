@@ -14,6 +14,7 @@ export const requestHighlightsTool: ToolConfig<
   description:
     "Start a Galileo session highlights job for a user. Returns a request ID to poll with LogRocket's Get Highlights operation.",
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

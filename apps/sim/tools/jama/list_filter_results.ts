@@ -25,6 +25,7 @@ export const jamaListFilterResultsTool: ToolConfig<
   name: 'Jama List Filter Results',
   description: "List Filter Results in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

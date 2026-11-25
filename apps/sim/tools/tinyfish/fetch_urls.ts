@@ -19,6 +19,7 @@ export const fetchUrlsTool: ToolConfig<TinyFishFetchParams, TinyFishFetchRespons
   description:
     'Fetch up to 10 URLs with TinyFish, rendering JavaScript when needed, and return clean extracted content',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     urls: {

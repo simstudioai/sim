@@ -13,6 +13,7 @@ export const createItemTool: InternalToolConfig<
   name: '1Password Create Item',
   description: 'Create a new item in a vault',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     connectionMode: {

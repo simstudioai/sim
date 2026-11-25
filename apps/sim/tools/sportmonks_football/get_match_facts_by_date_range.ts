@@ -37,6 +37,7 @@ export const sportmonksGetMatchFactsByDateRangeTool: ToolConfig<
   name: 'Get Match Facts by Date Range',
   description: 'Retrieve match facts within a date range (YYYY-MM-DD) from Sportmonks (beta)',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const storageGetPublicUrlTool: InternalToolConfig<
   name: 'Supabase Storage Get Public URL',
   description: 'Get the public URL for a file in a Supabase storage bucket',
   version: '1.0.0',
+  effect: 'read',
   // Builds a link without a key, so the credential fills only the project.
   oauth: tokenCredentialOAuth('supabase', { projectId: 'domain' }),
 

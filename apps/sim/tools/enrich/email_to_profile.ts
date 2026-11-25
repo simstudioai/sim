@@ -11,6 +11,7 @@ export const emailToProfileTool: ToolConfig<
   description:
     'Retrieve detailed LinkedIn profile information using an email address including work history, education, and skills.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

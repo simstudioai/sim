@@ -14,6 +14,7 @@ export const getEventInviteeTool: ToolConfig<
   name: 'Calendly Get Event Invitee',
   description: 'Retrieve a single invitee of a scheduled event, including their intake answers',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

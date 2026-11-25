@@ -9,6 +9,7 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
   description:
     'Creates a note on a candidate in Ashby. Supports plain text and HTML content (bold, italic, underline, links, lists, code).',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

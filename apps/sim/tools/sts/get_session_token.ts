@@ -10,6 +10,7 @@ export const getSessionTokenTool: InternalToolConfig<
   name: 'STS Get Session Token',
   description: 'Get temporary security credentials for an IAM user, optionally with MFA',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

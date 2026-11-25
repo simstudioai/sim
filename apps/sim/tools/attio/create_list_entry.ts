@@ -14,6 +14,7 @@ export const attioCreateListEntryTool: ToolConfig<
   name: 'Attio Create List Entry',
   description: 'Add a record to an Attio list as a new entry',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

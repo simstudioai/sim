@@ -17,6 +17,7 @@ export const brexListCardStatementsTool: ToolConfig<
   name: 'Brex List Card Statements',
   description: 'List finalized statements for the primary Brex card account',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

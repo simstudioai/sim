@@ -13,6 +13,7 @@ export const linearAddLabelToProjectTool: ToolConfig<
   name: 'Linear Add Label to Project',
   description: 'Add a label to a project in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

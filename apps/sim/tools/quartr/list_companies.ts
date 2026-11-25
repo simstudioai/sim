@@ -24,6 +24,7 @@ export const quartrListCompaniesTool: ToolConfig<
   description:
     'List companies covered by Quartr, filterable by ticker, ISIN, CIK, OpenFIGI, country, and exchange.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

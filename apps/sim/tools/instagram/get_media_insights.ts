@@ -20,6 +20,7 @@ export const instagramGetMediaInsightsTool: ToolConfig<
   name: 'Instagram Get Media Insights',
   description: 'Get insights metrics for a specific Instagram media object',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

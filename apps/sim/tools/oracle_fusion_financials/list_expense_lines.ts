@@ -20,6 +20,7 @@ export const oracleFusionFinancialsListExpenseLinesTool: InternalToolConfig<
   name: 'Oracle Fusion Financials List Expense Lines',
   description: 'List one bounded page of Oracle Fusion expense lines.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     ...oracleFusionFinancialsListParamFields,

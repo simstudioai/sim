@@ -23,6 +23,7 @@ export const contextDevGetBrandByNameTool: ToolConfig<
   description:
     'Retrieve brand data by company name: logos, colors, socials, address, and industry.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevGetBrandByNameParams>(),
 

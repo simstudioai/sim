@@ -17,6 +17,7 @@ export const tailscaleGetDnsConfigurationTool: ToolConfig<
   name: 'Tailscale Get DNS Configuration',
   description: 'Get tailnet DNS configuration',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

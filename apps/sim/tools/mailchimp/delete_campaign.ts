@@ -20,6 +20,7 @@ export const mailchimpDeleteCampaignTool: ToolConfig<
   name: 'Delete Campaign from Mailchimp',
   description: 'Delete a campaign from Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

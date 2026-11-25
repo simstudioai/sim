@@ -10,6 +10,7 @@ export const profoundListPersonasTool: ToolConfig<
   name: 'Profound List Personas',
   description: 'List all organization personas across all categories in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

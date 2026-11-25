@@ -13,6 +13,7 @@ export const createHostedConfigurationVersionTool: InternalToolConfig<
   name: 'AppConfig Create Hosted Configuration Version',
   description: 'Create a new hosted configuration version for an AppConfig configuration profile',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

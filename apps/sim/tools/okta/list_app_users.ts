@@ -18,6 +18,7 @@ export const oktaListAppUsersTool: ToolConfig<OktaListAppUsersParams, OktaListAp
   description:
     'List the users assigned to an Okta application, including how each assignment was made and its provisioning sync state. Use this to audit who has access to an app.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

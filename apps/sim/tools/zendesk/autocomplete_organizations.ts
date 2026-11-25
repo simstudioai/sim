@@ -45,6 +45,7 @@ export const zendeskAutocompleteOrganizationsTool: ToolConfig<
   description:
     'Autocomplete organizations in Zendesk by name prefix (for name matching/autocomplete)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

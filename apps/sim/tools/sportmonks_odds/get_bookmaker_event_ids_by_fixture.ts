@@ -37,6 +37,7 @@ export const sportmonksOddsGetBookmakerEventIdsByFixtureTool: ToolConfig<
   description:
     "Retrieve bookmakers' own event ids mapped to a Sportmonks fixture via the Sportmonks Odds API",
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

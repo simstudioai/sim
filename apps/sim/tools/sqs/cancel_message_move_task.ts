@@ -13,6 +13,7 @@ export const cancelMessageMoveTaskTool: InternalToolConfig<
   name: 'SQS Cancel Message Move Task',
   description: 'Cancel an in-progress Amazon SQS message move task',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

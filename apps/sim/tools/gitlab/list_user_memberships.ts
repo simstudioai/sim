@@ -16,6 +16,7 @@ export const gitlabListUserMembershipsTool: ToolConfig<
   description:
     "List a user's project and group memberships. Requires an administrator access token (GET /users/:id/memberships is admin-only). For a non-admin path, iterate List Members on each project or group instead.",
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

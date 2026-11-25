@@ -22,6 +22,7 @@ export const rabbitmqListBindingsTool: ToolConfig<
   description:
     'List the bindings that route messages into a RabbitMQ queue, including the implicit default-exchange binding.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

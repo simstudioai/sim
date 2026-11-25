@@ -8,6 +8,7 @@ export const addMattersPermissionsTool: ToolConfig<GoogleVaultAddMatterPermissio
   name: 'Vault Add Matter Collaborator',
   description: 'Add a collaborator (or transfer ownership) to a matter',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

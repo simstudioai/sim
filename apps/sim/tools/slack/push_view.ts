@@ -8,6 +8,7 @@ export const slackPushViewTool: ToolConfig<SlackPushViewParams, SlackPushViewRes
   description:
     'Push a new view onto an existing modal stack in Slack. Limited to 2 additional views after the initial modal is opened.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

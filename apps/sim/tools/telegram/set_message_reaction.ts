@@ -16,6 +16,7 @@ export const telegramSetMessageReactionTool: ToolConfig<
   description:
     'Set or remove an emoji reaction on a message in a Telegram chat through the Telegram Bot API.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

@@ -30,6 +30,7 @@ export const sportmonksGetStandingsByRoundTool: ToolConfig<
   name: 'Get Standings by Round',
   description: 'Retrieve the full standing table for a round ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

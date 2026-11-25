@@ -11,6 +11,7 @@ export const attioGetObjectTool: ToolConfig<AttioGetObjectParams, AttioGetObject
   name: 'Attio Get Object',
   description: 'Get a single object by ID or slug',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

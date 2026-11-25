@@ -11,6 +11,7 @@ export const listBudgetsTool: InternalToolConfig<ListBudgetsParams, SapConcurRes
   name: 'SAP Concur List Budgets',
   description: 'List budget item headers (GET /budget/v4/budgetItemHeader).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

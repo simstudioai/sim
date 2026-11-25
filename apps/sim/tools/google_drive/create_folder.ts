@@ -17,6 +17,7 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
   name: 'Create Folder in Google Drive',
   description: 'Create a new folder in Google Drive with complete metadata returned',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -25,6 +25,7 @@ export const fivetranGetConnectionSchemaConfigTool: ToolConfig<
   description:
     'Get the schemas, tables, and columns a Fivetran connection syncs, and whether each is enabled.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

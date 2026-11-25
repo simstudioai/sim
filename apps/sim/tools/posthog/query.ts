@@ -27,6 +27,7 @@ export const queryTool: ToolConfig<PostHogQueryParams, PostHogQueryResponse> = {
   description:
     "Execute a HogQL query in PostHog. HogQL is PostHog's SQL-like query language for analytics. Use this for advanced data retrieval and analysis.",
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

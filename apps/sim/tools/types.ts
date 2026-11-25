@@ -226,9 +226,25 @@ export interface ToolParameterItemSchema {
   readonly anyOf?: readonly ToolParameterItemSchema[]
 }
 
+/**
+ * What running a tool does outside Sim. `read` means the call changes nothing outside Sim: it
+ * creates, updates, deletes, sends, posts, triggers, enqueues, consumes, and marks read nothing,
+ * starts no asynchronous provider job or query execution (one with its own id that can keep
+ * running, even briefly; a synchronous read-only query is fine), leaves no run, conversation,
+ * history item, or other resource in an account, reveals no
+ * contact data for credits, and delivers nothing elsewhere. Usage billing for the call itself does
+ * not count. `write` is anything else, including an effect that depends on the params.
+ *
+ * Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic
+ * lookups and verifications that only spend lookup credits are `read`.
+ *
+ * Public catalog metadata, audited by `check:tool-effects`. Full rules: the `add-tools` skill →
+ * Declaring the effect.
+ */
+export type ToolEffect = 'read' | 'write'
+
 /** Serializable policy and review contract for an operation available to Assistant. */
 export interface AssistantOperationMetadata {
-  effect: 'read' | 'write'
   version: number
   reviewFields?: readonly {
     name: string
@@ -245,6 +261,7 @@ export interface ToolConfig<P = any, R = any> {
   name: string
   description: string
   version: string
+  effect: ToolEffect
 
   // Parameter schema - what this tool accepts
   params: Record<

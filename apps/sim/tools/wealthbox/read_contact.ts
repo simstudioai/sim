@@ -7,6 +7,7 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
   name: 'Read Wealthbox Contact',
   description: 'Read content from a Wealthbox contact',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

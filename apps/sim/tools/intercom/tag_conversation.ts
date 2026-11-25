@@ -74,6 +74,7 @@ export const intercomTagConversationV2Tool: ToolConfig<
   name: 'Tag Conversation in Intercom',
   description: 'Add a tag to a specific conversation',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

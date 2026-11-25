@@ -12,6 +12,7 @@ export const slackListsAccessSetTool: ToolConfig<SlackListsAccessSetParams, Slac
     description:
       'Grant users or channels access to a Slack List. Provide exactly one of userIds or channelIds. Read allows viewing, write allows editing, and owner grants ownership to users only; only a current owner can grant ownership.',
     version: '1.0.0',
+    effect: 'write',
     oauth: {
       required: true,
       provider: 'slack',

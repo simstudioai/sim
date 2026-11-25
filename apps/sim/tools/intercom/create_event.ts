@@ -125,6 +125,7 @@ export const intercomCreateEventV2Tool: ToolConfig<
   name: 'Create Event in Intercom',
   description: 'Track a custom event for a contact in Intercom',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

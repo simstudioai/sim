@@ -11,6 +11,7 @@ export const netsuiteTransformRecordTool: InternalToolConfig<
   name: 'NetSuite Transform Record',
   description: 'Transform a supported source record into another NetSuite record type.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

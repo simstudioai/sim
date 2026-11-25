@@ -13,6 +13,7 @@ export const googleMapsReverseGeocodeTool: ToolConfig<
   description:
     'Convert geographic coordinates (latitude and longitude) into a human-readable address',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

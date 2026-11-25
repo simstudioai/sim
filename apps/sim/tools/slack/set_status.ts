@@ -32,6 +32,7 @@ export const slackSetStatusTool: ToolConfig<SlackSetStatusParams, SlackSetStatus
   description:
     'Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

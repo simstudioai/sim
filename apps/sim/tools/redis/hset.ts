@@ -6,6 +6,7 @@ export const redisHSetTool: InternalToolConfig<RedisHSetParams, RedisHSetRespons
   name: 'Redis HSET',
   description: 'Set a field in a hash stored at a key in Redis.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

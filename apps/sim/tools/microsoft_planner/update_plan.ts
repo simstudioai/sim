@@ -18,6 +18,7 @@ export const updatePlanTool: ToolConfig<
   name: 'Update Microsoft Planner Plan',
   description: 'Rename a Microsoft Planner plan',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

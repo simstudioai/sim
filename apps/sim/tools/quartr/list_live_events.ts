@@ -24,6 +24,7 @@ export const quartrListLiveEventsTool: ToolConfig<
   description:
     'List live and upcoming events from Quartr with live audio and transcript stream URLs, filterable by company, live state, and date range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

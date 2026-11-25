@@ -15,6 +15,7 @@ export const associateAttendeesTool: InternalToolConfig<
   description:
     'Associate attendees with an expense (POST /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/attendees).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

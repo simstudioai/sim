@@ -23,6 +23,7 @@ export const salesforceListDashboardsTool: ToolConfig<
   name: 'List Dashboards from Salesforce',
   description: 'Get a list of recently used dashboards for the current user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

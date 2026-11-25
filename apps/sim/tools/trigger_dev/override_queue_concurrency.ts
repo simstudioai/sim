@@ -19,6 +19,7 @@ export const triggerDevOverrideQueueConcurrencyTool: ToolConfig<
   name: 'Trigger.dev Override Queue Concurrency',
   description: 'Override the concurrency limit of a Trigger.dev queue with a new value.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

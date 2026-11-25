@@ -19,6 +19,7 @@ export const personaRedactInquiryTool: ToolConfig<
   description:
     'Permanently delete all personally identifiable information collected by an inquiry, for example to honor a data deletion request. This cannot be undone.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

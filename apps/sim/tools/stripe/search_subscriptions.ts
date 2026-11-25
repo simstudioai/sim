@@ -12,6 +12,7 @@ export const stripeSearchSubscriptionsTool: ToolConfig<
   description:
     'Search one page of subscriptions using query syntax. Pass metadata.next_page as page to continue.',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

@@ -19,6 +19,7 @@ export const slackListsItemsUpdateTool: ToolConfig<
   description:
     'Update cells across Slack List rows. Each cell requires row_id, column_id, and one typed value. Use empty arrays to clear array-valued cells, or false to clear a checkbox.',
   version: '1.0.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'slack',

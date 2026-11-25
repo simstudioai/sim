@@ -19,6 +19,7 @@ export const codaDeletePermissionTool: ToolConfig<
   name: 'Coda Remove Permission',
   description: 'Revoke a sharing permission on a Coda doc',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

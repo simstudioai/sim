@@ -10,6 +10,7 @@ export const jsmAddParticipantsTool: InternalToolConfig<
   name: 'JSM Add Participants',
   description: 'Add participants to a request in Jira Service Management',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

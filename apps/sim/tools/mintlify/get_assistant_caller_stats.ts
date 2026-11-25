@@ -21,6 +21,7 @@ export const mintlifyGetAssistantCallerStatsTool: ToolConfig<
   description:
     'Get a breakdown of Mintlify assistant query counts by caller type — web, API, and other — for a date range.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     projectId: {

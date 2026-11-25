@@ -137,6 +137,7 @@ export const intercomCreateTicketTool: ToolConfig<
   name: 'Create Ticket in Intercom',
   description: 'Create a new ticket in Intercom',
   version: '1.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...createTicketBase,
@@ -211,6 +212,7 @@ export const intercomCreateTicketV2Tool: ToolConfig<
   name: 'Create Ticket in Intercom',
   description: 'Create a new ticket in Intercom. Returns API-aligned fields only.',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

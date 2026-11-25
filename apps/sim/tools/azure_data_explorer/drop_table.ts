@@ -19,6 +19,7 @@ export const azureDataExplorerDropTableTool: InternalToolConfig<
   description:
     'Drop a table from an Azure Data Explorer database. The table becomes unavailable to queries; data recovery depends on the retention policy. Returns the tables that remain.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

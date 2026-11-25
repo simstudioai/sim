@@ -16,6 +16,7 @@ export const gitlabListSamlGroupLinksTool: ToolConfig<
   description:
     'List SAML group links for a GitLab group. Use this to detect whether a group is governed by SAML group sync before provisioning members.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

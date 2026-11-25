@@ -12,6 +12,7 @@ export const pitchbookFundCashFlowsTool: ToolConfig<
   description:
     'Retrieve contributed, distributed, and remaining value for a fund as of a specific quarter',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

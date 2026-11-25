@@ -10,6 +10,7 @@ export const listTagsTool: InternalToolConfig<
   name: 'CloudTrail List Tags',
   description: 'List the tags on CloudTrail trails, event data stores, dashboards, or channels',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

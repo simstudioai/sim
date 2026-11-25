@@ -20,6 +20,7 @@ export const affinityGetListEntryTool: ToolConfig<
   description:
     'Read one row of a list with its entity. Field data is returned only for the Field IDs or Field Types asked for.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

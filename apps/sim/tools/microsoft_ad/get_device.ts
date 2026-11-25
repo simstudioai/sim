@@ -12,6 +12,7 @@ export const getDeviceTool: ToolConfig<MicrosoftAdGetDeviceParams, MicrosoftAdGe
   name: 'Get Microsoft Entra ID Device',
   description: 'Get a registered device by its object ID from Microsoft Entra ID',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

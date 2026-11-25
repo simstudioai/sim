@@ -15,6 +15,7 @@ export const monacoListPipelinesTool: ToolConfig<MonacoBaseParams, MonacoListPip
   description:
     "List the organization's Monaco opportunity pipelines, default first, each with its stages in display order. Use the stage keys and IDs to set an opportunity's stage.",
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -14,6 +14,7 @@ export const gaugeGetQueryMetadataTool: ToolConfig<
   name: 'Gauge Get Query Metadata',
   description: 'Discover available report datasets, metrics, dimensions, filters, and values.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

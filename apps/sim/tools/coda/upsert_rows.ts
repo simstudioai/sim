@@ -22,6 +22,7 @@ export const codaUpsertRowsTool: ToolConfig<CodaUpsertRowsParams, CodaUpsertRows
   description:
     'Insert rows into a Coda base table, or update matching rows when key columns are given. Only works on base tables, not views. Applied asynchronously.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

@@ -15,6 +15,7 @@ export const listIncidentAlertsTool: ToolConfig<
   name: 'PagerDuty List Incident Alerts',
   description: 'List the individual alerts attached to a PagerDuty incident.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const youComGetContentsTool: ToolConfig<YouComGetContentsParams, YouComGe
     description:
       'Fetch the HTML, Markdown, and page metadata of one or more web pages with You.com.',
     version: '1.0.0',
+    effect: 'read',
     oauth: YOUCOM_CREDENTIAL_OAUTH,
 
     params: {

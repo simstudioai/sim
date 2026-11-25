@@ -8,6 +8,7 @@ export const slackGetUserProfileTool = createSlackWebApiTool({
   name: 'Slack Get User Profile',
   description:
     'Read a Slack user’s profile, status, and custom fields. Omit User ID for the authenticated identity.',
+  effect: 'read',
   endpoint: 'users.profile.get',
   method: 'GET',
   oauth: {

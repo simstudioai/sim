@@ -22,6 +22,7 @@ export const notionCreateCommentTool: ToolConfig<
   name: 'Notion Create Comment',
   description: 'Create a comment on a Notion page or within an existing discussion thread',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -123,6 +124,7 @@ export const notionCreateCommentV2Tool: ToolConfig<
   name: 'Notion Create Comment',
   description: 'Create a comment on a Notion page or within an existing discussion thread',
   version: '2.0.0',
+  effect: 'write',
   oauth: notionCreateCommentTool.oauth,
   params: notionCreateCommentTool.params,
   request: notionCreateCommentTool.request,

@@ -9,6 +9,7 @@ export const jsmListObjectTypesTool: InternalToolConfig<
   name: 'JSM List Asset Object Types',
   description: 'List object types within an Assets (Insight/CMDB) object schema',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

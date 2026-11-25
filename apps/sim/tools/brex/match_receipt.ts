@@ -10,6 +10,7 @@ export const brexMatchReceiptTool: InternalToolConfig<
   name: 'Brex Match Receipt',
   description: 'Upload a receipt file and let Brex automatically match it with existing expenses',
   version: '1.0.0',
+  effect: 'write',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

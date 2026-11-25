@@ -15,6 +15,7 @@ export const listSubscribedSkusTool: ToolConfig<
   description:
     'List the subscription SKUs the tenant owns, including how many license units are prepaid and how many are consumed',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

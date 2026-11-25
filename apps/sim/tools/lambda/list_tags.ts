@@ -7,6 +7,7 @@ export const listTagsTool: InternalToolConfig<LambdaListTagsParams, LambdaListTa
   name: 'Lambda List Tags',
   description: 'List the tags applied to a Lambda function',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

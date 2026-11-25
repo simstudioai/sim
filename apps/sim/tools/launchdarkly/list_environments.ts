@@ -15,6 +15,7 @@ export const launchDarklyListEnvironmentsTool: ToolConfig<
   name: 'LaunchDarkly List Environments',
   description: 'List environments in a LaunchDarkly project.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

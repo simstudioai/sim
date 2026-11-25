@@ -16,6 +16,7 @@ export const rocketlaneDeleteTaskTool: ToolConfig<
   name: 'Rocketlane Delete Task',
   description: 'Permanently delete a Rocketlane task by its unique identifier',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

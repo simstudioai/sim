@@ -18,6 +18,7 @@ export const spotifyCheckSavedAlbumsTool: ToolConfig<
   name: 'Spotify Check Saved Albums',
   description: 'Check if albums are saved in library.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

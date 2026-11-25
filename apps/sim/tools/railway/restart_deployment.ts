@@ -22,6 +22,7 @@ export const railwayRestartDeploymentTool: ToolConfig<
   name: 'Railway Restart Deployment',
   description: 'Restart a running Railway deployment without rebuilding',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const flowDeleteEntityTool: ToolConfig<FlowDeleteEntityParams, FlowDelete
   name: 'Flow Delete Entity',
   description: 'Delete an entity on the selected branch. Branch protection is enforced.',
   version: '1.0.0',
+  effect: 'write',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

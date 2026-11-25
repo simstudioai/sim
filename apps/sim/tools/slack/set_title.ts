@@ -6,6 +6,7 @@ export const slackSetTitleTool: ToolConfig<SlackSetTitleParams, SlackSetTitleRes
   name: 'Slack Set Assistant Title',
   description: 'Set the title of a Slack assistant thread (shown in the AI app thread header).',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

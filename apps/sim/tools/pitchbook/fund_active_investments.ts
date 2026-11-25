@@ -11,6 +11,7 @@ export const pitchbookFundActiveInvestmentsTool: ToolConfig<
   name: 'PitchBook Fund Active Investments',
   description: 'Retrieve only the portfolio positions a fund still holds',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -18,6 +18,7 @@ export const spotifyAddPlaylistCoverTool: ToolConfig<
   name: 'Spotify Add Playlist Cover',
   description: 'Upload a custom cover image for a playlist. Image must be JPEG and under 256KB.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

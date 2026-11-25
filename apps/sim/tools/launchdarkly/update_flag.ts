@@ -16,6 +16,7 @@ export const launchDarklyUpdateFlagTool: ToolConfig<
   description:
     'Update feature flag metadata (name, description, tags, temporary, archived) using semantic patch.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

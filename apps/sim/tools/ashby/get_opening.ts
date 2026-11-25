@@ -20,6 +20,7 @@ export const getOpeningTool: ToolConfig<Params, Response> = {
   name: 'Ashby Get Opening',
   description: 'Retrieves one Ashby headcount opening by UUID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

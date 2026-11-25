@@ -24,6 +24,7 @@ export const monacoGetConversationTool: ToolConfig<
   description:
     'Get the full ordered thread of one Monaco email or LinkedIn conversation, with participants and paginated messages. Bodies are plain text and truncated past 20,000 characters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

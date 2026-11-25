@@ -13,6 +13,7 @@ export const quiverTextToSvgTool = {
   name: 'Quiver Text to SVG',
   description: 'Generate SVG images from text prompts using QuiverAI',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUIVER_CREDENTIAL_OAUTH,
 
   params: {

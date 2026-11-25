@@ -21,6 +21,7 @@ export const salesforceListReportTypesTool: ToolConfig<
   name: 'List Report Types from Salesforce',
   description: 'Get a list of available report types',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

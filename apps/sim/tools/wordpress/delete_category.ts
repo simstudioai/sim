@@ -14,6 +14,7 @@ export const deleteCategoryTool: ToolConfig<
   name: 'WordPress Delete Category',
   description: 'Delete a category from WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

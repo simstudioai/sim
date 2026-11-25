@@ -9,6 +9,7 @@ export const discordAssignRoleTool: ToolConfig<DiscordAssignRoleParams, DiscordA
     name: 'Discord Assign Role',
     description: 'Assign a role to a member in a Discord server',
     version: '1.0.0',
+    effect: 'write',
     oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {

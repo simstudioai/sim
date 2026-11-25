@@ -7,6 +7,7 @@ export const saveTool: ToolConfig<RedditSaveParams, RedditWriteResponse> = {
   name: 'Save Reddit Post/Comment',
   description: 'Save a Reddit post or comment to your saved items',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -100,6 +101,7 @@ export const unsaveTool: ToolConfig<RedditSaveParams, RedditWriteResponse> = {
   name: 'Unsave Reddit Post/Comment',
   description: 'Remove a Reddit post or comment from your saved items',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

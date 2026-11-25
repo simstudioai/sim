@@ -20,6 +20,7 @@ export const greenhouseListCandidateTagsV2Tool: ToolConfig<
   name: 'Greenhouse List Candidate Tags',
   description: 'Lists one page of candidate tags with cursor pagination and documented filters.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

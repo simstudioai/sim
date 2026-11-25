@@ -10,6 +10,7 @@ export const rootlyUpdateAlertTool: ToolConfig<RootlyUpdateAlertParams, RootlyUp
     name: 'Rootly Update Alert',
     description: 'Update an existing alert in Rootly.',
     version: '1.0.0',
+    effect: 'write',
     oauth: ROOTLY_CREDENTIAL_OAUTH,
 
     params: {

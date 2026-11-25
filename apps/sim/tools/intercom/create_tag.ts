@@ -71,6 +71,7 @@ export const intercomCreateTagV2Tool: ToolConfig<
   name: 'Create Tag in Intercom',
   description: 'Create a new tag or update an existing tag name',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

@@ -15,6 +15,7 @@ export const tailscaleSetDnsSearchpathsTool: ToolConfig<
   name: 'Tailscale Set DNS Search Paths',
   description: 'Replace the DNS search domains for the tailnet',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

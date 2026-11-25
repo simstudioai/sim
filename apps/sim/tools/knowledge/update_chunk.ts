@@ -6,6 +6,7 @@ export const knowledgeUpdateChunkTool: InternalToolConfig<any, KnowledgeUpdateCh
   name: 'Knowledge Update Chunk',
   description: 'Update the content or enabled status of a chunk in a knowledge base',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     knowledgeBaseId: {

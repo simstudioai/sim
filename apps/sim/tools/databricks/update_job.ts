@@ -15,6 +15,7 @@ export const updateJobTool: ToolConfig<DatabricksUpdateJobParams, DatabricksSucc
   description:
     'Merge selected settings into a Databricks job and optionally remove settings or tasks.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

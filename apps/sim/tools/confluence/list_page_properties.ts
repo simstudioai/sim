@@ -37,6 +37,7 @@ export const confluenceListPagePropertiesTool: InternalToolConfig<
   name: 'Confluence List Page Properties',
   description: 'List all custom properties (metadata) attached to a Confluence page.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -6,6 +6,7 @@ export const redisTtlTool: InternalToolConfig<RedisTtlParams, RedisTtlResponse> 
   name: 'Redis TTL',
   description: 'Get the remaining time to live (in seconds) of a key in Redis.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

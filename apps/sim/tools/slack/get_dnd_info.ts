@@ -6,6 +6,7 @@ export const slackGetDndInfoTool = createSlackWebApiTool({
   id: 'slack_get_dnd_info',
   name: 'Slack Get Do Not Disturb Info',
   description: 'Read a user’s Do Not Disturb schedule and available snooze information.',
+  effect: 'read',
   endpoint: 'dnd.info',
   method: 'GET',
   oauth: {

@@ -16,6 +16,7 @@ export const manageengineSdpCreateAssetTool: ToolConfig<SdpAssetWriteParams, Sdp
   description:
     'Create an asset in the ManageEngine ServiceDesk Plus Cloud inventory. Requires a name and an existing product.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

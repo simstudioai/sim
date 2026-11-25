@@ -38,6 +38,7 @@ export const quickbooksReadAttachmentsTool: ToolConfig<
   description:
     'List attachment metadata for a fixed QuickBooks entity or read one attachment by ID',
   version: '1.0.0',
+  effect: 'read',
   params: {
     accessToken: {
       type: 'string',

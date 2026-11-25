@@ -14,6 +14,7 @@ export const unmuteMonitorTool: ToolConfig<UnmuteMonitorParams, UnmuteMonitorRes
   description:
     'Unmute a monitor so it resumes sending notifications. Reverses Mute Monitor, either for one scope or for every scope at once.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

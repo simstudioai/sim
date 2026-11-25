@@ -30,6 +30,7 @@ export const crunchbaseGetFieldsMetadataTool: ToolConfig<
   description:
     'List the field ids, types, and descriptions each Crunchbase collection publishes, which is how the field_ids and query predicates of the other operations are discovered.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 

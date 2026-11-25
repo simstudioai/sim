@@ -9,6 +9,7 @@ export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGet
     name: 'Grain Get Recording',
     description: 'Get details of a single recording by ID',
     version: '1.0.0',
+    effect: 'read',
     oauth: GRAIN_CREDENTIAL_OAUTH,
 
     params: {

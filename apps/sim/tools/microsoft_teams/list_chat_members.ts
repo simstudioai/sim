@@ -13,6 +13,7 @@ export const listChatMembersTool: ToolConfig<
   name: 'List Microsoft Teams Chat Members',
   description: 'List all members of a Microsoft Teams chat',
   version: '1.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

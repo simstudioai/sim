@@ -21,6 +21,7 @@ export const exportTool: InternalToolConfig<GoogleDriveExportParams, GoogleDrive
   description:
     'Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen format such as PDF, DOCX, XLSX, or CSV',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

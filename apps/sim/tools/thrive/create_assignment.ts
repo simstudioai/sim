@@ -17,6 +17,7 @@ export const createAssignmentTool: ToolConfig<
   name: 'Thrive Create Assignment',
   description: 'Create a compliance assignment in Thrive for an audience and content item.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

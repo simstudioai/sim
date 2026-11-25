@@ -34,6 +34,7 @@ export const sportmonksGetSeasonsTool: ToolConfig<
   name: 'Get Seasons',
   description: 'Retrieve all football seasons available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

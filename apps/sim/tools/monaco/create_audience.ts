@@ -31,6 +31,7 @@ export const monacoCreateAudienceTool: ToolConfig<
   description:
     'Create a Monaco audience, optionally seeded with contacts: either an explicit list of contact IDs, or a filters query over the contact field schemas (optionally narrowed by excluded IDs or a source audience). Audiences can be shared across campaigns.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

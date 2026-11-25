@@ -66,6 +66,7 @@ export const rabbitmqHealthCheckTool: ToolConfig<
   description:
     'Run one of the broker health checks and report whether it passed. A failing check is a normal result, not a tool error.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

@@ -21,6 +21,7 @@ export const manageengineSdpUpdateRequestTool: ToolConfig<SdpUpdateRequestParams
   description:
     'Update a ManageEngine ServiceDesk Plus Cloud request: change its status, priority, assignment, classification or description.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

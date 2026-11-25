@@ -17,6 +17,7 @@ export const crowdstrikeQuerySensorsTool: InternalToolConfig<
   description:
     'Search CrowdStrike Identity Protection sensors -- the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors -- and return their device IDs (GET /identity-protection/queries/devices/v1). Sort uses the dot form, for example status.desc. Requires the "Identity Protection Entities: Read" API scope, a separate entitlement from Hosts and Alerts.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

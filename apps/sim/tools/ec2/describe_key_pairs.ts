@@ -15,6 +15,7 @@ export const describeKeyPairsTool: InternalToolConfig<
   name: 'EC2 Describe Key Pairs',
   description: 'List EC2 key pairs with their type, fingerprint, and creation time',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

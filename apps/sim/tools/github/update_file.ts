@@ -10,6 +10,7 @@ export const updateFileTool: ToolConfig<UpdateFileParams, FileOperationResponse>
   description:
     'Update an existing file in a GitHub repository. Requires the file SHA. Content will be automatically Base64 encoded. Supports files up to 1MB.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -187,6 +188,7 @@ export const updateFileV2Tool: ToolConfig = {
   name: updateFileTool.name,
   description: updateFileTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: updateFileTool.params,
   request: updateFileTool.request,
   oauth: updateFileTool.oauth,

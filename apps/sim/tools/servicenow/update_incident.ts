@@ -28,6 +28,7 @@ export const updateIncidentTool: ToolConfig<
   description:
     'Update fields on an existing ServiceNow incident. Only the fields you supply are changed. Reference fields take sys_ids unless input display value is enabled.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

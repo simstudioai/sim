@@ -8,6 +8,7 @@ export const deleteSalesOrderTool: InternalToolConfig<DeleteSalesOrderParams, Sa
   description:
     'Delete an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). Only orders without subsequent documents (deliveries, invoices) can be deleted; otherwise reject items via update instead.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     subdomain: {
       type: 'string',

@@ -11,6 +11,7 @@ export const slackMessageReaderTool: InternalToolConfig<
   description:
     'Read the latest messages from Slack channels. Retrieve conversation history with filtering options.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

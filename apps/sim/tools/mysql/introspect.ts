@@ -8,6 +8,7 @@ export const introspectTool: InternalToolConfig<MySQLIntrospectParams, MySQLIntr
   description:
     'Introspect MySQL database schema to retrieve table structures, columns, and relationships',
   version: '1.0',
+  effect: 'read',
   oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {

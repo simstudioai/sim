@@ -21,6 +21,7 @@ export const stripeCreateInvoiceTool: ToolConfig<
   name: 'Stripe Create Invoice',
   description: 'Create a new invoice',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

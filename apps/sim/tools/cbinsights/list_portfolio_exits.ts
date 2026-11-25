@@ -17,6 +17,7 @@ export const cbinsightsListPortfolioExitsTool: InternalToolConfig<
   description:
     'Retrieve exit rounds for companies up to 100 organizations invested in before the exit, with AI-generated insights on each deal.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

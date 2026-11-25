@@ -22,6 +22,7 @@ export const semrushUrlOverviewAllTool: ToolConfig<
   description:
     'Get organic and paid search totals for a single URL across every regional Semrush database.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

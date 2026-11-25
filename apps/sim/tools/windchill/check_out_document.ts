@@ -15,6 +15,7 @@ export const windchillCheckOutDocumentTool: InternalToolConfig<WindchillParams, 
     name: 'Windchill Check Out Document',
     description: 'Check out one document',
     version: '1.0.0',
+    effect: 'write',
     params: {
       baseUrl: {
         type: 'string',

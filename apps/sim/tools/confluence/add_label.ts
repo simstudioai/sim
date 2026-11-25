@@ -28,6 +28,7 @@ export const confluenceAddLabelTool: InternalToolConfig<
   name: 'Confluence Add Label',
   description: 'Add a label to a Confluence page for organization and categorization.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

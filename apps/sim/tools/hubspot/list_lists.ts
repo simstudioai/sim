@@ -14,6 +14,7 @@ export const hubspotListListsTool: ToolConfig<HubSpotListListsParams, HubSpotLis
   name: 'List Lists from HubSpot',
   description: 'Search and retrieve lists from HubSpot account',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

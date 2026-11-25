@@ -21,6 +21,7 @@ export const listManagedRulesetOverridesTool: ToolConfig<
   description:
     'Lists the WAF managed rulesets deployed on a zone together with the overrides applied to each one. Cloudflare has no dedicated overrides endpoint — overrides live on the "execute" rules of the http_request_firewall_managed phase entry point ruleset, which this reads. Requires an API token with Zone WAF Read.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

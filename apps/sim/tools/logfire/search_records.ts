@@ -55,6 +55,7 @@ export const logfireSearchRecordsTool: ToolConfig<
   description:
     'Search Logfire spans and logs using structured filters for message text, service, span name, severity, environment, and exceptions. Returns the most recent matches first without writing SQL.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LOGFIRE_CREDENTIAL_OAUTH,
 
   params: {

@@ -12,6 +12,7 @@ export const storageCopyTool: ToolConfig<SupabaseStorageCopyParams, SupabaseStor
   name: 'Supabase Storage Copy',
   description: 'Copy a file within a Supabase storage bucket',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

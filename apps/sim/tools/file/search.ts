@@ -57,6 +57,7 @@ export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResp
   name: 'File Search',
   description: DECLARED_TOOL_DESCRIPTION,
   version: '1.1.0',
+  effect: 'read',
   params: {
     query: {
       type: 'string',

@@ -11,6 +11,7 @@ export const attioUpdateListTool: ToolConfig<AttioUpdateListParams, AttioUpdateL
   name: 'Attio Update List',
   description: 'Update a list in Attio',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -15,6 +15,7 @@ export const deleteWebhookEndpointTool: ToolConfig<
   description:
     'Deletes a Granola webhook endpoint by ID, stopping its event deliveries immediately.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {

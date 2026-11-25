@@ -8,6 +8,7 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
   name: 'Hex List Projects',
   description: 'List all projects in your Hex workspace with optional filtering by status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

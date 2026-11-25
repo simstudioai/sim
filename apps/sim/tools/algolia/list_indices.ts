@@ -7,6 +7,7 @@ export const listIndicesTool: ToolConfig<AlgoliaListIndicesParams, AlgoliaListIn
   name: 'Algolia List Indices',
   description: 'List all indices in an Algolia application',
   version: '1.0',
+  effect: 'read',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

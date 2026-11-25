@@ -18,6 +18,7 @@ export const slackGetChannelHistoryTool: InternalToolConfig<
   description:
     'Fetch message history from a Slack channel, automatically following pagination. Optionally filter by a time range to scrape messages since a given timestamp.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

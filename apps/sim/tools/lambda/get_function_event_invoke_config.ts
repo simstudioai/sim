@@ -14,6 +14,7 @@ export const getFunctionEventInvokeConfigTool: InternalToolConfig<
   name: 'Lambda Get Async Invoke Config',
   description: 'Get the asynchronous invocation retry and destination settings of a function',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

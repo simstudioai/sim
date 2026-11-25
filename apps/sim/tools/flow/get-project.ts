@@ -18,6 +18,7 @@ export const flowGetProjectTool: ToolConfig<FlowGetProjectParams, FlowGetProject
   name: 'Flow Get Project',
   description: 'Read a Flow project by its UUID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

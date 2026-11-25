@@ -25,6 +25,7 @@ export const fivetranResyncTablesTool: ToolConfig<
   description:
     'Run a historical re-sync of specific tables in a Fivetran connection without changing its schedule.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

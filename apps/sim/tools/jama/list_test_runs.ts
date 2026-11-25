@@ -22,6 +22,7 @@ export const jamaListTestRunsTool: ToolConfig<JamaListTestRunsParams, JamaListTe
   name: 'Jama List Test Runs',
   description: "List Test Runs in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

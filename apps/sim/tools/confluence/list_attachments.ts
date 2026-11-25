@@ -33,6 +33,7 @@ export const confluenceListAttachmentsTool: InternalToolConfig<
   name: 'Confluence List Attachments',
   description: 'List all attachments on a Confluence page.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

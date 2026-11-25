@@ -6,6 +6,7 @@ export const gmailUnarchiveTool: InternalToolConfig<GmailMarkReadParams, GmailTo
   name: 'Gmail Unarchive',
   description: 'Unarchive a Gmail message (move back to inbox)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -86,6 +87,7 @@ export const gmailUnarchiveV2Tool: InternalToolConfig<GmailMarkReadParams, Gmail
     name: 'Gmail Unarchive',
     description: 'Unarchive a Gmail message (move back to inbox).',
     version: '2.0.0',
+    effect: 'write',
     oauth: gmailUnarchiveTool.oauth,
     params: gmailUnarchiveTool.params,
     operation: gmailUnarchiveTool.operation,

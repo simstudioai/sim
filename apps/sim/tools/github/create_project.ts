@@ -8,6 +8,7 @@ export const createProjectTool: ToolConfig<CreateProjectParams, ProjectResponse>
   description:
     'Create a new GitHub Project V2. Requires the owner Node ID (not login name). Returns the created project with ID, title, and URL.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -154,6 +155,7 @@ export const createProjectV2Tool: ToolConfig = {
   name: createProjectTool.name,
   description: createProjectTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: createProjectTool.params,
   request: createProjectTool.request,
   oauth: createProjectTool.oauth,

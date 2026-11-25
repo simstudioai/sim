@@ -12,6 +12,7 @@ export const jupyterGetContentTool = {
   name: 'Jupyter Get Content',
   description: 'Read a file or notebook from a Jupyter server',
   version: '1.0.0',
+  effect: 'read',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

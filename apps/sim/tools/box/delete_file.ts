@@ -7,6 +7,7 @@ export const boxDeleteFileTool: ToolConfig<BoxDeleteFileParams, ToolResponse> = 
   name: 'Box Delete File',
   description: 'Delete a file from Box',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

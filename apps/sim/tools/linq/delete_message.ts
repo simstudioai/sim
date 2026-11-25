@@ -10,6 +10,7 @@ export const linqDeleteMessageTool: ToolConfig<LinqDeleteMessageParams, LinqSucc
   description:
     'Delete a message from the Linq API only (does not unsend it; recipients still see it)',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

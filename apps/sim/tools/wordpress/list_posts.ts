@@ -12,6 +12,7 @@ export const listPostsTool: ToolConfig<WordPressListPostsParams, WordPressListPo
   name: 'WordPress List Posts',
   description: 'List blog posts from WordPress.com with optional filters',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

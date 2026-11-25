@@ -7,6 +7,7 @@ export const deleteTool: InternalToolConfig<PostgresDeleteParams, PostgresDelete
   name: 'PostgreSQL Delete',
   description: 'Delete data from PostgreSQL database',
   version: '1.0',
+  effect: 'write',
   oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
   name: 'Google Contacts Update',
   description: 'Update an existing contact in Google Contacts',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

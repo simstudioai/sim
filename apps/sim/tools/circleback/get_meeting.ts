@@ -19,6 +19,7 @@ export const getMeetingTool: ToolConfig<CirclebackGetMeetingParams, CirclebackMe
   description:
     'Gets a Circleback meeting by ID, including notes, attendees, action items, insights, and recording details.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const windchillGetDocumentStructureTool: ToolConfig<WindchillParams, Wind
   name: 'Windchill Get Document Structure',
   description: 'Retrieve recursive document usage links and their parent and child documents',
   version: '1.0.0',
+  effect: 'read',
   params: {
     baseUrl: {
       type: 'string',

@@ -25,6 +25,7 @@ export const polymarketGetPriceHistoryTool: ToolConfig<
   name: 'Get Price History from Polymarket',
   description: 'Retrieve historical price data for a specific market token',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tokenId: {

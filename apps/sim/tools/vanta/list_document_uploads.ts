@@ -17,6 +17,7 @@ export const vantaListDocumentUploadsTool: InternalToolConfig<
   name: 'Vanta List Document Uploads',
   description: 'List the files uploaded to a specific Vanta evidence document',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

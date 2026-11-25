@@ -6,6 +6,7 @@ export const executeTool: InternalToolConfig<Neo4jExecuteParams, Neo4jResponse> 
   name: 'Neo4j Execute',
   description: 'Execute arbitrary Cypher queries on Neo4j graph database for complex operations',
   version: '1.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -27,6 +27,7 @@ export const listSchedulesTool: ToolConfig<
   name: 'Temporal List Schedules',
   description: 'List schedules in a Temporal namespace.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     serverUrl: {

@@ -35,6 +35,7 @@ export const zendeskCreateOrganizationsBulkTool: ToolConfig<
   name: 'Bulk Create Organizations in Zendesk',
   description: 'Create multiple organizations in Zendesk using bulk import',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

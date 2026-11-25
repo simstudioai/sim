@@ -8,6 +8,7 @@ export const listCommandsTool: InternalToolConfig<SsmListCommandsParams, SsmList
     name: 'SSM List Commands',
     description: 'List Run Command executions in an AWS account',
     version: '1.0.0',
+    effect: 'read',
     oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {

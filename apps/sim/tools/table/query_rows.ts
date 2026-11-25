@@ -9,6 +9,7 @@ export const tableQueryRowsTool: InternalToolConfig<TableRowQueryParams, TableQu
   name: 'Query Rows',
   description: 'Query rows from a table with filtering, sorting, and pagination',
   version: '1.0.0',
+  effect: 'read',
 
   toolEnrichment: {
     dependsOn: 'tableId',

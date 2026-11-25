@@ -19,6 +19,7 @@ export const quickbooksUpdatePurchaseOrderTool: InternalToolConfig<
   name: 'QuickBooks Update Purchase Order',
   description: 'Read, merge, and full-update purchase-order header fields',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

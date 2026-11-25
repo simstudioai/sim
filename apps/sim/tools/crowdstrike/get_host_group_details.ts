@@ -17,6 +17,7 @@ export const crowdstrikeGetHostGroupDetailsTool: InternalToolConfig<
   description:
     'Get CrowdStrike Falcon host group records for one or more group IDs (GET /devices/entities/host-groups/v1). Requires the "Host groups: Read" API scope.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

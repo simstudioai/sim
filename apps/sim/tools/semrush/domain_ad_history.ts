@@ -22,6 +22,7 @@ export const semrushDomainAdHistoryTool: ToolConfig<
   description:
     'List a domain’s past Google Ads placements month by month, with the copy used each time.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

@@ -10,6 +10,7 @@ export const tailscaleDeleteUserTool: ToolConfig<TailscaleUserParams, TailscaleD
     name: 'Tailscale Delete User',
     description: 'Delete a user from the tailnet',
     version: '1.0.0',
+    effect: 'write',
     oauth: TAILSCALE_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

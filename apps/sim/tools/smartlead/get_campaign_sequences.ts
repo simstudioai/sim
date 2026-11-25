@@ -22,6 +22,7 @@ export const getCampaignSequencesTool: ToolConfig<
   description:
     'Retrieves the email sequence steps for a Smartlead campaign, including subjects, bodies, and per-step delays.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

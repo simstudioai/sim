@@ -10,6 +10,7 @@ export const deleteTool: ToolConfig<OneDriveToolParams, OneDriveDeleteResponse> 
   name: 'Delete File from OneDrive',
   description: 'Delete a file or folder from OneDrive',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

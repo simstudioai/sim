@@ -18,6 +18,7 @@ export const rocketlaneCreateSpaceTool: ToolConfig<
   name: 'Rocketlane Create Space',
   description: 'Create a new space in a Rocketlane project',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const crowdstrikeGetAlertDetailsTool: InternalToolConfig<
   description:
     'Get full CrowdStrike Falcon alert records for one or more composite alert IDs (POST /alerts/entities/alerts/v2). Requires the "Alerts: Read" API scope.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

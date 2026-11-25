@@ -7,6 +7,7 @@ export const addRecordTool: ToolConfig<AlgoliaAddRecordParams, AlgoliaAddRecordR
   name: 'Algolia Add Record',
   description: 'Add or replace a record in an Algolia index',
   version: '1.0',
+  effect: 'write',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

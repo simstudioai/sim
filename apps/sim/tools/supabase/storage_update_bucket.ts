@@ -15,6 +15,7 @@ export const storageUpdateBucketTool: InternalToolConfig<
   name: 'Supabase Storage Update Bucket',
   description: 'Update the configuration of an existing Supabase storage bucket',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

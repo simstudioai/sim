@@ -16,6 +16,7 @@ export const gitlabListPipelineJobsTool: ToolConfig<
   name: 'GitLab List Pipeline Jobs',
   description: 'List jobs for a GitLab pipeline',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

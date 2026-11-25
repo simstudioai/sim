@@ -24,6 +24,7 @@ export const listRequestedItemsTool: ToolConfig<
   description:
     'List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] table, optionally scoped to a parent request or a catalog item. To scope by requester, pass an encoded query against the parent request, for example "request.requested_for=<sys_id>".',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

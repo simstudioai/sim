@@ -9,6 +9,7 @@ export const netsuiteAttachRecordTool: InternalToolConfig<NetSuiteAttachParams, 
     name: 'NetSuite Attach Record or File',
     description: 'Attach a contact or file to another NetSuite record.',
     version: '1.0.0',
+    effect: 'write',
     oauth: NETSUITE_OAUTH,
     params: {
       ...netsuiteAuthParamFields,

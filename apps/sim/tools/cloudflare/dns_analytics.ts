@@ -16,6 +16,7 @@ export const dnsAnalyticsTool: ToolConfig<
   name: 'Cloudflare DNS Analytics',
   description: 'Gets DNS analytics report for a zone including query counts and trends.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

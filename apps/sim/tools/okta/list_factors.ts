@@ -14,6 +14,7 @@ export const oktaListFactorsTool: ToolConfig<OktaListFactorsParams, OktaListFact
   description:
     'List the MFA factors a user has enrolled, with each factor type, provider, and enrollment status. Use this before resetting a factor to confirm which one to target.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

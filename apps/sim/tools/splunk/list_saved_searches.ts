@@ -25,6 +25,7 @@ export const listSavedSearchesTool: ToolConfig<
   description:
     'List saved searches and reports configured in Splunk, including their SPL, schedule, and alert configuration.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {

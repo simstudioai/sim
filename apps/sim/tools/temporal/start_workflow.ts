@@ -22,6 +22,7 @@ export const startWorkflowTool: ToolConfig<
   name: 'Temporal Start Workflow',
   description: 'Start a new workflow execution on a Temporal cluster.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

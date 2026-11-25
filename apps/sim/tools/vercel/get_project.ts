@@ -8,6 +8,7 @@ export const vercelGetProjectTool: ToolConfig<VercelGetProjectParams, VercelGetP
   name: 'Vercel Get Project',
   description: 'Get details of a specific Vercel project',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

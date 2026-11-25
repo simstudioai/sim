@@ -7,6 +7,7 @@ export const jsmAddCommentTool: InternalToolConfig<JsmAddCommentParams, JsmAddCo
   name: 'JSM Add Comment',
   description: 'Add a comment (public or internal) to a service request in Jira Service Management',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

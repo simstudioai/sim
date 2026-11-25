@@ -46,6 +46,7 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
   name: 'Pinecone Upsert Text',
   description: 'Insert or update text records in a Pinecone index',
   version: '1.0',
+  effect: 'write',
 
   params: {
     indexHost: {

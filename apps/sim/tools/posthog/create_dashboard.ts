@@ -36,6 +36,7 @@ export const createDashboardTool: ToolConfig<
   description:
     'Create a new dashboard in PostHog. Optionally seed it from a built-in template, then attach insights to it afterward.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'posthog-errors',
 
   params: {

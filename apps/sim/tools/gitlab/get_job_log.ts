@@ -18,6 +18,7 @@ export const gitlabGetJobLogTool: ToolConfig<GitLabGetJobLogParams, GitLabGetJob
   name: 'GitLab Get Job Log',
   description: 'Get the log (trace) of a GitLab job',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

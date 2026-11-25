@@ -13,6 +13,7 @@ export const detectStackDriftTool: InternalToolConfig<
   name: 'CloudFormation Detect Stack Drift',
   description: 'Initiate drift detection on a CloudFormation stack',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

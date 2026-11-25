@@ -8,6 +8,7 @@ export const pitchbookDealValuationTool: ToolConfig<PitchbookProfileParams, Pitc
   name: 'PitchBook Deal Valuation',
   description: 'Retrieve the pre-money and post-money valuation recorded for a deal',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -24,6 +24,7 @@ export const railwayListVariablesTool: ToolConfig<
   name: 'Railway List Variables',
   description: 'List Railway environment variables for a service or shared environment',
   version: '1.0.0',
+  effect: 'read',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

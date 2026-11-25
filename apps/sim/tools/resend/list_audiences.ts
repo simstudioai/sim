@@ -10,6 +10,7 @@ export const resendListAudiencesTool: ToolConfig<ListAudiencesParams, ListAudien
   name: 'List Audiences',
   description: 'List all audiences in Resend',
   version: '1.0.0',
+  effect: 'read',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

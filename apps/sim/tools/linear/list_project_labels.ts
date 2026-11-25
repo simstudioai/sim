@@ -14,6 +14,7 @@ export const linearListProjectLabelsTool: ToolConfig<
   name: 'Linear List Project Labels',
   description: 'List all project labels in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -17,6 +17,7 @@ export const zohoDeskSendReplyTool: ToolConfig<ZohoDeskSendReplyParams, ZohoDesk
     name: 'Zoho Desk Send Reply',
     description: 'Send an email reply from a configured Zoho Desk sender address.',
     version: '1.0.0',
+    effect: 'write',
     oauth: { required: true, provider: 'zoho-desk' },
     params: {
       ...ZOHO_DESK_AUTH_PARAMS,

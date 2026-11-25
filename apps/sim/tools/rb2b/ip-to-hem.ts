@@ -13,6 +13,7 @@ export const rb2bIpToHemTool: ToolConfig<Rb2bIpToHemParams, Rb2bIpToHemResponse>
   description:
     'Convert an IP address (and optional user agent) into hashed email addresses (HEM) with accuracy scores.',
   version: '1.0.0',
+  effect: 'read',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

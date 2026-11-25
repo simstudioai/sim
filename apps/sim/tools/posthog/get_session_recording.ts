@@ -46,6 +46,7 @@ export const getSessionRecordingTool: ToolConfig<
   name: 'PostHog Get Session Recording',
   description: 'Get details of a specific session recording in PostHog by ID.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

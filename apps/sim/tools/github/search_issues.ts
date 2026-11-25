@@ -51,6 +51,7 @@ export const searchIssuesTool: ToolConfig<SearchIssuesParams, SearchIssuesRespon
   description:
     'Search for issues and pull requests across GitHub. Use qualifiers like repo:owner/name, is:issue, is:pr, state:open, label:bug, author:user',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -192,6 +193,7 @@ export const searchIssuesV2Tool: ToolConfig<SearchIssuesParams, any> = {
   name: searchIssuesTool.name,
   description: searchIssuesTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: searchIssuesTool.params,
   request: searchIssuesTool.request,

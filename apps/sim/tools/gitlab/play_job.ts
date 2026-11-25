@@ -10,6 +10,7 @@ export const gitlabPlayJobTool: ToolConfig<GitLabPlayJobParams, GitLabPlayJobRes
   name: 'GitLab Play Job',
   description: 'Trigger (play) a manual GitLab job',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

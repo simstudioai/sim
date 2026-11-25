@@ -20,6 +20,7 @@ export const gaugeListPromptsTool: ToolConfig<GaugeListPromptsParams, GaugeListP
   description:
     'List one page of tracked prompts with optional topic, tag, and tracking-type filters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

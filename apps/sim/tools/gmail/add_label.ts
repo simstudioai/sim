@@ -6,6 +6,7 @@ export const gmailAddLabelTool: InternalToolConfig<GmailLabelParams, GmailToolRe
   name: 'Gmail Add Label',
   description: 'Add label(s) to a Gmail message',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -92,6 +93,7 @@ export const gmailAddLabelV2Tool: InternalToolConfig<GmailLabelParams, GmailModi
   name: 'Gmail Add Label',
   description: 'Add label(s) to a Gmail message.',
   version: '2.0.0',
+  effect: 'write',
   oauth: gmailAddLabelTool.oauth,
   params: gmailAddLabelTool.params,
   operation: gmailAddLabelTool.operation,

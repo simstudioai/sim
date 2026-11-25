@@ -11,6 +11,7 @@ export const mailgunCreateMailingListTool: ToolConfig<
   name: 'Mailgun Create Mailing List',
   description: 'Create a new mailing list',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {

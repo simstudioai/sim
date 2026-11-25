@@ -22,6 +22,7 @@ export const brexCreateTransferTool: ToolConfig<
   name: 'Brex Create Transfer',
   description: 'Create a money transfer from a Brex cash account to a vendor',
   version: '1.0.0',
+  effect: 'write',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

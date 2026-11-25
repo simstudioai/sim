@@ -15,6 +15,7 @@ export const shopifyListCollectionsTool: ToolConfig<
   description:
     'List product collections from your Shopify store. Filter by title, type (custom/smart), or handle.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -27,6 +27,7 @@ export const mailchimpGetInterestCategoriesTool: ToolConfig<
   name: 'Get Interest Categories from Mailchimp Audience',
   description: 'Retrieve a list of interest categories from a Mailchimp audience',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

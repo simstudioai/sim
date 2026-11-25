@@ -6,6 +6,7 @@ export const listFilesTool: ToolConfig<ObsidianListFilesParams, ObsidianListFile
   name: 'Obsidian List Files',
   description: 'List files and directories in your Obsidian vault',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

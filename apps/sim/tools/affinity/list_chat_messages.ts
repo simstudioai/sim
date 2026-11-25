@@ -14,6 +14,7 @@ export const affinityListChatMessagesTool: ToolConfig<
   description:
     'Page through logged chat messages and their participants. Only messages the API key holder can see are returned.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

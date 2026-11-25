@@ -7,6 +7,7 @@ export const vercelAddDomainTool: ToolConfig<VercelAddDomainParams, VercelAddDom
   name: 'Vercel Add Domain',
   description: 'Add a new domain to a Vercel account or team',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

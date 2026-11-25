@@ -13,6 +13,7 @@ export const clusterHealthTool: ToolConfig<
   name: 'Elasticsearch Cluster Health',
   description: 'Get the health status of the Elasticsearch cluster.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     deploymentType: {

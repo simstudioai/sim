@@ -12,6 +12,7 @@ export const tailscaleRestoreUserTool: ToolConfig<
   name: 'Tailscale Restore User',
   description: 'Restore a suspended user’s access to the tailnet',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

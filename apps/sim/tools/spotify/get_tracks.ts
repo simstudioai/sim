@@ -10,6 +10,7 @@ export const spotifyGetTracksTool: ToolConfig<SpotifyGetTracksParams, SpotifyGet
   name: 'Spotify Get Multiple Tracks',
   description: 'Get detailed information about multiple tracks on Spotify by their IDs (up to 50).',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

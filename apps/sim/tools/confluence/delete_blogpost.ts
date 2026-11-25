@@ -25,6 +25,7 @@ export const confluenceDeleteBlogPostTool: InternalToolConfig<
   name: 'Confluence Delete Blog Post',
   description: 'Delete a Confluence blog post.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -22,6 +22,7 @@ export const planeUpdateModuleTool: ToolConfig<PlaneUpdateModuleParams, PlaneUpd
     name: 'Plane Update a module',
     description: 'Update a module in Plane. Supports API v1 compatibility.',
     version: '1.0.0',
+    effect: 'write',
     oauth: PLANE_CREDENTIAL_OAUTH,
     params: {
       ...PLANE_CREDENTIAL_PARAMS,

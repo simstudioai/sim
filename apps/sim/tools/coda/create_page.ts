@@ -20,6 +20,7 @@ export const codaCreatePageTool: ToolConfig<CodaCreatePageParams, CodaPageMutati
   description:
     'Create a page in a Coda doc, optionally as a subpage, with Markdown or HTML content, a full-page embed, or a sync page from another doc. The page is created asynchronously. Requires Doc Maker access.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

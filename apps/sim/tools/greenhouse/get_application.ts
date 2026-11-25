@@ -14,6 +14,7 @@ export const greenhouseGetApplicationTool: ToolConfig<
   description:
     'Retrieves a specific application by ID with full details including source, stage, answers, and attachments',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

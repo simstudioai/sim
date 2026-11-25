@@ -6,6 +6,7 @@ export const smtpSendMailTool: InternalToolConfig<SmtpSendMailParams, SmtpSendMa
   name: 'SMTP Send Mail',
   description: 'Send emails via SMTP server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     smtpHost: {

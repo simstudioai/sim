@@ -7,6 +7,7 @@ export const searchTool: ToolConfig<PerplexitySearchParams, PerplexitySearchResp
   description:
     "Get ranked search results from Perplexity's continuously refreshed index with advanced filtering and customization options",
   version: '1.0',
+  effect: 'read',
 
   params: {
     query: {

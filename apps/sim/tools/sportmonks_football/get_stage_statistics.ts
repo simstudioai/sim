@@ -36,6 +36,7 @@ export const sportmonksGetStageStatisticsTool: ToolConfig<
   name: 'Get Stage Statistics',
   description: 'Retrieve all available statistics for a stage ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

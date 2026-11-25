@@ -19,6 +19,7 @@ export const genieDeleteSpaceTool: ToolConfig<
   name: 'Databricks Trash Genie Space',
   description: 'Move a Genie space to the trash.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

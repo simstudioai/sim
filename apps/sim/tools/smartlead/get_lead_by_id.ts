@@ -21,6 +21,7 @@ export const getLeadByIdTool: ToolConfig<GetLeadByIdParams, SmartleadLeadByIdRes
   name: 'Smartlead Get Lead by ID',
   description: 'Looks up a Smartlead lead by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

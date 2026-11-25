@@ -36,6 +36,7 @@ export const sportmonksSearchFixturesTool: ToolConfig<
   name: 'Search Fixtures',
   description: 'Search for football fixtures by name (participants) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

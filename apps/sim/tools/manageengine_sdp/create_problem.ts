@@ -16,6 +16,7 @@ export const manageengineSdpCreateProblemTool: ToolConfig<SdpProblemWriteParams,
   description:
     'Create a problem record in ManageEngine ServiceDesk Plus Cloud with a title, description and classification.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

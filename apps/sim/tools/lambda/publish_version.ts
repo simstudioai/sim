@@ -11,6 +11,7 @@ export const publishVersionTool: InternalToolConfig<
   name: 'Lambda Publish Version',
   description: 'Publish an immutable version from the current code and configuration of a function',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -37,6 +37,7 @@ export const mintlifyGetSearchesTool: ToolConfig<
   description:
     'Export Mintlify documentation search terms for a date range, ordered by hit count, with click-through rate and the most-clicked result path.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     projectId: {

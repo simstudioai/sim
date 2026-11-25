@@ -11,6 +11,7 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
   description:
     'Retrieve a specific message by its timestamp. Useful for getting a thread parent message.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

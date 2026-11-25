@@ -29,6 +29,7 @@ export const duplicateObjectTool: ToolConfig<DuplicateObjectParams, DuplicateObj
   description:
     'Duplicate an object (slide, shape, image, table, etc.) in a Google Slides presentation',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

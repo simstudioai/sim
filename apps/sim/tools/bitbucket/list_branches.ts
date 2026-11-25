@@ -29,6 +29,7 @@ export const bitbucketListBranchesTool: ToolConfig<
   name: 'Bitbucket List Branches',
   description: 'List branches in a Bitbucket Cloud repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

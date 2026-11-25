@@ -16,6 +16,7 @@ export const hubspotSearchContactsTool: ToolConfig<
   name: 'Search Contacts in HubSpot',
   description: 'Search for contacts in HubSpot using filters, sorting, and queries',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

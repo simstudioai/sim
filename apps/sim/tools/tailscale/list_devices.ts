@@ -17,6 +17,7 @@ export const tailscaleListDevicesTool: ToolConfig<
   name: 'Tailscale List Devices',
   description: 'List devices in the tailnet',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

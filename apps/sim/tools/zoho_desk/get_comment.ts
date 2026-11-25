@@ -21,6 +21,7 @@ export const zohoDeskGetCommentTool: ToolConfig<
   name: 'Zoho Desk Get Comment',
   description: 'Get Comment in Zoho Desk.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

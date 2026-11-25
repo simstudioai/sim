@@ -30,6 +30,7 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
   name: 'Search Polymarket',
   description: 'Search for markets, events, and profiles on Polymarket',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

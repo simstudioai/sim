@@ -10,6 +10,7 @@ export const jsmCreateRequestTool: InternalToolConfig<
   name: 'JSM Create Request',
   description: 'Create a new service request in Jira Service Management',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

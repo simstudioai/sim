@@ -24,6 +24,7 @@ export const codaGetPageExportStatusTool: ToolConfig<
   description:
     'Check a Coda page export and get its download link once complete. Download links expire shortly after they are issued.',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

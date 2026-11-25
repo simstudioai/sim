@@ -12,6 +12,7 @@ export const getSupplierTool: InternalToolConfig<GetSupplierParams, SapS4HanaRes
   description:
     'Retrieve a single supplier by Supplier key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

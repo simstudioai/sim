@@ -10,6 +10,7 @@ export const deleteBranchTool: ToolConfig<DeleteBranchParams, DeleteBranchRespon
   description:
     'Delete a branch from a GitHub repository by removing its git reference. Protected branches cannot be deleted.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -97,6 +98,7 @@ export const deleteBranchV2Tool: ToolConfig<DeleteBranchParams, any> = {
   name: deleteBranchTool.name,
   description: deleteBranchTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteBranchTool.params,
   request: deleteBranchTool.request,

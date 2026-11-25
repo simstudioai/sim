@@ -12,6 +12,7 @@ export const vantaGetFrameworkTool: InternalToolConfig<
   description:
     'Get a Vanta compliance framework by ID, including its requirement categories and mapped controls',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -28,6 +28,7 @@ export const bitbucketCreatePullRequestTool: ToolConfig<
   name: 'Bitbucket Create Pull Request',
   description: 'Create a pull request between repository branches',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pullrequest:write'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

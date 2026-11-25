@@ -41,6 +41,7 @@ export const mailchimpCreateAudienceTool: ToolConfig<
   name: 'Create Audience in Mailchimp',
   description: 'Create a new audience (list) in Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

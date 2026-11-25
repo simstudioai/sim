@@ -13,6 +13,7 @@ export const incidentTimestampsListTool: ToolConfig<
   name: 'List Incident Timestamps',
   description: 'List all incident timestamp definitions in incident.io',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

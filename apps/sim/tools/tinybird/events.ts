@@ -12,6 +12,7 @@ export const eventsTool: ToolConfig<TinybirdEventsParams, TinybirdEventsResponse
   description:
     'Send events to a Tinybird Data Source using the Events API. Supports JSON and NDJSON formats with optional gzip compression.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 

@@ -24,6 +24,7 @@ export const updateDnsRecordTool: ToolConfig<
   name: 'Cloudflare Update DNS Record',
   description: 'Updates an existing DNS record for a zone.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

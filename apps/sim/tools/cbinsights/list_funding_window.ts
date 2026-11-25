@@ -14,6 +14,7 @@ export const cbinsightsListFundingWindowTool: InternalToolConfig<
   description:
     'Retrieve the estimated next-round funding window for up to 100 organizations at once, with the cohort each was compared against.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

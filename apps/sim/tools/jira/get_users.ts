@@ -27,6 +27,7 @@ export const jiraGetUsersTool: ToolConfig<JiraGetUsersParams, JiraGetUsersRespon
   description:
     'Get Jira users. If an account ID is provided, returns a single user. Otherwise, returns a list of all users.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

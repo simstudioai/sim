@@ -20,6 +20,7 @@ export const mintlifyTriggerUpdateTool: ToolConfig<
   description:
     'Queue a deployment update for a Mintlify documentation project from its configured deployment branch. Returns a status ID for tracking progress.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     projectId: {

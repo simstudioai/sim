@@ -8,6 +8,7 @@ export const upstashRedisGetTool: ToolConfig<UpstashRedisGetParams, UpstashRedis
   name: 'Upstash Redis Get',
   description: 'Get the value of a key from Upstash Redis.',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

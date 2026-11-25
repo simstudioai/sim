@@ -20,6 +20,7 @@ export const listWorkflowsTool: ToolConfig<
   description:
     'List workflow executions in a Temporal namespace, optionally filtered with a visibility query.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     serverUrl: {

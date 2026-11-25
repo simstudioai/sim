@@ -10,6 +10,7 @@ export const getActivityTool: ToolConfig<ThriveGetActivityParams, ThriveActivity
   name: 'Thrive Get Activity',
   description: 'Get a single activity record in Thrive by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

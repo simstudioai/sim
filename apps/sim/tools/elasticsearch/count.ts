@@ -11,6 +11,7 @@ export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountR
   name: 'Elasticsearch Count',
   description: 'Count documents matching a query in Elasticsearch.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     deploymentType: {

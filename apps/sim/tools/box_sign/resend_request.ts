@@ -7,6 +7,7 @@ export const boxSignResendRequestTool: ToolConfig<BoxSignResendRequestParams, To
   name: 'Box Sign Resend Request',
   description: 'Resend a Box Sign request to signers who have not yet signed',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

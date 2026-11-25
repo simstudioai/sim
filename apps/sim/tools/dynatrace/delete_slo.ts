@@ -9,6 +9,7 @@ export const deleteSloTool: ToolConfig<DynatraceDeleteSloParams, DynatraceDelete
   name: 'Dynatrace Delete SLO',
   description: 'Delete a service-level objective.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

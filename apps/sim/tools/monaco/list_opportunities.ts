@@ -25,6 +25,7 @@ export const monacoListOpportunitiesTool: ToolConfig<
   description:
     'List Monaco opportunities with optional filters, sorting, pagination, and a pipeline scope.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

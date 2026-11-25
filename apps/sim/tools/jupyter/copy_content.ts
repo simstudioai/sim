@@ -15,6 +15,7 @@ export const jupyterCopyContentTool: InternalToolConfig<
   name: 'Jupyter Copy Content',
   description: 'Duplicate a file or notebook into a directory on a Jupyter server',
   version: '1.0.0',
+  effect: 'write',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

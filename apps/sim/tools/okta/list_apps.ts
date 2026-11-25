@@ -18,6 +18,7 @@ export const oktaListAppsTool: ToolConfig<OktaListAppsParams, OktaListAppsRespon
   description:
     'List the applications configured in your Okta organization, with optional name search, filtering, and cursor pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

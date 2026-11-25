@@ -21,6 +21,7 @@ export const rocketlaneListTimeEntriesTool: ToolConfig<
   description:
     'List Rocketlane time entries with optional filters, sorting, and cursor-based pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

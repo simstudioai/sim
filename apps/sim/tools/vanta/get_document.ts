@@ -12,6 +12,7 @@ export const vantaGetDocumentTool: InternalToolConfig<
   description:
     'Get a Vanta evidence document by ID, including its renewal schedule and deactivation status',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -14,6 +14,7 @@ export const disassociateAddressTool: InternalToolConfig<
   name: 'EC2 Disassociate Address',
   description: 'Disassociate an Elastic IP address from its instance or network interface',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

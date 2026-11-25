@@ -9,6 +9,7 @@ export const cbinsightsGetStrategyMapTool: InternalToolConfig<CbInsightsOrgParam
   description:
     'Retrieve the companies related to an organization, grouped into industry categories, with the relationships, investments, and acquisitions that connect them.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const codaUpdateDocTool: ToolConfig<CodaUpdateDocParams, CodaDocIdRespons
   description:
     'Rename a Coda doc or change its icon. Renaming requires Doc Maker access in the workspace.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

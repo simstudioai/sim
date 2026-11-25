@@ -66,6 +66,7 @@ export const queryDataSourceTool: ToolConfig<
   description:
     'Run one or more queries against a Grafana data source that has a backend implementation, and read the values back. This is how you get actual metric numbers out of Grafana rather than dashboard or alert configuration.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

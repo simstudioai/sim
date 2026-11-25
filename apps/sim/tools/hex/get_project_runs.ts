@@ -10,6 +10,7 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
   description:
     'Retrieve runs for a Hex project (API-triggered, scheduled, and app refresh runs) with optional filtering by status and trigger, and offset pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

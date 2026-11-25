@@ -14,6 +14,7 @@ export const vercelListProjectDomainsTool: ToolConfig<
   name: 'Vercel List Project Domains',
   description: 'List all domains for a Vercel project',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

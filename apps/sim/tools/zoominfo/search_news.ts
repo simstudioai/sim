@@ -19,6 +19,7 @@ export const zoominfoSearchNewsTool: InternalToolConfig<
   name: 'ZoomInfo Search News',
   description: 'Search ZoomInfo news articles by category, URL, or date range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {

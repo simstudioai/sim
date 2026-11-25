@@ -111,6 +111,7 @@ export const kalshiAmendOrderTool: ToolConfig<KalshiAmendOrderParams, KalshiAmen
   name: 'Amend Order on Kalshi',
   description: 'Modify the price or quantity of an existing order on Kalshi',
   version: '1.0.0',
+  effect: 'write',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
@@ -357,6 +358,7 @@ export const kalshiAmendOrderV2Tool: ToolConfig<
   name: 'Amend Order on Kalshi V2',
   description: 'Modify the price or quantity of an existing order on Kalshi',
   version: '2.0.0',
+  effect: 'write',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {

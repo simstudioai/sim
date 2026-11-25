@@ -8,6 +8,7 @@ export const linearListLabelsTool: ToolConfig<LinearListLabelsParams, LinearList
   name: 'Linear List Labels',
   description: 'List all labels in Linear workspace or team',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

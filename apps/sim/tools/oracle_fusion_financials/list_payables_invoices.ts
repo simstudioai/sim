@@ -19,6 +19,7 @@ export const oracleFusionFinancialsListPayablesInvoicesTool: InternalToolConfig<
   name: 'Oracle Fusion Financials List Payables Invoices',
   description: 'List one page of Oracle Fusion Payables invoices using a fixed safe projection.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     ...oracleFusionFinancialsListParamFields,

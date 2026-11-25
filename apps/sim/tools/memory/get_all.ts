@@ -6,6 +6,7 @@ export const memoryGetAllTool: InternalToolConfig<MemoryGetAllParams, MemoryResp
   name: 'Get All Memories',
   description: 'Retrieve all memories from the database',
   version: '1.0.0',
+  effect: 'read',
 
   params: {},
 

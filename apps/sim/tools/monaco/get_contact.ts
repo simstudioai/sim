@@ -16,6 +16,7 @@ export const monacoGetContactTool: ToolConfig<MonacoGetContactParams, MonacoGetC
   description:
     'Get one Monaco contact by ID, including scoring, heat score explanations, and custom fields.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

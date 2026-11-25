@@ -14,6 +14,7 @@ export const updateContactPointTool: ToolConfig<
   description:
     'Replace a contact point by its UID. Grafana has no partial update for contact points, so every field is rewritten — resend the name, type, and full settings, or the omitted ones are reset.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

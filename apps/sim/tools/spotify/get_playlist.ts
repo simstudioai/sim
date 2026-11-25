@@ -10,6 +10,7 @@ export const spotifyGetPlaylistTool: ToolConfig<
   name: 'Spotify Get Playlist',
   description: 'Get detailed information about a playlist on Spotify by its ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

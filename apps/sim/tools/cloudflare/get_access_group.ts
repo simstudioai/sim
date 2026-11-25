@@ -22,6 +22,7 @@ export const getAccessGroupTool: ToolConfig<
   name: 'Cloudflare Get Access Group',
   description: 'Fetches a single Access group.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

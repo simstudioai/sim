@@ -11,6 +11,7 @@ export const hubspotListQuotesTool: ToolConfig<HubSpotListQuotesParams, HubSpotL
     name: 'List Quotes from HubSpot',
     description: 'Retrieve all quotes from HubSpot account with pagination support',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

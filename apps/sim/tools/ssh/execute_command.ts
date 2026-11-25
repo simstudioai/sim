@@ -6,6 +6,7 @@ export const executeCommandTool: InternalToolConfig<SSHExecuteCommandParams, SSH
   name: 'SSH Execute Command',
   description: 'Execute a shell command on a remote SSH server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -46,6 +46,7 @@ export const confluenceListTasksTool: InternalToolConfig<
   description:
     'List inline tasks from Confluence. Optionally filter by page, space, assignee, or status.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

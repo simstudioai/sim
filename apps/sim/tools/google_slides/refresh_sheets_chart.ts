@@ -28,6 +28,7 @@ export const refreshSheetsChartTool: ToolConfig<
   description:
     'Refresh an embedded linked Sheets chart so it reflects the latest spreadsheet data.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

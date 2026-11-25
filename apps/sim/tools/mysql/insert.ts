@@ -7,6 +7,7 @@ export const insertTool: InternalToolConfig<MySQLInsertParams, MySQLResponse> = 
   name: 'MySQL Insert',
   description: 'Insert new record into MySQL database',
   version: '1.0',
+  effect: 'write',
   oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {

@@ -9,6 +9,7 @@ export const listEventTypesTool: ToolConfig<
   name: 'Cal.com List Event Types',
   description: 'Retrieve a list of all event types',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

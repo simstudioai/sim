@@ -10,6 +10,7 @@ export const pitchbookLookupTableStructureTool: ToolConfig<PitchbookBaseParams, 
     description:
       'List the lookup tables backing the search endpoints. Use this to find which table holds the codes a search filter expects.',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

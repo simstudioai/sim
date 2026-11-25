@@ -7,6 +7,7 @@ export const introspectTool: InternalToolConfig<Neo4jIntrospectParams, Neo4jIntr
   description:
     'Introspect a Neo4j database to discover its schema including node labels, relationship types, properties, constraints, and indexes.',
   version: '1.0',
+  effect: 'read',
 
   params: {
     host: {

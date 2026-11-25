@@ -101,6 +101,7 @@ export const onCallNowTool: ToolConfig<IncidentioOnCallNowParams, IncidentioOnCa
   description:
     'Get who is currently on call in incident.io, as one row per ongoing shift across every schedule (or a single schedule). Also returns the shifts that take over at the next changeover.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

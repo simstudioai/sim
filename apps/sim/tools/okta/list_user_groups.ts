@@ -21,6 +21,7 @@ export const oktaListUserGroupsTool: ToolConfig<
   description:
     'List the groups a user is a member of, one page at a time (pass nextCursor back as after while hasMore is true). Use it for access reviews and offboarding instead of scanning the members of each group.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

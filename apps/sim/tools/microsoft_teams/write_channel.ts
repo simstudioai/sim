@@ -12,8 +12,8 @@ export const writeChannelTool: InternalToolConfig<
   name: 'Write to Microsoft Teams Channel',
   description: 'Write or send a message to a Microsoft Teams channel',
   version: '1.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'teamId', label: 'Team', target: true },

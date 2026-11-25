@@ -14,6 +14,7 @@ export const updateNamedQueryTool: InternalToolConfig<
   description:
     'Update the name, description, or SQL of an existing Athena named query (database and workgroup cannot change)',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

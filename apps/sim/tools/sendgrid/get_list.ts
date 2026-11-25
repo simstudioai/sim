@@ -9,6 +9,7 @@ export const sendGridGetListTool: ToolConfig<GetListParams, ListResult> = {
   name: 'SendGrid Get List',
   description: 'Get a specific list by ID from SendGrid',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

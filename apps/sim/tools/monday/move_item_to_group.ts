@@ -18,6 +18,7 @@ export const mondayMoveItemToGroupTool: ToolConfig<
   name: 'Monday Move Item to Group',
   description: 'Move an item to a different group on a Monday.com board',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

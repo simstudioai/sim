@@ -24,6 +24,7 @@ export const planetScaleCreateDeployRequestTool: ToolConfig<
   name: 'PlanetScale Create Deploy Request',
   description: 'Create a deploy request (Vitess only)',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

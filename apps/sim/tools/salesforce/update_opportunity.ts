@@ -17,6 +17,7 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
   name: 'Update Opportunity in Salesforce',
   description: 'Update an existing opportunity',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

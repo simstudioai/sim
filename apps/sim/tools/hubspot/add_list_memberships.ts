@@ -16,6 +16,7 @@ export const hubspotAddListMembershipsTool: ToolConfig<
   name: 'Add List Members in HubSpot',
   description: 'Add records to a manual (static) HubSpot list by record ID',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

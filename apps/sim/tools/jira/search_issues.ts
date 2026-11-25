@@ -115,6 +115,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
   name: 'Jira Search Issues',
   description: 'Search for Jira issues using JQL (Jira Query Language)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

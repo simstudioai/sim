@@ -8,6 +8,7 @@ export const zepGetThreadsTool: ToolConfig<any, ZepResponse> = {
   name: 'Get Threads',
   description: 'List all conversation threads',
   version: '1.0.0',
+  effect: 'read',
   oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {

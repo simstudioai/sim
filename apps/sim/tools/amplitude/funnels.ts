@@ -9,6 +9,7 @@ export const funnelsTool: ToolConfig<AmplitudeFunnelsParams, AmplitudeFunnelsRes
   name: 'Amplitude Funnels',
   description: 'Analyze conversion rates and drop-off between a sequence of events.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {

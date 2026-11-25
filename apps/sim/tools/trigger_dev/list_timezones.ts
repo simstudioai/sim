@@ -15,6 +15,7 @@ export const triggerDevListTimezonesTool: ToolConfig<
   description:
     'List the IANA timezones supported by Trigger.dev schedules, for use as the timezone of a cron schedule.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

@@ -21,6 +21,7 @@ export const monacoListSequencesTool: ToolConfig<MonacoListParams, MonacoListSeq
   name: 'Monaco List Sequences',
   description: 'List Monaco outreach sequences with optional filters, sorting, and pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -31,6 +31,7 @@ export const sportmonksMotorsportGetPitstopsByFixtureAndLapTool: ToolConfig<
   name: 'Get Pitstops by Fixture and Lap Number',
   description: 'Retrieve all pitstops for a motorsport fixture and lap number from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

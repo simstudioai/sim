@@ -20,6 +20,7 @@ export const squareBatchRetrieveInventoryCountsTool: ToolConfig<
   name: 'Square Batch Retrieve Inventory Counts',
   description: 'Retrieve current inventory counts for catalog items across locations',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

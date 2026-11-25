@@ -12,6 +12,7 @@ export const rampGetVirtualCardTool: ToolConfig<
   name: 'Ramp Get Virtual Card',
   description: 'Fetch a virtual card in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

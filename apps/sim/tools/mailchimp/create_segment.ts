@@ -31,6 +31,7 @@ export const mailchimpCreateSegmentTool: ToolConfig<
   name: 'Create Segment in Mailchimp Audience',
   description: 'Create a new segment in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

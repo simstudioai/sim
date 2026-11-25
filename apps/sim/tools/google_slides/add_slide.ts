@@ -46,6 +46,7 @@ export const addSlideTool: ToolConfig<AddSlideParams, AddSlideResponse> = {
   name: 'Add Slide to Google Slides',
   description: 'Add a new slide to a Google Slides presentation with a specified layout',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

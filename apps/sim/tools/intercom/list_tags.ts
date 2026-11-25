@@ -51,6 +51,7 @@ export const intercomListTagsV2Tool: ToolConfig<
   name: 'List Tags from Intercom',
   description: 'Fetch a list of all tags in the workspace',
   version: '2.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

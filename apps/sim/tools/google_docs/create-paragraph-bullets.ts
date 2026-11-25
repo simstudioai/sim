@@ -35,6 +35,7 @@ export const createParagraphBulletsTool: ToolConfig<
   description:
     'Add bulleted or numbered list formatting to the paragraphs overlapping a range of text in a Google Docs document, using a chosen bullet glyph preset.',
   version: '1.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'google-docs',

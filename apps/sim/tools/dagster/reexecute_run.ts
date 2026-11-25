@@ -80,6 +80,7 @@ export const reexecuteRunTool: ToolConfig<DagsterReexecuteRunParams, DagsterReex
     name: 'Dagster Reexecute Run',
     description: 'Reexecute an existing Dagster run, optionally resuming only from failed steps.',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       host: {

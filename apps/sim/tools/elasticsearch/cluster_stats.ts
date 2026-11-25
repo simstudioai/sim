@@ -13,6 +13,7 @@ export const clusterStatsTool: ToolConfig<
   name: 'Elasticsearch Cluster Stats',
   description: 'Get Elasticsearch cluster health, node counts, and index statistics.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     deploymentType: {

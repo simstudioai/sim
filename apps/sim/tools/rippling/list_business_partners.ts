@@ -12,6 +12,7 @@ export const ripplingListBusinessPartnersTool: ToolConfig<RipplingListBusinessPa
   name: 'Rippling List Business Partners',
   description: 'List all business partners',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

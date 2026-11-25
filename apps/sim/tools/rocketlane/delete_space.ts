@@ -16,6 +16,7 @@ export const rocketlaneDeleteSpaceTool: ToolConfig<
   name: 'Rocketlane Delete Space',
   description: 'Permanently delete a Rocketlane space by its ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

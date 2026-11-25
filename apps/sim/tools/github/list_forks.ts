@@ -38,6 +38,7 @@ export const listForksTool: ToolConfig<ListForksParams, ListForksResponse> = {
   name: 'GitHub List Forks',
   description: 'List forks of a repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -172,6 +173,7 @@ export const listForksV2Tool: ToolConfig<ListForksParams, any> = {
   name: listForksTool.name,
   description: listForksTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listForksTool.params,
   request: listForksTool.request,

@@ -25,6 +25,7 @@ export const codaListControlsTool: ToolConfig<CodaListDocItemsParams, CodaListCo
   description:
     'List the controls (sliders, selects, checkboxes, date pickers, buttons, etc.) in a Coda doc',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

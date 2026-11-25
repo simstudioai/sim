@@ -18,6 +18,7 @@ export const spotifySetShuffleTool: ToolConfig<SpotifySetShuffleParams, SpotifyS
     name: 'Spotify Set Shuffle',
     description: 'Turn shuffle on or off.',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

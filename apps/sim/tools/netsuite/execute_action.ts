@@ -11,6 +11,7 @@ export const netsuiteExecuteActionTool: InternalToolConfig<
   name: 'NetSuite Execute Record Action',
   description: 'Execute a supported NetSuite record action such as approve, reject, or confirm.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

@@ -10,6 +10,7 @@ export const listDeadLetterSourceQueuesTool: InternalToolConfig<
   name: 'SQS List Dead-Letter Source Queues',
   description: 'List the Amazon SQS queues that use a given queue as their dead-letter queue',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

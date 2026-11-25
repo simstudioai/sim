@@ -12,6 +12,7 @@ export const triggerDevGetQuerySchemaTool: ToolConfig<
   description:
     'Retrieve the TRQL query schema: the tables and columns available for Execute Query, with types and allowed values.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

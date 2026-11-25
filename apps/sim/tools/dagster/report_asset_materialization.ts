@@ -44,6 +44,7 @@ export const reportAssetMaterializationTool: ToolConfig<
   name: 'Dagster Report Asset Materialization',
   description: 'Report an external (runless) materialization or observation for an asset.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

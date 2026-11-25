@@ -9,6 +9,7 @@ export const listPipelinesTool: ToolConfig<ListPipelinesParams, ListPipelinesRes
   description:
     'List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder, revision, and URL.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

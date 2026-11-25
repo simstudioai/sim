@@ -29,6 +29,7 @@ export const sportmonksGetLivescoresTool: ToolConfig<
   description:
     'Retrieve fixtures starting within 15 minutes and currently in progress from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

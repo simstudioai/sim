@@ -20,6 +20,7 @@ export const flowGetEntitiesTool: ToolConfig<FlowGetEntitiesParams, FlowGetEntit
   description:
     'Read the full values, relationships, and timestamps of up to 100 Flow entities in one project and branch.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

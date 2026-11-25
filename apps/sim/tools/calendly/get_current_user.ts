@@ -13,6 +13,7 @@ export const getCurrentUserTool: ToolConfig<
   name: 'Calendly Get Current User',
   description: 'Get information about the currently authenticated Calendly user',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -11,6 +11,7 @@ export const salesforceGetLeadsTool: ToolConfig<
   name: 'Get Leads from Salesforce',
   description: 'Retrieve lead(s) from Salesforce CRM',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

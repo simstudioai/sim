@@ -9,6 +9,7 @@ export const pitchbookDealStockInfoTool: ToolConfig<PitchbookProfileParams, Pitc
   description:
     'Retrieve the share terms of a deal: price per share, shares acquired, and the preference, dividend, and voting rights attached',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

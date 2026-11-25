@@ -8,6 +8,7 @@ export const cancelEventTool: ToolConfig<LumaCancelEventParams, LumaCancelEventR
   description:
     'Cancel a Luma event. This is irreversible and notifies all registered guests. Requires a cancellation token obtained from the Request Event Cancellation endpoint.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {

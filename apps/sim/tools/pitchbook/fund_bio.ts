@@ -9,6 +9,7 @@ export const pitchbookFundBioTool: ToolConfig<PitchbookProfileParams, PitchbookR
   description:
     'Retrieve the profile of a fund: managers, vintage, status, type, size, target, location, and team',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

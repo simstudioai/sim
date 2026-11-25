@@ -13,6 +13,7 @@ export const deleteProvisionedConcurrencyConfigTool: InternalToolConfig<
   name: 'Lambda Delete Provisioned Concurrency',
   description: 'Remove the provisioned concurrency configuration from a function version or alias',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -19,6 +19,7 @@ export const clerkUpdateOrganizationTool: ToolConfig<
   name: 'Update Organization in Clerk',
   description: 'Update an existing organization in your Clerk application',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

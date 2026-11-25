@@ -12,6 +12,7 @@ export const triggerDevGetRunTraceTool: ToolConfig<
   description:
     'Retrieve the OpenTelemetry trace of a Trigger.dev run as a tree of spans with timing, errors, and nested children.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

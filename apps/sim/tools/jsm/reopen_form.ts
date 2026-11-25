@@ -6,6 +6,7 @@ export const jsmReopenFormTool: InternalToolConfig<JsmReopenFormParams, JsmReope
   name: 'JSM Reopen Form',
   description: 'Reopen a submitted form on a Jira issue or JSM request, allowing further edits',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

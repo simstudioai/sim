@@ -12,8 +12,8 @@ export const writeChatTool: InternalToolConfig<
   name: 'Write to Microsoft Teams Chat',
   description: 'Write or update content in a Microsoft Teams chat',
   version: '1.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'chatId', label: 'Chat', target: true },
