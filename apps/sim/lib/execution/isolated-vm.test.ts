@@ -1100,6 +1100,64 @@ describe('isolated-vm scheduler', () => {
     expect(secureFetchMock).not.toHaveBeenCalled()
   })
 
+  it('returns a result only once the fetch policy decided a request the code never awaited', async () => {
+    const unawaitedFetchProc = () => {
+      const proc = createBaseProc()
+      proc.send = (message: unknown) => {
+        const msg = message as { type?: string; executionId?: number }
+        if (msg.type === 'execute') {
+          setImmediate(() => {
+            proc.emit('message', {
+              type: 'fetch',
+              executionId: msg.executionId,
+              fetchId: 1,
+              requestId: 'req-unawaited',
+              url: 'https://hook.example/write',
+              optionsJson: JSON.stringify({ method: 'POST' }),
+            })
+            proc.emit('message', {
+              type: 'result',
+              executionId: msg.executionId,
+              result: { result: 'returned', stdout: '' },
+            })
+          })
+        }
+        return true
+      }
+      setImmediate(() => proc.emit('message', { type: 'ready' }))
+      return proc
+    }
+    const { executeInIsolatedVM } = await loadExecutionModule({ spawns: [unawaitedFetchProc] })
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '93.184.216.34',
+      originalHostname: 'hook.example',
+    })
+    const decided: string[] = []
+
+    const result = await executeInIsolatedVM(
+      {
+        code: 'fetch("https://hook.example/write", { method: "POST" }); return "returned"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 1000,
+        requestId: 'req-unawaited',
+      },
+      {
+        fetchPolicy: async (request) => {
+          await sleep(50)
+          decided.push(request.method)
+          return 'stub'
+        },
+      }
+    )
+
+    expect(result.result).toBe('returned')
+    expect(decided).toEqual(['POST'])
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
   it('does not log a resolved secret from a failed fetch URL or error', async () => {
     const secret = 'fetch-path-secret-value'
     const requestUrl = `https://example.com/${secret}`

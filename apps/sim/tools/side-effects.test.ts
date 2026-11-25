@@ -193,6 +193,21 @@ describe('code a dry run runs', () => {
     ])
   })
 
+  it('is listed unchecked, not allowed, when its block is allowed and it runs in a remote sandbox', () => {
+    const policy = new WriteStubPolicy({ workflowId: 'wf-1', allowBlockIds: new Set(['python']) })
+    const code = policy.codeNetwork({
+      workflowId: 'wf-1',
+      blockId: 'python',
+      blockName: 'python',
+      blockType: 'function',
+    })
+
+    code.ranInRemoteSandbox()
+
+    expect(policy.summary().unchecked).toEqual([expect.objectContaining({ blockId: 'python' })])
+    expect(policy.summary().allowed).toEqual([])
+  })
+
   it('records a long stubbed body masked before it is capped, so no secret is cut in two', async () => {
     const secret = 'code-secret-0123456789'
     const { network, policy } = codeNetwork('code', { apiKey: secret })

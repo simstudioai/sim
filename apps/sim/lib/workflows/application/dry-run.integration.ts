@@ -1784,7 +1784,7 @@ return res.status`
   it('fails a write the egress policy refuses, as a live run would, and records nothing', async () => {
     const { workflowId } = await codeWorkflow(
       `try {
-  await fetch('http://10.255.255.1/hook', { method: 'POST' })
+  await fetch('https://10.255.255.1/hook', { method: 'POST' })
   return 'answered'
 } catch (error) {
   return error.message
@@ -1794,7 +1794,9 @@ return res.status`
     const result = await run(workflowId, { dry: true })
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
-    expect(JSON.stringify(result.output)).not.toContain('answered')
+    expect(result.output).toMatchObject({
+      result: expect.stringContaining('fetchUrl resolves to a private or reserved address'),
+    })
     expect(result.sideEffects?.stubbed).toEqual([])
   })
 

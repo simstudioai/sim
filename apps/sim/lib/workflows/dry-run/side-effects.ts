@@ -211,19 +211,13 @@ export class WriteStubPolicy implements SideEffectPolicy {
     return 'send'
   }
 
+  /**
+   * Code in a remote sandbox is listed unchecked even when its block is allowed: allowing it
+   * changes nothing there, and `allowed` lists only writes known to be sent.
+   */
   codeNetwork(site: SideEffectSite): CodeNetworkPolicy {
     const key = `${site.workflowId}:${site.blockId}`
-    if (this.allows(site)) {
-      const recordAllowed = () =>
-        this.allowed.add({ ...recordedSite(site), tool: CODE_TOOL_ID }, `${key}:${CODE_TOOL_ID}`)
-      return {
-        ranInRemoteSandbox: recordAllowed,
-        onRequest: async (request) => {
-          if (!isReadRequest(request.method, request.headerNames)) recordAllowed()
-          return 'send'
-        },
-      }
-    }
+    const allowed = this.allows(site)
     return {
       ranInRemoteSandbox: () =>
         this.unchecked.add(
@@ -232,6 +226,10 @@ export class WriteStubPolicy implements SideEffectPolicy {
         ),
       onRequest: async (request) => {
         if (isReadRequest(request.method, request.headerNames)) return 'send'
+        if (allowed) {
+          this.allowed.add({ ...recordedSite(site), tool: CODE_TOOL_ID }, `${key}:${CODE_TOOL_ID}`)
+          return 'send'
+        }
         this.stubbed.add({
           ...recordedSite(site),
           tool: CODE_TOOL_ID,
