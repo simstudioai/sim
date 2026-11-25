@@ -2192,8 +2192,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     },
     range: {
       type: 'string',
-      description: 'Range that was read',
-      condition: { field: 'operation', value: 'read' },
+      description: 'Range that was read, cleared, or formatted',
+      condition: { field: 'operation', value: ['read', 'clear_range', 'format_range'] },
     },
     values: {
       type: 'json',

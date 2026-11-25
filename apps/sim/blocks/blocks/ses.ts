@@ -899,10 +899,15 @@ export const SESBlock: BlockConfig = {
     messageId: {
       type: 'string',
       description:
-        'SES message ID (send_email, send_templated_email, send_custom_verification_email)',
+        'SES message ID (send_email, send_templated_email, send_custom_verification_email), or the message behind a suppression (get_suppressed_destination)',
       condition: {
         field: 'operation',
-        value: ['send_email', 'send_templated_email', 'send_custom_verification_email'],
+        value: [
+          'send_email',
+          'send_templated_email',
+          'send_custom_verification_email',
+          'get_suppressed_destination',
+        ],
       },
     },
     results: {
