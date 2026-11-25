@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { backoffWithJitter } from './retry'
 
 /** Pins the jitter draw: 0 is its low end, just under 2^32 its high end. */
@@ -10,10 +10,6 @@ function drawJitter(value: number) {
 }
 
 describe('backoffWithJitter', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('never waits longer than maxMs, however high the jitter draws at the cap', () => {
     drawJitter(0xffffffff)
     expect(backoffWithJitter(10, null, { baseMs: 500, maxMs: 2000 })).toBeLessThanOrEqual(2000)
