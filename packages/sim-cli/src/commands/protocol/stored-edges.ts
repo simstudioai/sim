@@ -101,13 +101,16 @@ function storedEdgesRecord(
  * `childResults`, which a workflow folder of a workspace directory takes from its workspace
  * directory and a workflow directory of its own has none of. A check compiles it the same way,
  * so a block it reports changed is one an edit changed. `null` when the answer has no fingerprint
- * or entry, or nothing to compile it with.
+ * or entry, or nothing to compile or type it with (`childResults` `null`: the workspace directory
+ * could not be read); the record left on disk then names an older fingerprint, which a check
+ * ignores.
  */
 export function storedEdgesWrite(
   answer: PrintedAnswer,
   catalog: BlockCatalog | null,
-  childResults?: ChildResults
+  childResults?: ChildResults | null
 ): readonly [string, string] | null {
+  if (childResults === null) return null
   const input = catalog && printedInput(answer, catalog)
   if (!input) return null
   return storedEdgesRecord(answer, compileWorkflow({ ...input, childResults }), '')

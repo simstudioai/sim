@@ -554,12 +554,19 @@ async function compileWorkspaceWorkflows(
  * The child results that type the calls of a workflow written into `dir`, as a check of it types
  * them: those of the workspace directory it is a workflow folder of, compiled from disk against
  * the workspace's cached catalog; `undefined` for a workflow directory of its own, which has none.
+ * `null` when that directory cannot be read (a symbolic link in any of its workflow folders, say):
+ * they only type the folder's stored-edges record, a cache fill, so that record is skipped
+ * ({@link storedEdgesWrite}) and nothing else.
  */
-export async function folderChildResults(dir: string): Promise<ChildResults | undefined> {
-  const folder = await workspaceFolderOf(dir)
-  const catalog = folder && cachedCatalog(folder.workspaceId)
-  if (!folder || !catalog) return undefined
-  return (await compileWorkspaceWorkflows(folder.root, catalog)).childResults
+export async function folderChildResults(dir: string): Promise<ChildResults | null | undefined> {
+  try {
+    const folder = await workspaceFolderOf(dir)
+    const catalog = folder && cachedCatalog(folder.workspaceId)
+    if (!folder || !catalog) return undefined
+    return (await compileWorkspaceWorkflows(folder.root, catalog)).childResults
+  } catch {
+    return null
+  }
 }
 
 /**

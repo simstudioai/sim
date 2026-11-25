@@ -476,6 +476,7 @@ export function attachWorkflowSourceApply(source: Command): void {
           if (!isReadOnly(mode)) {
             await refreshWorkflowWorkspaceTypes(client, options.dir, base.workspaceId)
           }
+          const childResults = isReadOnly(mode) ? undefined : await folderChildResults(options.dir)
           await writeWorkflowSource<'applyWorkflowSource'>({
             options,
             mode,
@@ -496,7 +497,7 @@ export function attachWorkflowSourceApply(source: Command): void {
               const edges = storedEdgesWrite(
                 data,
                 cachedCatalogByHash(toRecord(data.base).catalogHash),
-                await folderChildResults(options.dir)
+                childResults
               )
               await writeBack(options.dir, data, lock, { write: edges ? [edges] : [] })
               await refreshWorkflowTsconfigs(options.dir, data)
@@ -592,6 +593,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
           if (!isReadOnly(mode)) {
             await refreshWorkflowWorkspaceTypes(client, options.dir, workspaceId)
           }
+          const childResults = isReadOnly(mode) ? undefined : await folderChildResults(options.dir)
           await writeWorkflowSource<'createWorkflowFromSource'>({
             options,
             mode,
@@ -604,13 +606,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
             params: { workspaceId },
             ifAnswerLost: `It may have been created. Run this command again: a SOURCE_NAME_TAKEN refusal means it was, so find its id with \`sim workflows list\` and run \`sim workflows source get <workflowId> --dir ${options.dir} --force\`.`,
             save: async (data) => {
-              await writeSourceDirectory(
-                client,
-                options.dir,
-                data,
-                [],
-                await folderChildResults(options.dir)
-              )
+              await writeSourceDirectory(client, options.dir, data, [], childResults)
               await updateSourceDir(options.dir, { write: [], remove: [SOURCE_STARTER_FILE] })
             },
             body: {

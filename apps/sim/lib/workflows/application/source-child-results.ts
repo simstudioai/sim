@@ -60,6 +60,9 @@ export interface ChildResultsScope {
 /** Stored workflow graphs by id, as `loadWorkflowGraphs` reads them. */
 export type StoredGraphs = Awaited<ReturnType<typeof loadWorkflowGraphs>>
 
+/** One stored workflow graph, as `loadWorkflowGraphs` reads it. */
+type StoredGraph = NonNullable<ReturnType<StoredGraphs['get']>>
+
 /** Graphs a read already loaded, and the workflow each child key resolves to for it. */
 interface LoadedChildren {
   graphs: StoredGraphs
@@ -68,14 +71,21 @@ interface LoadedChildren {
 
 /**
  * A submitted folder compiled as the directory's check compiles it ({@link folderCompileInput}):
- * continuing the stored workflow its lock binds, so a `stored()` param compiles unread.
+ * continuing the stored workflow its lock binds, so a `stored()` param compiles unread, against
+ * the catalog the child's own apply compiles it with: the workspace catalog plus the types its
+ * stored draft holds (`stored`, absent for a workflow the apply creates).
  */
-function submittedNode(source: ChildSource, scope: ChildResultsScope): ChildResultNode | null {
+function submittedNode(
+  source: ChildSource,
+  stored: StoredGraph | undefined,
+  scope: ChildResultsScope
+): ChildResultNode | null {
   const entry = source.files[SOURCE_ENTRY_FILE]
   if (entry === undefined) return null
   const catalog = buildSourceCatalog({
     gate: scope.gate,
     organizationId: scope.workspaceOrganizationId,
+    storedTypes: storedCatalogTypes(Object.values(stored?.graph.blocks ?? {})),
   })
   const lock = source.lock === undefined ? undefined : parseWorkflowLock(source.lock).lock
   return compiledResultNode(folderCompileInput(entry, source.files, lock, catalog))
@@ -86,7 +96,7 @@ function submittedNode(source: ChildSource, scope: ChildResultsScope): ChildResu
  * lifted to their keys: no Response field's type depends on any other resource's key.
  */
 function storedNode(
-  loaded: NonNullable<ReturnType<StoredGraphs['get']>>,
+  loaded: StoredGraph,
   workflowKeys: ReadonlyMap<string, string>,
   scope: ChildResultsScope
 ): ChildResultNode {
@@ -108,15 +118,15 @@ function storedNode(
 }
 
 /**
- * The node of each stored workflow `keys` name in the workspace, by key (one the workspace does
+ * The stored graph of each workflow `keys` name in the workspace, by key (one the workspace does
  * not hold, or holds archived, is left out): from `loaded` when it holds the graph a key resolves
  * to, else read in one query.
  */
-async function storedNodes(
+async function keyedGraphs(
   keys: readonly string[],
   scope: ChildResultsScope,
   loaded: LoadedChildren | undefined
-): Promise<Map<string, ChildResultNode>> {
+): Promise<Map<string, StoredGraph>> {
   const ids = new Map<string, string>()
   for (const key of keys) {
     const id = loaded ? loaded.toId(key) : null
@@ -134,6 +144,19 @@ async function storedNodes(
     for (const [key, id] of resolved) ids.set(key, id)
   }
   const graphs = await loadChildGraphs(scope.workspaceId, [...ids.values()], loaded?.graphs)
+  const byKey = new Map<string, StoredGraph>()
+  for (const [key, id] of ids) {
+    const graph = graphs.get(id)
+    if (graph) byKey.set(key, graph)
+  }
+  return byKey
+}
+
+/** The node of each stored workflow `graphs` holds, by key ({@link storedNode}). */
+async function storedNodes(
+  graphs: ReadonlyMap<string, StoredGraph>,
+  scope: ChildResultsScope
+): Promise<Map<string, ChildResultNode>> {
   const calledIds = [...graphs.values()].flatMap((graph) =>
     storedChildWorkflowIds(Object.values(graph.graph.blocks))
   )
@@ -148,10 +171,7 @@ async function storedNodes(
           )
         ).get('workflow') ?? new Map<string, string>())
   const nodes = new Map<string, ChildResultNode>()
-  for (const [key, id] of ids) {
-    const graph = graphs.get(id)
-    if (graph) nodes.set(key, storedNode(graph, workflowKeys, scope))
-  }
+  for (const [key, graph] of graphs) nodes.set(key, storedNode(graph, workflowKeys, scope))
   return nodes
 }
 
@@ -168,11 +188,15 @@ async function readChildResults(
   const nodes = new Map<string, ChildResultNode | null>()
   let frontier = [...new Set(keys)]
   while (frontier.length > 0) {
-    const stored = frontier.filter((key) => !scope.submitted?.has(key))
-    const read = stored.length > 0 ? await storedNodes(stored, scope, loaded) : new Map()
+    const graphs = await keyedGraphs(frontier, scope, loaded)
+    const stored = new Map([...graphs].filter(([key]) => !scope.submitted?.has(key)))
+    const read = stored.size > 0 ? await storedNodes(stored, scope) : new Map()
     for (const key of frontier) {
       const source = scope.submitted?.get(key)
-      nodes.set(key, source ? submittedNode(source, scope) : (read.get(key) ?? null))
+      nodes.set(
+        key,
+        source ? submittedNode(source, graphs.get(key), scope) : (read.get(key) ?? null)
+      )
     }
     const next = new Set(frontier.flatMap((key) => nodes.get(key)?.calls ?? []))
     frontier = [...next].filter((key) => !nodes.has(key))

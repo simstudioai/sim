@@ -33,6 +33,7 @@ import {
 } from '@sim/testing/mocks/uploads-setup.mock'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
+import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import { WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import type { WorkspaceBaseV1, WorkspaceKind } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
@@ -1556,6 +1557,76 @@ export default workflow('Secret', {}, () => {
       expect(reapplied.failed).toBeUndefined()
       expect(codes(reapplied.diagnostics, 'warning')).not.toContain('W_JSON_REF_UNTYPED')
       expect(await responseData(parentId)).toEqual(typed)
+    }
+  )
+
+  check(
+    'types a call by a child sent holding a block type the workspace catalog no longer offers',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        'workflows/a/workflow.ts': forwarder('A', 'c'),
+        'workflows/c/workflow.ts': TEXT_CHILD,
+      }
+      const created = await apply(workspaceId, { files, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const parentId = created.base.resources['workflow:a']?.id
+      const childId = created.base.resources['workflow:c']?.id
+      if (!parentId || !childId) throw new Error('The workflows were not created')
+
+      // `thinking` is hidden from the toolbar, so only the child's own catalog declares it.
+      const child = await loadWorkflowFromNormalizedTables(childId)
+      const blockOf = (type: string) =>
+        Object.values(child?.blocks ?? {}).find((block) => block.type === type)?.id
+      const startId = blockOf('start_trigger')
+      const replyId = blockOf('response')
+      if (!child || !startId || !replyId) throw new Error('The child was not stored')
+      const thinkingId = generateId()
+      const saved = await saveWorkflowToNormalizedTables(childId, {
+        ...child,
+        edges: [
+          ...child.edges,
+          { id: generateId(), source: startId, target: thinkingId },
+          { id: generateId(), source: thinkingId, target: replyId },
+        ],
+        blocks: {
+          ...child.blocks,
+          [thinkingId]: {
+            id: thinkingId,
+            type: 'thinking',
+            name: 'Ponder',
+            position: { x: 0, y: 200 },
+            subBlocks: { thought: { id: 'thought', type: 'long-input', value: 'Think first' } },
+            outputs: {},
+            enabled: true,
+          },
+        },
+      })
+      if (!saved.success) throw new Error(`Seeding the child failed: ${saved.error}`)
+
+      const read = await get(workspaceId)
+      expect(read.files['workflows/c/workflow.ts']).toContain('Ponder')
+      const reapplied = await apply(
+        workspaceId,
+        {
+          files: {
+            ...read.files,
+            'workflows/a/workflow.ts': read.files['workflows/a/workflow.ts'].replace(
+              'n: call.result.data.n',
+              'n: call.result.data.n, again: call.result.data.text'
+            ),
+          },
+          blobs: {},
+        },
+        { base: read.base }
+      )
+      expect(reapplied.failed).toBeUndefined()
+      expect(codes(reapplied.diagnostics, 'warning')).not.toContain('W_JSON_REF_UNTYPED')
+      expect(await responseData(parentId)).toEqual({
+        text: '"<call.result.data.text>"',
+        n: '<call.result.data.n>',
+        again: '"<call.result.data.text>"',
+      })
     }
   )
 

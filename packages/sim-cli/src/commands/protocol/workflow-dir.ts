@@ -290,7 +290,7 @@ async function writeSourceTree(
   catalog: BlockCatalog,
   workspaceTypes: WorkspaceTypes | null,
   blockTypes: readonly string[],
-  childResults: ChildResults | undefined
+  childResults: ChildResults | null | undefined
 ): Promise<SourceTree> {
   const [previousLock, tree] = await Promise.all([
     readPreviousLock(dir),
@@ -368,7 +368,7 @@ export async function writeSourceDirectory(
   dir: string,
   source: PrintedSource,
   blockTypes: readonly string[],
-  childResults: ChildResults | undefined
+  childResults: ChildResults | null | undefined
 ): Promise<SourceTree> {
   const [catalog, workspaceTypes] = await Promise.all([
     loadCatalog(client, {
