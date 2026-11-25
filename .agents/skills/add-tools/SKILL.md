@@ -235,11 +235,13 @@ search that returns no email or phone, and an email verifier.
   masked (a URL that is wholly a secret); then check the tool label alone and compare the request
   fields only on entries that carry one.
 - A dry run answers a `write` with a sample of its `outputs`. When downstream blocks read output the
-  request alone determines (a table write's `row.data`, a created file's `name`), declare a pure
-  `dryRunOutput(params)` returning just those fields; it gets params with secrets masked. It is laid
-  over the sample by the declared schema: field by field where an output declares `properties`,
-  whole anywhere else, so return an undeclared shape (a `json` row) complete, with placeholders for
-  what the request cannot know. Never guess at what the provider would add.
+  request alone determines (a table write's `row.data`, a file write's requested name), declare a
+  pure `dryRunOutput(params)` returning just those fields; it gets params with secrets masked. It is
+  laid over the sample by the declared schema: field by field where an output declares `properties`,
+  item by item where an array declares `items` (undeclared fields are dropped), and whole anywhere
+  else, so return an undeclared shape (a `json` row) complete, with placeholders for what the request
+  cannot know. Never guess at what the provider or stored state would add (a collision suffix on a
+  file name, an id).
 
 ## Critical Rules for Parameters
 
