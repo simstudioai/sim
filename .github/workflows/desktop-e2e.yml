@@ -107,7 +107,7 @@ jobs:
     name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
     if: github.event_name != 'schedule' && github.event_name != 'push'
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -163,7 +163,7 @@ jobs:
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
-        run: bun run ../../scripts/desktop-e2e.ts ${{ matrix.shard }}/${{ strategy.job-total }}
+        run: bunx playwright test e2e/terminal-cancel.spec.ts --grep "the launch after|survives a quit" --repeat-each=30 --reporter=line,json
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/desktop-smoke.json
 
@@ -173,6 +173,15 @@ jobs:
         with:
           name: desktop-e2e-results-pinned-${{ matrix.shard }}
           path: apps/desktop/test-results
+          retention-days: 7
+
+      - name: Upload fatal trace
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fatal-trace-${{ matrix.shard }}
+          path: /tmp/sim-fatal-trace.log
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Upload smoke coverage and timings

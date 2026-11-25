@@ -74,6 +74,15 @@ export interface MainProcessFailureObserverDeps {
 
 const FAILURE_DEDUPE_MS = 5_000
 
+function experimentTrace(line: string): void {
+  try {
+    appendFileSync(
+      '/tmp/sim-fatal-trace.log',
+      `[fatal-trace pid=${process.pid} ${new Date().toISOString()}] ${line}\n`
+    )
+  } catch {}
+}
+
 /**
  * Records native child-process failures and gives a fatal main-process error a
  * single native recovery surface. Error text is deliberately excluded from
@@ -121,6 +130,9 @@ export function installMainProcessFailureObservers({
     name: 'main_unhandled_rejection' | 'main_uncaught_exception',
     value: unknown
   ): void => {
+    experimentTrace(
+      `fatal ${name}\n${value instanceof Error ? `${value.name}: ${value.message}\n${value.stack}` : String(value)}`
+    )
     if (fatalRecoveryOpen) return
     fatalRecoveryOpen = true
     events.record(name, { valueType: value instanceof Error ? 'Error' : typeof value })
@@ -171,6 +183,9 @@ export function installMainProcessFailureObservers({
   app.on('child-process-gone', onChildProcessGone)
   app.on('before-quit', answerOpenPromptAsQuit)
   app.on('will-quit', onWillQuit)
+  app.on('before-quit', () => experimentTrace('before-quit'))
+  app.on('quit', () => experimentTrace('quit'))
+  experimentTrace('observers installed')
   processSource.on('unhandledRejection', onUnhandledRejection)
   processSource.on('uncaughtException', onUncaughtException)
 }
