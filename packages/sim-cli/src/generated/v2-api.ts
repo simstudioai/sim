@@ -17801,28 +17801,25 @@ export type ResumeWorkflowBody = {
 }
 
 type ResumeWorkflowResponseRef0 = {
-  message: string
-  code:
-    | 'TIMEOUT'
-    | 'CANCELLED'
-    | 'USAGE_LIMIT_EXCEEDED'
-    | 'INVALID_INPUT'
-    | 'BLOCK_EXECUTION_FAILED'
-    | 'CHILD_WORKFLOW_FAILED'
-    | 'EXECUTION_FAILED'
-  blockId?: string
-  blockName?: string
-  blockType?: string
-  rerunFromBlockId?: string
-}
-
-type ResumeWorkflowResponseRef1 = {
   runId: string
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
   blockOutputs: Record<string, unknown> | null
-  error: ResumeWorkflowResponseRef0 | null
+  error: {
+    message: string
+    code:
+      | 'TIMEOUT'
+      | 'CANCELLED'
+      | 'USAGE_LIMIT_EXCEEDED'
+      | 'INVALID_INPUT'
+      | 'BLOCK_EXECUTION_FAILED'
+      | 'CHILD_WORKFLOW_FAILED'
+      | 'EXECUTION_FAILED'
+    blockId?: string
+    blockName?: string
+    blockType?: string
+  } | null
   startedAt?: string
   endedAt?: string
   durationMs?: number
@@ -17836,7 +17833,7 @@ type ResumeWorkflowResponseRef1 = {
   } | null
 }
 
-type ResumeWorkflowResponseRef2 = {
+type ResumeWorkflowResponseRef1 = {
   runId: string
   statusUrl: string
   queuePosition?: number
@@ -17844,10 +17841,10 @@ type ResumeWorkflowResponseRef2 = {
 
 export type ResumeWorkflowResponse =
   | {
-      data: ResumeWorkflowResponseRef1
+      data: ResumeWorkflowResponseRef0
     }
   | {
-      data: ResumeWorkflowResponseRef2
+      data: ResumeWorkflowResponseRef1
     }
 
 /** `POST /api/v2/files/[fileId]/versions/[version]/revert` */

@@ -17195,7 +17195,7 @@
             "type": "string"
           },
           "rerunFromBlockId": {
-            "description": "Block a rerun of this failure starts from (`run.entry` of type `block` naming it, with this run as `sourceRunId`): the failing block, or the outermost loop or parallel holding it, since a run cannot start inside one. Set by Execute workflow from the graph the run executed and by Get workflow run from the saved draft; absent elsewhere, whenever `blockId` is, and when that graph no longer has the block.",
+            "description": "Block a rerun of this failure starts from (`run.entry` of type `block` naming it, with this run as `sourceRunId`): the failing block, or the outermost loop or parallel holding it, since a run cannot start inside one. Set by Execute workflow from the graph the run executed and by Get workflow run from the saved draft, whenever `blockId` is and that graph still has the block.",
             "type": "string"
           }
         },
@@ -18514,7 +18514,40 @@
           "error": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ExecutionError"
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "Human-readable workflow execution failure message."
+                  },
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "TIMEOUT",
+                      "CANCELLED",
+                      "USAGE_LIMIT_EXCEEDED",
+                      "INVALID_INPUT",
+                      "BLOCK_EXECUTION_FAILED",
+                      "CHILD_WORKFLOW_FAILED",
+                      "EXECUTION_FAILED"
+                    ],
+                    "description": "Stable machine-readable execution failure code. `BLOCK_EXECUTION_FAILED` and `CHILD_WORKFLOW_FAILED` are reported only where block attribution is available; elsewhere a block-level failure is reported as `EXECUTION_FAILED`."
+                  },
+                  "blockId": {
+                    "description": "Identifier of the failing block, when attributable. Get workflow run reads it from the run trace, so it is absent there when the trace is unavailable or hidden by organization permission groups, when no failed block in the trace recorded the run error, and for a timeout, cancellation, usage-limit, or invalid-input failure.",
+                    "type": "string"
+                  },
+                  "blockName": {
+                    "description": "Display name of the failing block, when attributable. Present whenever `blockId` is.",
+                    "type": "string"
+                  },
+                  "blockType": {
+                    "description": "Integration or block type that failed, when attributable. Present whenever `blockId` is.",
+                    "type": "string"
+                  }
+                },
+                "required": ["message", "code"],
+                "additionalProperties": false
               },
               {
                 "type": "null"

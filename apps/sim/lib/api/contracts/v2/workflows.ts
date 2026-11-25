@@ -1612,7 +1612,7 @@ export const v2ExecutionErrorSchema = z
       .string()
       .optional()
       .describe(
-        'Block a rerun of this failure starts from (`run.entry` of type `block` naming it, with this run as `sourceRunId`): the failing block, or the outermost loop or parallel holding it, since a run cannot start inside one. Set by Execute workflow from the graph the run executed and by Get workflow run from the saved draft; absent elsewhere, whenever `blockId` is, and when that graph no longer has the block.'
+        'Block a rerun of this failure starts from (`run.entry` of type `block` naming it, with this run as `sourceRunId`): the failing block, or the outermost loop or parallel holding it, since a run cannot start inside one. Set by Execute workflow from the graph the run executed and by Get workflow run from the saved draft, whenever `blockId` is and that graph still has the block.'
       ),
   })
   .meta({
@@ -2091,6 +2091,12 @@ export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchem
 
 export const v2ResumeWorkflowDataSchema = v2ExecuteWorkflowDataSchema
   .omit({ executionTimeoutSeconds: true })
+  .extend({
+    error: v2ExecutionErrorSchema
+      .omit({ rerunFromBlockId: true })
+      .nullable()
+      .describe('Structured execution failure, or null when none occurred.'),
+  })
   .meta({
     id: 'WorkflowResumeResult',
     title: 'Workflow resume result',
