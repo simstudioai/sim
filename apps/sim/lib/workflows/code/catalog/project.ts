@@ -20,13 +20,13 @@ import { probeThunk, readsOnly } from '@/lib/workflows/code/catalog/probe'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { deriveValueShape } from '@/lib/workflows/code/catalog/value-kind'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
+import { accessIdEffect } from '@/blocks/access-effect'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import {
   isHumanInTheLoopBlock,
   isMetadataOnlyBlockType,
   isSentinelBlockType,
 } from '@/executor/constants'
-import { getToolMetadata } from '@/tools/metadata'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { getSubBlockValueShape } from '@/tools/param-shape'
 import type { TriggerConfig } from '@/triggers/types'
@@ -511,10 +511,10 @@ function projectOperationOutputs(
 }
 
 /**
- * The block's effect from its tools' declared effects, and, when the operation picks the tool, each
- * operation whose tool differs from it. An id that is not a registered tool (the model providers an
- * Agent, Router, or Evaluator calls) counts as `write`. An opaque selector cannot be probed, so its
- * operations inherit the block effect.
+ * The block's effect from its access ids' effects ({@link accessIdEffect}), and, when the
+ * operation picks the tool, each operation whose tool differs from it. A block that runs tools its
+ * user chooses (a `tool-input` field, as an Agent has) is `write`, whatever its access ids say. An
+ * opaque selector cannot be probed, so its operations inherit the block effect.
  */
 function projectEffects(
   block: BlockConfig,
@@ -522,11 +522,13 @@ function projectEffects(
 ): Pick<CatalogBlock, 'effect' | 'operationEffects'> {
   if (block.tools.access.length === 0) return {}
   const accessEffects = new Map(
-    block.tools.access.map(
-      (toolId) => [toolId, getToolMetadata(toolId)?.effect ?? 'write'] as const
-    )
+    block.tools.access.map((toolId) => [toolId, accessIdEffect(toolId)] as const)
   )
-  const effect = [...accessEffects.values()].every((entry) => entry === 'read') ? 'read' : 'write'
+  const runsChosenTools = block.subBlocks.some((subBlock) => subBlock.type === 'tool-input')
+  const effect =
+    !runsChosenTools && [...accessEffects.values()].every((entry) => entry === 'read')
+      ? 'read'
+      : 'write'
   if (effect === 'read' || !operationTools) return { effect }
   const operationEffects: NonNullable<CatalogBlock['operationEffects']> = {}
   for (const [operation, toolId] of operationTools) {

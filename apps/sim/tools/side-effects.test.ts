@@ -11,6 +11,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import {
   answerUnsentMcpWrite,
   answerUnsentWrite,
+  codeNetworkFor,
   describeMcpToolRequest,
   unsentWriteFor,
 } from '@/tools/side-effects'
@@ -161,4 +162,112 @@ describe('a write a dry run does not send', () => {
       })
     }
   )
+})
+
+/** The dry-run policy's network for code run by block `blockId`, given `params`. */
+function codeNetwork(blockId: string, params: Record<string, unknown> = {}) {
+  const policy = new WriteStubPolicy({ workflowId: 'wf-1' })
+  const network = codeNetworkFor({
+    executionContext: {
+      ...createExecutionContext({ workflowId: 'wf-1' }),
+      sideEffects: policy,
+    } as ExecutionContext,
+    params: { ...params, _context: { blockId } },
+    registry: new ResolvedSecretTraceRegistry(),
+  })
+  if (!network) throw new Error('The run has no side-effect policy')
+  return { network, policy }
+}
+
+describe('code a dry run runs', () => {
+  it('is listed unchecked when it runs in a remote sandbox, whose network it cannot see', () => {
+    const { network, policy } = codeNetwork('python')
+
+    network.ranInRemoteSandbox()
+
+    expect(policy.summary().unchecked).toEqual([
+      expect.objectContaining({
+        blockId: 'python',
+        reason: expect.stringContaining('remote sandbox'),
+      }),
+    ])
+  })
+
+  it('is listed unchecked, not allowed, when its block is allowed and it runs in a remote sandbox', () => {
+    const policy = new WriteStubPolicy({ workflowId: 'wf-1', allowBlockIds: new Set(['python']) })
+    const code = policy.codeNetwork({
+      workflowId: 'wf-1',
+      blockId: 'python',
+      blockName: 'python',
+      blockType: 'function',
+    })
+
+    code.ranInRemoteSandbox()
+
+    expect(policy.summary().unchecked).toEqual([expect.objectContaining({ blockId: 'python' })])
+    expect(policy.summary().allowed).toEqual([])
+  })
+
+  it('records a long stubbed body masked before it is capped, so no secret is cut in two', async () => {
+    const secret = 'code-secret-0123456789'
+    const { network, policy } = codeNetwork('code', { apiKey: secret })
+    const body = `${'a'.repeat(4090)}${secret}`
+
+    const decision = await network.fetchPolicy({
+      method: 'POST',
+      url: 'https://hook.example/x',
+      headerNames: [],
+      body,
+    })
+
+    expect(decision).toBe('stub')
+    const [{ request }] = policy.summary().stubbed
+    expect(String(request?.body)).toContain(`${'a'.repeat(4090)}[REDA`)
+    expect(String(request?.body)).not.toContain(secret.slice(0, 6))
+  })
+
+  it('still stubs a request whose description cannot be built, recording no request', async () => {
+    const policy = new WriteStubPolicy({ workflowId: 'wf-1' })
+    const code = policy.codeNetwork({
+      workflowId: 'wf-1',
+      blockId: 'code',
+      blockName: 'code',
+      blockType: 'function',
+    })
+
+    const decision = await code.onRequest({
+      method: 'POST',
+      headerNames: [],
+      describe: async () => {
+        throw new Error('redaction failed')
+      },
+    })
+
+    expect(decision).toBe('stub')
+    expect(policy.summary().stubbed.map((entry) => entry.request)).toEqual([null])
+  })
+
+  it('stops describing stubbed requests once the list is full, counting the rest', async () => {
+    const policy = new WriteStubPolicy({ workflowId: 'wf-1' })
+    const code = policy.codeNetwork({
+      workflowId: 'wf-1',
+      blockId: 'code',
+      blockName: 'code',
+      blockType: 'function',
+    })
+    let described = 0
+    const request = {
+      method: 'POST',
+      headerNames: [],
+      describe: async () => {
+        described++
+        return { method: 'POST' }
+      },
+    }
+
+    for (let call = 0; call < 60; call++) await code.onRequest(request)
+
+    expect(described).toBe(50)
+    expect(policy.summary().omitted.stubbed).toBe(10)
+  })
 })

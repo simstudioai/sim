@@ -6,11 +6,13 @@
  */
 import { createLogger } from '@sim/logger'
 import { isPlainRecord, toRecord } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import {
   isSensitiveKey,
   REDACTED_MARKER,
   redactExactSensitiveValues,
 } from '@/lib/core/security/redaction'
+import type { IsolatedFetchPolicy } from '@/lib/execution/isolated-vm'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { parseMcpToolArguments, RUN_CONTEXT_PARAMS } from '@/lib/mcp/tool-arguments'
 import { getBlock, getBlockByToolName, getBlockRegistry } from '@/blocks/registry'
@@ -220,11 +222,19 @@ function maskSecrets(
   value: Record<string, unknown>,
   params: Record<string, unknown>,
   blockTypes: string[],
-  registry: ResolvedSecretTraceRegistry | undefined
+  registry: ResolvedSecretTraceRegistry | undefined,
+  knownSecrets: readonly string[] = []
 ): Record<string, unknown> | null {
   const projection = projectResolvedSecretModelContent(value, registry)
   if (!projection.safe || !isPlainRecord(projection.value)) return null
-  const masked = redactCredentials(projection.value, callSecrets(params, blockTypes))
+  const secrets = callSecrets(params, blockTypes)
+  const masked = redactCredentials(projection.value, {
+    ...secrets,
+    values: [
+      ...secrets.values,
+      ...knownSecrets.filter((secret) => !isNonIdentifyingSecretLiteral(secret)),
+    ],
+  })
   return isPlainRecord(masked) ? masked : null
 }
 
@@ -263,6 +273,8 @@ export async function redactSideEffectPayload(input: {
   blockTypes: string[]
   executionContext: ExecutionContext
   registry: ResolvedSecretTraceRegistry | undefined
+  /** Values masked wherever they appear, whatever field carried them. */
+  knownSecrets?: readonly string[]
 }): Promise<Record<string, unknown> | null> {
   let masked: Record<string, unknown> | null
   try {
@@ -270,7 +282,8 @@ export async function redactSideEffectPayload(input: {
       asPayloadRecord(input.payload),
       input.params,
       input.blockTypes,
-      input.registry
+      input.registry,
+      input.knownSecrets
     )
   } catch (error) {
     if (error instanceof SecretScanDepthError) return null
@@ -389,4 +402,103 @@ export function answerUnsentMcpWrite(
         ? { ...params, arguments: parseMcpToolArguments(params) }
         : params,
   })
+}
+
+/** The longest URL and body a stubbed network request of code is recorded with. */
+const MAX_DESCRIBED_CODE_CHARS = 4096
+
+/** A URL as its origin and path, its query reduced to parameter names, so no value is recorded. */
+function urlWithQueryNames(raw: string): string {
+  try {
+    const url = new URL(raw)
+    const names = [...new Set(url.searchParams.keys())]
+    return `${url.origin}${url.pathname}${names.length > 0 ? `?${names.join('&')}` : ''}`
+  } catch {
+    return raw.split(/[?#]/)[0]
+  }
+}
+
+/** A recorded value cut to {@link MAX_DESCRIBED_CODE_CHARS}, after redaction: no secret is cut. */
+function capDescribed(value: unknown): unknown {
+  const text = typeof value === 'string' ? value : JSON.stringify(value)
+  if (text === undefined || text.length <= MAX_DESCRIBED_CODE_CHARS) return value
+  return truncate(
+    text,
+    MAX_DESCRIBED_CODE_CHARS,
+    `... [truncated ${text.length - MAX_DESCRIBED_CODE_CHARS} chars]`
+  )
+}
+
+/** Where a run's side-effect policy meets one run of code: its runtime and its isolate's network. */
+export interface CodeNetwork {
+  ranInRemoteSandbox(): void
+  /** The isolate host's policy for each `fetch` the code makes. */
+  fetchPolicy: IsolatedFetchPolicy
+  /** What to add to the code's failure once it got stubbed responses; null when it got none. */
+  failureHint(): string | null
+}
+
+/**
+ * The run's side-effect policy for code about to run at `site` (read from the call's `_context`
+ * when omitted); undefined when the run has none. A request the policy stubs is recorded as its
+ * method, capped origin and path with query parameter names, header names and a capped body, never
+ * a header value. Masked in it: every value of `params.envVars` (the workspace and personal
+ * secrets the code is given, which the code compiles in after the registry has seen them), the
+ * secrets `params` carry by field, and those the registry resolved
+ * ({@link redactSideEffectPayload}). A secret typed into the code itself is not known to be one,
+ * so it is not masked.
+ */
+export function codeNetworkFor(input: {
+  executionContext: ExecutionContext | undefined
+  site?: SideEffectSite
+  params: Record<string, unknown>
+  registry: ResolvedSecretTraceRegistry | undefined
+}): CodeNetwork | undefined {
+  const { executionContext, params, registry } = input
+  const policy = executionContext?.sideEffects
+  if (!executionContext || !policy) return undefined
+  const site = input.site ?? sideEffectSite(executionContext, params)
+  const code = policy.codeNetwork(site)
+  const blockTypes = site.blockType ? [site.blockType] : []
+  const knownSecrets = Object.values(toRecord(params.envVars)).filter(
+    (value): value is string => typeof value === 'string'
+  )
+  let stubbed = 0
+  return {
+    ranInRemoteSandbox: () => code.ranInRemoteSandbox(),
+    fetchPolicy: async (request) => {
+      const decision = await code.onRequest({
+        method: request.method,
+        headerNames: request.headerNames,
+        describe: async () => {
+          const redacted = await redactSideEffectPayload({
+            payload: {
+              method: request.method,
+              url: urlWithQueryNames(request.url),
+              ...(request.headerNames.length > 0 ? { headers: request.headerNames } : {}),
+              body: readBody(request.body),
+            },
+            params,
+            blockTypes,
+            executionContext,
+            registry,
+            knownSecrets,
+          })
+          return (
+            redacted && {
+              ...redacted,
+              url: capDescribed(redacted.url),
+              body: capDescribed(redacted.body),
+            }
+          )
+        },
+      })
+      if (decision === 'stub') stubbed++
+      return decision
+    },
+    failureHint: () =>
+      stubbed === 0 || !site.blockName
+        ? null
+        : `Dry run: ${stubbed} network write${stubbed === 1 ? '' : 's'} this code made got an empty stubbed response; --allow '${site.blockName}' sends them.`,
+  }
 }

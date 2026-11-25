@@ -9,6 +9,7 @@ import { executeFunction } from '@/lib/function-execution/application/execute-fu
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
+import type { CodeNetwork } from '@/tools/side-effects'
 
 export type TrustedFunctionToolExecutionContext = InternalToolOperationContext
 
@@ -19,11 +20,13 @@ export interface ExecuteFunctionToolInput {
   requestId: string
   signal?: AbortSignal
   sandboxProfile?: InternalSandboxProfile
+  /** The run's side-effect policy for this code; trusted in-process state, never from the body. */
+  codeNetwork?: CodeNetwork
 }
 
 /** Executes a Function tool with authority taken only from trusted server execution context. */
 export async function executeFunctionTool(input: ExecuteFunctionToolInput): Promise<Response> {
-  const { body, context, headers, requestId, signal, sandboxProfile } = input
+  const { body, context, headers, requestId, signal, sandboxProfile, codeNetwork } = input
   const issuedAt = new Date()
   const serializedDeadline = serializeExecutionDeadlineHeader(signal)
   const requestedTimeout =
@@ -112,6 +115,7 @@ export async function executeFunctionTool(input: ExecuteFunctionToolInput): Prom
         : {}),
       ...(signal ? { signal } : {}),
       ...(sandboxProfile ? { sandboxProfile } : {}),
+      ...(codeNetwork ? { codeNetwork } : {}),
     },
   })
 }

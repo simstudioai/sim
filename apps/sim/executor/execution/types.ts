@@ -363,6 +363,32 @@ export interface AnsweredBlockCall extends SideEffectBlockSite {
   input: () => Promise<Record<string, unknown> | null>
 }
 
+/** A network request code made in the isolate, decided before its host sends it. */
+interface CodeNetworkRequest {
+  /** The method as `fetch` sends it (`normalizeFetchMethod`); GET when the code named none. */
+  method: string
+  /** The names of the headers it carries, never their values. */
+  headerNames: string[]
+  /**
+   * What the request would send (method, capped origin and path with query parameter names, header
+   * names, a capped body; never a header value), redacted like a stubbed write's request; null
+   * when that cannot be vouched for. Built only when the request is recorded as stubbed.
+   */
+  describe: () => Promise<Record<string, unknown> | null>
+}
+
+/** How a run treats the network of one run of code, from {@link SideEffectPolicy.codeNetwork}. */
+export interface CodeNetworkPolicy {
+  /**
+   * Told before the code runs in a remote sandbox (shell, Python, JavaScript with imports, a
+   * selected sandbox or file system), whose network the run cannot see. Code that runs in the
+   * isolate instead has each network request decided by {@link onRequest}.
+   */
+  ranInRemoteSandbox(): void
+  /** Whether the request is sent, or answered with an empty stubbed response instead. */
+  onRequest(request: CodeNetworkRequest): Promise<'send' | 'stub'>
+}
+
 /**
  * How a run treats work that may change state outside it: a dry run, or a workflow test's
  * unmocked writes. Unlike {@link ExecutionTestHooks}, every child execution inherits it, including
@@ -374,15 +400,16 @@ export interface AnsweredBlockCall extends SideEffectBlockSite {
  */
 export interface SideEffectPolicy {
   /**
-   * Whether this write tool call is sent or answered with {@link stubWrite}. Records a sent call
-   * the run should report: an allowed block's write, or code that runs unchecked.
+   * Whether this write tool call is sent or answered with {@link stubWrite}. Records an allowed
+   * block's sent write.
    */
   decideWrite(call: SideEffectSite & { toolId: string }): 'send' | 'stub'
   /**
-   * Records code that ran for real, which can make network calls the run cannot see: code run
-   * through `function_execute`, or a While or Do While loop's condition.
+   * The network policy of code about to run at `site`: code run through `function_execute` (a
+   * Function block's, a Condition's expressions, or code an Agent's model wrote), or a While or Do
+   * While loop's condition.
    */
-  ranCode(site: SideEffectSite): void
+  codeNetwork(site: SideEffectSite): CodeNetworkPolicy
   /** Records a write that was not sent and returns the placeholder output answering it. */
   stubWrite(call: StubbedToolCall): Record<string, unknown>
   /** Whether this block is answered with {@link answerBlock} instead of running its handler. */

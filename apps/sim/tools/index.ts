@@ -138,6 +138,8 @@ import { AWS_CREDENTIAL_OAUTH, AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/share
 import {
   answerUnsentMcpWrite,
   answerUnsentWrite,
+  type CodeNetwork,
+  codeNetworkFor,
   describeMcpToolRequest,
   describeToolRequest,
   unsentWriteFor,
@@ -2017,7 +2019,7 @@ async function executeToolImplementation(
      * spends no rate-limit slot.
      */
     const unsentWrite =
-      tool.effect !== 'read'
+      tool.effect !== 'read' && !(executionContext?.sideEffects && tool.readsWhen?.(contextParams))
         ? unsentWriteFor({ toolId: normalizedToolId, params: contextParams, executionContext })
         : null
 
@@ -2396,6 +2398,14 @@ async function executeToolImplementation(
     }
 
     if (tool.operation) {
+      const codeNetwork =
+        normalizedToolId === 'function_execute'
+          ? codeNetworkFor({
+              executionContext,
+              params: contextParams,
+              registry: resolvedSecretTraceRegistry,
+            })
+          : undefined
       const result = await executeDeclaredInternalOperation({
         toolId: normalizedToolId,
         tool,
@@ -2408,7 +2418,10 @@ async function executeToolImplementation(
         internalSandboxProfile,
         refreshCredential,
         authorizedServiceAccountCredential,
+        codeNetwork,
       }).catch(async (error: unknown) => {
+        const hint = codeNetwork?.failureHint()
+        if (hint && error instanceof Error) error.message = `${error.message} ${hint}`
         throw authorizedServiceAccountCredential
           ? await explainExpiredServiceAccountToken(
               error,
@@ -2858,6 +2871,8 @@ interface ExecuteDeclaredInternalOperationInput {
   refreshCredential?: (signal: AbortSignal) => Promise<void>
   /** Service-account credential the executor authorized for this call (never from tool params). */
   authorizedServiceAccountCredential?: AuthorizedServiceAccountCredential
+  /** The run's side-effect policy for a Function's code (never from tool params). */
+  codeNetwork?: CodeNetwork
 }
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
@@ -2914,6 +2929,7 @@ async function executeDeclaredInternalOperation({
   internalSandboxProfile,
   refreshCredential,
   authorizedServiceAccountCredential,
+  codeNetwork,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   const organizationScratch =
     toolId === 'function_execute' &&
@@ -3034,6 +3050,7 @@ async function executeDeclaredInternalOperation({
       requestId,
       ...(signal ? { signal } : {}),
       ...(internalSandboxProfile ? { sandboxProfile: internalSandboxProfile } : {}),
+      ...(codeNetwork ? { codeNetwork } : {}),
     })
   } else {
     const handler = await getInternalToolOperationHandler(toolId)

@@ -38,6 +38,7 @@ import {
 } from '@/executor/utils/subflow-node-id-codec'
 import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
 import type { VariableResolver } from '@/executor/variables/resolver'
+import { codeNetworkFor } from '@/tools/side-effects'
 
 const logger = createLogger('LoopOrchestrator')
 
@@ -813,24 +814,34 @@ export class LoopOrchestrator {
       })
 
       const workflowLoopId = stripOuterBranchSuffix(loopId)
-      ctx.sideEffects?.ranCode({
-        workflowId: ctx.workflowId,
-        blockId: workflowLoopId,
-        blockName:
-          ctx.workflow?.blocks.find((block) => block.id === workflowLoopId)?.metadata?.name ??
-          workflowLoopId,
-        blockType: BlockType.LOOP,
-      })
-      vmResult = await executeInIsolatedVM({
-        code: `return Boolean(${evaluatedCondition})`,
-        params: {},
-        envVars: {},
-        contextVariables: {},
-        timeoutMs: LOOP_CONDITION_TIMEOUT_MS,
-        requestId: generateRequestId(),
-        ownerKey: `user:${ctx.userId}`,
-        ownerWeight: 1,
-      })
+      const codeNetwork = ctx.sideEffects
+        ? codeNetworkFor({
+            executionContext: ctx,
+            site: {
+              workflowId: ctx.workflowId,
+              blockId: workflowLoopId,
+              blockName:
+                ctx.workflow?.blocks.find((block) => block.id === workflowLoopId)?.metadata?.name ??
+                workflowLoopId,
+              blockType: BlockType.LOOP,
+            },
+            params: {},
+            registry: ctx.resolvedSecretTraceRegistry,
+          })
+        : undefined
+      vmResult = await executeInIsolatedVM(
+        {
+          code: `return Boolean(${evaluatedCondition})`,
+          params: {},
+          envVars: {},
+          contextVariables: {},
+          timeoutMs: LOOP_CONDITION_TIMEOUT_MS,
+          requestId: generateRequestId(),
+          ownerKey: `user:${ctx.userId}`,
+          ownerWeight: 1,
+        },
+        { fetchPolicy: codeNetwork?.fetchPolicy }
+      )
     } catch (error) {
       return await this.failConditionEvaluation(ctx, loopId, scope, error)
     }

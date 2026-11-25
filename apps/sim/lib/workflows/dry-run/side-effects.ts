@@ -1,8 +1,11 @@
+import { createLogger } from '@sim/logger'
+import { isReadRequest } from '@/lib/core/utils/http-methods'
 import { sampleBlockOutput, sampleToolOutput } from '@/lib/workflows/dry-run/samples'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { BlockType, HUMAN_IN_THE_LOOP_BLOCK_TYPES } from '@/executor/constants'
 import type {
   AnsweredBlockCall,
+  CodeNetworkPolicy,
   DryRunOptions,
   SideEffectBlockSite,
   SideEffectPolicy,
@@ -11,8 +14,13 @@ import type {
 } from '@/executor/execution/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
 
+const logger = createLogger('DryRunSideEffects')
+
 /** Each list keeps at most this many entries; `omitted` counts the rest per list. */
 const MAX_RECORDED = 50
+
+/** The tool a stubbed or allowed network request of code is recorded under. */
+const CODE_TOOL_ID = 'function_execute'
 
 /** Blocks whose handlers change state outside the tool seam, so a policy answers them whole. */
 const SELF_DIRECTED_BLOCK_TYPES: ReadonlySet<string> = new Set([BlockType.MOTHERSHIP, BlockType.PI])
@@ -59,7 +67,7 @@ interface AllowedSideEffect extends RecordedSite {
   tool: string | null
 }
 
-/** Code that ran for real whose effects the run cannot see. */
+/** Code that ran for real in a remote sandbox, whose network the run cannot see. */
 interface UncheckedSideEffect extends RecordedSite {
   reason: string
 }
@@ -77,19 +85,32 @@ function recordedSite(site: SideEffectSite): RecordedSite {
   return { workflowId: site.workflowId, blockId: site.blockId, block: site.blockName }
 }
 
-/** Why code the run cannot see ran for real, named for the block that ran it. */
+/** Why code ran where the run cannot see its network, named for the block that ran it. */
 function uncheckedCodeReason(blockType: string | null): string {
+  const unseen = 'ran for real in a remote sandbox, whose network calls a dry run cannot stub'
   switch (blockType) {
     case BlockType.FUNCTION:
-      return 'Function block code ran for real; network calls it makes are not stubbed'
+      return `Function block code ${unseen}`
     case BlockType.AGENT:
-      return 'Code the Agent’s model wrote ran for real; network calls it makes are not stubbed'
+      return `Code the Agent’s model wrote ${unseen}`
     case BlockType.CONDITION:
-      return 'Condition expressions ran for real; network calls they make are not stubbed'
-    case BlockType.LOOP:
-      return 'While or Do While loop condition ran for real; network calls it makes are not stubbed'
+      return `Condition expressions ${unseen}`
     default:
-      return 'Code ran for real; network calls it makes are not stubbed'
+      return `Code ${unseen}`
+  }
+}
+
+/** A stubbed request's description, or null when building it fails: the request stays stubbed. */
+async function describeOrNull(
+  describe: () => Promise<Record<string, unknown> | null>
+): Promise<Record<string, unknown> | null> {
+  try {
+    return await describe()
+  } catch (error) {
+    logger.warn('Could not describe a stubbed request of code; recording none', {
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    })
+    return null
   }
 }
 
@@ -101,6 +122,11 @@ class RecordedList<T> {
   readonly entries: T[] = []
   omitted = 0
   private readonly keys = new Set<string>()
+
+  /** Whether the next entry would only be counted. */
+  get full(): boolean {
+    return this.entries.length >= MAX_RECORDED
+  }
 
   add(entry: T, key?: string): void {
     if (key !== undefined) {
@@ -117,7 +143,9 @@ class RecordedList<T> {
  * write tool call is answered with a placeholder shaped like the tool's output, holding what the
  * request determines where the tool declares it (`dryRunOutput`), and recorded with
  * the request it would have sent, except an allowed block's, which are sent and recorded once per
- * block and tool. Reads always run, and code runs and is listed unchecked. Custom blocks and
+ * block and tool. Reads always run. Code runs too: in the isolate its reads (`isReadRequest`) are
+ * sent and any other request is answered with an empty 200 and recorded like a write, while code
+ * in a remote sandbox, whose network the run cannot see, is listed unchecked. Custom blocks and
  * {@link PAUSING_BLOCK_TYPES} are answered whole, as is a block that acts outside the tool seam
  * unless it is allowed, and `blockMocks` answers its blocks with fixed outputs. Allowed and mocked
  * blocks are blocks of the workflow the run started, never of a child it calls, and an allowed
@@ -165,16 +193,14 @@ export class WriteStubPolicy implements SideEffectPolicy {
    * like the block on a canvas; `workflow_executor` runs a child workflow, which inherits the
    * policy and decides its own writes, so it is sent; and `function_execute` runs the workflow's
    * own code (a Function block's, a Condition's expressions, or code an Agent's model wrote),
-   * which is sent and listed by {@link ranCode}.
+   * which is sent, its network decided by {@link codeNetwork}.
    */
   decideWrite(call: SideEffectSite & { toolId: string }): 'send' | 'stub' {
     switch (call.toolId) {
       case 'deployed_block_executor':
         return 'stub'
       case 'workflow_executor':
-        return 'send'
-      case 'function_execute':
-        this.ranCode(call)
+      case CODE_TOOL_ID:
         return 'send'
     }
     if (!this.allows(call)) return 'stub'
@@ -185,11 +211,34 @@ export class WriteStubPolicy implements SideEffectPolicy {
     return 'send'
   }
 
-  ranCode(site: SideEffectSite): void {
-    this.unchecked.add(
-      { ...recordedSite(site), reason: uncheckedCodeReason(site.blockType) },
-      `${site.workflowId}:${site.blockId}`
-    )
+  /**
+   * Code in a remote sandbox is listed unchecked even when its block is allowed: allowing it
+   * changes nothing there, and `allowed` lists only writes known to be sent.
+   */
+  codeNetwork(site: SideEffectSite): CodeNetworkPolicy {
+    const key = `${site.workflowId}:${site.blockId}`
+    const allowed = this.allows(site)
+    return {
+      ranInRemoteSandbox: () =>
+        this.unchecked.add(
+          { ...recordedSite(site), reason: uncheckedCodeReason(site.blockType) },
+          key
+        ),
+      onRequest: async (request) => {
+        if (isReadRequest(request.method, request.headerNames)) return 'send'
+        if (allowed) {
+          this.allowed.add({ ...recordedSite(site), tool: CODE_TOOL_ID }, `${key}:${CODE_TOOL_ID}`)
+          return 'send'
+        }
+        this.stubbed.add({
+          ...recordedSite(site),
+          tool: CODE_TOOL_ID,
+          request: this.stubbed.full ? null : await describeOrNull(request.describe),
+          returned: { status: 200, body: {} },
+        })
+        return 'stub'
+      },
+    }
   }
 
   stubWrite(call: StubbedToolCall): Record<string, unknown> {

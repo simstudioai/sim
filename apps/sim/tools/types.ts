@@ -292,6 +292,13 @@ export interface ToolConfig<P = any, R = any> {
    * named helper the builder and the hook share, never a second copy of the builder's logic.
    */
   dryRunOutput?: (params: P) => Record<string, unknown>
+  /**
+   * Pure and total (never throws): whether this call of a `write` tool only reads (an HTTP
+   * request whose method is GET, HEAD or OPTIONS with no method-override header), so a dry run
+   * sends it like a `read` tool instead of stubbing it. Consulted only by a run with a side-effect
+   * policy; {@link effect} stays the catalog's conservative label for the tool as a whole.
+   */
+  readsWhen?: (params: P) => boolean
 
   // OAuth configuration for this tool (if it requires authentication)
   oauth?: OAuthConfig

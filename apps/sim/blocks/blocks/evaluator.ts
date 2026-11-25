@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { ChartBarIcon } from '@/components/icons'
+import { MODEL_PROVIDER_ACCESS_IDS } from '@/blocks/access-effect'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import type { BlockConfig, ParamType } from '@/blocks/types'
 import {
@@ -228,14 +229,7 @@ export const EvaluatorBlock: BlockConfig = {
     },
   ],
   tools: {
-    access: [
-      'openai_chat',
-      'anthropic_chat',
-      'google_chat',
-      'xai_chat',
-      'deepseek_chat',
-      'deepseek_reasoner',
-    ],
+    access: [...MODEL_PROVIDER_ACCESS_IDS],
     config: {
       tool: (params: Record<string, any>) => resolveModelProviderId(params.model),
     },

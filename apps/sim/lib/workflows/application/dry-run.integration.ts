@@ -7,14 +7,16 @@
  * count. An MCP write is authorized before it is answered, and its check leaves the server's health
  * as it found it. An allowed block writes for real while reads run for real; a child workflow's
  * writes, an Agent's included, stay stubbed; custom and Wait blocks are answered whole; code runs
- * and is listed unchecked, a Condition's expressions and a While loop's condition included; a
- * mocked block steers a branch; a failed dry run keeps its side effects and is the source only of
+ * (a Condition's expressions and a While loop's condition included) and its isolate `fetch` writes
+ * are stubbed; a mocked block steers a branch; a failed dry run keeps its side effects and is the source only of
  * another dry run. A test run is never the source of a run that sends its writes (the v2 use case,
  * Copilot and the editor route alike) and is never resumed; a mock, a dry run's or a workflow
  * test's, is data that never controls the run, sets what it is billed or replaces a locked block; a
  * rerun record keeps only the ids of mocked blocks, while the log shows a mocked output redacted
  * like any other. Model calls are answered by a simulated Anthropic API.
  */
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { db } from '@sim/db'
 import {
   agentMemoryTurn,
@@ -56,6 +58,8 @@ const { subscriberRuns, session } = vi.hoisted(() => {
   process.env.CUSTOM_BLOCKS_ENABLED = 'true'
   /** Agents keep durable turn history (rich history and the memory retrieval tool). */
   process.env.AGENT_MEMORY_HISTORY = 'true'
+  /** Code and HTTP blocks reach the suite's local server, which records what arrives. */
+  process.env.EGRESS_ALLOWED_IP_RANGES = '127.0.0.1/32'
   return {
     subscriberRuns: { runIds: [] as string[] },
     /** The browser session the editor route sees; none unless a test signs in. */
@@ -110,6 +114,8 @@ const workspaceId = generateId()
 const SECRET = `dry-secret-${generateId()}`
 const UNREFERENCED_SECRET = `unreferenced-${generateId()}`
 const SECRET_URL = `http://dry-run.invalid/hook/${generateId()}`
+/** A secret whose variable name matches no credential pattern. */
+const HOOK_PATH = `hook-path-${generateId()}`
 const API_KEY = `sk-sim-fixture-${generateId()}`
 const principal = createDelegatedPrincipal({
   subjectUserId: ownerId,
@@ -428,6 +434,7 @@ beforeAll(async () => {
       DRY_SECRET: (await encryptSecret(SECRET)).encrypted,
       UNREFERENCED_SECRET: (await encryptSecret(UNREFERENCED_SECRET)).encrypted,
       DRY_SECRET_URL: (await encryptSecret(SECRET_URL)).encrypted,
+      HOOK_PATH: (await encryptSecret(HOOK_PATH)).encrypted,
     },
   })
   await db.insert(apiKey).values({
@@ -1101,7 +1108,7 @@ describe('a dry run', () => {
     }
   })
 
-  it('runs code for real, listing a Function block and a Condition unchecked once each', async () => {
+  it('runs code for real, listing neither a Function block nor a Condition that sends nothing', async () => {
     const tableId = await createTable()
     const gate = condition('gate', '<score.result> > 50')
     const branching = graph(
@@ -1125,21 +1132,10 @@ describe('a dry run', () => {
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     expect(result.sideEffects?.stubbed.map((entry) => entry.block)).toEqual(['high'])
-    expect(result.sideEffects?.unchecked).toEqual([
-      expect.objectContaining({
-        blockId: branching.idOf('score'),
-        block: 'score',
-        reason: expect.stringContaining('Function block code ran'),
-      }),
-      expect.objectContaining({
-        blockId: branching.idOf('gate'),
-        block: 'gate',
-        reason: expect.stringContaining('Condition expressions ran'),
-      }),
-    ])
+    expect(result.sideEffects?.unchecked).toEqual([])
   })
 
-  it('lists a While loop’s condition unchecked once, however often it runs', async () => {
+  it('runs a While loop’s condition for real without listing it unchecked', async () => {
     const repeat = block('repeat', 'loop')
     repeat.data = { loopType: 'while', whileCondition: '<loop.index> < 3' }
     const tick = block('tick', 'function', { language: 'javascript', code: 'return 1' })
@@ -1156,14 +1152,7 @@ describe('a dry run', () => {
     const result = await run(workflowId, { dry: true })
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
-    expect(result.sideEffects?.unchecked).toEqual([
-      expect.objectContaining({
-        blockId: looping.idOf('repeat'),
-        block: 'repeat',
-        reason: expect.stringContaining('While or Do While loop condition ran'),
-      }),
-      expect.objectContaining({ blockId: looping.idOf('tick'), block: 'tick' }),
-    ])
+    expect(result.sideEffects?.unchecked).toEqual([])
   })
 
   it('takes the branch a mocked block steers it to, and refuses mocks outside a dry run', async () => {
@@ -1700,5 +1689,283 @@ describe('a dry run’s mocks', () => {
     })
     expect(read.dryRun).toEqual(recorded)
     expect(JSON.stringify(read)).not.toContain(secret)
+  })
+})
+
+/** A local server that records each request that reaches it, and answers each with `{ ok: true }`. */
+const server = {
+  instance: null as Server | null,
+  url: '',
+  arrivals: [] as Array<{ method: string; path: string }>,
+}
+
+/** What reached the local server under `path`'s prefix, as `METHOD /path`. */
+function arrivalsUnder(prefix: string): string[] {
+  return server.arrivals
+    .filter((arrival) => arrival.path.startsWith(prefix))
+    .map((arrival) => `${arrival.method} ${arrival.path}`)
+}
+
+/** A workflow of one Function block named `code` running `source`. */
+async function codeWorkflow(source: string) {
+  const fixture = graph(
+    [
+      block('start', 'start_trigger'),
+      block('code', 'function', { language: 'javascript', code: source }),
+    ],
+    [['start', 'code']]
+  )
+  return { workflowId: await saveWorkflow(fixture.state), idOf: fixture.idOf }
+}
+
+describe('a dry run’s code network', () => {
+  beforeAll(async () => {
+    const instance = createServer((request, response) => {
+      request.resume()
+      server.arrivals.push({ method: request.method ?? '', path: request.url ?? '' })
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ ok: true }))
+    })
+    await new Promise<void>((resolve) => instance.listen(0, '127.0.0.1', resolve))
+    server.instance = instance
+    server.url = `http://127.0.0.1:${(instance.address() as AddressInfo).port}`
+  })
+
+  afterAll(async () => {
+    const instance = server.instance
+    if (instance) await new Promise<void>((resolve) => instance.close(() => resolve()))
+  })
+
+  it('never sends a POST a Function block makes, and records it without its query values or secrets', async () => {
+    const prefix = `/${generateId()}`
+    const { workflowId, idOf } = await codeWorkflow(
+      `const res = await fetch('${server.url}${prefix}/hook?key={{DRY_SECRET}}&page=2', { method: 'POST', headers: { authorization: 'Bearer {{DRY_SECRET}}' }, body: JSON.stringify({ note: 'key={{DRY_SECRET}}' }) })
+return { status: res.status, body: await res.json(), stubbed: res.headers.get('x-sim-dry-run') }`
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([])
+    expect(result.output).toMatchObject({ result: { status: 200, body: {}, stubbed: 'stubbed' } })
+    expect(result.sideEffects?.stubbed).toEqual([
+      expect.objectContaining({
+        blockId: idOf('code'),
+        block: 'code',
+        tool: 'function_execute',
+        request: {
+          method: 'POST',
+          url: `${server.url}${prefix}/hook?key&page`,
+          headers: ['authorization'],
+          body: { note: 'key=[REDACTED]' },
+        },
+        returned: { status: 200, body: {} },
+      }),
+    ])
+    expect(result.sideEffects?.unchecked).toEqual([])
+    expect(JSON.stringify(result.sideEffects)).not.toContain(SECRET)
+  })
+
+  it('masks a secret the code compiles in from a variable no credential pattern names', async () => {
+    const prefix = `/${generateId()}`
+    const { workflowId } = await codeWorkflow(
+      `const res = await fetch('${server.url}${prefix}/{{HOOK_PATH}}', { method: 'POST', body: JSON.stringify({ ref: '{{HOOK_PATH}}' }) })
+return res.status`
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([])
+    expect(result.sideEffects?.stubbed).toHaveLength(1)
+    expect(JSON.stringify(result.sideEffects)).not.toContain(HOOK_PATH)
+  })
+
+  it('stubs a GET that carries a method-override header, recording only the header’s name', async () => {
+    const prefix = `/${generateId()}`
+    const { workflowId } = await codeWorkflow(
+      `const res = await fetch('${server.url}${prefix}', { headers: { 'X-HTTP-Method-Override': 'DELETE' } })
+return res.status`
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([])
+    expect(result.sideEffects?.stubbed.map((entry) => entry.request)).toEqual([
+      { method: 'GET', url: `${server.url}${prefix}`, headers: ['X-HTTP-Method-Override'] },
+    ])
+  })
+
+  it('fails a write the egress policy refuses, as a live run would, and records nothing', async () => {
+    const { workflowId } = await codeWorkflow(
+      `try {
+  await fetch('https://10.255.255.1/hook', { method: 'POST' })
+  return 'answered'
+} catch (error) {
+  return error.message
+}`
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(result.output).toMatchObject({
+      result: expect.stringContaining('fetchUrl resolves to a private or reserved address'),
+    })
+    expect(result.sideEffects?.stubbed).toEqual([])
+  })
+
+  it('stubs a write a While loop’s condition makes, recorded under the loop', async () => {
+    const prefix = `/${generateId()}`
+    const repeat = block('repeat', 'loop')
+    repeat.data = {
+      loopType: 'while',
+      whileCondition: `(await fetch('${server.url}${prefix}', { method: 'POST' })).status === 500`,
+    }
+    const tick = block('tick', 'function', { language: 'javascript', code: 'return 1' })
+    tick.data = { parentId: repeat.id, extent: 'parent' }
+    const looping = graph(
+      [block('start', 'start_trigger'), repeat, tick],
+      [
+        ['start', 'repeat'],
+        ['repeat', 'tick', 'loop-start-source'],
+      ]
+    )
+    const workflowId = await saveWorkflow(looping.state)
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([])
+    expect(result.sideEffects?.stubbed.map((entry) => [entry.block, entry.tool])).toEqual([
+      ['repeat', 'function_execute'],
+    ])
+  })
+
+  it('stubs a write whose method is written in lowercase', async () => {
+    const prefix = `/${generateId()}`
+    const { workflowId } = await codeWorkflow(
+      `const res = await fetch('${server.url}${prefix}', { method: 'post' })
+return res.status`
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([])
+    expect(result.sideEffects?.stubbed.map((entry) => toRecord(entry.request).method)).toEqual([
+      'POST',
+    ])
+  })
+
+  it('sends a request whose method is not a string, as the GET it is sent as', async () => {
+    const prefix = `/${generateId()}`
+    const { workflowId } = await codeWorkflow(
+      `const res = await fetch('${server.url}${prefix}', { method: 1 })
+return await res.json()`
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([`GET ${prefix}`])
+    expect(result.sideEffects?.stubbed).toEqual([])
+  })
+
+  it('stubs a write the code never awaits, and sends the read it awaits after it', async () => {
+    const prefix = `/${generateId()}`
+    const { workflowId } = await codeWorkflow(
+      `fetch('${server.url}${prefix}/write', { method: 'PUT', body: 'x' })
+const res = await fetch('${server.url}${prefix}/read')
+return await res.json()`
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([`GET ${prefix}/read`])
+    expect(result.sideEffects?.stubbed.map((entry) => toRecord(entry.request).url)).toEqual([
+      `${server.url}${prefix}/write`,
+    ])
+  })
+
+  it('sends every request of an allowed block, recording it allowed once', async () => {
+    const prefix = `/${generateId()}`
+    const { workflowId, idOf } = await codeWorkflow(
+      `await fetch('${server.url}${prefix}/a', { method: 'POST' })
+await fetch('${server.url}${prefix}/b', { method: 'DELETE' })
+return 1`
+    )
+
+    const result = await run(workflowId, { dry: true, allowBlocks: ['code'] })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([`POST ${prefix}/a`, `DELETE ${prefix}/b`])
+    expect(result.sideEffects?.allowed).toEqual([
+      expect.objectContaining({ blockId: idOf('code'), tool: 'function_execute' }),
+    ])
+    expect(result.sideEffects?.stubbed).toEqual([])
+  })
+
+  it('records an allowed block that only reads as nothing allowed', async () => {
+    const prefix = `/${generateId()}`
+    const { workflowId } = await codeWorkflow(
+      `const res = await fetch('${server.url}${prefix}')
+return await res.json()`
+    )
+
+    const result = await run(workflowId, { dry: true, allowBlocks: ['code'] })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([`GET ${prefix}`])
+    expect(result.sideEffects?.allowed).toEqual([])
+  })
+
+  it('tells a Function block that failed on its stubbed writes how to send them', async () => {
+    const prefix = `/${generateId()}`
+    const { workflowId } = await codeWorkflow(
+      `const res = await fetch('${server.url}${prefix}', { method: 'POST' })
+const created = await res.json()
+return created.id.toString()`
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status).toBe('failed')
+    expect(JSON.stringify(result.error)).toContain(
+      "1 network write this code made got an empty stubbed response; --allow 'code' sends them"
+    )
+  })
+
+  it('sends an API block’s GET, while its POST and a GET overriding its method stay stubbed', async () => {
+    const prefix = `/${generateId()}`
+    const fixture = graph(
+      [
+        block('start', 'start_trigger'),
+        block('read', 'api', { url: `${server.url}${prefix}/read`, method: 'GET' }),
+        block('write', 'api', { url: `${server.url}${prefix}/write`, method: 'POST' }),
+        block('override', 'api', {
+          url: `${server.url}${prefix}/override`,
+          method: 'GET',
+          headers: [{ cells: { Key: 'X-HTTP-Method-Override', Value: 'PATCH' } }],
+        }),
+      ],
+      [
+        ['start', 'read'],
+        ['read', 'write'],
+        ['write', 'override'],
+      ]
+    )
+    const workflowId = await saveWorkflow(fixture.state)
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([`GET ${prefix}/read`])
+    expect(result.sideEffects?.stubbed.map((entry) => [entry.block, entry.tool])).toEqual([
+      ['write', 'http_request'],
+      ['override', 'http_request'],
+    ])
   })
 })

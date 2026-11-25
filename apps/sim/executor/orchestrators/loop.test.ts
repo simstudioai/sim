@@ -258,11 +258,9 @@ describe('LoopOrchestrator', () => {
     expect(shouldExecute).toBe(false)
     expect(scope.skippedAtStart).toBe(true)
     expect(state.setBlockOutput).not.toHaveBeenCalled()
-    expect(mockExecuteInIsolatedVM).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: 'return Boolean(false)',
-      })
-    )
+    expect(mockExecuteInIsolatedVM.mock.calls[0]?.[0]).toMatchObject({
+      code: 'return Boolean(false)',
+    })
   })
 
   it('escapes resolved strings without exposing rendered while conditions to logs', async () => {
@@ -294,11 +292,9 @@ describe('LoopOrchestrator', () => {
 
     await orchestrator.evaluateInitialCondition(ctx, 'loop-1')
 
-    expect(mockExecuteInIsolatedVM).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: `return Boolean(${JSON.stringify(resolvedSecret)})`,
-      })
-    )
+    expect(mockExecuteInIsolatedVM.mock.calls[0]?.[0]).toMatchObject({
+      code: `return Boolean(${JSON.stringify(resolvedSecret)})`,
+    })
     const logged = JSON.stringify([
       ...mockLogger.debug.mock.calls,
       ...mockLogger.info.mock.calls,

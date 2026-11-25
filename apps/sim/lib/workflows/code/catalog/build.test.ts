@@ -183,6 +183,23 @@ describe('block catalog projection over the whole registry', () => {
     expect(gmailCredential?.credentialProviders).toEqual(['google-email', 'google-service-account'])
   })
 
+  it('labels a block that only calls model providers read, unless it runs tools its user chooses', () => {
+    expect(view.blocks.router_v2.effect).toBe('read')
+    expect(view.blocks.evaluator.effect).toBe('read')
+    expect(view.blocks.agent.effect).toBe('write')
+  })
+
+  it('labels a block with an access id that is neither a tool nor a model provider write', () => {
+    const router = registryBlocks.find((block) => block.type === 'router_v2')
+    if (!router) throw new Error('The registry has no Router block')
+    const unknown: BlockConfig = {
+      ...router,
+      tools: { ...router.tools, access: [...router.tools.access, 'unregistered_tool'] },
+    }
+    const projected = projectBlockCatalog({ ...registryInput, blocks: [unknown] })
+    expect(projected.blocks.router_v2.effect).toBe('write')
+  })
+
   it('gives every operation a builder that pins it', () => {
     const missing: string[] = []
     for (const block of registryBlocks) {
