@@ -71,6 +71,7 @@ import {
   compiledWithChildResults,
   readStoredBlockDigests,
   readStoredEdges,
+  readStoredUntypedFields,
 } from './stored-edges'
 import { lockRecoveryHint, readSourceFiles } from './workflow-dir'
 import {
@@ -103,12 +104,14 @@ const STRICT_CODES: ReadonlySet<string> = new Set(STRICT_FINDINGS.keys())
 const STORED_EXEMPT_CODES: ReadonlySet<string> = new Set(['W_BRANCH_UNWIRED'])
 
 /**
- * Warnings a check reports only on a block the edit added or changed (see `changed` in
- * {@link checkWorkflowDir}), and on every block with `--strict`: printed source holds them on
- * blocks nobody edited, and the server, which compares with the stored workflow, reports them only
- * for a field that compiles differently than it stores. A block whose own source is untouched
- * still counts when it compiles differently, as when an edit elsewhere changes how it stores a
- * reference. `W_JSON_REF_UNTYPED`: a bare reference nothing types, in a JSON field.
+ * Warnings a check reports, as the server does, only on a JSON field the edit made store a
+ * reference anew: the compile reads what the source the last get or apply printed held from
+ * `.sim/stored-edges.json`. A field counts when its text differs from what it held, through the
+ * lock's renames, or when the reference was typed then, as when an edit elsewhere (a Start input,
+ * a Function's code) changes how it is typed. Without that record, or the catalog the source was
+ * printed with, they are reported only on a block the edit added or changed (see `changed` in
+ * {@link checkWorkflowDir}); with `--strict`, on every block. `W_JSON_REF_UNTYPED`: a bare
+ * reference nothing types, in a JSON field.
  */
 const EDIT_SCOPED_CODES: ReadonlySet<string> = new Set(['W_JSON_REF_UNTYPED'])
 
@@ -165,9 +168,11 @@ not move counts as unchanged, so the server may refuse what the check passes. A 
 function file to a block the lock binds that the source no longer declares stays a warning, unless
 a warning cap left findings out: the server may infer that block was renamed and rewrite the
 reference, and refuses it otherwise.
-${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the edit added or changed,
-including an unedited block that an edit elsewhere makes compile differently, and with --strict
-on every block.`
+${[...EDIT_SCOPED_CODES].join(', ')} is reported, as the server reports it, only on a field the
+edit made store the reference anew: one whose text differs from what the printed source stored,
+through block renames, or where the reference was typed then, as when an edit elsewhere (a Start
+input, a Function's code) changes its type. Without the record or that catalog, it is reported on
+every block the edit added or changed; with --strict, on every block.`
 }
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
@@ -478,24 +483,32 @@ function declarationFindings(
 async function compileWorkflowDir(
   dir: string,
   workspaceCatalog: BlockCatalog,
-  envNames?: ReadonlySet<string>
+  envNames?: ReadonlySet<string>,
+  { everyUntypedRef = false }: { everyUntypedRef?: boolean } = {}
 ) {
   const lockText = await readSourceText(dir, SOURCE_LOCK_FILE)
   const parsedLock = lockText === null ? null : parseWorkflowLock(lockText)
   const lock = parsedLock?.lock
-  const [files, storedEdges, storedBlocks, printedWith] = await Promise.all([
+  const [files, storedEdges, storedBlocks, storedUntypedFields, printedWith] = await Promise.all([
     readSourceFiles(dir, lock ?? null),
     readStoredEdges(dir),
     readStoredBlockDigests(dir),
+    readStoredUntypedFields(dir),
     cachedSourceCatalog(dir),
   ])
   const catalog = printedWith ?? workspaceCatalog
+  // Compiled against another catalog than the source was printed with, a field may store a
+  // reference differently with no edit, so the record says nothing of what the edit changed.
+  const untypedFields = printedWith && !everyUntypedRef ? storedUntypedFields : undefined
   const input: CompileInput = {
     ...folderCompileInput(files[SOURCE_ENTRY_FILE], files, lock, catalog),
     ...(storedEdges ? { storedUnreadEdges: storedEdges } : {}),
+    ...(untypedFields ? { storedUnreadUntypedFields: untypedFields } : {}),
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
   }
   return {
+    /** Whether the compile reports `W_JSON_REF_UNTYPED` only where a field stores it anew. */
+    untypedScoped: untypedFields !== undefined,
     lock,
     lockProblems: parsedLock?.diagnostics ?? [],
     files,
@@ -652,14 +665,18 @@ export async function checkWorkflowDir(
   }
 ): Promise<{ findings: CheckFinding[]; entry: string; unlisted: UnlistedCounts }> {
   const { declarations } = options
+  const everyUntypedRef = options.strict === 'all'
   const untyped =
-    (options.key === undefined ? undefined : declarations?.compiledWorkflows.get(options.key)) ??
-    (await compileWorkflowDir(dir, catalog, declarations?.envNames))
+    (options.key === undefined || everyUntypedRef
+      ? undefined
+      : declarations?.compiledWorkflows.get(options.key)) ??
+    (await compileWorkflowDir(dir, catalog, declarations?.envNames, { everyUntypedRef }))
   const compiledDir = {
     ...untyped,
     compiled: compiledWithChildResults(untyped.input, untyped.compiled, declarations?.childResults),
   }
-  const { lock, lockProblems, files, compiled, storedBlocks, printedWith } = compiledDir
+  const { lock, lockProblems, files, compiled, storedBlocks, printedWith, untypedScoped } =
+    compiledDir
   const entryText = files[SOURCE_ENTRY_FILE]
   const locate = (block: string, param: string, names: string | undefined) => {
     const prefix = encodeAnchor({ kind: 'param', block, param: '' })
@@ -737,6 +754,7 @@ export async function checkWorkflowDir(
     !(
       EDIT_SCOPED_CODES.has(code) &&
       options.strict !== 'all' &&
+      !untypedScoped &&
       blockKey !== undefined &&
       !changed(blockKey)
     )

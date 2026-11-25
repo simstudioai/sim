@@ -14,6 +14,7 @@ import {
   type StoredEdgeRef,
   setOwn,
   stableStringify,
+  type UntypedJsonField,
 } from '@sim/workflow-code'
 import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS } from '@sim/workspace-code'
@@ -61,13 +62,14 @@ function printedInput(answer: PrintedAnswer, catalog: BlockCatalog): CompileInpu
 
 /**
  * The `.sim/stored-edges.json` write (at `folder`) of a printed source compiled as `compiled`: its
- * edges and a digest of each block ({@link blockDigest}, by key), tagged with its base fingerprint.
+ * edges, its JSON fields holding untyped references, and a digest of each block
+ * ({@link blockDigest}, by key), tagged with its base fingerprint.
  * `null` when the answer has no fingerprint; the record left on disk then names an older
  * fingerprint, which a check ignores.
  */
 function storedEdgesRecord(
   answer: PrintedAnswer,
-  { edges, workflow }: CompileResult,
+  { edges, workflow, untypedJsonFields }: CompileResult,
   folder: string
 ): readonly [string, string] | null {
   const { fingerprint } = toRecord(answer.base)
@@ -79,6 +81,7 @@ function storedEdgesRecord(
         version: 1,
         fingerprint,
         edges,
+        untypedJsonFields,
         ...(workflow
           ? {
               blocks: Object.fromEntries(
@@ -232,26 +235,55 @@ function isStoredEdge(value: unknown): value is StoredEdgeRef {
   )
 }
 
+function isUntypedJsonField(value: unknown): value is UntypedJsonField {
+  return (
+    isRecordLike(value) &&
+    typeof value.block === 'string' &&
+    typeof value.param === 'string' &&
+    typeof value.value === 'string' &&
+    Array.isArray(value.refs) &&
+    value.refs.every((ref) => typeof ref === 'string')
+  )
+}
+
+/**
+ * The stored-edges record of the base `dir` holds now, or an empty record when there is none: no
+ * record, or one another base wrote.
+ */
+async function currentRecord(dir: string): Promise<Record<string, unknown>> {
+  const [record, base] = await Promise.all([
+    readSourceJson(dir, SOURCE_STORED_EDGES_FILE),
+    readSourceJson(dir, SOURCE_BASE_FILE),
+  ])
+  const { version, fingerprint } = toRecord(record)
+  return version === 1 &&
+    typeof fingerprint === 'string' &&
+    fingerprint === toRecord(base).fingerprint
+    ? toRecord(record)
+    : {}
+}
+
 /**
  * The stored edges recorded for the base `dir` holds now, or `undefined` when none are: no
  * record, one another base wrote, or a malformed one.
  */
 export async function readStoredEdges(dir: string): Promise<StoredEdgeRef[] | undefined> {
-  const [record, base] = await Promise.all([
-    readSourceJson(dir, SOURCE_STORED_EDGES_FILE),
-    readSourceJson(dir, SOURCE_BASE_FILE),
-  ])
-  const { version, fingerprint, edges } = toRecord(record)
-  if (
-    version !== 1 ||
-    typeof fingerprint !== 'string' ||
-    fingerprint !== toRecord(base).fingerprint ||
-    !Array.isArray(edges) ||
-    !edges.every(isStoredEdge)
-  ) {
-    return undefined
-  }
-  return edges
+  const { edges } = await currentRecord(dir)
+  return Array.isArray(edges) && edges.every(isStoredEdge) ? edges : undefined
+}
+
+/**
+ * The JSON fields holding untyped references recorded for the base `dir` holds now (see
+ * {@link storedEdgesWrite}), or `undefined` when none are: no record, one another base wrote, or
+ * a malformed one.
+ */
+export async function readStoredUntypedFields(
+  dir: string
+): Promise<UntypedJsonField[] | undefined> {
+  const { untypedJsonFields } = await currentRecord(dir)
+  return Array.isArray(untypedJsonFields) && untypedJsonFields.every(isUntypedJsonField)
+    ? untypedJsonFields
+    : undefined
 }
 
 /**
@@ -262,19 +294,8 @@ export async function readStoredEdges(dir: string): Promise<StoredEdgeRef[] | un
 export async function readStoredBlockDigests(
   dir: string
 ): Promise<ReadonlyMap<string, string> | undefined> {
-  const [record, base] = await Promise.all([
-    readSourceJson(dir, SOURCE_STORED_EDGES_FILE),
-    readSourceJson(dir, SOURCE_BASE_FILE),
-  ])
-  const { version, fingerprint, blocks } = toRecord(record)
-  if (
-    version !== 1 ||
-    typeof fingerprint !== 'string' ||
-    fingerprint !== toRecord(base).fingerprint ||
-    !isRecordLike(blocks)
-  ) {
-    return undefined
-  }
+  const { blocks } = await currentRecord(dir)
+  if (!isRecordLike(blocks)) return undefined
   const digests = new Map<string, string>()
   for (const [key, value] of Object.entries(blocks)) {
     if (typeof value !== 'string') return undefined

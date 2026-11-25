@@ -721,6 +721,109 @@ describe('sim workflows source check', () => {
     expect(untyped()).toEqual([expect.stringContaining('<start.message>')])
   })
 
+  describe('an untyped JSON reference the printed source already stored', () => {
+    const PRINTED = `// @sim-sdk 1
+import { api, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const calc = fn('Calc', { code: 'return 1' })
+  const call = api('Call', { url: 'https://x', method: 'POST', body: { n: calc.result.deep } })
+  start.to(calc)
+  calc.to(call)
+})
+`
+    /** Writes the lock and stored-edges record of `printed`, as a get leaves the directory. */
+    function writePrinted(printed = PRINTED): void {
+      cacheCatalog()
+      writeLock(['start', 'calc', 'call'])
+      printedWithFixture()
+      const record = storedEdgesWrite(
+        {
+          files: { 'workflow.ts': printed },
+          lock: JSON.parse(readFileSync(join(dir, '.sim/lock.json'), 'utf8')),
+          base: { fingerprint: 'sf1:a' },
+        },
+        JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+      )
+      if (!record) throw new Error('no stored-edges record')
+      writeFileSync(join(dir, record[0]), record[1])
+    }
+    const untyped = () =>
+      ((result().diagnostics ?? []) as Array<{ code: string; message: string }>)
+        .filter((finding) => finding.code === 'W_JSON_REF_UNTYPED')
+        .map((finding) => finding.message)
+
+    it('stays quiet when the block holding it and the block it reads are renamed', async () => {
+      writePrinted()
+      writeFileSync(
+        join(dir, 'workflow.ts'),
+        PRINTED.replace("fn('Calc',", "fn('Compute',").replace("api('Call',", "api('Call API',")
+      )
+
+      await check()
+
+      expect(result()).toMatchObject({ errors: 0 })
+      expect(untyped()).toEqual([])
+    })
+
+    it('stays quiet when another field of its block is edited', async () => {
+      writePrinted()
+      writeFileSync(
+        join(dir, 'workflow.ts'),
+        PRINTED.replace("url: 'https://x'", "url: 'https://y'")
+      )
+
+      await check()
+
+      expect(untyped()).toEqual([])
+    })
+
+    it('is reported once its field is edited, with the reference the edit added', async () => {
+      writePrinted()
+      writeFileSync(
+        join(dir, 'workflow.ts'),
+        PRINTED.replace('{ n: calc.result.deep }', '{ n: calc.result.deep, m: calc.result.other }')
+      )
+
+      await check()
+
+      expect(untyped()).toEqual([
+        expect.stringContaining('<calc.result.deep>'),
+        expect.stringContaining('<calc.result.other>'),
+      ])
+    })
+
+    it('is reported where the Function it reads typed it until an edit of its code', async () => {
+      const typed = PRINTED.replace("code: 'return 1'", "code: 'return [1, 2]'").replace(
+        '{ n: calc.result.deep }',
+        '{ n: calc.result.deep, all: calc.result }'
+      )
+      writePrinted(typed)
+      writeFileSync(join(dir, 'workflow.ts'), typed)
+      await checkIn(dir, '--strict')
+      expect(untyped()).toEqual([expect.stringContaining('<calc.result.deep>')])
+
+      writeFileSync(
+        join(dir, 'workflow.ts'),
+        typed.replace("code: 'return [1, 2]'", "code: 'return input.items'")
+      )
+
+      await check()
+
+      expect(untyped()).toEqual([expect.stringContaining('<calc.result>')])
+    })
+
+    it('is reported with --strict', async () => {
+      writePrinted()
+      writeFileSync(join(dir, 'workflow.ts'), PRINTED.replace("api('Call',", "api('Call API',"))
+
+      await checkIn(dir, '--strict')
+
+      expect(untyped()).toEqual([expect.stringContaining('<calc.result.deep>')])
+    })
+  })
+
   it('fails on an iteration reference a new block reads outside its loop, and on one a move left behind', async () => {
     cacheCatalog()
     const source = (echo: string) => `// @sim-sdk 1

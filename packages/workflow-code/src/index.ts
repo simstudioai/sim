@@ -51,6 +51,7 @@ export {
   type CompileResult,
   compileWorkflow,
   type StoredEdgeRef,
+  type UntypedJsonField,
 } from './compile'
 export { codePointLabel, scriptName } from './compile/characters'
 export { didYouMean, suggestBuilder } from './compile/hints'
