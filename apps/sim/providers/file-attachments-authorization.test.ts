@@ -84,7 +84,7 @@ describe('provider attachment storage-key authorization', () => {
 
       file.remoteUrl = 'https://storage.example.com/forged'
       await expect(
-        uploadLargeFilesToProvider(request, 'openai', executionContext)
+        uploadLargeFilesToProvider(request, 'openai', executionContext, [])
       ).rejects.toThrow()
       expect(download).not.toHaveBeenCalled()
       expect(permission).not.toHaveBeenCalled()

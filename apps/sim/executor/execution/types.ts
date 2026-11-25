@@ -87,6 +87,8 @@ export interface ExecutionMetadata {
   allowLargeValueWorkflowScope?: boolean
   callChain?: string[]
   correlation?: AsyncExecutionCorrelation
+  /** A dry run's allowed and mocked blocks, recorded on its log so a rerun can name them again. */
+  dryRun?: DryRunOptions
   executionMode?: 'sync' | 'stream' | 'async'
   /**
    * Deployed-chat thinking policy half of the SSE dual gate. Persisted so HITL
@@ -318,6 +320,72 @@ export interface ExecutionTestHooks {
   recordSpy(call: { blockId: string; input: unknown; output: unknown }): void
 }
 
+/** A dry run's allowed and mocked blocks of the workflow it started, by id; never a mock's output. */
+export interface DryRunOptions {
+  allowBlocks: string[]
+  mockedBlocks: string[]
+}
+
+/** Where a call that may change state outside the run was made: a block of one executing workflow. */
+export interface SideEffectSite {
+  workflowId: string
+  /** The workflow block id, never a parallel-branch clone id; null when the caller named none. */
+  blockId: string | null
+  blockName: string | null
+  blockType: string | null
+}
+
+/** A block of one executing workflow, which the block executor always knows. */
+export interface SideEffectBlockSite extends SideEffectSite {
+  blockId: string
+  blockName: string
+  blockType: string
+}
+
+/** A write tool call the run answers instead of sending, with the request it would have sent. */
+export interface StubbedToolCall extends SideEffectSite {
+  toolId: string
+  /** The request with credentials, secrets and PII redacted; null when that cannot be vouched for. */
+  request: Record<string, unknown> | null
+}
+
+/** A block the run answers instead of running its handler. */
+export interface AnsweredBlockCall extends SideEffectBlockSite {
+  /**
+   * The inputs its log shows, redacted like a stubbed write's request (null when that cannot be
+   * vouched for); built only when the block is recorded as stubbed rather than mocked.
+   */
+  input: () => Promise<Record<string, unknown> | null>
+}
+
+/**
+ * How a run treats work that may change state outside it: a dry run, or a workflow test's
+ * unmocked writes. Unlike {@link ExecutionTestHooks}, every child execution inherits it, including
+ * a workflow an Agent calls as a tool, so a child's writes follow the run that started it. Tool
+ * calls meet it in `tools/side-effects.ts`; the block executor consults it before each block's
+ * handler. Its presence alone also means the run keeps nothing beyond its log: an Agent writes no
+ * memory, and files uploaded to a provider's Files API are deleted once the call settles. Where
+ * only the log is at hand, the `test` trigger says the same.
+ */
+export interface SideEffectPolicy {
+  /**
+   * Whether this write tool call is sent or answered with {@link stubWrite}. Records a sent call
+   * the run should report: an allowed block's write, or code that runs unchecked.
+   */
+  decideWrite(call: SideEffectSite & { toolId: string }): 'send' | 'stub'
+  /**
+   * Records code that ran for real, which can make network calls the run cannot see: code run
+   * through `function_execute`, or a While or Do While loop's condition.
+   */
+  ranCode(site: SideEffectSite): void
+  /** Records a write that was not sent and returns the placeholder output answering it. */
+  stubWrite(call: StubbedToolCall): Record<string, unknown>
+  /** Whether this block is answered with {@link answerBlock} instead of running its handler. */
+  answersBlock(block: SideEffectBlockSite): boolean
+  /** The output answering a block that does not run: its mock, or a recorded placeholder. */
+  answerBlock(call: AnsweredBlockCall): Promise<NormalizedBlockOutput>
+}
+
 export interface ContextExtensions {
   workspaceId?: string
   executionId?: string
@@ -418,6 +486,7 @@ export interface ContextExtensions {
   stopAfterBlockId?: string
 
   testHooks?: ExecutionTestHooks
+  sideEffects?: SideEffectPolicy
 
   /**
    * Ordered list of workflow IDs in the current call chain, used for cycle detection.

@@ -38,11 +38,18 @@ export interface ExecuteMcpToolInput {
   timeoutMs?: number
   signal?: AbortSignal
   onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
+  /**
+   * Authorize, discover and validate the call as a live one would, then stop before sending it,
+   * writing nothing a live call reads: no server health, tool cache or tool snapshot.
+   */
+  checkOnly?: boolean
 }
 
 export type ExecuteMcpToolResult =
   | { success: true; output: McpToolResult }
   | { success: false; error: string }
+  /** A `checkOnly` call that would have been sent. */
+  | { success: true; checked: true }
 
 function hasType(value: unknown): value is SchemaProperty {
   return typeof value === 'object' && value !== null && 'type' in value
@@ -164,7 +171,7 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       context.workspaceId,
       'skip-cache',
       input.onResolvedSecretTraceProvenance,
-      { signal: input.signal, requireComplete: true }
+      { signal: input.signal, requireComplete: true, readOnly: input.checkOnly }
     )
     const tool = tools.find((candidate) => candidate.name === input.toolName)
     if (!tool) throw new OrchestrationError('not_found', 'Tool not found on the specified server')
@@ -190,6 +197,7 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       ),
       input.toolName
     )
+    if (input.checkOnly) return { success: true, checked: true }
     const providerResult = await mcpService.executeTool(
       userId,
       context.server.id,

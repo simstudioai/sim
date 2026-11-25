@@ -4,6 +4,7 @@ import {
   createExecutorPrincipal,
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { mcpOauthMock } from '@sim/testing/mocks/mcp-oauth.mock'
 import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
@@ -42,6 +43,8 @@ vi.mock('@/lib/mcp/application/managed-auth-provider', () => ({
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
+vi.mock('@sim/audit', () => auditMock)
+
 import { executeManagedMcpToolUseCase } from '@/lib/mcp/application/execute-managed-tool'
 import { createCopilotApplicationPrincipal } from '@/lib/mothership/auth/application-delegation'
 
@@ -51,6 +54,12 @@ const mocks = {
   executeTool: mcpServiceMockFns.mockExecuteManagedMcpTool,
   resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
 }
+
+const auditWrites = [
+  auditMockFns.mockRecordAudit,
+  auditMockFns.mockRecordAuditOnce,
+  auditMockFns.mockRecordAuditRollup,
+]
 
 const context = {
   credentialId: 'mcp-cg-123456789012345678901',
@@ -303,5 +312,33 @@ describe('executeManagedMcpToolUseCase', () => {
       })
     ).rejects.toThrow('Workspace access revoked')
     expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
+  it('checks a held-back call without sending it, saving a tool snapshot or auditing it', async () => {
+    mocks.discoverTools.mockResolvedValue([
+      { name: 'search_transcripts', inputSchema: { type: 'object', properties: {} } },
+    ])
+    const input = {
+      workspaceId: context.workspaceId,
+      credentialId: context.credentialId,
+      toolName: 'search_transcripts',
+    }
+
+    await expect(
+      executeManagedMcpToolUseCase.execute({ principal, input: { ...input, checkOnly: true } })
+    ).resolves.toEqual({ success: true, checked: true })
+
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+    expect(mocks.saveToolSnapshot).not.toHaveBeenCalled()
+    for (const write of auditWrites) expect(write).not.toHaveBeenCalled()
+
+    const savedWorkflow = await mocks.loadWorkflow()
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
+    await executeManagedMcpToolUseCase.execute({ principal, input })
+
+    expect(mocks.executeTool).toHaveBeenCalledOnce()
+    expect(mocks.saveToolSnapshot).toHaveBeenCalledOnce()
+    expect(auditWrites.some((write) => write.mock.calls.length > 0)).toBe(true)
   })
 })

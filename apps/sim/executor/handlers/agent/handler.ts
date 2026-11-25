@@ -22,7 +22,11 @@ import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from 
 import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { type AgentTurnSession, openAgentTurnSession } from '@/lib/memory/agent-turn-session'
+import {
+  type AgentTurnSession,
+  findStoredAgentConversation,
+  openAgentTurnSession,
+} from '@/lib/memory/agent-turn-session'
 import { MEMORY } from '@/lib/memory/constants'
 import { createAgentMemoryRetrievalTool } from '@/lib/memory/retrieval-tool'
 import {
@@ -183,6 +187,18 @@ interface IndexedToolInput {
 }
 
 /**
+ * Whether this Agent writes its turn to memory. Under a run's side-effect policy (a dry run, or a
+ * workflow test) it writes nothing, so a conversation is left as the run found it, but it reads
+ * the conversation as a live run would: its history, and the memory retrieval tool.
+ */
+function persistsMemory(ctx: ExecutionContext, inputs: AgentInputs): boolean {
+  return Boolean(inputs.memoryType && inputs.memoryType !== 'none' && !ctx.sideEffects)
+}
+
+/** A stored conversation an Agent reads without opening a turn in it. */
+type StoredAgentConversation = Awaited<ReturnType<typeof findStoredAgentConversation>>
+
+/**
  * Removes the sim-auto identity preamble from the system messages built for a
  * routed primary. A fallback the builder named is not a pool model, so it must
  * not be told to hide which model it is. Messages are built once per block run
@@ -230,6 +246,8 @@ interface ExecuteAcrossModelsConfig {
   resultRegistry: ResolvedSecretTraceRegistry | undefined
   providerErrorRegistry: ResolvedSecretTraceRegistry | undefined
   agentConversation?: AgentTurnSession
+  /** The stored conversation a run that writes no memory reads ({@link findStoredAgentConversation}). */
+  storedConversation?: StoredAgentConversation
 }
 
 interface FormattedAgentTools {
@@ -518,9 +536,9 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const streamingConfig = this.getStreamingConfig(ctx, block)
+      const writesMemory = persistsMemory(ctx, filteredInputs)
       const agentConversation =
-        filteredInputs.memoryType &&
-        filteredInputs.memoryType !== 'none' &&
+        writesMemory &&
         filteredInputs.conversationId &&
         nodeMetadata &&
         nodeMetadata.executionOrder !== undefined
@@ -532,13 +550,25 @@ export class AgentBlockHandler implements BlockHandler {
               conversationId: filteredInputs.conversationId,
             })
           : undefined
+      const storedConversation =
+        !writesMemory &&
+        filteredInputs.memoryType &&
+        filteredInputs.memoryType !== 'none' &&
+        filteredInputs.conversationId
+          ? await findStoredAgentConversation({
+              ctx,
+              conversationId: filteredInputs.conversationId,
+            })
+          : undefined
       const messagesWithInputFiles = await this.buildMessages(
         ctx,
         filteredInputs,
         modelInputs,
         skillMetadata,
         fileProjection,
-        agentConversation
+        writesMemory,
+        agentConversation,
+        storedConversation
       )
       /**
        * The primary hydrates before the registries settle and fork, as it always
@@ -623,6 +653,7 @@ export class AgentBlockHandler implements BlockHandler {
         resultRegistry,
         providerErrorRegistry,
         agentConversation,
+        storedConversation,
       })
       if (servedRegistry) ctx.resolvedSecretTraceRegistry = servedRegistry
 
@@ -641,7 +672,7 @@ export class AgentBlockHandler implements BlockHandler {
       if (this.isStreamingExecution(result)) {
         const streamingResult = result as StreamingExecution
         streamingResult.diagnosticResolvedSecretTraceRegistry = providerErrorRegistry
-        if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+        if (writesMemory) {
           return this.wrapStreamForMemoryPersistence(
             ctx,
             filteredInputs,
@@ -653,7 +684,7 @@ export class AgentBlockHandler implements BlockHandler {
         return streamingResult
       }
 
-      if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+      if (writesMemory) {
         await this.persistResponseToMemory(
           ctx,
           filteredInputs,
@@ -1442,7 +1473,10 @@ export class AgentBlockHandler implements BlockHandler {
     modelInputs: AgentInputs,
     skillMetadata: Array<{ name: string; description: string }>,
     fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>,
-    agentConversation?: AgentTurnSession
+    /** Whether this turn is written to memory ({@link persistsMemory}). */
+    writesMemory: boolean,
+    agentConversation?: AgentTurnSession,
+    storedConversation?: StoredAgentConversation
   ): Promise<Message[] | undefined> {
     const messages: Message[] = []
     const memoryEnabled = inputs.memoryType && inputs.memoryType !== 'none'
@@ -1464,9 +1498,9 @@ export class AgentBlockHandler implements BlockHandler {
         inputs,
         fileProjection.projectedNameByFile,
         {
-          richHistory: Boolean(agentConversation),
+          richHistory: Boolean(agentConversation ?? storedConversation),
           excludeTurnId: agentConversation?.turnId,
-          memoryId: agentConversation?.memoryId,
+          memoryId: agentConversation?.memoryId ?? storedConversation?.memoryId,
         }
       )
       const hasExisting = memoryMessages.length > 0
@@ -1600,6 +1634,7 @@ export class AgentBlockHandler implements BlockHandler {
       fileProjection.projectedNameByFile,
       fileProjection.directNameInputPaths
     )
+    if (!writesMemory) return messagesWithFiles
 
     /** Persist the complete turn before provider hydration adds bytes or transient handles. */
     const lastUserMessage = messages
@@ -2684,7 +2719,8 @@ export class AgentBlockHandler implements BlockHandler {
           resultRegistry,
           config.providerErrorRegistry,
           savedCredentials?.(),
-          config.agentConversation
+          config.agentConversation,
+          config.storedConversation
         )
         if ((hasNext || config.retryPrimaryOnStreamStart) && this.isStreamingExecution(result)) {
           result = await this.primeStreamingExecution(result as StreamingExecution)
@@ -2888,7 +2924,8 @@ export class AgentBlockHandler implements BlockHandler {
     modelRuntimeRegistry: ResolvedSecretTraceRegistry | undefined,
     providerErrorRegistry: ResolvedSecretTraceRegistry | undefined,
     savedCredentials: Promise<BlockModelCredentials> | undefined,
-    agentConversation?: AgentTurnSession
+    agentConversation?: AgentTurnSession,
+    storedConversation?: StoredAgentConversation
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
@@ -2897,11 +2934,9 @@ export class AgentBlockHandler implements BlockHandler {
       const credentials: BlockModelCredentials = (await savedCredentials) ?? {}
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
-      const agentMemoryRetrieval = agentConversation?.memoryId
-        ? createAgentMemoryRetrievalTool({
-            executionContext: ctx,
-            memoryId: agentConversation.memoryId,
-          })
+      const memoryId = agentConversation?.memoryId ?? storedConversation?.memoryId
+      const agentMemoryRetrieval = memoryId
+        ? createAgentMemoryRetrievalTool({ executionContext: ctx, memoryId })
         : undefined
 
       const response = await executeProviderRequest(
@@ -2957,9 +2992,10 @@ export class AgentBlockHandler implements BlockHandler {
           executionContext: ctx,
           agentConversation,
           agentMemoryRetrieval,
-          agentMemoryContext: agentConversation
-            ? { historyTokens: providerRequest.memoryHistoryTokens }
-            : undefined,
+          agentMemoryContext:
+            agentConversation || storedConversation
+              ? { historyTokens: providerRequest.memoryHistoryTokens }
+              : undefined,
         }
       )
 

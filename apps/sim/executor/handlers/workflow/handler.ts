@@ -931,6 +931,9 @@ export class WorkflowBlockHandler implements BlockHandler {
           // A workflow test's mocks and spies reach every child it runs, except a custom
           // block's: that workflow is the publisher's, so the test mocks the block whole.
           testHooks: isCustomBlock ? undefined : ctx.testHooks,
+          // Every child inherits the run's side-effect policy, a custom block's included: the
+          // policy answers a custom block whole, so its child never runs under it.
+          sideEffects: ctx.sideEffects,
           callChain: childCallChain,
           // A custom block's own session markers and the parent's live stream, fanned
           // out together — see `childCallbacks` above for why this is not two spreads.

@@ -61,6 +61,7 @@ export const GET = defineV2JsonRoute({
       output: status.finalOutput,
       blockOutputs: status.blockOutputs,
       files: status.files,
+      dryRun: status.dryRun,
     },
   }),
 })

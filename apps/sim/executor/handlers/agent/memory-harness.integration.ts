@@ -532,7 +532,7 @@ describe('Agent memory through PostgreSQL, storage, and provider transports', ()
             return Response.json({ id: 'file-harness' })
           })
           vi.stubGlobal('fetch', upload)
-          await uploadLargeFilesToProvider(largeRequest, provider, firstContext)
+          await uploadLargeFilesToProvider(largeRequest, provider, firstContext, [])
           expect(upload).toHaveBeenCalledOnce()
           expect(largeFile.providerFileId).toBe('file-harness')
         }

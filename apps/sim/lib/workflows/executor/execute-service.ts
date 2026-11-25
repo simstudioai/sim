@@ -22,6 +22,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import type { TraceSpan } from '@/lib/logs/types'
 import { MAX_MCP_WORKFLOW_RESPONSE_BYTES } from '@/lib/mcp/constants'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
+import type { SideEffectsSummary, WriteStubPolicy } from '@/lib/workflows/dry-run'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -52,7 +53,11 @@ import {
 import { workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
+import type {
+  DryRunOptions,
+  ExecutionMetadata,
+  SerializableExecutionState,
+} from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
 import {
   classifyExecutionError,
@@ -154,6 +159,13 @@ export interface ExecuteWorkflowServiceParams {
   }
   /** Saved block after which execution stops, validated by the application use case. */
   stopAfterBlockId?: string
+  /**
+   * A dry run's side-effect policy, built by the application use case: writes are answered with
+   * placeholders, and what each would have sent is returned as the run's `sideEffects`, failed
+   * runs included. Requires `useDraftState` and a `sync` or non-detachable `sync-result-stream`
+   * run that returns its whole result, never rejecting a large inline response.
+   */
+  sideEffectPolicy?: WriteStubPolicy
 }
 
 export interface ExecuteWorkflowServiceFailure {
@@ -189,6 +201,10 @@ export interface ExecuteWorkflowServiceRun {
   executionTimeoutMs: number
   /** Where a `paused` run waits; absent otherwise. */
   paused?: RunPause | null
+  /** What a dry run did with each write it reached; absent for any other run. */
+  sideEffects?: SideEffectsSummary
+  /** A dry run's allowed and mocked blocks, which a rerun of it passes again; absent otherwise. */
+  dryRun?: DryRunOptions
 }
 
 /** A run's result before the applied timeout is stamped onto it. */
@@ -254,6 +270,9 @@ function rerunStartOf(
   return error?.blockId ? findRerunStartBlockId(error.blockId, blocks) : undefined
 }
 
+/** The label a response too large to return inline is rejected under. */
+const WORKFLOW_RESPONSE_LABEL = 'Workflow execution response'
+
 function failure(f: ExecuteWorkflowServiceFailure): ExecuteWorkflowServiceFailureResult {
   return { ok: false, failure: f }
 }
@@ -276,14 +295,14 @@ async function compactServiceOutput<T>(
     preserveUserFileBase64: true,
     preserveRoot: !context.rejectLargeInlineOutput,
     rejectLargeValues: context.rejectLargeInlineOutput,
-    rejectLargeValueLabel: 'Workflow execution response',
+    rejectLargeValueLabel: WORKFLOW_RESPONSE_LABEL,
     thresholdBytes: context.rejectLargeInlineOutput ? MAX_MCP_WORKFLOW_RESPONSE_BYTES : undefined,
     requireDurable: true,
   })
 
   if (context.rejectLargeInlineOutput && containsLargeValueRef(compacted)) {
     throw new PayloadSizeLimitError({
-      label: 'Workflow execution response',
+      label: WORKFLOW_RESPONSE_LABEL,
       maxBytes: MAX_MCP_WORKFLOW_RESPONSE_BYTES,
       observedBytes: MAX_MCP_WORKFLOW_RESPONSE_BYTES + 1,
     })
@@ -334,6 +353,7 @@ export async function executeWorkflowService(
     runFromBlock,
     stopAfterBlockId,
     detachable = false,
+    sideEffectPolicy,
   } = params
 
   let reqLogger = logger.withMetadata({ requestId, workflowId, userId })
@@ -356,6 +376,12 @@ export async function executeWorkflowService(
   }
   if (draftState && !useDraftState) {
     throw new Error('A preloaded draft state requires manual execution state')
+  }
+  if (sideEffectPolicy && !useDraftState) {
+    throw new Error('A dry run requires manual execution state')
+  }
+  if (sideEffectPolicy && (mode === 'stream' || detachable || rejectLargeInlineOutput)) {
+    throw new Error('A dry run returns its side effects with the whole result it waits for')
   }
   if (detachable && (mode !== 'sync-result-stream' || abortSignal)) {
     throw new Error('A detachable run returns its pending result and outlives its request')
@@ -450,6 +476,8 @@ export async function executeWorkflowService(
       executionId,
       requestId,
       checkDeployment: !useDraftState,
+      // A draft run is unmetered like the editor's, under `manual` or, for a dry run, `test`.
+      ...(useDraftState ? { checkRateLimit: false } : {}),
       rateLimitCounter: detachable ? 'async' : rateLimitCounter,
       loggingSession,
       useAuthenticatedUserAsActor,
@@ -731,6 +759,7 @@ export async function executeWorkflowService(
       allowLargeValueWorkflowScope: false,
       callChain,
       executionMode: 'sync',
+      ...(sideEffectPolicy ? { dryRun: sideEffectPolicy.runOptions() } : {}),
     }
 
     const executionTimeoutMs = preprocessResult.executionTimeout?.[executionType] ?? 0
@@ -755,6 +784,20 @@ export async function executeWorkflowService(
       rejectLargeInlineOutput,
     }
 
+    /** The failure a response too large to return inline maps to; null for any other error. */
+    const responseTooLarge = (error: unknown): ExecuteWorkflowServiceFailureResult | null =>
+      error instanceof PayloadSizeLimitError &&
+      rejectLargeInlineOutput &&
+      error.label === WORKFLOW_RESPONSE_LABEL
+        ? failure({
+            kind: 'output_too_large',
+            message: `${WORKFLOW_RESPONSE_LABEL} exceeds maximum size`,
+            statusCode: 413,
+            code: 'workflow_response_too_large',
+            executionId,
+          })
+        : null
+
     const runSynchronousWorkflow = async (): Promise<UnstampedTerminalResult> => {
       if (detachable) registerManualExecutionAborter(executionId, timeoutController.abort)
       try {
@@ -776,6 +819,7 @@ export async function executeWorkflowService(
           runFromBlock,
           stopAfterBlockId,
           draftState,
+          sideEffects: sideEffectPolicy,
         })
 
         await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
@@ -902,19 +946,8 @@ export async function executeWorkflowService(
           }
         }
 
-        if (
-          error instanceof PayloadSizeLimitError &&
-          rejectLargeInlineOutput &&
-          error.label === 'Workflow execution response'
-        ) {
-          return failure({
-            kind: 'output_too_large',
-            message: 'Workflow execution response exceeds maximum size',
-            statusCode: 413,
-            code: 'workflow_response_too_large',
-            executionId,
-          })
-        }
+        const tooLarge = responseTooLarge(error)
+        if (tooLarge) return tooLarge
 
         logFailureOnce(reqLogger, `Execution failed: ${errorMessage}`, error, { executionId })
 
@@ -931,20 +964,15 @@ export async function executeWorkflowService(
               compactionContext
             )
           } catch (compactError) {
-            if (
-              compactError instanceof PayloadSizeLimitError &&
-              rejectLargeInlineOutput &&
-              compactError.label === 'Workflow execution response'
-            ) {
-              return failure({
-                kind: 'output_too_large',
-                message: 'Workflow execution response exceeds maximum size',
-                statusCode: 413,
-                code: 'workflow_response_too_large',
-                executionId,
-              })
-            }
-            throw compactError
+            const tooLarge = responseTooLarge(compactError)
+            if (tooLarge) return tooLarge
+            // A failed dry run still returns its side effects: its allowed writes were sent.
+            if (!sideEffectPolicy) throw compactError
+            reqLogger.warn('Failed to compact a failed dry run’s output; returning it without', {
+              error: getErrorMessage(compactError),
+            })
+            compactErrorOutput = undefined
+            compactErrorBlockOutputs = null
           }
         }
 
@@ -979,10 +1007,45 @@ export async function executeWorkflowService(
       }
     }
 
-    const pending = runSynchronousWorkflow().then(
-      (result): ExecuteWorkflowServiceTerminalResult =>
-        result.ok ? { ...result, executionTimeoutMs } : result
-    )
+    /**
+     * A dry run's side effects on its result, whatever its status: a failed run's allowed writes
+     * were sent all the same. A dry run never rejects a large inline response (refused above), so
+     * its result is always a run that carries them. Compacted like the run's output; a summary
+     * that cannot be compacted keeps every entry without its request.
+     */
+    const withSideEffects = async (
+      result: UnstampedTerminalResult
+    ): Promise<UnstampedTerminalResult> => {
+      if (!sideEffectPolicy || !result.ok) return result
+      const summary = sideEffectPolicy.summary()
+      const dryRun = sideEffectPolicy.runOptions()
+      try {
+        return {
+          ...result,
+          sideEffects: await compactServiceOutput(summary, compactionContext),
+          dryRun,
+        }
+      } catch (error) {
+        reqLogger.warn('Failed to compact dry-run side effects; returning them without requests', {
+          error: getErrorMessage(error),
+        })
+        return {
+          ...result,
+          sideEffects: {
+            ...summary,
+            stubbed: summary.stubbed.map((entry) => ({ ...entry, request: null })),
+          },
+          dryRun,
+        }
+      }
+    }
+
+    const pending = runSynchronousWorkflow()
+      .then(withSideEffects)
+      .then(
+        (result): ExecuteWorkflowServiceTerminalResult =>
+          result.ok ? { ...result, executionTimeoutMs } : result
+      )
     if (mode === 'sync-result-stream') {
       /** Keep the claim until the pending run can prove whether durable ownership exists. */
       executionIdClaimTransferred = true

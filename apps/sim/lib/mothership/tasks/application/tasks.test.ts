@@ -260,6 +260,7 @@ describe('worker HTTP contracts', () => {
         output: { report: 'completed result' },
         blockOutputs: null,
         files: [],
+        dryRun: null,
       },
     })
     const transport = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {

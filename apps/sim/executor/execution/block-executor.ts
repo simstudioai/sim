@@ -74,6 +74,7 @@ import {
   getIterationContext,
 } from '@/executor/utils/iteration-context'
 import { isJSONString } from '@/executor/utils/json'
+import { mockOutputRefusal } from '@/executor/utils/mock-output'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import type {
@@ -93,6 +94,7 @@ import {
 import { createAgentStreamPump } from '@/providers/stream-pump'
 import { isRunAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { SerializedBlock } from '@/serializer/types'
+import { redactSideEffectPayload } from '@/tools/side-effects'
 
 const logger = createLogger('BlockExecutor')
 
@@ -285,6 +287,14 @@ export class BlockExecutor {
     const testHooks = this.contextExtensions.testHooks
     const mockedBlockId = node.metadata.originalBlockId ?? block.id
     const isMocked = !isSentinel && testHooks?.mocksBlock(mockedBlockId) === true
+    const sideEffects = isSentinel || isMocked ? undefined : this.contextExtensions.sideEffects
+    const site = sideEffects && {
+      workflowId: blockCtx.workflowId,
+      blockId: mockedBlockId,
+      blockName: block.metadata?.name ?? mockedBlockId,
+      blockType: block.metadata?.id ?? '',
+    }
+    const answeredBy = site && sideEffects?.answersBlock(site) ? sideEffects : undefined
     try {
       /**
        * Only the handler call is retried. A streaming handler returns before any
@@ -302,6 +312,19 @@ export class BlockExecutor {
             inputsForLog,
             inputDisplayRegistry
           )
+        }
+        if (answeredBy && site) {
+          return answeredBy.answerBlock({
+            ...site,
+            input: () =>
+              redactSideEffectPayload({
+                payload: blockLog?.input ?? {},
+                params: inputsForLog,
+                blockTypes: [site.blockType],
+                executionContext: blockCtx,
+                registry: inputDisplayRegistry,
+              }),
+          })
         }
         const invocationMetadata = retry ? { ...nodeMetadata, retry } : nodeMetadata
         return handler.executeWithNode
@@ -982,8 +1005,11 @@ export class BlockExecutor {
     return { result: output }
   }
 
-  /** A test mock sees exactly what the block's execution log shows, never raw resolved secrets. */
-  private resolveMockedBlock(
+  /**
+   * A test mock sees exactly what the block's execution log shows, never raw resolved secrets,
+   * and answers with data only ({@link mockOutputRefusal}).
+   */
+  private async resolveMockedBlock(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
@@ -997,7 +1023,7 @@ export class BlockExecutor {
     if (projection && !projection.complete) {
       throw new Error(`Mocked block "${blockName}" has inputs whose secrets cannot be redacted`)
     }
-    return testHooks.resolveMock(
+    const output = await testHooks.resolveMock(
       {
         blockId,
         blockName,
@@ -1009,6 +1035,9 @@ export class BlockExecutor {
       },
       ctx.abortSignal
     )
+    const refusal = mockOutputRefusal(`Mocked block "${blockName}"`, output)
+    if (refusal) throw new Error(refusal)
+    return output
   }
 
   /** Builds the log-facing input copy from resolver-recorded projections only. */

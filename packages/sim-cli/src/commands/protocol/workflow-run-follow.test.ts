@@ -628,3 +628,147 @@ describe('sim workflows run --follow', () => {
     expect(cancel).toHaveBeenCalled()
   })
 })
+
+describe('sim workflows run --dry', () => {
+  const sideEffects = {
+    stubbed: [
+      {
+        workflowId: WORKFLOW_ID,
+        blockId: 'save',
+        block: 'Save lead',
+        tool: 'table_upsert_row',
+        request: { tableId: 'tbl_1', data: { email: 'a@b.co' } },
+        returned: { row: { id: 'item_1' } },
+      },
+    ],
+    allowed: [],
+    unchecked: [
+      {
+        workflowId: WORKFLOW_ID,
+        blockId: 'enrich',
+        block: 'Enrich',
+        reason: 'Function block code ran for real; network calls it makes are not stubbed',
+      },
+    ],
+    omitted: { stubbed: 0, allowed: 0, unchecked: 0 },
+  }
+  let stderr: string[]
+
+  beforeEach(() => {
+    stderr = []
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
+      stderr.push(String(chunk))
+      return true
+    })
+  })
+
+  it('runs the draft dry with allowed and mocked blocks, reading a mock from a file', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const dir = mkdtempSync(join(tmpdir(), 'sim-dry-'))
+    try {
+      writeFileSync(join(dir, 'route.json'), '{"route":"vip"}')
+
+      await run(
+        WORKFLOW_ID,
+        '--dry',
+        '--allow',
+        'Save lead',
+        '--allow',
+        'log',
+        '--mock',
+        'Score={"content":"spam","note":"a=b"}',
+        '--mock',
+        `Router=@${join(dir, 'route.json')}`,
+        '--input',
+        '{"email":"a@b.co"}'
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
+      input: { email: 'a@b.co' },
+      run: {
+        source: 'manual',
+        dry: true,
+        allowBlocks: ['Save lead', 'log'],
+        mocks: { Score: { content: 'spam', note: 'a=b' }, Router: { route: 'vip' } },
+      },
+    })
+  })
+
+  it('keeps a rerun from a block dry', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--from-block', 'agent-1', '--source-run', 'run-1', '--dry')
+
+    expect(requestRaw.mock.calls[0][1].body.run).toEqual({
+      source: 'manual',
+      entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
+      dry: true,
+    })
+  })
+
+  it('refuses combinations a dry run cannot honour before sending anything', async () => {
+    await expect(run(WORKFLOW_ID, '--allow', 'Save lead')).rejects.toThrow('add --dry')
+    await expect(run(WORKFLOW_ID, '--mock', 'Score={"content":"spam"}')).rejects.toThrow(
+      'add --dry'
+    )
+    await expect(run(WORKFLOW_ID, '--dry', '--follow')).rejects.toThrow('drop --follow')
+    await expect(run(WORKFLOW_ID, '--dry', '--wait-timeout', '30')).rejects.toThrow(
+      'drop --wait-timeout'
+    )
+    await expect(run(WORKFLOW_ID, '--dry', '--async')).rejects.toThrow('drop --async')
+    await expect(run(WORKFLOW_ID, '--dry', '--mock', '{"content":"spam"}')).rejects.toThrow(
+      'must be <block>=<json|@file>'
+    )
+    await expect(run(WORKFLOW_ID, '--dry', '--mock', 'Score=spam')).rejects.toThrow(
+      'is not valid JSON'
+    )
+    await expect(run(WORKFLOW_ID, '--dry', '--mock', 'Score=[1]')).rejects.toThrow(
+      'must be a JSON object'
+    )
+    await expect(run(WORKFLOW_ID, '--dry', '--mock', '__proto__={"route":"vip"}')).rejects.toThrow(
+      'name it by its block id'
+    )
+    expect(requestRaw).not.toHaveBeenCalled()
+  })
+
+  it('passes sideEffects through in JSON, keeping the stderr summary to the human formats', async () => {
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+    requestRaw.mockImplementation(async () =>
+      jsonResponse({
+        data: { runId: 'run-1', workflowId: WORKFLOW_ID, status: 'completed', sideEffects },
+      })
+    )
+
+    await run(WORKFLOW_ID, '--dry')
+    expect(JSON.parse(String(stdout.mock.calls[0][0])).sideEffects).toEqual(sideEffects)
+    expect(stderr.join('')).not.toContain('Dry run')
+
+    stderr = []
+    output.format = 'table'
+    await run(WORKFLOW_ID, '--dry')
+    expect(stderr.join('')).toContain('Dry run: 1 not sent, 0 sent (allowed), 1 unchecked')
+  })
+
+  it('counts the writes each list left out once it was full', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    requestRaw.mockImplementation(async () =>
+      jsonResponse({
+        data: {
+          runId: 'run-1',
+          workflowId: WORKFLOW_ID,
+          status: 'completed',
+          sideEffects: { ...sideEffects, omitted: { stubbed: 60, allowed: 0, unchecked: 2 } },
+        },
+      })
+    )
+    output.format = 'table'
+
+    await run(WORKFLOW_ID, '--dry')
+
+    expect(stderr.join('')).toContain('Dry run: 61 not sent, 0 sent (allowed), 3 unchecked')
+    expect(stderr.join('')).toContain('… 62 more')
+  })
+})

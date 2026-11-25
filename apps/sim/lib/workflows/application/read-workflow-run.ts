@@ -94,6 +94,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         stateExecutionId,
         pausePoints: loadedPausePoints,
         failedBlock,
+        dryRun,
       } = projected
 
       /**
@@ -195,6 +196,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         pausedRunId: stateExecutionId,
         failedBlock,
         rerunFromBlockId,
+        dryRun,
       }
     } catch (error) {
       if (error instanceof FunctionalOutputsUnavailableError) {

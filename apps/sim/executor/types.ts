@@ -11,6 +11,7 @@ import type {
   ParentIteration,
   PiiBlockOutputRedaction,
   SerializableExecutionState,
+  SideEffectPolicy,
 } from '@/executor/execution/types'
 import type {
   ResolvedSecretTraceProvenanceV1,
@@ -451,6 +452,8 @@ export interface ExecutionContext {
   workflowId: string
   /** Set during a workflow test run; Agent tool calls consult it before calling the tool. */
   testHooks?: ExecutionTestHooks
+  /** Set during a dry run or workflow test; inherited by every child execution. */
+  sideEffects?: SideEffectPolicy
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]

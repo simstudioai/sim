@@ -18,8 +18,11 @@ ID in a variable: one holding "--workspace <id>" is one argument, an unknown opt
 whole ID after -w).`
 
 /** Where an author reads a run's result after running the workflow the source defines. */
-const RUN_LOGS_LINE = `Debug a run: \`sim workflows run <workflowId> --manual\`, then \`sim logs list --workflow <workflowId>\`
-and \`sim logs get <runId> --trace --no-include-workflow-state\` (each block's resolved inputs and errors).`
+const RUN_LOGS_LINE = `Test a run: \`sim workflows run <workflowId> --dry\` runs the saved draft without sending its writes
+and lists each one, with the request it would have sent, under sideEffects (--allow <block> sends
+one block's for real; --manual runs everything for real). Debug it with \`sim logs list --workflow
+<workflowId>\` and \`sim logs get <runId> --trace --no-include-workflow-state\` (each block's
+resolved inputs and errors).`
 
 /** The status line both groups end with, for a directory at `dir`. */
 function statusLine(group: string, dir: string): string {
@@ -36,7 +39,7 @@ ${loopRows([
   ['edit ./wf/workflow.ts', 'every file first, then the one command below'],
   ['sim workflows source check --dir ./wf', 'compile + types: each error as file:line:column'],
   ['  && sim workflows source apply --dir ./wf --yes', 'save the draft (it re-checks)'],
-  ["  && sim workflows run <workflowId> --manual --input '{…}'", 'test the saved draft'],
+  ["  && sim workflows run <workflowId> --dry --input '{…}'", 'test the draft, sending no writes'],
 ])}
 Run those three as one chained command: a non-zero exit stops it at the first failure, and the next
 step fixes what it reported. Check also type-checks with TypeScript (installed once, on its first

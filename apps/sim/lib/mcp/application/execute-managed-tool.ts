@@ -36,6 +36,11 @@ export interface ExecuteManagedMcpToolInput {
   callChain?: string[]
   timeoutMs?: number
   signal?: AbortSignal
+  /**
+   * Authorize, discover and validate the call as a live one would, then stop before sending it,
+   * writing nothing a live call reads: no server health, tool cache or tool snapshot.
+   */
+  checkOnly?: boolean
 }
 
 function requireToolSchema(value: unknown): McpToolSchema {
@@ -99,12 +104,13 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       input.signal,
       { requireComplete: true }
     )
-    await saveManagedMcpToolSnapshot(
-      runtime.credentialId,
-      toManagedMcpToolSnapshots(tools),
-      runtime.oauthConfigVersion,
-      runtime.grantedAt
-    )
+    if (!input.checkOnly)
+      await saveManagedMcpToolSnapshot(
+        runtime.credentialId,
+        toManagedMcpToolSnapshots(tools),
+        runtime.oauthConfigVersion,
+        runtime.grantedAt
+      )
     const discovered = tools.find((tool) => tool.name === input.toolName)
     if (!discovered) {
       throw new OrchestrationError('not_found', 'Tool not found on the managed MCP connection')
@@ -150,6 +156,7 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       context,
       credentialOperations.useManagedMcp.resourcePolicy
     )
+    if (input.checkOnly) return { success: true, checked: true }
     const providerResult = await mcpService.executeManagedMcpTool({
       connectionId: runtime.credentialId,
       serverId: runtime.mcpServerId,
@@ -163,15 +170,18 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     input.signal?.throwIfAborted()
     return transformToolResult(providerResult)
   },
-  projectAudit: ({ input, context }) => ({
-    action: AuditAction.CREDENTIAL_ACCESSED,
-    resourceType: AuditResourceType.CREDENTIAL,
-    resourceId: context.credentialId,
-    description: `Executed managed MCP tool ${input.toolName}`,
-    metadata: {
-      credentialType: 'managed_mcp',
-      mcpServerId: context.mcpServerId,
-      toolName: input.toolName,
-    },
-  }),
+  projectAudit: ({ input, context }) =>
+    input.checkOnly
+      ? []
+      : {
+          action: AuditAction.CREDENTIAL_ACCESSED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: context.credentialId,
+          description: `Executed managed MCP tool ${input.toolName}`,
+          metadata: {
+            credentialType: 'managed_mcp',
+            mcpServerId: context.mcpServerId,
+            toolName: input.toolName,
+          },
+        },
 })

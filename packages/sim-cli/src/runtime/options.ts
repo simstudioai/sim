@@ -13,6 +13,11 @@ import {
 } from './request'
 import type { OperationSpec } from './types'
 
+/** Collects every use of a repeatable option, in order. */
+export function collectRepeated(value: string, previous: string[] = []): string[] {
+  return [...previous, value]
+}
+
 export const DEFAULT_PAGE_SIZE = 100
 
 /** Resource inventories fetch all pages; data and history commands retain a bounded default. */

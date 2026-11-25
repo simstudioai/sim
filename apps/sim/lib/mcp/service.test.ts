@@ -591,43 +591,65 @@ describe('McpService best-effort discovery', () => {
     expect(tools.map((t) => t.name)).toEqual(['a1'])
   })
 
-  it('skips an OAuth server nobody authorized without creating its OAuth row or marking it pending', async () => {
-    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
-    mcpOauthMockFns.mockHasDecryptableOauthTokens.mockResolvedValue(false)
+  it.each([
+    ['a best-effort', { bestEffort: true }],
+    ['a read-only', { readOnly: true }],
+  ])(
+    'skips an OAuth server nobody authorized in %s discovery without creating its OAuth row or marking it pending',
+    async (_kind, options) => {
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+      mcpOauthMockFns.mockHasDecryptableOauthTokens.mockResolvedValue(false)
 
-    await expect(
-      mcpService.discoverServerTools(MEMBER_B, 'mcp-a', WORKSPACE_ID, 'cache-aside', undefined, {
-        bestEffort: true,
+      await expect(
+        mcpService.discoverServerTools(
+          MEMBER_B,
+          'mcp-a',
+          WORKSPACE_ID,
+          'cache-aside',
+          undefined,
+          options
+        )
+      ).rejects.toBeInstanceOf(McpOauthAuthorizationRequiredError)
+      expect(mcpOauthMockFns.mockGetOrCreateOauthRow).not.toHaveBeenCalled()
+      // loadOauthRow clears a column it cannot decrypt; the gate must not risk that.
+      expect(mcpOauthMockFns.mockLoadOauthRow).not.toHaveBeenCalled()
+      expect(mockConnect).not.toHaveBeenCalled()
+      expectNoSharedStateWrites()
+    }
+  )
+
+  it.each([
+    ['a best-effort', { bestEffort: true }],
+    ['a read-only', { readOnly: true }],
+  ])(
+    'connects an authorized OAuth server in %s discovery with a grant-preserving provider and writes nothing when it is rejected',
+    async (_kind, options) => {
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+      mcpOauthMockFns.mockHasDecryptableOauthTokens.mockResolvedValue(true)
+      mcpOauthMockFns.mockGetOrCreateOauthRow.mockResolvedValue({
+        id: 'oauth-row-1',
+        tokens: { access_token: 'expired', token_type: 'bearer' },
       })
-    ).rejects.toBeInstanceOf(McpOauthAuthorizationRequiredError)
-    expect(mcpOauthMockFns.mockGetOrCreateOauthRow).not.toHaveBeenCalled()
-    // loadOauthRow clears a column it cannot decrypt; the gate must not risk that.
-    expect(mcpOauthMockFns.mockLoadOauthRow).not.toHaveBeenCalled()
-    expect(mockConnect).not.toHaveBeenCalled()
-    expectNoSharedStateWrites()
-  })
+      mockListTools.mockRejectedValueOnce(new UnauthorizedError('refresh rejected'))
+      MockMcpClient.mockClear()
 
-  it('connects an authorized OAuth server with a grant-preserving provider and writes nothing when it is rejected', async () => {
-    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
-    mcpOauthMockFns.mockHasDecryptableOauthTokens.mockResolvedValue(true)
-    mcpOauthMockFns.mockGetOrCreateOauthRow.mockResolvedValue({
-      id: 'oauth-row-1',
-      tokens: { access_token: 'expired', token_type: 'bearer' },
-    })
-    mockListTools.mockRejectedValueOnce(new UnauthorizedError('refresh rejected'))
-    MockMcpClient.mockClear()
+      await expect(
+        mcpService.discoverServerTools(
+          MEMBER_B,
+          'mcp-a',
+          WORKSPACE_ID,
+          'cache-aside',
+          undefined,
+          options
+        )
+      ).rejects.toThrow('refresh rejected')
 
-    await expect(
-      mcpService.discoverServerTools(MEMBER_B, 'mcp-a', WORKSPACE_ID, 'cache-aside', undefined, {
-        bestEffort: true,
+      expect(MockMcpClient.mock.calls[0]?.[0]).toMatchObject({
+        oauthCredentials: { initialProvider: { preserveGrant: true } },
       })
-    ).rejects.toThrow('refresh rejected')
-
-    expect(MockMcpClient.mock.calls[0]?.[0]).toMatchObject({
-      oauthCredentials: { initialProvider: { preserveGrant: true } },
-    })
-    expectNoSharedStateWrites()
-  })
+      expectNoSharedStateWrites()
+    }
+  )
 
   it('warms the shared tool cache on success without stamping status', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
@@ -650,5 +672,51 @@ describe('McpService best-effort discovery', () => {
       [tool('a1', 'mcp-a')],
       expect.any(Number)
     )
+  })
+
+  describe('read-only, as a dry run checks a call', () => {
+    it('leaves status, cooldown and the cached tools as they were when discovery fails', async () => {
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+      mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+      await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+      resetDbChainMock()
+      wireSelectsToWorkspaceRows()
+      mockCacheAdapter.set.mockClear()
+      mockCacheAdapter.delete.mockClear()
+      mockListTools.mockReset()
+      mockListTools.mockRejectedValueOnce(new Error('Connection refused'))
+
+      await expect(
+        mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, 'skip-cache', undefined, {
+          requireComplete: true,
+          readOnly: true,
+        })
+      ).rejects.toThrow('Connection refused')
+
+      expectNoSharedStateWrites()
+      const cached = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+      expect(cached.map((t) => t.name)).toEqual(['a1'])
+      expect(mockListTools).toHaveBeenCalledOnce()
+    })
+
+    it('neither caches the tools it finds nor stamps status', async () => {
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+      mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+      await mcpService.discoverServerTools(
+        USER_ID,
+        'mcp-a',
+        WORKSPACE_ID,
+        'skip-cache',
+        undefined,
+        {
+          requireComplete: true,
+          readOnly: true,
+        }
+      )
+
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      expect(mockCacheAdapter.set).not.toHaveBeenCalled()
+    })
   })
 })

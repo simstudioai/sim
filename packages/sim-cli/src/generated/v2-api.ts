@@ -7122,6 +7122,9 @@ export type ExecuteWorkflowBody = {
               sourceRunId: string
             }
         stopAfterBlockId?: string
+        dry?: boolean
+        allowBlocks?: Array<string>
+        mocks?: Record<string, Record<string, unknown>>
       }
   async?: boolean
   executionTimeoutSeconds?: number
@@ -7156,6 +7159,39 @@ type ExecuteWorkflowResponseRef0 = {
 }
 
 type ExecuteWorkflowResponseRef1 = {
+  stubbed: Array<{
+    workflowId: string
+    blockId: string | null
+    block: string | null
+    tool: string | null
+    request: Record<string, unknown> | null
+    returned: Record<string, unknown>
+  }>
+  allowed: Array<{
+    workflowId: string
+    blockId: string | null
+    block: string | null
+    tool: string | null
+  }>
+  unchecked: Array<{
+    workflowId: string
+    blockId: string | null
+    block: string | null
+    reason: string
+  }>
+  omitted: {
+    stubbed: number
+    allowed: number
+    unchecked: number
+  }
+}
+
+type ExecuteWorkflowResponseRef2 = {
+  allowBlocks: Array<string>
+  mockedBlocks: Array<string>
+}
+
+type ExecuteWorkflowResponseRef3 = {
   runId: string
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
@@ -7174,9 +7210,11 @@ type ExecuteWorkflowResponseRef1 = {
       status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
     }>
   } | null
+  sideEffects?: ExecuteWorkflowResponseRef1
+  dryRun?: ExecuteWorkflowResponseRef2
 }
 
-type ExecuteWorkflowResponseRef2 = {
+type ExecuteWorkflowResponseRef4 = {
   runId: string
   statusUrl: string
   executionTimeoutSeconds: number | null
@@ -7184,10 +7222,10 @@ type ExecuteWorkflowResponseRef2 = {
 
 export type ExecuteWorkflowResponse =
   | {
-      data: ExecuteWorkflowResponseRef1
+      data: ExecuteWorkflowResponseRef3
     }
   | {
-      data: ExecuteWorkflowResponseRef2
+      data: ExecuteWorkflowResponseRef4
     }
 
 /** `GET /api/v2/knowledge/[knowledgeBaseId]/export` */
@@ -10349,6 +10387,11 @@ type GetWorkflowRunResponseRef3 = {
 }
 
 type GetWorkflowRunResponseRef4 = {
+  allowBlocks: Array<string>
+  mockedBlocks: Array<string>
+}
+
+type GetWorkflowRunResponseRef5 = {
   runId: string
   workflowId: string
   status:
@@ -10384,10 +10427,11 @@ type GetWorkflowRunResponseRef4 = {
   output: unknown | null
   blockOutputs: Record<string, unknown> | null
   files: Array<GetWorkflowRunResponseRef3> | null
+  dryRun: GetWorkflowRunResponseRef4 | null
 }
 
 export type GetWorkflowRunResponse = {
-  data: GetWorkflowRunResponseRef4
+  data: GetWorkflowRunResponseRef5
 }
 
 /** `GET /api/v2/workflows/[workflowId]/source` */

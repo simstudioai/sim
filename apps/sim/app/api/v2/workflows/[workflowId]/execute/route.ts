@@ -138,6 +138,8 @@ function presentRun(result: ExecuteWorkflowServiceRun) {
     endedAt: result.endedAt,
     durationMs: result.durationMs,
     executionTimeoutSeconds: executionTimeoutSeconds(result.executionTimeoutMs),
+    sideEffects: result.sideEffects,
+    dryRun: result.dryRun,
     output: result.output ?? null,
     blockOutputs: result.blockOutputs ?? null,
     paused: presentV2RunPause(result.paused),
@@ -549,6 +551,9 @@ export const POST = withRouteHandler(
               blockId: manualRun.entry.blockId,
               sourceRunId: manualRun.entry.sourceRunId,
               stopAfterBlockId: manualRun.stopAfterBlockId,
+              dry: manualRun.dry,
+              allowBlocks: manualRun.allowBlocks,
+              mocks: manualRun.mocks,
             },
             request: req,
           })
@@ -562,6 +567,9 @@ export const POST = withRouteHandler(
               triggerBlockId: manualRun.entry?.blockId,
               useMockPayload: manualRun.entry?.useMockPayload === true,
               stopAfterBlockId: manualRun.stopAfterBlockId,
+              dry: manualRun.dry,
+              allowBlocks: manualRun.allowBlocks,
+              mocks: manualRun.mocks,
             },
             request: req,
           })

@@ -2126,16 +2126,20 @@ describe('PauseResumeManager.enqueueOrStartResume admission refusals', () => {
     resetDbChainMock()
   })
 
+  /** The paused row admission locks, joined with its run's log trigger. */
   function pausedRow(overrides: Record<string, unknown> = {}) {
     return {
-      id: 'paused-exec-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      status: 'paused',
-      pausePoints: {
-        'ctx-1': { contextId: 'ctx-1', resumeStatus: 'paused', snapshotReady: true },
+      execution: {
+        id: 'paused-exec-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        status: 'paused',
+        pausePoints: {
+          'ctx-1': { contextId: 'ctx-1', resumeStatus: 'paused', snapshotReady: true },
+        },
+        ...overrides,
       },
-      ...overrides,
+      trigger: 'manual',
     }
   }
 

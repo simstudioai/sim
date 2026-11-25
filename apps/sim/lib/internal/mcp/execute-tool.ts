@@ -27,6 +27,7 @@ import {
   McpToolsNotAllowedError,
 } from '@/lib/mcp/application/execute-tool'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
+import { parseMcpToolArguments } from '@/lib/mcp/tool-arguments'
 import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
 import {
   categorizeError,
@@ -45,42 +46,6 @@ import {
 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('McpInternalOperation')
-
-const MCP_SYSTEM_PARAMETERS = new Set([
-  'operationPolicy',
-  'serverId',
-  'serverUrl',
-  'toolName',
-  'serverName',
-  '_context',
-  'envVars',
-  'workflowVariables',
-  'blockData',
-  'blockNameMapping',
-  '_toolSchema',
-])
-
-function parseArguments(input: unknown): Record<string, unknown> | null {
-  if (!isPlainRecord(input)) return null
-  if (!Object.hasOwn(input, 'arguments')) {
-    return Object.fromEntries(
-      Object.entries(input).filter(([name]) => !MCP_SYSTEM_PARAMETERS.has(name))
-    )
-  }
-
-  const value = input.arguments
-  if (typeof value !== 'string') return isPlainRecord(value) ? value : null
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return isPlainRecord(parsed) ? parsed : null
-  } catch (error) {
-    logger.warn('Failed to parse MCP arguments JSON', {
-      errorName: error instanceof Error ? error.name : 'UnknownError',
-      argumentsLength: value.length,
-    })
-    return null
-  }
-}
 
 async function createResponse(
   body: Record<string, unknown>,
@@ -157,7 +122,7 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       { status: 400 }
     )
   }
-  const args = parseArguments(request.input)
+  const args = parseMcpToolArguments(request.input)
   if (!args)
     return Response.json({ success: false, error: 'Invalid request format' }, { status: 400 })
 
@@ -211,6 +176,7 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       callChain: request.context.callChain,
       timeoutMs,
       signal: request.signal,
+      checkOnly: request.context.checkOnly,
     }
     let result: ExecuteMcpToolResult
     if (target.kind === 'shared_server') {
@@ -231,7 +197,7 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
     }
     request.signal?.throwIfAborted()
     const body =
-      request.toolId === 'mcp_run_operation'
+      request.toolId === 'mcp_run_operation' || 'checked' in result
         ? result
         : result.success
           ? { success: true, data: { success: true, output: result.output } }

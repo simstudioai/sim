@@ -1,4 +1,4 @@
-import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
+import { isRecordLike, toArray, toRecordOrNull } from '@sim/utils/object'
 import type { V2OperationName } from '../generated/v2-api'
 
 /** Operations whose payload is a run record that may be paused or failed. */
@@ -44,31 +44,58 @@ export function resumeCommandFor(
   return commands.length > 0 ? commands.join('\n') : null
 }
 
+/** Whether a run record is a test run: a dry run, or a workflow test's run. */
+function isTestRun(record: Record<string, unknown>): boolean {
+  return record.trigger === 'test' || toRecordOrNull(record.dryRun) !== null
+}
+
+/**
+ * The flags that keep a rerun of a test run a test: `--dry`, with a dry run's own `--allow`
+ * blocks (`dryRun.allowBlocks`), so following `next` never sends what the run held back. A
+ * workflow test's run has no `dryRun` but held its writes back all the same. A dry run records
+ * only which blocks were mocked, not their outputs, so `next` cannot repeat its `--mock` flags;
+ * the caller passes them again. Null when a block id is not in the format the server issues.
+ */
+function dryRerunFlags(record: Record<string, unknown>): string | null {
+  if (!isTestRun(record)) return ''
+  const flags = [' --dry']
+  for (const blockId of toArray(toRecordOrNull(record.dryRun)?.allowBlocks)) {
+    if (!issuedId(blockId)) return null
+    flags.push(` --allow ${shellArgument(blockId)}`)
+  }
+  return flags.join('')
+}
+
 /**
  * The exact command that reruns a failed run from where the server says a rerun of its failure
  * starts (`error.rerunFromBlockId`: the failed block, or the outermost loop or parallel holding
  * it, which a rerun cannot start inside), with the run as the source of every upstream output, so
- * a fix applied to that block's source is tested without repeating the blocks before it. Null
- * when the server names no start block or an id is not in the format the server issues.
+ * a fix applied to that block's source is tested without repeating the blocks before it; a test
+ * run's rerun stays one ({@link dryRerunFlags}). Null when the server names no start block or an
+ * id is not in the format the server issues.
  */
 function rerunCommandFor(record: Record<string, unknown>, workflowId: string): string | null {
   const startBlockId = toRecordOrNull(record.error)?.rerunFromBlockId
   const { runId } = record
   if (!issuedId(startBlockId) || !issuedId(runId) || !issuedId(workflowId)) return null
-  return `sim workflows run ${shellArgument(workflowId)} --from-block ${shellArgument(startBlockId)} --source-run ${shellArgument(runId)}`
+  const dry = dryRerunFlags(record)
+  if (dry === null) return null
+  return `sim workflows run ${shellArgument(workflowId)} --from-block ${shellArgument(startBlockId)} --source-run ${shellArgument(runId)}${dry}`
 }
 
 /**
- * A run record with `next` added: the `runs resume` command when it is paused for input, the
- * rerun from the failed block when it failed in one. Any other payload comes back as it was, and
- * so does one that already has a `next`.
+ * A run record with `next` added: the `runs resume` command when it is paused for input (never
+ * for a test run, which is never resumed), the rerun from the failed block when it failed in one.
+ * Any other payload comes back as it was, and so does one that already has a `next`.
  */
 export function withRunNext(operation: V2OperationName, payload: unknown): unknown {
   if (!RUN_OPERATIONS.has(operation) || !isRecordLike(payload)) return payload
   if ('next' in payload || typeof payload.workflowId !== 'string') return payload
   const next =
     payload.status === 'paused'
-      ? resumeCommandFor(payload, payload.workflowId)
+      ? isTestRun(payload)
+        ? null
+        : resumeCommandFor(payload, payload.workflowId)
       : payload.status === 'failed'
         ? rerunCommandFor(payload, payload.workflowId)
         : null

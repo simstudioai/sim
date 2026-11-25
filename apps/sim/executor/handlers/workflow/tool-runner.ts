@@ -6,7 +6,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
 import type { TraceSpan } from '@/lib/logs/types'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
-import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
+import type { PiiBlockOutputRedaction, SideEffectPolicy } from '@/executor/execution/types'
 import {
   buildCustomBlockExecutionContext,
   type CustomBlockExecutorContext,
@@ -100,6 +100,7 @@ export async function runWorkflowTool(
     principal?: WorkflowExecutionPrincipal
     piiBlockOutputRedaction?: PiiBlockOutputRedaction
     unrecordedModelCost?: UnrecordedModelCost
+    sideEffects?: SideEffectPolicy
   }
 ): Promise<ToolResponse> {
   if (!params.workflowId) {

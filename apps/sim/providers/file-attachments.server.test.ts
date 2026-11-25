@@ -39,9 +39,10 @@ const mockDownloadServableFileFromStorage =
 const mockHasCloudStorage = storageServiceMockFns.mockHasCloudStorage
 const mockGeneratePresignedDownloadUrl = storageServiceMockFns.mockGeneratePresignedDownloadUrl
 
-const { mockAssertUserFileContentAccess, mockGoogleUpload } = vi.hoisted(() => ({
+const { mockAssertUserFileContentAccess, mockGoogleUpload, mockGoogleDelete } = vi.hoisted(() => ({
   mockAssertUserFileContentAccess: vi.fn(),
   mockGoogleUpload: vi.fn(),
+  mockGoogleDelete: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
@@ -53,7 +54,7 @@ vi.mock('@/lib/execution/payloads/materialization.server', () => ({
 vi.mock('@google/genai', () => ({
   FileState: { PROCESSING: 'PROCESSING', FAILED: 'FAILED' },
   GoogleGenAI: class {
-    files = { upload: mockGoogleUpload }
+    files = { upload: mockGoogleUpload, delete: mockGoogleDelete }
   },
 }))
 
@@ -122,7 +123,7 @@ describe('OpenAI large-file attachment lifecycle', () => {
     const request = makeRequest(CSV_BYTES)
 
     await attachLargeFileRemoteUrls(request, 'openai')
-    await uploadLargeFilesToProvider(request, 'openai')
+    await uploadLargeFilesToProvider(request, 'openai', undefined, [])
 
     const [url, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(url).toBe('https://api.openai.com/v1/files')
@@ -157,7 +158,7 @@ describe('OpenAI large-file attachment lifecycle', () => {
 
     await runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, async () => {
       await attachLargeFileRemoteUrls(request, 'openai')
-      await uploadLargeFilesToProvider(request, 'openai')
+      await uploadLargeFilesToProvider(request, 'openai', undefined, [])
     })
 
     const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
@@ -171,7 +172,7 @@ describe('OpenAI large-file attachment lifecycle', () => {
     const request = makeRequest(LARGE_FILE_PATH_THRESHOLD_BYTES)
 
     await attachLargeFileRemoteUrls(request, 'openai')
-    await uploadLargeFilesToProvider(request, 'openai')
+    await uploadLargeFilesToProvider(request, 'openai', undefined, [])
 
     expect(fetch).not.toHaveBeenCalled()
     expect(request.messages?.[0].files?.[0].providerFileId).toBeUndefined()
@@ -203,7 +204,7 @@ describe('OpenAI large-file attachment lifecycle', () => {
     const request = makeRequest(CSV_BYTES)
 
     await attachLargeFileRemoteUrls(request, 'openai')
-    await uploadLargeFilesToProvider(request, 'openai')
+    await uploadLargeFilesToProvider(request, 'openai', undefined, [])
 
     expect(fetch).not.toHaveBeenCalled()
     const file = request.messages?.[0].files?.[0]
@@ -256,9 +257,9 @@ describe('OpenAI large-file attachment lifecycle', () => {
     const request = makeRequest(CSV_BYTES)
     await attachLargeFileRemoteUrls(request, 'openai', executionContext)
     mockAssertUserFileContentAccess.mockRejectedValueOnce(new Error('Access revoked'))
-    await expect(uploadLargeFilesToProvider(request, 'openai', executionContext)).rejects.toThrow(
-      'Access revoked'
-    )
+    await expect(
+      uploadLargeFilesToProvider(request, 'openai', executionContext, [])
+    ).rejects.toThrow('Access revoked')
     expect(mockCreateExecutorPrincipal).toHaveBeenCalledTimes(2)
     expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(mockVerifyFileAccess).not.toHaveBeenCalled()
@@ -270,7 +271,7 @@ describe('OpenAI large-file attachment lifecycle', () => {
     async (provider) => {
       const request = makeRequest(CSV_BYTES)
       await attachLargeFileRemoteUrls(request, provider, executionContext)
-      await uploadLargeFilesToProvider(request, provider, executionContext)
+      await uploadLargeFilesToProvider(request, provider, executionContext, [])
       expect(mockCreateExecutorPrincipal).toHaveBeenCalledTimes(2)
       expect(mockAssertUserFileContentAccess).toHaveBeenCalledTimes(2)
       expect(mockVerifyFileAccess).not.toHaveBeenCalled()
@@ -282,6 +283,46 @@ describe('OpenAI large-file attachment lifecycle', () => {
         )
     }
   )
+
+  it('can delete every OpenAI file that landed when a later upload fails', async () => {
+    const request = makeRequest(CSV_BYTES)
+    const [first] = request.messages?.[0].files ?? []
+    request.messages?.[0].files?.push({ ...first, id: 'file-2', key: `${first.key}-2` })
+    let posts = 0
+    const sent = vi.fn(async (_url: string, init: RequestInit) => {
+      if (init.method === 'DELETE') return new Response(null, { status: 200 })
+      posts += 1
+      return posts === 1
+        ? Response.json({ id: 'file-landed' })
+        : new Response('overloaded', { status: 503 })
+    })
+    vi.stubGlobal('fetch', sent)
+    const removals: Array<() => Promise<void>> = []
+
+    await attachLargeFileRemoteUrls(request, 'openai')
+    await expect(
+      uploadLargeFilesToProvider(request, 'openai', undefined, removals)
+    ).rejects.toThrow('503')
+    await Promise.all(removals.map((remove) => remove()))
+
+    expect(sent.mock.calls.filter(([, init]) => init.method === 'DELETE')).toEqual([
+      ['https://api.openai.com/v1/files/file-landed', expect.anything()],
+    ])
+  })
+
+  it('can delete a Gemini file whose processing failed after it landed', async () => {
+    mockGoogleUpload.mockResolvedValueOnce({ name: 'files/failed', state: 'FAILED' })
+    const request = makeRequest(CSV_BYTES)
+    const removals: Array<() => Promise<void>> = []
+
+    await attachLargeFileRemoteUrls(request, 'google')
+    await expect(
+      uploadLargeFilesToProvider(request, 'google', undefined, removals)
+    ).rejects.toThrow('processing failed')
+    await Promise.all(removals.map((remove) => remove()))
+
+    expect(mockGoogleDelete).toHaveBeenCalledWith({ name: 'files/failed' })
+  })
 
   it('does not mint a remote URL after execution authorization fails', async () => {
     mockCreateExecutorPrincipal.mockRejectedValueOnce(new Error('Run no longer active'))

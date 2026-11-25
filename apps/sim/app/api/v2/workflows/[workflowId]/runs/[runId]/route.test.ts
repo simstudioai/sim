@@ -66,6 +66,7 @@ const baseStatus = {
   finalOutput: null,
   blockOutputs: null,
   files: null,
+  dryRun: null,
 }
 
 describe('v2 run detail and cancel adapters', () => {

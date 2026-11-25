@@ -21,13 +21,12 @@ import {
   type WorkflowTestRunResult,
   type WorkflowTestVersion,
 } from '@/lib/workflows/application/run-workflow-for-test'
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
+import { sampleBlockOutput, sampleToolOutput } from '@/lib/workflows/dry-run'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { getActiveWorkflowName, listActiveWorkflowsNamed } from '@/lib/workflows/queries'
-import { generateMockPayloadFromOutputsDefinition } from '@/lib/workflows/triggers/mock-payload'
 import { resolveTriggerRunOptions } from '@/lib/workflows/triggers/run-options'
 import { AGENT, normalizeName } from '@/executor/constants'
 import type { TestWorkflowBlock } from '@/executor/execution/types'
@@ -35,7 +34,6 @@ import type { ExecutionResult } from '@/executor/types'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { hasToolId } from '@/tools/tool-ids'
 
 /** How long one `testNext` broker call waits before answering `waiting`, well under the broker timeout. */
@@ -190,19 +188,6 @@ function sameTool(mockToolId: string, toolId: string): boolean {
     toolId.startsWith(prefix) &&
     normalizeName(mockToolId.slice(prefix.length)) === normalizeName(toolId.slice(prefix.length))
   )
-}
-
-/** Placeholder output shaped like a block's real one, for its configured operation. */
-function sampleBlockOutput(block: TestWorkflowBlock | undefined): Record<string, unknown> {
-  if (!block) return {}
-  const subBlocks: Record<string, { value: unknown }> = {}
-  for (const [key, value] of Object.entries(block.params)) subBlocks[key] = { value }
-  return generateMockPayloadFromOutputsDefinition(getEffectiveBlockOutputs(block.type, subBlocks))
-}
-
-function sampleToolOutput(toolId: string): Record<string, unknown> {
-  const outputs = getToolOutputsMetadata(toolId)
-  return outputs ? generateMockPayloadFromOutputsDefinition(outputs) : {}
 }
 
 interface ToolMock {
@@ -473,6 +458,7 @@ class TestWorkflowRun {
     const { blockId, blockName, input, branchIndex } = parked.call
     const key = this.matcher.mockKey(blockId)
     if (!key) throw new Error(`Block ${blockName} was parked without a mock`)
+    const block = this.matcher.block(blockId)
     return {
       kind: 'mock',
       runId: this.id,
@@ -480,7 +466,7 @@ class TestWorkflowRun {
       key,
       block: blockName,
       input,
-      sample: sampleBlockOutput(this.matcher.block(blockId)),
+      sample: block ? sampleBlockOutput(block) : {},
       ...(branchIndex !== undefined ? { branchIndex } : {}),
     }
   }

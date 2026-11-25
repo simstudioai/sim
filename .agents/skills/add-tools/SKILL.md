@@ -220,6 +220,20 @@ search that returns no email or phone, and an email verifier.
   `read`, fails the audit unless the `effect` line carries `// tool-effect: <reason>` on one of the
   two lines above it; use it only for a genuine exception such as a GET that writes in `postProcess`.
 - A factory that builds tools from definitions takes `effect` per definition and passes it through.
+- Prove the labels with a dry run, against a test account or test resource (a `read` runs for real,
+  so a write mislabelled `read` is sent): put the block in a workflow and run
+  `sim workflows run <workflowId> --dry --input '{…}'`. Each `write` call must appear in the result's
+  `sideEffects.stubbed` with the request you expect (an HTTP tool's `method`, `url` and `body`, or an
+  in-process operation's input, credentials redacted), and each `read` must run for real and return
+  live data; a read listed there is labelled `write`. A write missing from `stubbed` may not have
+  been reached (an untaken branch, or a block answered by `--mock`), so first confirm its block ran
+  in the trace: a reached write is absent only when its block was `--allow`ed and sent it for real,
+  so a reached, unallowed write missing from `stubbed` is labelled `read`. `stubbed` keeps at most
+  50 entries and counts the rest in `sideEffects.omitted.stubbed`, so a write past the cap is
+  counted, not missing: test one tool per run, or few enough to fit. An entry's `request` is `null`
+  when the run cannot vouch that no secret remains in it, or cannot build it once secrets are
+  masked (a URL that is wholly a secret); then check the tool label alone and compare the request
+  fields only on entries that carry one.
 
 ## Critical Rules for Parameters
 

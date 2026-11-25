@@ -143,7 +143,6 @@ describe('manual workflow execution application operations', () => {
       principal: delegated,
       input: { ...baseInput, blockId: 'agent-1', sourceRunId: 'source-run' },
     })
-    expect(mocks.loadSourceState).toHaveBeenCalledWith('source-run', context.workflowId)
     expect(mocks.executeService).toHaveBeenLastCalledWith(
       expect.objectContaining({
         principal: delegated,
@@ -276,7 +275,6 @@ describe('manual workflow execution application operations', () => {
       input: { ...baseInput, blockId: 'agent-1', sourceRunId: 'source-run-1' },
     })
 
-    expect(mocks.loadSourceState).toHaveBeenCalledWith('source-run-1', 'workflow-1')
     expect(mocks.executeService).toHaveBeenCalledWith(
       expect.objectContaining({
         triggerType: 'manual',

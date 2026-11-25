@@ -165,9 +165,19 @@ function versionCandidates(type: string): BlockConfig[] {
   return candidates
 }
 
-/** Find the block whose `tools.access` contains the given tool id. */
+let blockByTool: Map<string, BlockConfig> | undefined
+
+/** Find the first block, in registry order, whose `tools.access` contains the given tool id. */
 export function getBlockByToolName(toolName: string): BlockConfig | undefined {
-  return Object.values(BLOCK_REGISTRY).find((b) => b.tools?.access?.includes(toolName))
+  if (!blockByTool) {
+    blockByTool = new Map()
+    for (const block of Object.values(BLOCK_REGISTRY)) {
+      for (const toolId of block.tools?.access ?? []) {
+        if (!blockByTool.has(toolId)) blockByTool.set(toolId, block)
+      }
+    }
+  }
+  return blockByTool.get(toolName)
 }
 
 /**
