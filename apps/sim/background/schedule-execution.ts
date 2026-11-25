@@ -16,6 +16,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/attribution'
+import { isHostedKeyPaidPlanFailure } from '@/lib/billing/core/hosted-key-access'
 import { classifyTransientAdmissionFailure } from '@/lib/core/admission/transient-failure'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import {
@@ -98,7 +99,8 @@ function resetScheduleInfraRetryCount(): Pick<WorkflowScheduleUpdate, 'infraRetr
  */
 export function buildScheduleFailureUpdate(
   now: Date,
-  nextRunAt: Date | null
+  nextRunAt: Date | null,
+  options: { disable?: boolean } = {}
 ): WorkflowScheduleUpdate {
   return {
     updatedAt: now,
@@ -106,9 +108,38 @@ export function buildScheduleFailureUpdate(
     nextRunAt,
     failedCount: incrementScheduleFailedCount(),
     lastFailedAt: now,
-    status: scheduleStatusAfterFailedCountIncrement(),
+    status: options.disable ? 'disabled' : scheduleStatusAfterFailedCountIncrement(),
     ...resetScheduleInfraRetryCount(),
   }
+}
+
+/**
+ * Records a scheduled run that failed. A run refused Sim's hosted key because its payer is on the
+ * free plan fails the same way every time until the payer adds a key or upgrades, so it disables
+ * the schedule at once instead of after {@link MAX_CONSECUTIVE_FAILURES} identical failures.
+ * Disabling notifies the workspace with the reason.
+ */
+export async function applyScheduleRunFailureUpdate(params: {
+  scheduleId: string
+  now: Date
+  nextRunAt: Date | null
+  expectedLastQueuedAt: Date | null
+  requestId: string
+  context: string
+  failureMessage: string | null | undefined
+}): Promise<{ updated: boolean; disabled: boolean }> {
+  const needsPaidPlan = isHostedKeyPaidPlanFailure(params.failureMessage)
+  const outcome = await applyScheduleUpdate(
+    params.scheduleId,
+    buildScheduleFailureUpdate(params.now, params.nextRunAt, { disable: needsPaidPlan }),
+    params.requestId,
+    params.context,
+    {
+      expectedLastQueuedAt: params.expectedLastQueuedAt,
+      disableReason: needsPaidPlan ? 'paid_plan_required' : 'consecutive_failures',
+    }
+  )
+  return { updated: outcome.updated, disabled: outcome.status === 'disabled' }
 }
 
 type RunWorkflowResult =
@@ -1192,11 +1223,15 @@ export async function executeScheduleJob(
 
           const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
 
-          await updateClaimedSchedule(
-            buildScheduleFailureUpdate(now, nextRunAt),
-            `Error updating schedule ${payload.scheduleId} after failure`,
-            'consecutive_failures'
-          )
+          await applyScheduleRunFailureUpdate({
+            scheduleId: payload.scheduleId,
+            now,
+            nextRunAt,
+            expectedLastQueuedAt: claimedAt,
+            requestId,
+            context: `Error updating schedule ${payload.scheduleId} after failure`,
+            failureMessage: executionResult.executionResult.error,
+          })
         } catch (error: unknown) {
           logger.error(
             `Error executing scheduled workflow ${payload.workflowId}`,
@@ -1206,11 +1241,15 @@ export async function executeScheduleJob(
 
           const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
 
-          await updateClaimedSchedule(
-            buildScheduleFailureUpdate(now, nextRunAt),
-            `Error updating schedule ${payload.scheduleId} after execution error`,
-            'consecutive_failures'
-          )
+          await applyScheduleRunFailureUpdate({
+            scheduleId: payload.scheduleId,
+            now,
+            nextRunAt,
+            expectedLastQueuedAt: claimedAt,
+            requestId,
+            context: `Error updating schedule ${payload.scheduleId} after execution error`,
+            failureMessage: toError(error).message,
+          })
         }
       } catch (error: unknown) {
         try {

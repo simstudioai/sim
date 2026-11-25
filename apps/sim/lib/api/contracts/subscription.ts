@@ -87,6 +87,8 @@ export const subscriptionBillingDataSchema = z
     billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable(),
     blockedByOrgOwner: z.boolean(),
     upgradeWorkspaceId: workspaceIdSchema.nullable(),
+    /** The viewer may still start Pro's free trial at checkout. Personal context only. */
+    proTrialEligible: z.boolean().optional(),
     organization: z
       .object({
         id: z.string(),
@@ -371,6 +373,17 @@ export const billingSwitchPlanContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: billingSwitchPlanResponseSchema,
+  },
+})
+
+/** Ends the caller's own Pro free trial now, so the card is charged and the full plan starts. */
+export const billingEndTrialContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/billing/end-trial',
+  body: z.object({}),
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true) }),
   },
 })
 

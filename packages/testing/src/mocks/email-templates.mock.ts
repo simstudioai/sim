@@ -301,6 +301,8 @@ export const emailTemplatesMockFns = {
   mockLimitThresholdEmail: vi.fn((_props?: unknown): null => null),
   mockPaymentFailedEmail: vi.fn((_props?: unknown): null => null),
   mockPlanWelcomeEmail: vi.fn((_props?: unknown): null => null),
+  mockPlanEndedEmail: vi.fn((_props?: unknown): null => null),
+  mockTrialEndingEmail: vi.fn((_props?: unknown): null => null),
   mockUsageLimitReachedEmail: vi.fn((_props?: unknown): null => null),
   mockUsageThresholdEmail: vi.fn((_props?: unknown): null => null),
   mockEmailButton: vi.fn((_props?: unknown): null => null),
@@ -332,6 +334,8 @@ export const emailTemplatesMockFns = {
   mockRenderFreeTierUpgradeEmail: vi.fn(),
   mockRenderLimitThresholdEmail: vi.fn(),
   mockRenderPlanWelcomeEmail: vi.fn(),
+  mockRenderPlanEndedEmail: vi.fn(),
+  mockRenderTrialEndingEmail: vi.fn(),
   mockRenderWelcomeEmail: vi.fn(),
   mockRenderOnboardingFollowupEmail: vi.fn(),
   mockRenderAbandonedCheckoutEmail: vi.fn(),
@@ -351,6 +355,13 @@ export const emailTemplatesMockFns = {
   mockGetPlanWelcomeSubject: vi.fn(
     (planDisplayName: string): string =>
       `Your ${planDisplayName} plan is now active on ${BRAND_NAME}`
+  ),
+  mockGetTrialEndingSubject: vi.fn(
+    (planDisplayName: string, endsOn: string): string =>
+      `Your ${planDisplayName} free trial ends ${endsOn}`
+  ),
+  mockGetPlanEndedSubject: vi.fn(
+    (planDisplayName: string): string => `Your ${planDisplayName} plan has ended on ${BRAND_NAME}`
   ),
   mockGetRequestConfirmationSubject: vi.fn((userSubject: string, requestType?: string): string =>
     requestType
@@ -397,6 +408,8 @@ export const emailTemplatesMock = {
   LimitThresholdEmail: emailTemplatesMockFns.mockLimitThresholdEmail,
   PaymentFailedEmail: emailTemplatesMockFns.mockPaymentFailedEmail,
   PlanWelcomeEmail: emailTemplatesMockFns.mockPlanWelcomeEmail,
+  PlanEndedEmail: emailTemplatesMockFns.mockPlanEndedEmail,
+  TrialEndingEmail: emailTemplatesMockFns.mockTrialEndingEmail,
   UsageLimitReachedEmail: emailTemplatesMockFns.mockUsageLimitReachedEmail,
   UsageThresholdEmail: emailTemplatesMockFns.mockUsageThresholdEmail,
   EmailButton: emailTemplatesMockFns.mockEmailButton,
@@ -429,6 +442,8 @@ export const emailTemplatesMock = {
   renderFreeTierUpgradeEmail: emailTemplatesMockFns.mockRenderFreeTierUpgradeEmail,
   renderLimitThresholdEmail: emailTemplatesMockFns.mockRenderLimitThresholdEmail,
   renderPlanWelcomeEmail: emailTemplatesMockFns.mockRenderPlanWelcomeEmail,
+  renderPlanEndedEmail: emailTemplatesMockFns.mockRenderPlanEndedEmail,
+  renderTrialEndingEmail: emailTemplatesMockFns.mockRenderTrialEndingEmail,
   renderWelcomeEmail: emailTemplatesMockFns.mockRenderWelcomeEmail,
   renderOnboardingFollowupEmail: emailTemplatesMockFns.mockRenderOnboardingFollowupEmail,
   renderAbandonedCheckoutEmail: emailTemplatesMockFns.mockRenderAbandonedCheckoutEmail,
@@ -442,6 +457,8 @@ export const emailTemplatesMock = {
   getEmailSubject: emailTemplatesMockFns.mockGetEmailSubject,
   getLimitEmailSubject: emailTemplatesMockFns.mockGetLimitEmailSubject,
   getPlanWelcomeSubject: emailTemplatesMockFns.mockGetPlanWelcomeSubject,
+  getTrialEndingSubject: emailTemplatesMockFns.mockGetTrialEndingSubject,
+  getPlanEndedSubject: emailTemplatesMockFns.mockGetPlanEndedSubject,
   getRequestConfirmationSubject: emailTemplatesMockFns.mockGetRequestConfirmationSubject,
   getOtpSubject: emailTemplatesMockFns.mockGetOtpSubject,
   getCredentialGroupInvitationSubject:

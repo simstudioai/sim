@@ -1,5 +1,6 @@
 /** Pro plan features shown in billing upgrade emails */
 export const proFeatures = [
+  { label: 'Sim-hosted models & tools', desc: 'no API keys needed' },
   { label: '6,000 credits/month', desc: 'included' },
   { label: '+2,000 weekly refresh', desc: 'credits per week' },
   { label: '150 runs/min', desc: 'sync executions' },

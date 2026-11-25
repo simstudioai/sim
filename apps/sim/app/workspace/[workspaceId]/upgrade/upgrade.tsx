@@ -37,6 +37,7 @@ import {
   upgradeReasonParam,
   upgradeUrlKeys,
 } from '@/app/workspace/[workspaceId]/upgrade/search-params'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin/store'
 
 /** The demo form, so a sales booking passes the same spam checks as every other. */
@@ -66,9 +67,14 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     ...upgradeUrlKeys,
   })
   const [showAllFeatures, setShowAllFeatures] = useState(false)
-
   const header = reason ? UPGRADE_REASON_COPY[reason].header : DEFAULT_UPGRADE_HEADER
   const canManageBilling = canManageWorkspaceBilling(hostContext, session?.user?.id)
+  // The trial is a personal checkout, so only a payer viewing their own workspace can start one.
+  const isPersonalWorkspace = !hostContext.hostOrganizationId
+  const { data: viewerBilling } = useSubscriptionData({
+    enabled: canManageBilling && isPersonalWorkspace,
+  })
+  const proTrialEligible = isPersonalWorkspace && viewerBilling?.data?.proTrialEligible === true
 
   const handleBack = useCallback(() => {
     router.replace(origin ?? `/workspace/${workspaceId}`)
@@ -172,7 +178,10 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
       }
     }
 
-    return { ...cta, onClick }
+    // Only a personal Pro checkout starts the trial, so only that card says so.
+    const startsTrial =
+      card === 'pro' && cta.intent === 'upgrade' && checkoutTarget === 'pro' && proTrialEligible
+    return { ...cta, ...(startsTrial ? { label: 'Start free trial' } : {}), onClick }
   }
 
   const proCta = resolveCta('pro')

@@ -14,7 +14,7 @@ const UPGRADE_PLAN_MESSAGE =
   "You've reached your usage limit. Please upgrade your plan to continue."
 
 const TRIAL_ALLOWANCE_MESSAGE =
-  "You've used the credits included in your free trial. Usage is paused until your trial ends, when your plan's full allowance starts."
+  "You've used the credits included in your free trial. Usage resumes when your trial ends and your plan's full allowance starts, or start your paid plan now under Settings > Subscription."
 
 const MEMBER_CAP_MESSAGE =
   "You've reached the usage limit your organization set for you this billing period. Only an organization owner or admin can raise it — please ask them to continue."

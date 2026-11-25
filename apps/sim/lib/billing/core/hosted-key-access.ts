@@ -1,8 +1,20 @@
+import { PRO_TRIAL_DAYS } from '@/lib/billing/constants'
 import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/attribution'
 import { payerHasPaidAccess } from '@/lib/billing/core/chat-access'
 import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { HttpError } from '@/lib/core/utils/http-error'
+
+/** The fixed part of {@link HostedKeyRequiresPaidPlanError}'s message, which outlives its class. */
+const HOSTED_KEY_PAID_PLAN_PHRASE = "with Sim's hosted key is available on paid plans"
+
+/**
+ * Whether a run failed because a free payer reached for Sim's hosted key. A workflow's failure
+ * reaches its caller as text, so this reads the message rather than the error's class.
+ */
+export function isHostedKeyPaidPlanFailure(message: string | null | undefined): boolean {
+  return Boolean(message?.includes(HOSTED_KEY_PAID_PLAN_PHRASE))
+}
 
 /**
  * Sim's hosted key was withheld because the run's payer is on the free plan. Carries a 402 so the
@@ -14,7 +26,7 @@ export class HostedKeyRequiresPaidPlanError extends HttpError {
   /** @param subject - what asked for the key: a tool's name or a model id */
   constructor(subject: string) {
     super(
-      `${subject} with Sim's hosted key is available on paid plans. Upgrade your plan, or add your own API key under Settings > BYOK.`
+      `${subject} ${HOSTED_KEY_PAID_PLAN_PHRASE}. Upgrade your plan (Pro starts with a ${PRO_TRIAL_DAYS}-day free trial for new subscribers), or add your own API key under Settings > BYOK.`
     )
     this.name = 'HostedKeyRequiresPaidPlanError'
   }

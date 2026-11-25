@@ -63,6 +63,7 @@ import {
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import {
+  useEndProTrial,
   useInvoices,
   useOpenBillingPortal,
   useSubscriptionData,
@@ -173,6 +174,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const { data: session } = useSession()
   const betterAuthSubscription = useSubscription()
   const openBillingPortal = useOpenBillingPortal()
+  const endProTrial = useEndProTrial()
 
   const organizationBilling = organizationBillingData?.data
   const enterpriseSelfServe = isOrganizationScope
@@ -649,6 +651,28 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
                 <span className='text-[var(--text-muted)] text-small'>
                   {new Date(periodEnd).toLocaleDateString()}
                 </span>
+              </div>
+            )}
+
+            {isTrialing && !isOrganizationScope && canManageBilling && !isCancelledAtPeriodEnd && (
+              <div className='flex items-center justify-between'>
+                <span className='text-[var(--text-body)] text-small'>
+                  End the trial and start paying today
+                </span>
+                <Chip
+                  disabled={endProTrial.isPending}
+                  onClick={() =>
+                    endProTrial.mutate(undefined, {
+                      onSuccess: () => toast.success('Your paid plan has started'),
+                      onError: (error) =>
+                        toast.error("Couldn't start your paid plan", {
+                          description: getErrorMessage(error, 'Please try again.'),
+                        }),
+                    })
+                  }
+                >
+                  Start paid plan
+                </Chip>
               </div>
             )}
 
