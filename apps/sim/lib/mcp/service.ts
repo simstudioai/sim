@@ -1298,7 +1298,7 @@ class McpService {
           onResolvedSecretTraceProvenance,
           signal,
           requireComplete,
-          bestEffort
+          bestEffort || readOnly
         )
         logger.info(`Discovered ${tools.length} tools from server ${config.name}`, { requestId })
         if (readOnly) return tools

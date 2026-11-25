@@ -220,7 +220,8 @@ search that returns no email or phone, and an email verifier.
   `read`, fails the audit unless the `effect` line carries `// tool-effect: <reason>` on one of the
   two lines above it; use it only for a genuine exception such as a GET that writes in `postProcess`.
 - A factory that builds tools from definitions takes `effect` per definition and passes it through.
-- Prove the labels with a dry run: put the block in a workflow and run
+- Prove the labels with a dry run, against a test account or test resource (a `read` runs for real,
+  so a write mislabelled `read` is sent): put the block in a workflow and run
   `sim workflows run <workflowId> --dry --input '{…}'`. Each `write` call must appear in the result's
   `sideEffects.stubbed` with the request you expect (an HTTP tool's `method`, `url` and `body`, or an
   in-process operation's input, credentials redacted), and each `read` must run for real and return
