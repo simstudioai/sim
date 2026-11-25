@@ -33,6 +33,7 @@ import {
 } from '@/providers/cost-policy'
 import {
   attachLargeFileRemoteUrls,
+  type ProviderFileRemoval,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
 import { isEvaluationModel, isKnownModelId, supportsTemperature } from '@/providers/models'
@@ -394,17 +395,20 @@ export async function executeProviderRequest(
       )
     }
     await attachLargeFileRemoteUrls(modelSafeRequest, providerId, runtimeContext?.executionContext)
-    const uploads = await uploadLargeFilesToProvider(
-      modelSafeRequest,
-      providerId,
-      runtimeContext?.executionContext
-    )
     /**
      * A run under a side-effect policy (a dry run, or a workflow test) leaves nothing on the
-     * provider account: its uploads are deleted once the call settles. Such a run waits for its
-     * result and never streams, so the call has settled when it returns here.
+     * provider account: every file it uploaded is deleted once the call settles, or once an
+     * upload fails. Such a run waits for its result and never streams, so the call has settled
+     * when it returns here.
      */
+    const uploadRemovals: ProviderFileRemoval[] = []
     try {
+      await uploadLargeFilesToProvider(
+        modelSafeRequest,
+        providerId,
+        runtimeContext?.executionContext,
+        uploadRemovals
+      )
       if (final && session) {
         modelSafeRequest.abortSignal?.throwIfAborted()
         const usage = session.getUsage()
@@ -431,7 +435,9 @@ export async function executeProviderRequest(
       }
       return await provider.executeRequest(modelSafeRequest)
     } finally {
-      if (runtimeContext?.executionContext?.sideEffects) await uploads.remove()
+      if (runtimeContext?.executionContext?.sideEffects) {
+        await Promise.all(uploadRemovals.map((remove) => remove()))
+      }
     }
   })
 

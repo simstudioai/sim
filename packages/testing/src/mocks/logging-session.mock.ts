@@ -7,7 +7,8 @@ import { vi } from 'vitest'
  * mock state. `mockSafeStart` defaults to `true` because callers branch on the
  * boolean result, and `mockWhenLogStarted` resolves at once, as for a log already written. Display projection methods (incl. `projectTraceSpansForLiveDisplay`) return
  * their input, diagnostic projection fails closed to structural metadata, `hasCompleted` is
- * `false`, `getPersistedCompletionStatus` and `getDeletedScope` are `null`, and other methods
+ * `false`, `getPersistedCompletionStatus` and `getDeletedScope` are `null`, `getTriggerType` is
+ * `manual`, and other methods
  * resolve to `undefined`.
  * Defaults are `vi.fn(impl)`, so `mockReset()` restores them.
  *
@@ -44,6 +45,7 @@ export const loggingSessionMockFns = {
   mockHasCompleted: vi.fn((): boolean => false),
   mockGetPersistedCompletionStatus: vi.fn((): string | null => null),
   mockGetDeletedScope: vi.fn((): 'workspace' | 'workflow' | null => null),
+  mockGetTriggerType: vi.fn((): string => 'manual'),
   mockProjectTraceSpansForLiveDisplay: vi.fn(async (traceSpans: unknown) => traceSpans),
   mockMarkExecutionAsFailed: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockProjectBlockLogsForDisplay: vi.fn(async (logs: unknown) => logs),
@@ -87,6 +89,7 @@ function buildLoggingSessionInstance() {
     hasCompleted: loggingSessionMockFns.mockHasCompleted,
     getPersistedCompletionStatus: loggingSessionMockFns.mockGetPersistedCompletionStatus,
     getDeletedScope: loggingSessionMockFns.mockGetDeletedScope,
+    getTriggerType: loggingSessionMockFns.mockGetTriggerType,
     projectTraceSpansForLiveDisplay: loggingSessionMockFns.mockProjectTraceSpansForLiveDisplay,
     exportResolvedSecretTraceProvenanceForValue:
       loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue,

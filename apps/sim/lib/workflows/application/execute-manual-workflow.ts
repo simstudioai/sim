@@ -1,7 +1,7 @@
 import { requirePrincipalSubjectUserId, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
-import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import { isWorkflowBlockProtected, normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   inlinesRunFiles,
@@ -16,10 +16,7 @@ import {
   type ExecuteWorkflowServiceResult,
   executeWorkflowService,
 } from '@/lib/workflows/executor/execute-service'
-import {
-  getExecutionStateForWorkflow,
-  getWorkflowExecutionLogTrigger,
-} from '@/lib/workflows/executor/execution-state'
+import { getExecutionStateForWorkflow } from '@/lib/workflows/executor/execution-state'
 import {
   loadWorkflowFromNormalizedTables,
   type NormalizedWorkflowData,
@@ -28,6 +25,7 @@ import {
   resolveTriggerRunOptions,
   validateTriggerInput,
 } from '@/lib/workflows/triggers/run-options'
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
 interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mode'> {
   input?: unknown
@@ -168,7 +166,9 @@ function resolveStopAfterBlock(
  * The dry run a manual run asked for, its allowed and mocked blocks resolved like
  * {@link resolveBlockSelector}. A dry run is logged under the `test` trigger, never as a manual
  * run, and returns its side effects with the result it waits for, so it cannot stream or detach.
- * Mocks need a dry run: a fixed output must never drive a run's real writes.
+ * Mocks need a dry run: a fixed output must never drive a run's real writes. A mock is data: it
+ * never carries an executor control field (`_pauseMetadata`, any `_` field), and never replaces a
+ * locked block, whose configured behaviour only an admin may change.
  */
 function resolveRunOverrides(
   state: ManualWorkflowState,
@@ -217,16 +217,24 @@ function resolveRunOverrides(
     if (blockMocks.has(blockId)) {
       throw new OrchestrationError('validation', `run.mocks names block "${blockId}" twice`)
     }
+    if (isWorkflowBlockProtected(blockId, state.blocks)) {
+      throw new OrchestrationError(
+        'validation',
+        `run.mocks "${selector}" is a locked block (or inside a locked loop or parallel); its configured behaviour cannot be replaced.`
+      )
+    }
+    const controlFields = Object.keys(output).filter((field) => field.startsWith('_'))
+    if (controlFields.length > 0) {
+      throw new OrchestrationError(
+        'validation',
+        `run.mocks "${selector}" sets ${controlFields.join(', ')}: fields starting with "_" control the run's execution, so a mock cannot set them.`
+      )
+    }
     blockMocks.set(blockId, output)
   }
   return {
-    triggerType: 'test' as const,
-    sideEffectPolicy: new WriteStubPolicy({
-      workflowId,
-      allowBlockIds,
-      blockMocks,
-      pausingBlocks: 'stub',
-    }),
+    triggerType: TEST_TRIGGER,
+    sideEffectPolicy: new WriteStubPolicy({ workflowId, allowBlockIds, blockMocks }),
   }
 }
 
@@ -338,20 +346,15 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
     const blockId = resolveBlockSelector(state, input.blockId, 'run.entry.blockId')
     const stopAfterBlockId = resolveStopAfterBlock(state, input.stopAfterBlockId, blockId)
 
-    const sourceSnapshot = await getExecutionStateForWorkflow(input.sourceRunId, context.workflowId)
+    const sourceSnapshot = await getExecutionStateForWorkflow(
+      input.sourceRunId,
+      context.workflowId,
+      { allowTestRun: input.dry === true }
+    )
     if (!sourceSnapshot) {
       throw new OrchestrationError(
         'not_found',
         `No execution state found for source run "${input.sourceRunId}" in this workflow.`
-      )
-    }
-    if (
-      !input.dry &&
-      (await getWorkflowExecutionLogTrigger(input.sourceRunId, context.workflowId)) === 'test'
-    ) {
-      throw new OrchestrationError(
-        'validation',
-        `run.entry.sourceRunId "${input.sourceRunId}" is a test run (a dry run or a workflow test): its upstream outputs include placeholders for writes it did not send. Add run.dry to rerun it dry, or rerun from a run that was not a test.`
       )
     }
 

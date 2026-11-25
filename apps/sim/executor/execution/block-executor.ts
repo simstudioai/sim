@@ -44,6 +44,8 @@ import type {
   BlockStateWriter,
   ContextExtensions,
   ExecutionTestHooks,
+  SideEffectBlockSite,
+  SideEffectPolicy,
   WorkflowNodeMetadata,
 } from '@/executor/execution/types'
 import {
@@ -286,14 +288,18 @@ export class BlockExecutor {
     const testHooks = this.contextExtensions.testHooks
     const mockedBlockId = node.metadata.originalBlockId ?? block.id
     const isMocked = !isSentinel && testHooks?.mocksBlock(mockedBlockId) === true
+    /** The run's side-effect policy and the block's site, when the policy answers the block. */
+    let answered: { policy: SideEffectPolicy; site: SideEffectBlockSite } | undefined
     const sideEffects = this.contextExtensions.sideEffects
-    const site = {
-      workflowId: blockCtx.workflowId,
-      blockId: mockedBlockId,
-      blockName: block.metadata?.name ?? mockedBlockId,
-      blockType: block.metadata?.id ?? '',
+    if (sideEffects && !isSentinel && !isMocked) {
+      const site = {
+        workflowId: blockCtx.workflowId,
+        blockId: mockedBlockId,
+        blockName: block.metadata?.name ?? mockedBlockId,
+        blockType: block.metadata?.id ?? '',
+      }
+      if (sideEffects.answersBlock(site)) answered = { policy: sideEffects, site }
     }
-    const isAnswered = !isSentinel && !isMocked && sideEffects?.answersBlock(site) === true
     try {
       /**
        * Only the handler call is retried. A streaming handler returns before any
@@ -312,8 +318,9 @@ export class BlockExecutor {
             inputDisplayRegistry
           )
         }
-        if (isAnswered && sideEffects) {
-          return sideEffects.answerBlock({
+        if (answered) {
+          const { policy, site } = answered
+          return policy.answerBlock({
             ...site,
             input: () =>
               redactSideEffectPayload({

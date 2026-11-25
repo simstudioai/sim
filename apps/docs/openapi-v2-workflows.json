@@ -17415,27 +17415,19 @@
             },
             "description": "Blocks whose writes the run sent (`run.allowBlocks`), by id."
           },
-          "mocks": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
+          "mockedBlocks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Block id."
             },
-            "additionalProperties": {
-              "type": "object",
-              "propertyNames": {
-                "type": "string"
-              },
-              "additionalProperties": {
-                "description": "Output field."
-              }
-            },
-            "description": "Blocks the run answered with fixed outputs (`run.mocks`), keyed by id."
+            "description": "Blocks the run answered with fixed outputs (`run.mocks`), by id. Their outputs are never stored, so a rerun passes them again."
           }
         },
-        "required": ["allowBlocks", "mocks"],
+        "required": ["allowBlocks", "mockedBlocks"],
         "additionalProperties": false,
         "title": "Workflow dry run",
-        "description": "The blocks a dry run sent and mocked, which a rerun of it passes again."
+        "description": "The blocks a dry run sent and mocked, by id, which a rerun of it names again; never a mock output."
       },
       "WorkflowRunResult": {
         "type": "object",
@@ -17770,7 +17762,7 @@
                     "type": "boolean"
                   },
                   "allowBlocks": {
-                    "description": "Blocks (id, display name or reference key) of this workflow whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block, or a block that runs another workflow (a Workflow or custom block), cannot be allowed.",
+                    "description": "Blocks (id, display name or reference key) of this workflow whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block, or a block that runs another workflow (a Workflow or custom block), cannot be allowed. Allowing an Agent sends only its own tool calls: a workflow or custom block it calls stays stubbed.",
                     "maxItems": 50,
                     "type": "array",
                     "items": {
@@ -17779,7 +17771,7 @@
                     }
                   },
                   "mocks": {
-                    "description": "Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`.",
+                    "description": "Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`. A locked block (or one inside a locked loop or parallel) cannot be mocked, and an output field cannot start with `_` (those control the run). The outputs are never stored: the run records only which blocks were mocked, so a rerun passes them again.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
@@ -18684,7 +18676,7 @@
                 "type": "null"
               }
             ],
-            "description": "A failed dry run's allowed and mocked blocks, which a rerun of it passes again; null for any other run, or when execution data is hidden by organization permission groups."
+            "description": "A failed dry run's allowed and mocked blocks, by id, which a rerun of it names again; null for any other run, or when execution data is hidden by organization permission groups."
           }
         },
         "required": [

@@ -6,7 +6,10 @@
  * block writes for real while reads run for real; a child workflow's writes, an Agent's included,
  * stay stubbed; custom and Wait blocks are answered whole; code runs and is listed unchecked; a
  * mocked block steers a branch; a failed dry run keeps its side effects and is the source only of
- * another dry run. Model calls are answered by a simulated Anthropic API.
+ * another dry run. A test run is never the source of a run that sends its writes (the v2 use case,
+ * Copilot and the editor route alike) and is never resumed; a mock never controls the run or
+ * replaces a locked block, and only the ids of mocked blocks are kept. Model calls are answered by
+ * a simulated Anthropic API.
  */
 import { db } from '@sim/db'
 import {
@@ -29,7 +32,10 @@ import {
   workspaceEnvironment,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
-import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
@@ -38,11 +44,25 @@ import { eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const subscriberRuns = vi.hoisted(() => {
+const { subscriberRuns, session } = vi.hoisted(() => {
   /** Custom blocks are a self-hosted opt-in, read when the config module loads. */
   process.env.CUSTOM_BLOCKS_ENABLED = 'true'
-  return { runIds: [] as string[] }
+  return {
+    subscriberRuns: { runIds: [] as string[] },
+    /** The browser session the editor route sees; none unless a test signs in. */
+    session: {
+      current: null as null | {
+        user: { id: string; name: string; email: string }
+        session: { id: string }
+      },
+    },
+  }
 })
+
+vi.mock('@/lib/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth')>()),
+  getSession: async () => session.current,
+}))
 
 /** A Sim-trigger subscriber's run starts here; the suite records the run that raised it. */
 vi.mock('@/lib/webhooks/processor', () => ({
@@ -54,18 +74,25 @@ vi.mock('@/lib/webhooks/processor', () => ({
 }))
 
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { WorkflowTestSession } from '@/lib/workflow-tests/session'
 import {
   type ExecuteManualWorkflowInput,
   executeManualWorkflowFromBlockOperation,
   executeManualWorkflowOperation,
 } from '@/lib/workflows/application/execute-manual-workflow'
+import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
+import { resumeWorkflowRun } from '@/lib/workflows/application/resume-run'
+import { runFromBlockFromCopilot } from '@/lib/workflows/application/run-workflow-from-copilot'
 import type { ExecuteWorkflowServiceRun } from '@/lib/workflows/executor/execute-service'
 import { getWorkflowExecutionLogStatus } from '@/lib/workflows/executor/execution-state'
 import { POST as v2Execute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
+import { POST as editorExecute } from '@/app/api/workflows/[id]/execute/route'
+import type { PausePoint } from '@/executor/types'
 
 const ownerId = generateId()
 const organizationId = generateId()
@@ -398,6 +425,7 @@ beforeAll(async () => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  session.current = null
 })
 
 afterAll(async () => {
@@ -483,7 +511,7 @@ describe('a dry run', () => {
       'notify',
       'childsave',
     ])
-    expect(allowed.dryRun).toEqual({ allowBlocks: [parent.idOf('save')], mocks: {} })
+    expect(allowed.dryRun).toEqual({ allowBlocks: [parent.idOf('save')], mockedBlocks: [] })
 
     const reread = await run(parentId, { dry: true, selectedOutputs: ['lookup.rows'] })
     expect(JSON.stringify(reread.blockOutputs?.['lookup.rows'])).toContain('a@b.co')
@@ -840,5 +868,258 @@ describe('a dry run', () => {
     expect(rerun.status).toBe('completed')
     expect(rerun.sideEffects?.stubbed).toHaveLength(3)
     expect(await tableRows(tableId)).toEqual([])
+  })
+})
+
+/** Start → save → after, two table writes, and a dry run of it, which wrote neither. */
+async function dryRunSource() {
+  const tableId = await createTable()
+  const fixture = graph(
+    [
+      block('start', 'start_trigger'),
+      upsertLead('save', tableId, 'a@b.co'),
+      upsertLead('after', tableId, 'after@b.co'),
+    ],
+    [
+      ['start', 'save'],
+      ['save', 'after'],
+    ]
+  )
+  const workflowId = await saveWorkflow(fixture.state)
+  const dry = await run(workflowId, { dry: true })
+  expect(dry.status, JSON.stringify(dry.error)).toBe('completed')
+  return { tableId, workflowId, afterId: fixture.idOf('after'), dryRunId: dry.executionId }
+}
+
+/** Start → a Human in the loop block → a table write. */
+async function approvalFixture() {
+  const tableId = await createTable()
+  const approval = block('approval', 'human_in_the_loop', {
+    inputFormat: [{ id: 'approved', name: 'approved', type: 'boolean', required: true }],
+  })
+  approval.subBlocks.inputFormat.type = 'input-format'
+  const name = `Approval ${generateId()}`
+  const workflowId = await saveWorkflow(
+    graph(
+      [block('start', 'start_trigger'), approval, upsertLead('save', tableId, 'a@b.co')],
+      [
+        ['start', 'approval'],
+        ['approval', 'save'],
+      ]
+    ).state,
+    name
+  )
+  return { tableId, workflowId, name }
+}
+
+async function pausedExecutionsOf(workflowId: string) {
+  return db
+    .select({
+      executionId: pausedExecutions.executionId,
+      pausePoints: pausedExecutions.pausePoints,
+    })
+    .from(pausedExecutions)
+    .where(eq(pausedExecutions.workflowId, workflowId))
+}
+
+describe('a test run', () => {
+  it('is not the source of a Copilot run from a block, named or as the latest run', async () => {
+    const { tableId, workflowId, afterId, dryRunId } = await dryRunSource()
+    const billingAttribution = await resolveBillingAttribution({
+      actorUserId: ownerId,
+      workspaceId,
+    })
+    const fromBlock = (sourceExecutionId?: string) =>
+      runFromBlockFromCopilot.execute({
+        principal,
+        input: {
+          workflowId,
+          useDraftState: true,
+          lifecycle: { billingAttribution },
+          blockId: afterId,
+          ...(sourceExecutionId ? { sourceExecutionId } : {}),
+        },
+      })
+
+    await expect(fromBlock(dryRunId)).rejects.toMatchObject(validationError)
+    await expect(fromBlock()).rejects.toMatchObject({ code: 'not_found' })
+    expect(await tableRows(tableId)).toEqual([])
+  })
+
+  it('is not the source of an editor run from a block, named or as the latest run', async () => {
+    const { tableId, workflowId, afterId, dryRunId } = await dryRunSource()
+    session.current = {
+      user: { id: ownerId, name: 'Dry run fixture', email: `${ownerId}@dry-run.test` },
+      session: { id: generateId() },
+    }
+    const fromBlock = async (executionId: string) => {
+      const response = await editorExecute(
+        new NextRequest(`http://localhost:3000/api/workflows/${workflowId}/execute`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie: 'session=fixture' },
+          body: JSON.stringify({
+            input: {},
+            useDraftState: true,
+            runFromBlock: { startBlockId: afterId, executionId },
+          }),
+        }),
+        { params: Promise.resolve({ id: workflowId }) }
+      )
+      return { status: response.status, body: await response.json() }
+    }
+
+    expect(await fromBlock(dryRunId)).toMatchObject({
+      status: 400,
+      body: { error: expect.stringContaining('is a test run') },
+    })
+    expect(await fromBlock('latest')).toMatchObject({ status: 400 })
+    expect(await tableRows(tableId)).toEqual([])
+  })
+
+  it('is never resumed, so a pause in one sends nothing after it', async () => {
+    const { tableId, workflowId } = await approvalFixture()
+    const paused = (await executeManualWorkflowOperation.execute({
+      principal,
+      input: {
+        workflowId,
+        requestId: generateId(),
+        executionId: generateId(),
+        input: {},
+        mode: 'sync',
+        requestHeaders: new Headers(),
+        useMockPayload: false,
+      },
+    })) as ExecuteWorkflowServiceRun
+    expect(paused.status, JSON.stringify(paused.error)).toBe('paused')
+    const contextId = paused.paused?.points[0]?.contextId
+    if (!contextId) throw new Error('The run named no pause point')
+    await vi.waitFor(
+      async () => {
+        const [row] = await pausedExecutionsOf(workflowId)
+        const point = (row?.pausePoints as Record<string, PausePoint> | null)?.[contextId]
+        if (!point?.snapshotReady) throw new Error('Pause not yet resumable')
+      },
+      { timeout: 20_000, interval: 100 }
+    )
+    /** A pausing block can no longer pause a test run; this stands in for one that did. */
+    await db
+      .update(workflowExecutionLogs)
+      .set({ trigger: 'test' })
+      .where(eq(workflowExecutionLogs.executionId, paused.executionId))
+
+    await expect(
+      resumeWorkflowRun.execute({
+        principal: createSessionPrincipal({ userId: ownerId, sessionId: generateId() }),
+        input: {
+          workflowId,
+          runId: paused.executionId,
+          contextId,
+          resumeInput: { approved: true },
+          surface: 'v2',
+        },
+      })
+    ).rejects.toThrow('is never resumed')
+    await sleep(500)
+    expect(await tableRows(tableId)).toEqual([])
+  })
+
+  it('answers a Human in the loop block in a workflow test, which never pauses', async () => {
+    const { tableId, workflowId, name } = await approvalFixture()
+    const testSession = new WorkflowTestSession({
+      workspaceId,
+      principal,
+      version: 'draft',
+      only: null,
+      onProgress: async () => {},
+    })
+
+    let event = await testSession.start({ workflow: name, trigger: null, input: {}, targets: [] })
+    while (event.kind === 'waiting') event = await testSession.next(event.runId)
+
+    expect(event).toMatchObject({ kind: 'done' })
+    expect(await pausedExecutionsOf(workflowId)).toEqual([])
+    expect(await tableRows(tableId)).toEqual([])
+  })
+})
+
+describe('a dry run’s mocks', () => {
+  it('cannot set a field that controls the run, such as a pause', async () => {
+    const { parentId } = await parentFixture()
+    const pause = {
+      contextId: 'mocked',
+      pauseKind: 'time',
+      resumeAt: new Date().toISOString(),
+      blockId: 'lookup',
+    }
+
+    await expect(
+      run(parentId, { dry: true, mocks: { lookup: { rows: [], _pauseMetadata: pause } } })
+    ).rejects.toMatchObject(validationError)
+    expect(await pausedExecutionsOf(parentId)).toEqual([])
+  })
+
+  it('cannot replace a locked block', async () => {
+    const tableId = await createTable()
+    const lookup = queryLeads('lookup', tableId)
+    lookup.locked = true
+    const workflowId = await saveWorkflow(
+      graph(
+        [block('start', 'start_trigger'), lookup, notify('notify')],
+        [
+          ['start', 'lookup'],
+          ['lookup', 'notify'],
+        ]
+      ).state
+    )
+
+    await expect(
+      run(workflowId, { dry: true, mocks: { lookup: { rows: [], totalCount: 99 } } })
+    ).rejects.toMatchObject(validationError)
+    expect(await logTriggers(workflowId)).toEqual([])
+  })
+
+  it('are kept only as block ids, which a failed run reads back for its rerun', async () => {
+    const tableId = await createTable()
+    const secret = `mock-secret-${generateId()}`
+    const fixture = graph(
+      [
+        block('start', 'start_trigger'),
+        queryLeads('lookup', tableId),
+        upsertLead('save', tableId, 'a@b.co'),
+        queryLeads('broken', generateId()),
+      ],
+      [
+        ['start', 'lookup'],
+        ['lookup', 'save'],
+        ['save', 'broken'],
+      ]
+    )
+    const workflowId = await saveWorkflow(fixture.state)
+    const recorded = { allowBlocks: [fixture.idOf('save')], mockedBlocks: [fixture.idOf('lookup')] }
+
+    const failed = await run(workflowId, {
+      dry: true,
+      allowBlocks: ['save'],
+      mocks: { lookup: { rows: [], rowCount: 0, totalCount: 0, note: secret } },
+    })
+
+    expect(failed.status).toBe('failed')
+    expect(failed.dryRun).toEqual(recorded)
+    const [row] = await db
+      .select({ executionData: workflowExecutionLogs.executionData })
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, failed.executionId))
+    const executionData = await materializeExecutionData(
+      row.executionData as Record<string, unknown>,
+      { workspaceId, workflowId, executionId: failed.executionId }
+    )
+    const trigger = executionData.trigger as { data?: { dryRun?: unknown } }
+    expect(trigger.data?.dryRun).toEqual(recorded)
+    const read = await readWorkflowRun.execute({
+      principal,
+      input: { workflowId, runId: failed.executionId, includeOutput: false, selectedOutputs: [] },
+    })
+    expect(read.dryRun).toEqual(recorded)
+    expect(JSON.stringify(read)).not.toContain(secret)
   })
 })

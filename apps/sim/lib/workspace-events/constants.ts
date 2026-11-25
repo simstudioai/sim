@@ -6,6 +6,8 @@
  * dependencies such as the database client.
  */
 
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
+
 /** Provider string recorded on webhook rows and execution logs for Sim trigger runs. */
 export const SIM_TRIGGER_PROVIDER = 'sim'
 
@@ -14,7 +16,7 @@ export const SIM_TRIGGER_PROVIDER = 'sim'
  * (loop prevention), and test runs (a dry run or a workflow test), which change nothing beyond
  * their own log.
  */
-export const EVENTLESS_EXECUTION_TRIGGERS: readonly string[] = [SIM_TRIGGER_PROVIDER, 'test']
+export const EVENTLESS_EXECUTION_TRIGGERS: readonly string[] = [SIM_TRIGGER_PROVIDER, TEST_TRIGGER]
 
 /** Trigger ID in the trigger registry. Must equal the block type for pure trigger blocks. */
 export const SIM_WORKSPACE_EVENT_TRIGGER_ID = 'sim_workspace_event'

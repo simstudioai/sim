@@ -16,7 +16,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   executeService: vi.fn(),
   loadSourceState: vi.fn(),
-  loadSourceTrigger: vi.fn(async () => 'manual'),
   resolveOptions: vi.fn(),
   validateInput: vi.fn(),
 }))
@@ -35,7 +34,6 @@ vi.mock('@/lib/workflows/executor/execute-service', () => ({
 
 vi.mock('@/lib/workflows/executor/execution-state', () => ({
   getExecutionStateForWorkflow: mocks.loadSourceState,
-  getWorkflowExecutionLogTrigger: mocks.loadSourceTrigger,
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
@@ -145,7 +143,9 @@ describe('manual workflow execution application operations', () => {
       principal: delegated,
       input: { ...baseInput, blockId: 'agent-1', sourceRunId: 'source-run' },
     })
-    expect(mocks.loadSourceState).toHaveBeenCalledWith('source-run', context.workflowId)
+    expect(mocks.loadSourceState).toHaveBeenCalledWith('source-run', context.workflowId, {
+      allowTestRun: false,
+    })
     expect(mocks.executeService).toHaveBeenLastCalledWith(
       expect.objectContaining({
         principal: delegated,
@@ -278,7 +278,9 @@ describe('manual workflow execution application operations', () => {
       input: { ...baseInput, blockId: 'agent-1', sourceRunId: 'source-run-1' },
     })
 
-    expect(mocks.loadSourceState).toHaveBeenCalledWith('source-run-1', 'workflow-1')
+    expect(mocks.loadSourceState).toHaveBeenCalledWith('source-run-1', 'workflow-1', {
+      allowTestRun: false,
+    })
     expect(mocks.executeService).toHaveBeenCalledWith(
       expect.objectContaining({
         triggerType: 'manual',

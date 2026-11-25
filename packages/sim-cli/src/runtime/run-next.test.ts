@@ -104,9 +104,9 @@ describe('withRunNext on a failed run', () => {
     })
   })
 
-  it('keeps a test run a test: a dry run with its allowed and mocked blocks, a workflow test dry', () => {
-    const dryRun = { allowBlocks: ['blk_1'], mocks: { blk_2: { route: "vip's" } } }
-    const next = `sim workflows run wf_1 --from-block blk_3 --source-run run_9 --dry --allow blk_1 --mock 'blk_2={"route":"vip'\\''s"}'`
+  it('keeps a test run a test: a dry run with its allowed blocks, a workflow test dry', () => {
+    const dryRun = { allowBlocks: ['blk_1'], mockedBlocks: ['blk_2'] }
+    const next = 'sim workflows run wf_1 --from-block blk_3 --source-run run_9 --dry --allow blk_1'
     expect(withRunNext('executeWorkflow', { ...failed, dryRun })).toMatchObject({ next })
     expect(withRunNext('getWorkflowRun', { ...failed, trigger: 'test', dryRun })).toMatchObject({
       next,
@@ -117,8 +117,13 @@ describe('withRunNext on a failed run', () => {
     expect(
       withRunNext('getWorkflowRun', { ...failed, trigger: 'manual', dryRun: null })
     ).toMatchObject({ next: 'sim workflows run wf_1 --from-block blk_3 --source-run run_9' })
-    const hostile = { ...failed, dryRun: { allowBlocks: ['$(id)'], mocks: {} } }
+    const hostile = { ...failed, dryRun: { allowBlocks: ['$(id)'], mockedBlocks: [] } }
     expect(withRunNext('executeWorkflow', hostile)).toBe(hostile)
+  })
+
+  it('names no resume for a paused test run, which is never resumed', () => {
+    const pausedTest = { ...paused, trigger: 'test' }
+    expect(withRunNext('getWorkflowRun', pausedTest)).toBe(pausedTest)
   })
 
   it('names no rerun when the server names no start block, or an id it never issues', () => {

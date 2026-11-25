@@ -14,26 +14,31 @@ import type { NormalizedBlockOutput } from '@/executor/types'
 /** Each list keeps at most this many entries; `omitted` counts the rest per list. */
 const MAX_RECORDED = 50
 
-/**
- * The one write tool a policy always sends: `function_execute` runs code (a Function block's, a
- * Condition's expressions, or code an Agent's model wrote), which is the workflow's own logic
- * rather than a side effect. Code other than a Condition's is listed as unchecked, since it can
- * make network calls the run cannot see.
- */
-const CODE_TOOL_ID = 'function_execute'
+type ToolRuns = 'runs-code' | 'runs-workflow' | 'runs-custom-block'
 
 /**
- * The tool an Agent calls a custom block with. A custom block runs its publisher's workflow, so a
- * policy answers it whole, like the block on a canvas, and never runs it.
+ * Write tools a policy decides by what they run rather than by their block:
+ * - `runs-code`: `function_execute` runs code (a Function block's, a Condition's expressions, or
+ *   code an Agent's model wrote), which is the workflow's own logic rather than a side effect, so
+ *   it is sent; code other than a Condition's is listed as unchecked, since it can make network
+ *   calls the run cannot see.
+ * - `runs-workflow`: `workflow_executor` runs a child workflow, which inherits the policy and
+ *   decides its own writes, so it is sent.
+ * - `runs-custom-block`: `deployed_block_executor` runs a custom block's publisher workflow, so it
+ *   is answered whole, like the block on a canvas, and never runs.
  */
-const CUSTOM_BLOCK_TOOL_ID = 'deployed_block_executor'
+const TOOLS_DECIDED_BY_WHAT_THEY_RUN: ReadonlyMap<string, ToolRuns> = new Map<string, ToolRuns>([
+  ['function_execute', 'runs-code'],
+  ['workflow_executor', 'runs-workflow'],
+  ['deployed_block_executor', 'runs-custom-block'],
+])
 
 /** Blocks whose handlers change state outside the tool seam, so a policy answers them whole. */
 const SELF_DIRECTED_BLOCK_TYPES: ReadonlySet<string> = new Set([BlockType.MOTHERSHIP, BlockType.PI])
 
 /**
- * Blocks that pause the run. A paused run resumes later without its dry run, so a dry run
- * answers them whole and never pauses; they cannot be allowed.
+ * Blocks that pause the run. A test run is never resumed, so a policy answers them whole and the
+ * run never pauses; they cannot be allowed.
  */
 export const PAUSING_BLOCK_TYPES: ReadonlySet<string> = new Set([
   ...HUMAN_IN_THE_LOOP_BLOCK_TYPES,
@@ -125,10 +130,11 @@ class RecordedList<T> {
  * The side-effect policy of a dry run (`run.dry`) and of a workflow test's unmocked writes: every
  * write tool call is answered with a placeholder shaped like the tool's output and recorded with
  * the request it would have sent, except an allowed block's, which are sent and recorded once per
- * block and tool. Reads always run. Custom blocks and blocks that act outside the tool seam are
- * answered whole; `pausingBlocks: 'stub'` also answers {@link PAUSING_BLOCK_TYPES} whole, and
- * `blockMocks` answers its blocks with fixed outputs. Allowed and mocked blocks are blocks of the
- * workflow the run started, never of a child it calls.
+ * block and tool. Reads always run. Custom blocks, blocks that act outside the tool seam and
+ * {@link PAUSING_BLOCK_TYPES} are answered whole, and `blockMocks` answers its blocks with fixed
+ * outputs. Allowed and mocked blocks are blocks of the workflow the run started, never of a child
+ * it calls, and an allowed Agent's own tool calls are sent, not a workflow or custom block it
+ * calls.
  */
 export class WriteStubPolicy implements SideEffectPolicy {
   private readonly stubbed = new RecordedList<StubbedSideEffect>()
@@ -145,7 +151,6 @@ export class WriteStubPolicy implements SideEffectPolicy {
       allowBlockIds?: ReadonlySet<string>
       /** Its blocks answered with these outputs instead of running. */
       blockMocks?: ReadonlyMap<string, NormalizedBlockOutput>
-      pausingBlocks: 'run' | 'stub'
     }
   ) {
     this.allowBlockIds = options.allowBlockIds ?? new Set()
@@ -168,8 +173,10 @@ export class WriteStubPolicy implements SideEffectPolicy {
   }
 
   decideWrite(call: SideEffectSite & { toolId: string }): 'send' | 'stub' {
-    if (call.toolId === CUSTOM_BLOCK_TOOL_ID) return 'stub'
-    if (call.toolId === CODE_TOOL_ID) {
+    const runs = TOOLS_DECIDED_BY_WHAT_THEY_RUN.get(call.toolId)
+    if (runs === 'runs-custom-block') return 'stub'
+    if (runs === 'runs-workflow') return 'send'
+    if (runs === 'runs-code') {
       if (call.blockType !== BlockType.CONDITION) {
         this.unchecked.add(
           { ...recordedSite(call), reason: uncheckedCodeReason(call.blockType) },
@@ -194,9 +201,7 @@ export class WriteStubPolicy implements SideEffectPolicy {
 
   answersBlock(block: SideEffectBlockSite): boolean {
     if (this.mockOf(block)) return true
-    if (this.options.pausingBlocks === 'stub' && PAUSING_BLOCK_TYPES.has(block.blockType)) {
-      return true
-    }
+    if (PAUSING_BLOCK_TYPES.has(block.blockType)) return true
     if (isCustomBlockType(block.blockType)) return true
     if (!SELF_DIRECTED_BLOCK_TYPES.has(block.blockType)) return false
     if (!this.allows(block)) return true
@@ -213,9 +218,12 @@ export class WriteStubPolicy implements SideEffectPolicy {
     return returned
   }
 
-  /** The allowed and mocked blocks, which a rerun of this run passes again. */
+  /**
+   * The allowed and mocked blocks, by id, which a rerun of this run passes again. Never the mock
+   * outputs: they may carry secrets or personal data, and the run's log keeps this record.
+   */
   runOptions(): DryRunOptions {
-    return { allowBlocks: [...this.allowBlockIds], mocks: Object.fromEntries(this.blockMocks) }
+    return { allowBlocks: [...this.allowBlockIds], mockedBlocks: [...this.blockMocks.keys()] }
   }
 
   summary(): SideEffectsSummary {

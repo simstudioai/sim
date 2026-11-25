@@ -37,6 +37,7 @@ import {
   isTimeoutAbortReason,
   isTimeoutError,
 } from '@/lib/core/execution-limits'
+import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { isCrossSiteSessionRequest } from '@/lib/core/security/same-origin'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
@@ -859,15 +860,25 @@ async function handleExecutePost(
       if (rawRunFromBlock.executionId) {
         const { getExecutionStateForWorkflow, getLatestExecutionStateWithExecutionId } =
           await import('@/lib/workflows/executor/execution-state')
-        const sourceExecution =
-          rawRunFromBlock.executionId === 'latest'
-            ? await getLatestExecutionStateWithExecutionId(workflowId)
-            : {
-                executionId: rawRunFromBlock.executionId,
-                state: await getExecutionStateForWorkflow(rawRunFromBlock.executionId, workflowId),
-              }
-        const snapshot = sourceExecution?.state
-        if (!snapshot) {
+        let sourceExecution: { executionId: string; state: SerializableExecutionState } | null
+        try {
+          if (rawRunFromBlock.executionId === 'latest') {
+            sourceExecution = await getLatestExecutionStateWithExecutionId(workflowId)
+          } else {
+            const state = await getExecutionStateForWorkflow(
+              rawRunFromBlock.executionId,
+              workflowId
+            )
+            sourceExecution = state ? { executionId: rawRunFromBlock.executionId, state } : null
+          }
+        } catch (error) {
+          if (!(error instanceof OrchestrationError)) throw error
+          return NextResponse.json(
+            { error: error.message },
+            { status: statusForOrchestrationError(error.code) }
+          )
+        }
+        if (!sourceExecution) {
           if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {
             resolvedRunFromBlock = {
               startBlockId: rawRunFromBlock.startBlockId,
@@ -891,7 +902,7 @@ async function handleExecutePost(
         } else {
           resolvedRunFromBlock = {
             startBlockId: rawRunFromBlock.startBlockId,
-            sourceSnapshot: snapshot,
+            sourceSnapshot: sourceExecution.state,
             sourceExecutionId: sourceExecution.executionId,
           }
         }

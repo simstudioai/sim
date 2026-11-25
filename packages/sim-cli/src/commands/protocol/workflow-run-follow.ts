@@ -1,4 +1,4 @@
-import { isPlainRecord, isRecordLike, toRecord } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike, toArray, toRecord } from '@sim/utils/object'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
@@ -102,8 +102,8 @@ async function resolveWorkflowRunSelection(
   const useMockPayload = flags.mockPayload === true
   const stopAfter = typeof flags.stopAfter === 'string' ? flags.stopAfter : undefined
   const dry = flags.dry === true
-  const allowBlocks = Array.isArray(flags.allow) ? (flags.allow as string[]) : []
-  const mockValues = Array.isArray(flags.mock) ? (flags.mock as string[]) : []
+  const allowBlocks = toArray<string>(flags.allow)
+  const mockValues = toArray<string>(flags.mock)
   /** These flags only apply to the draft, so each implies `--manual`. */
   const manual =
     flags.manual === true ||
@@ -190,13 +190,13 @@ async function resolveWorkflowRunSelection(
 
 /**
  * A dry run's side effects in a few lines on stderr, for the human formats: each write that was
- * not sent, sent because its block was allowed, or made by code the run cannot see. The request
- * payloads are in the result itself (`--output json`).
+ * not sent, sent because its block was allowed, or made by code the run cannot see, and a note
+ * for an allowed block whose writes all stayed stubbed (an Agent's call to a custom block). The
+ * request payloads are in the result itself (`--output json`).
  */
-function printSideEffects(sideEffects: unknown): void {
+function printSideEffects(sideEffects: unknown, dryRun: unknown): void {
   if (!isRecordLike(sideEffects)) return
-  const list = (key: string) =>
-    Array.isArray(sideEffects[key]) ? sideEffects[key].filter(isRecordLike) : []
+  const list = (key: string) => toArray(sideEffects[key]).filter(isRecordLike)
   const stubbed = list('stubbed')
   const allowed = list('allowed')
   const unchecked = list('unchecked')
@@ -215,6 +215,14 @@ function printSideEffects(sideEffects: unknown): void {
     0
   )
   if (omitted > 0) lines.push(`  … ${omitted} more`)
+  for (const blockId of toArray(toRecord(dryRun).allowBlocks)) {
+    if (allowed.some((entry) => entry.blockId === blockId)) continue
+    const held = stubbed.find((entry) => entry.blockId === blockId)
+    if (!held) continue
+    lines.push(
+      `  note       ${safeOneLine(String(held.block))} was allowed but sent nothing: allowing an Agent sends only its own tool calls, not a workflow or custom block it calls`
+    )
+  }
   lines.push('Request payloads: sideEffects in --output json')
   writeStderr(styles().dim(`${lines.join('\n')}\n`))
 }
@@ -366,7 +374,7 @@ async function runWithResultStream(
       expandedTrace: flags.trace === true,
     })
     if (profile.output === 'table' || profile.output === 'text') {
-      printSideEffects(payload.sideEffects)
+      printSideEffects(payload.sideEffects, payload.dryRun)
     }
 
     const failure = runFailureMessage('executeWorkflow', payload)
@@ -715,10 +723,12 @@ deployed has none. --manual runs the saved draft, as the source loop leaves it.
 table writes, HTTP calls, custom and MCP tools) returns a placeholder and is listed in
 sideEffects.stubbed with the request it would have sent; check those payloads. Code (a Function
 block's, or code an Agent's model writes) runs and is listed in sideEffects.unchecked. Child
-workflows run dry too; custom blocks are answered whole. Agents read memory but write none, and the
-run raises no workspace event. --allow <block> sends that block's writes for real (use a test
-resource); --mock <block>=<json> answers a block with fixed output, to steer a branch. A dry run is
-the --source-run only of another dry run.
+workflows run dry too; custom, Human in the loop and Wait blocks are answered whole, so the run
+never pauses. Agents read memory but write none, and the run raises no workspace event.
+--allow <block> sends that block's writes for real (use a test resource); allowing an Agent sends
+only its own tool calls, not a workflow or custom block it calls. --mock <block>=<json> answers a
+block with fixed output, to steer a branch; a locked block cannot be mocked, and an output field
+cannot start with _. A dry run is the --source-run only of another dry run, and is never resumed.
 
 The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the
 workflow's final output) and blockOutputs (what --select-output named). It has no success field:
@@ -727,7 +737,8 @@ instead: success and output.
 
 A run that failed in a block has next: the command that reruns the saved draft from that block
 (or from the outermost loop or parallel holding it) with this run as --source-run, so after a fix
-only that block and those after it run again; a dry run's keeps --dry, --allow and --mock. Add --stop-after <block> to stop after a block;
+only that block and those after it run again; a dry run's keeps --dry and --allow. Mock outputs
+are never stored, so pass each --mock again. Add --stop-after <block> to stop after a block;
 naming the block next starts from reruns only it.
 
 Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed
@@ -765,12 +776,12 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option(
       '--allow <block>',
-      "Send this block's writes for real during a --dry run (its id, display name or key); repeatable",
+      "Send this block's writes for real during a --dry run (its id, display name or key); for an Agent, only its own tool calls, not a workflow or custom block it calls; repeatable",
       collectRepeated
     )
     .option(
       '--mock <block>=<json|@file>',
-      'Answer this block with the given JSON object instead of running it during a --dry run (its id, display name or key), to steer a branch or give a stubbed write a realistic result; repeatable',
+      'Answer this block with the given JSON object instead of running it during a --dry run (its id, display name or key), to steer a branch or give a stubbed write a realistic result. Not a locked block; no field starting with _. Not stored, so a rerun passes it again; repeatable',
       collectRepeated
     )
     .option(

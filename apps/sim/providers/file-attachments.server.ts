@@ -132,36 +132,31 @@ export async function attachLargeFileRemoteUrls(
   }
 }
 
-/** The files one request uploaded to a provider's Files API. */
-export interface ProviderFileUploads {
-  /**
-   * Deletes them from the provider account. Best effort: a failure is logged, and the files
-   * expire on their own (OpenAI's after {@link OPENAI_FILE_EXPIRY_SECONDS}, Gemini's in 48 hours).
-   */
-  remove(): Promise<void>
-}
+/**
+ * Deletes one uploaded file from the provider account. Best effort: a failure is logged, and the
+ * file expires on its own (OpenAI's after {@link OPENAI_FILE_EXPIRY_SECONDS}, Gemini's in 48
+ * hours).
+ */
+export type ProviderFileRemoval = () => Promise<void>
 
 /**
  * For `files-api` providers, uploads each large attachment (already carrying a signed
  * `remoteUrl` from {@link attachLargeFileRemoteUrls}) to the provider Files API and records
  * the returned handle on the file. Runs after the request's API key is resolved so hosted
- * and BYOK keys both work.
+ * and BYOK keys both work. Each file's removal is pushed onto `removals` the moment the provider
+ * names it, so a caller that deletes its uploads deletes every one that landed, even when a later
+ * upload, or the provider's processing of this one, fails.
  */
 export async function uploadLargeFilesToProvider(
   request: ProviderRequest,
   providerId: ProviderId | string,
-  executionContext?: ExecutionContext
-): Promise<ProviderFileUploads> {
-  const removals: Array<() => Promise<void>> = []
-  const uploads: ProviderFileUploads = {
-    remove: async () => {
-      for (const removal of removals.splice(0)) await removal()
-    },
-  }
-  if (getProviderFileStrategy(providerId) !== 'files-api') return uploads
+  executionContext?: ExecutionContext,
+  removals: ProviderFileRemoval[] = []
+): Promise<void> {
+  if (getProviderFileStrategy(providerId) !== 'files-api') return
 
   const groups = groupUploadableFiles(request.messages)
-  if (groups.length === 0) return uploads
+  if (groups.length === 0) return
 
   const maxBytes = getProviderAttachmentMaxBytes(providerId)
   const ai =
@@ -173,23 +168,21 @@ export async function uploadLargeFilesToProvider(
     const [representative] = group
     await assertFileAccessForUpload(representative, request.userId, executionContext)
     if (providerId === 'openai') {
-      const fileId = await uploadOpenAIFile(
+      await uploadOpenAIFile(
         representative,
         request.apiKey,
         maxBytes,
+        removals,
         request.abortSignal
       )
-      removals.push(() => deleteOpenAIFile(fileId, request.apiKey))
     } else if (ai) {
-      const name = await uploadGeminiFile(representative, ai, maxBytes, request.abortSignal)
-      removals.push(() => deleteGeminiFile(name, ai))
+      await uploadGeminiFile(representative, ai, maxBytes, removals, request.abortSignal)
     }
     for (const file of group) {
       file.providerFileId = representative.providerFileId
       file.providerFileUri = representative.providerFileUri
     }
   }
-  return uploads
 }
 
 /**
@@ -266,8 +259,9 @@ async function uploadOpenAIFile(
   file: UserFile,
   apiKey: string | undefined,
   maxBytes: number,
+  removals: ProviderFileRemoval[],
   signal?: AbortSignal
-): Promise<string> {
+): Promise<void> {
   const mimeType = inferAttachmentMimeType(file)
   const blob = await downloadFileForUpload(file, maxBytes)
 
@@ -292,9 +286,10 @@ async function uploadOpenAIFile(
   if (!uploaded.id) {
     throw new Error(`OpenAI file upload for "${file.name}" returned no id`)
   }
-  file.providerFileId = uploaded.id
-  logger.info(`Uploaded "${file.name}" to OpenAI Files API`, { fileId: uploaded.id })
-  return uploaded.id
+  const fileId = uploaded.id
+  removals.push(() => deleteOpenAIFile(fileId, apiKey))
+  file.providerFileId = fileId
+  logger.info(`Uploaded "${file.name}" to OpenAI Files API`, { fileId })
 }
 
 async function deleteOpenAIFile(fileId: string, apiKey: string | undefined): Promise<void> {
@@ -316,8 +311,9 @@ async function uploadGeminiFile(
   file: UserFile,
   ai: GoogleGenAI,
   maxBytes: number,
+  removals: ProviderFileRemoval[],
   signal?: AbortSignal
-): Promise<string> {
+): Promise<void> {
   const mimeType = inferAttachmentMimeType(file)
   const blob = await downloadFileForUpload(file, maxBytes)
 
@@ -326,6 +322,7 @@ async function uploadGeminiFile(
     throw new Error(`Gemini upload for "${file.name}" returned no file name`)
   }
   const uploadedName = uploaded.name
+  removals.push(() => deleteGeminiFile(uploadedName, ai))
 
   const deadline = Date.now() + GEMINI_PROCESSING_TIMEOUT_MS
   while (uploaded.state === FileState.PROCESSING) {
@@ -343,7 +340,6 @@ async function uploadGeminiFile(
   }
   file.providerFileUri = uploaded.uri
   logger.info(`Uploaded "${file.name}" to Gemini File API`, { fileUri: uploaded.uri })
-  return uploadedName
 }
 
 async function deleteGeminiFile(name: string, ai: GoogleGenAI): Promise<void> {

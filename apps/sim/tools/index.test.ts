@@ -7493,7 +7493,7 @@ describe('MCP Tool Execution', () => {
 
   it('stubs an MCP tool in a dry run, recording only its arguments, and sends an allowed one', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
-    const dryRun = new WriteStubPolicy({ workflowId: 'test-workflow', pausingBlocks: 'stub' })
+    const dryRun = new WriteStubPolicy({ workflowId: 'test-workflow' })
     const params = {
       path: '/test',
       envVars: { UNREFERENCED_SECRET: 'workspace-secret-value' },
@@ -7518,7 +7518,6 @@ describe('MCP Tool Execution', () => {
     const allowed = new WriteStubPolicy({
       workflowId: 'test-workflow',
       allowBlockIds: new Set(['agent-1']),
-      pausingBlocks: 'stub',
     })
     await executeTool('mcp-123-delete_file', params, {
       executionContext: createToolExecutionContext({ sideEffects: allowed }),

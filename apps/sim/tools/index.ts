@@ -1813,11 +1813,12 @@ async function executeToolImplementation(
       ? { ...suppliedOperationContext, resolvedSecretTraceRegistry }
       : undefined
   /**
-   * A tool's own follow-up calls (a `postProcess` that writes again) run in its caller's
-   * `_context`, so they act for the same block: a run's side-effect policy decides them as it
-   * decided the call that made them.
+   * Under a run's side-effect policy, a tool's own follow-up calls (a `postProcess` that writes
+   * again) run in its caller's `_context`, so the policy decides them for the same block as the
+   * call that made them. Any other run passes them on as they are.
    */
-  const callerContext = isPlainRecord(params._context) ? params._context : undefined
+  const callerContext =
+    executionContext?.sideEffects && isPlainRecord(params._context) ? params._context : undefined
   const executeNestedTool: typeof executeTool = (nestedToolId, nestedParams, nestedOptions = {}) =>
     executeTool(
       nestedToolId,
@@ -1951,7 +1952,7 @@ async function executeToolImplementation(
         return await answerUnsentWrite(unsentMcpWrite, {
           params,
           registry: resolvedSecretTraceRegistry,
-          describeRequest: () => describeMcpToolRequest(params),
+          request: describeMcpToolRequest(params),
         })
       }
       return await executeMcpTool(
@@ -2001,10 +2002,10 @@ async function executeToolImplementation(
 
     /**
      * Decided before a hosted key is drawn, so a write the run's side-effect policy will not send
-     * spends no rate-limit slot. A workflow a tool runs decides its own writes.
+     * spends no rate-limit slot.
      */
     const unsentWrite =
-      tool.effect !== 'read' && normalizedToolId !== 'workflow_executor'
+      tool.effect !== 'read'
         ? unsentWriteFor({ toolId: normalizedToolId, params: contextParams, executionContext })
         : null
 
@@ -2250,12 +2251,10 @@ async function executeToolImplementation(
 
     // After credentials resolve, so an unsent write still proves them.
     if (unsentWrite) {
-      const unsentTool = tool
       return await answerUnsentWrite(unsentWrite, {
         params: contextParams,
         registry: resolvedSecretTraceRegistry,
-        describeRequest: () =>
-          describeToolRequest(unsentTool, contextParams, resolvedSecretTraceRegistry),
+        request: describeToolRequest(tool, contextParams, resolvedSecretTraceRegistry),
       })
     }
 

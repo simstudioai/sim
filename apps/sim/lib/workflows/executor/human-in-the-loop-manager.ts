@@ -85,6 +85,7 @@ import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import { stripLoopDigest } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedConnection } from '@/serializer/types'
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
 /**
  * All paused-execution / resume-queue / execution-log persistence in this
@@ -820,6 +821,28 @@ export class PauseResumeManager {
 
       if (!isResumablePausedStatus(pausedExecution.status)) {
         throw new ResumeAdmissionError('Paused execution is not resumable', 409, false)
+      }
+
+      /**
+       * A test run (a dry run or a workflow test) answered its writes with placeholders, and a
+       * resumed run carries no side-effect policy, so resuming it would send writes built on them.
+       */
+      const [pausedLog] = await tx
+        .select({ trigger: workflowExecutionLogs.trigger })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .limit(1)
+      if (pausedLog?.trigger === TEST_TRIGGER) {
+        throw new ResumeAdmissionError(
+          'A test run (a dry run or a workflow test) is never resumed: its outputs hold placeholders for the writes it did not send',
+          409,
+          false
+        )
       }
 
       const pausePoints = pausedExecution.pausePoints as Record<string, any>

@@ -527,8 +527,9 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const streamingConfig = this.getStreamingConfig(ctx, block)
+      const writesMemory = persistsMemory(ctx, filteredInputs)
       const agentConversation =
-        persistsMemory(ctx, filteredInputs) &&
+        writesMemory &&
         filteredInputs.conversationId &&
         nodeMetadata &&
         nodeMetadata.executionOrder !== undefined
@@ -546,6 +547,7 @@ export class AgentBlockHandler implements BlockHandler {
         modelInputs,
         skillMetadata,
         fileProjection,
+        writesMemory,
         agentConversation
       )
       /**
@@ -649,7 +651,7 @@ export class AgentBlockHandler implements BlockHandler {
       if (this.isStreamingExecution(result)) {
         const streamingResult = result as StreamingExecution
         streamingResult.diagnosticResolvedSecretTraceRegistry = providerErrorRegistry
-        if (persistsMemory(ctx, filteredInputs)) {
+        if (writesMemory) {
           return this.wrapStreamForMemoryPersistence(
             ctx,
             filteredInputs,
@@ -661,7 +663,7 @@ export class AgentBlockHandler implements BlockHandler {
         return streamingResult
       }
 
-      if (persistsMemory(ctx, filteredInputs)) {
+      if (writesMemory) {
         await this.persistResponseToMemory(
           ctx,
           filteredInputs,
@@ -1450,6 +1452,8 @@ export class AgentBlockHandler implements BlockHandler {
     modelInputs: AgentInputs,
     skillMetadata: Array<{ name: string; description: string }>,
     fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>,
+    /** Whether this turn is written to memory ({@link persistsMemory}). */
+    writesMemory: boolean,
     agentConversation?: AgentTurnSession
   ): Promise<Message[] | undefined> {
     const messages: Message[] = []
@@ -1608,6 +1612,7 @@ export class AgentBlockHandler implements BlockHandler {
       fileProjection.projectedNameByFile,
       fileProjection.directNameInputPaths
     )
+    if (!writesMemory) return messagesWithFiles
 
     /** Persist the complete turn before provider hydration adds bytes or transient handles. */
     const lastUserMessage = messages
@@ -1616,7 +1621,6 @@ export class AgentBlockHandler implements BlockHandler {
     const attachedUserMessage = messagesWithFiles
       ?.filter((message) => message.role === 'user' && !isConversationHistoryNotice(message))
       .at(-1)
-    if (!persistsMemory(ctx, inputs)) return messagesWithFiles
     const messagesToStore = pendingMemoryMessages.map(({ raw, model }) =>
       model === lastUserMessage && attachedUserMessage?.files
         ? { ...raw, files: attachedUserMessage.files }

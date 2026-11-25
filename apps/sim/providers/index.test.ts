@@ -480,6 +480,27 @@ describe('executeProviderRequest — durable Agent continuation', () => {
 })
 
 describe('executeProviderRequest — tool identities', () => {
+  it.each([
+    ['a run under a side-effect policy deletes', { sideEffects: {} }, 1],
+    ['any other run leaves', {}, 0],
+  ])('%s the files it uploaded when a later upload fails', async (_, policy, deletions) => {
+    const removeLanded = vi.fn(async () => {})
+    mockUploadLargeFilesToProvider.mockImplementationOnce(
+      async (_request, _provider, _context, removals: Array<() => Promise<void>>) => {
+        removals.push(removeLanded)
+        throw new Error('The second upload failed')
+      }
+    )
+    const executionContext = { workflowId: 'workflow-1', ...policy } as ExecutionContext
+
+    await expect(
+      executeProviderRequest('openai', { model: 'test-model' }, { executionContext })
+    ).rejects.toThrow('The second upload failed')
+
+    expect(removeLanded).toHaveBeenCalledTimes(deletions)
+    expect(mockExecuteRequest).not.toHaveBeenCalled()
+  })
+
   it('passes trusted execution context to both attachment authorization stages without serializing it', async () => {
     const executionContext = {
       workflowId: 'workflow-1',
@@ -496,7 +517,8 @@ describe('executeProviderRequest — tool identities', () => {
     expect(mockUploadLargeFilesToProvider).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'test-model' }),
       'anthropic',
-      executionContext
+      executionContext,
+      []
     )
     expect(mockExecuteRequest.mock.calls[0][0]).not.toHaveProperty('executionContext')
     expect(mockExecuteRequest.mock.calls[0][0]).not.toHaveProperty('principal')

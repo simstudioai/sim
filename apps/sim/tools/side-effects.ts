@@ -12,8 +12,9 @@ import {
   redactExactSensitiveValues,
 } from '@/lib/core/security/redaction'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
-import { parseMcpToolArguments } from '@/lib/mcp/tool-arguments'
-import { getBlock, getBlockByToolName } from '@/blocks/registry'
+import { parseMcpToolArguments, RUN_CONTEXT_PARAMS } from '@/lib/mcp/tool-arguments'
+import { getBlock, getBlockRegistry } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
 import { isCustomTool } from '@/executor/constants'
 import type { SideEffectPolicy, SideEffectSite } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
@@ -24,17 +25,6 @@ import { prepareToolRequest, projectToolModelInputParams } from '@/tools/request
 import { type ExecutableToolConfig, isInternalToolConfig, type ToolResponse } from '@/tools/types'
 
 const logger = createLogger('ToolSideEffects')
-
-/**
- * Params an Agent's tool call carries for the run itself (every env var, workflow variable and
- * block output), which no stubbed tool sends and a recorded request must never show.
- */
-const RUN_CONTEXT_PARAMS: ReadonlySet<string> = new Set([
-  'envVars',
-  'workflowVariables',
-  'blockData',
-  'blockNameMapping',
-])
 
 /** The block of the executing workflow that made a tool call, from its server-set `_context`. */
 function sideEffectSite(
@@ -55,7 +45,7 @@ function sideEffectSite(
 }
 
 /** A write tool call the run's policy answers instead of sending. */
-export interface UnsentWrite {
+interface UnsentWrite {
   policy: SideEffectPolicy
   executionContext: ExecutionContext
   call: SideEffectSite & { toolId: string }
@@ -133,22 +123,58 @@ function redactCredentials(value: unknown, credentials: string[]): unknown {
   )
 }
 
+/** The params a block's password fields fill: each field's id and canonical param. */
+function passwordParamsOf(block: BlockConfig | undefined): ReadonlySet<string> {
+  const params = new Set<string>()
+  for (const subBlock of block?.subBlocks ?? []) {
+    if (!subBlock.password) continue
+    params.add(subBlock.id)
+    if (subBlock.canonicalParamId) params.add(subBlock.canonicalParamId)
+  }
+  return params
+}
+
+/**
+ * The static block registry's password params per block type, and the block each tool belongs
+ * to, read once on the first unsent write rather than on every one.
+ */
+let registryPasswordIndex:
+  | { paramsByBlockType: Map<string, ReadonlySet<string>>; blockTypeByTool: Map<string, string> }
+  | undefined
+
+function readRegistryPasswordIndex() {
+  if (registryPasswordIndex) return registryPasswordIndex
+  const paramsByBlockType = new Map<string, ReadonlySet<string>>()
+  const blockTypeByTool = new Map<string, string>()
+  for (const block of Object.values(getBlockRegistry())) {
+    paramsByBlockType.set(block.type, passwordParamsOf(block))
+    for (const toolId of block.tools?.access ?? []) {
+      if (!blockTypeByTool.has(toolId)) blockTypeByTool.set(toolId, block.type)
+    }
+  }
+  registryPasswordIndex = { paramsByBlockType, blockTypeByTool }
+  return registryPasswordIndex
+}
+
+/** A block type's password params; a custom block's config is per workspace, so it is read live. */
+function passwordParamsFor(blockType: string): ReadonlySet<string> {
+  return (
+    readRegistryPasswordIndex().paramsByBlockType.get(blockType) ??
+    passwordParamsOf(getBlock(blockType))
+  )
+}
+
 /**
  * The values in `params` that are secrets: credential-named params (an access token, a hosted
  * key, a secret access key), and whatever was typed into a password field of the blocks
  * `blockTypes` names, whatever the field is called.
  */
 function secretValues(params: Record<string, unknown>, blockTypes: string[]): string[] {
-  const passwordParams = new Set<string>()
-  for (const blockType of blockTypes) {
-    for (const subBlock of getBlock(blockType)?.subBlocks ?? []) {
-      if (!subBlock.password) continue
-      passwordParams.add(subBlock.id)
-      if (subBlock.canonicalParamId) passwordParams.add(subBlock.canonicalParamId)
-    }
-  }
+  const passwordParams = blockTypes.map(passwordParamsFor)
   return Object.entries(params).flatMap(([key, value]) =>
-    (isSensitiveKey(key) || passwordParams.has(key)) && typeof value === 'string' && value !== ''
+    (isSensitiveKey(key) || passwordParams.some((fields) => fields.has(key))) &&
+    typeof value === 'string' &&
+    value !== ''
       ? [value]
       : []
   )
@@ -193,21 +219,20 @@ export async function redactSideEffectPayload(input: {
 
 /**
  * The response answering a write tool call the run's side-effect policy does not send, after the
- * policy recorded the request it would have sent. `describeRequest` runs only for an unsent call,
- * and a request it cannot build fails the call as sending it would.
+ * policy recorded `request`, the request it would have sent.
  */
 export async function answerUnsentWrite(
   write: UnsentWrite,
   input: {
     params: Record<string, unknown>
     registry: ResolvedSecretTraceRegistry | undefined
-    describeRequest: () => unknown
+    request: unknown
   }
 ): Promise<ToolResponse> {
   const { call } = write
-  const toolBlockType = getBlockByToolName(call.toolId)?.type
+  const toolBlockType = readRegistryPasswordIndex().blockTypeByTool.get(call.toolId)
   const request = await redactSideEffectPayload({
-    payload: input.describeRequest(),
+    payload: input.request,
     params: input.params,
     blockTypes: [call.blockType, toolBlockType].filter((type): type is string => Boolean(type)),
     executionContext: write.executionContext,

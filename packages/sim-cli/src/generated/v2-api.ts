@@ -7188,7 +7188,7 @@ type ExecuteWorkflowResponseRef1 = {
 
 type ExecuteWorkflowResponseRef2 = {
   allowBlocks: Array<string>
-  mocks: Record<string, Record<string, unknown>>
+  mockedBlocks: Array<string>
 }
 
 type ExecuteWorkflowResponseRef3 = {
@@ -10388,7 +10388,7 @@ type GetWorkflowRunResponseRef3 = {
 
 type GetWorkflowRunResponseRef4 = {
   allowBlocks: Array<string>
-  mocks: Record<string, Record<string, unknown>>
+  mockedBlocks: Array<string>
 }
 
 type GetWorkflowRunResponseRef5 = {

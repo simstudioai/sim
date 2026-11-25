@@ -1713,7 +1713,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .max(50)
         .optional()
         .describe(
-          'Blocks (id, display name or reference key) of this workflow whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block, or a block that runs another workflow (a Workflow or custom block), cannot be allowed.'
+          'Blocks (id, display name or reference key) of this workflow whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block, or a block that runs another workflow (a Workflow or custom block), cannot be allowed. Allowing an Agent sends only its own tool calls: a workflow or custom block it calls stays stubbed.'
         ),
       mocks: z
         .record(
@@ -1727,7 +1727,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
           message: 'run.mocks names at most 50 blocks',
         })
         .describe(
-          'Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`.'
+          'Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`. A locked block (or one inside a locked loop or parallel) cannot be mocked, and an output field cannot start with `_` (those control the run). The outputs are never stored: the run records only which blocks were mocked, so a rerun passes them again.'
         ),
     })
     .strict(),
@@ -2047,19 +2047,22 @@ const v2RunSideEffectsSchema = z
     description: 'What a dry run did with each write it reached.',
   })
 
-const v2RunDryRunSchema = z
+export const v2RunDryRunSchema = z
   .object({
     allowBlocks: z
       .array(z.string().describe('Block id.'))
       .describe('Blocks whose writes the run sent (`run.allowBlocks`), by id.'),
-    mocks: z
-      .record(z.string(), z.record(z.string(), z.unknown().describe('Output field.')))
-      .describe('Blocks the run answered with fixed outputs (`run.mocks`), keyed by id.'),
+    mockedBlocks: z
+      .array(z.string().describe('Block id.'))
+      .describe(
+        'Blocks the run answered with fixed outputs (`run.mocks`), by id. Their outputs are never stored, so a rerun passes them again.'
+      ),
   })
   .meta({
     id: 'WorkflowDryRun',
     title: 'Workflow dry run',
-    description: 'The blocks a dry run sent and mocked, which a rerun of it passes again.',
+    description:
+      'The blocks a dry run sent and mocked, by id, which a rerun of it names again; never a mock output.',
   })
 
 /**
@@ -2510,7 +2513,7 @@ export const v2WorkflowRunStatusSchema = z
     dryRun: v2RunDryRunSchema
       .nullable()
       .describe(
-        "A failed dry run's allowed and mocked blocks, which a rerun of it passes again; null for any other run, or when execution data is hidden by organization permission groups."
+        "A failed dry run's allowed and mocked blocks, by id, which a rerun of it names again; null for any other run, or when execution data is hidden by organization permission groups."
       ),
   })
   .meta({

@@ -1,17 +1,19 @@
 import { db } from '@sim/db'
 import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
-import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
-import { and, desc, eq, or, sql } from 'drizzle-orm'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
+import { and, desc, eq, ne, or, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { materializeExecutionData, TRACE_STORE_REF_KEY } from '@/lib/logs/execution/trace-store'
 import { forceFailedMessage } from '@/lib/workflows/executor/failure-message'
 import { buildResumeUiUrl } from '@/executor/constants'
-import type { DryRunOptions, SerializableExecutionState } from '@/executor/execution/types'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { PausePoint } from '@/executor/types'
 import {
   isResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceProvenanceV1,
 } from '@/executor/utils/resolved-secret-trace-registry'
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
 const LATEST_EXECUTION_STATE_CANDIDATE_LIMIT = 10
 
@@ -63,6 +65,7 @@ interface ExecutionStateRow {
   workflowId: string | null
   workspaceId: string
   status?: string
+  trigger?: string
   executionData: unknown
 }
 
@@ -99,6 +102,7 @@ async function getExecutionStateRow(
       workflowId: workflowExecutionLogs.workflowId,
       workspaceId: workflowExecutionLogs.workspaceId,
       status: workflowExecutionLogs.status,
+      trigger: workflowExecutionLogs.trigger,
       executionData: workflowExecutionLogs.executionData,
     })
     .from(workflowExecutionLogs)
@@ -132,11 +136,23 @@ async function extractExecutionStateFromRow(
   return extractExecutionState(executionData)
 }
 
+/**
+ * The execution state a run that starts from a block reuses as its source. A test run (a dry run
+ * or a workflow test) answered its writes with placeholders, so its state is the source only of
+ * another dry run, which says so with `allowTestRun`; any other run is refused it.
+ */
 export async function getExecutionStateForWorkflow(
   executionId: string,
-  workflowId: string
+  workflowId: string,
+  { allowTestRun = false }: { allowTestRun?: boolean } = {}
 ): Promise<SerializableExecutionState | null> {
   const row = await getExecutionStateRow(executionId, workflowId)
+  if (row?.trigger === TEST_TRIGGER && !allowTestRun) {
+    throw new OrchestrationError(
+      'validation',
+      `Execution "${executionId}" is a test run (a dry run or a workflow test): its outputs hold placeholders for the writes it did not send, so only a dry run can start from it. Start from a run that was not a test, or run dry.`
+    )
+  }
   return extractExecutionStateFromRow(row)
 }
 
@@ -156,61 +172,6 @@ export async function getWorkflowExecutionLogStatus(
     )
     .limit(1)
   return row?.status
-}
-
-/** The trigger an execution's workflow log recorded, or `undefined` when it never started one. */
-export async function getWorkflowExecutionLogTrigger(
-  executionId: string,
-  workflowId: string
-): Promise<string | undefined> {
-  const [row] = await db
-    .select({ trigger: workflowExecutionLogs.trigger })
-    .from(workflowExecutionLogs)
-    .where(
-      and(
-        eq(workflowExecutionLogs.executionId, executionId),
-        eq(workflowExecutionLogs.workflowId, workflowId)
-      )
-    )
-    .limit(1)
-  return row?.trigger
-}
-
-/**
- * A dry run's allowed and mocked blocks, as its log's trigger recorded them; null for any other
- * run, or a record not in the shape a dry run writes.
- */
-export async function getWorkflowExecutionDryRun(
-  executionId: string,
-  workflowId: string
-): Promise<DryRunOptions | null> {
-  const [row] = await db
-    .select({
-      dryRun: sql<unknown>`${workflowExecutionLogs.executionData} #> '{trigger,data,dryRun}'`,
-    })
-    .from(workflowExecutionLogs)
-    .where(
-      and(
-        eq(workflowExecutionLogs.executionId, executionId),
-        eq(workflowExecutionLogs.workflowId, workflowId)
-      )
-    )
-    .limit(1)
-  const dryRun = row?.dryRun
-  if (!isPlainRecord(dryRun) || !isPlainRecord(dryRun.mocks)) return null
-  const { allowBlocks } = dryRun
-  if (!Array.isArray(allowBlocks)) return null
-  const allowed: string[] = []
-  for (const blockId of allowBlocks) {
-    if (typeof blockId !== 'string') return null
-    allowed.push(blockId)
-  }
-  const mocks: DryRunOptions['mocks'] = {}
-  for (const [blockId, output] of Object.entries(dryRun.mocks)) {
-    if (!isPlainRecord(output)) return null
-    mocks[blockId] = output
-  }
-  return { allowBlocks: allowed, mocks }
 }
 
 /** The log's own correlation wins; older logs carried it only on the trigger data. */
@@ -373,6 +334,10 @@ export async function getExecutionInputForWorkflow(
   return { found: true, input: extractLegacyWorkflowInput(data) }
 }
 
+/**
+ * The newest run of the workflow with execution state, the source a run from a block reuses when
+ * it names none. Never a test run: see {@link getExecutionStateForWorkflow}.
+ */
 export async function getLatestExecutionStateWithExecutionId(
   workflowId: string
 ): Promise<ExecutionStateRecord | null> {
@@ -388,6 +353,7 @@ export async function getLatestExecutionStateWithExecutionId(
     .where(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
+        ne(workflowExecutionLogs.trigger, TEST_TRIGGER),
         or(
           sql`${workflowExecutionLogs.executionData} -> 'executionState' IS NOT NULL`,
           sql`${workflowExecutionLogs.executionData} -> ${TRACE_STORE_REF_KEY} IS NOT NULL`

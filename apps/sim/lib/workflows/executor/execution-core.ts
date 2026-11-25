@@ -81,6 +81,7 @@ import {
 } from '@/executor/utils/subflow-node-id-codec'
 import { Serializer } from '@/serializer'
 import type { SerializedWorkflow } from '@/serializer/types'
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
 const logger = createLogger('ExecutionCore')
 
@@ -331,14 +332,15 @@ function logTriggerData(metadata: ExecutionMetadata): Record<string, unknown> | 
  * workflow and stamps `lastRunAt`. Paused runs are not settled and are counted
  * when they finish. Awaited from the finalization path rather than fired and
  * forgotten, so a process reload after the log write cannot drop it. A run
- * whose workspace or workflow was deleted has no row left to count on.
+ * whose workspace or workflow was deleted has no row left to count on, and a
+ * test run (a dry run or a workflow test) changes nothing beyond its own log.
  */
 async function recordSettledRun(
   workflowId: string,
   requestId: string,
   loggingSession: LoggingSession
 ): Promise<void> {
-  if (loggingSession.getDeletedScope()) return
+  if (loggingSession.getDeletedScope() || loggingSession.getTriggerType() === TEST_TRIGGER) return
   try {
     await updateWorkflowRunCounts(workflowId)
   } catch (error) {
@@ -369,14 +371,6 @@ function buildTraceSpansForLog(
   }
 }
 
-/**
- * Whether a settled run counts on its workflow. A test run (a dry run or a workflow test) changes
- * nothing beyond its own log, so it does not.
- */
-function countsAsRun(triggerType: string): boolean {
-  return triggerType !== 'test'
-}
-
 async function finalizeExecutionOutcome(params: {
   result: ExecutionResult
   loggingSession: LoggingSession
@@ -385,18 +379,9 @@ async function finalizeExecutionOutcome(params: {
   requestId: string
   workflowInput: unknown
   abortSignal?: AbortSignal
-  triggerType: string
 }): Promise<void> {
-  const {
-    result,
-    loggingSession,
-    workflowId,
-    executionId,
-    requestId,
-    workflowInput,
-    abortSignal,
-    triggerType,
-  } = params
+  const { result, loggingSession, workflowId, executionId, requestId, workflowInput, abortSignal } =
+    params
   const { traceSpans, totalDuration } = buildTraceSpansForLog(
     result,
     loggingSession,
@@ -464,7 +449,7 @@ async function finalizeExecutionOutcome(params: {
   }
 
   // Every non-paused outcome above is a settled run; the paused branch returned.
-  if (countsAsRun(triggerType)) await recordSettledRun(workflowId, requestId, loggingSession)
+  await recordSettledRun(workflowId, requestId, loggingSession)
 }
 
 async function finalizeExecutionError(params: {
@@ -475,10 +460,8 @@ async function finalizeExecutionError(params: {
   requestId: string
   /** The input the executor ran with; absent when the run failed before its input stage finished. */
   workflowInput: unknown
-  triggerType: string
 }): Promise<boolean> {
-  const { error, loggingSession, workflowId, executionId, requestId, workflowInput, triggerType } =
-    params
+  const { error, loggingSession, workflowId, executionId, requestId, workflowInput } = params
   const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
   const { traceSpans } = executionResult
     ? buildTraceSpansForLog(executionResult, loggingSession, requestId, executionId)
@@ -511,7 +494,7 @@ async function finalizeExecutionError(params: {
   }
 
   // A run that threw after starting is a failed run, and failed runs count.
-  if (countsAsRun(triggerType)) await recordSettledRun(workflowId, requestId, loggingSession)
+  await recordSettledRun(workflowId, requestId, loggingSession)
   return finalized
 }
 
@@ -1440,7 +1423,6 @@ async function executeWorkflowCoreImpl(
             requestId,
             workflowInput: processedInput,
             abortSignal,
-            triggerType,
           })
         } catch (postExecError) {
           logger.error(
@@ -1500,7 +1482,6 @@ async function executeWorkflowCoreImpl(
                 executionId,
                 requestId,
                 workflowInput: executorInput,
-                triggerType,
               })
             : false
 

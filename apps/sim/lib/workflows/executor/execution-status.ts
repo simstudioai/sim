@@ -7,6 +7,7 @@ import {
 } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { v2RunDryRunSchema } from '@/lib/api/contracts/v2/workflows'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
@@ -29,7 +30,9 @@ import { runFailureMessage } from '@/lib/workflows/executor/failure-message'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { namePausePoints, pauseBaseBlockId } from '@/lib/workflows/executor/pause-block-names'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
+import type { DryRunOptions } from '@/executor/execution/types'
 import type { PauseInputField, PausePoint, ResumeStatus } from '@/executor/types'
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
 /**
  * Reads a single execution's status resource — the log row, the paused-state
@@ -45,6 +48,7 @@ type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 interface ExecutionDataShape {
   finalOutput?: unknown
   traceSpans?: unknown
+  trigger?: { data?: { dryRun?: unknown } }
 }
 
 function resolvePath(value: unknown, path: string[]): unknown {
@@ -265,6 +269,13 @@ export interface ProjectedWorkflowExecutionStatus {
    * permission-group-enforced: logs.trace_spans
    */
   failedBlock: FailedTraceBlock | null
+  /**
+   * A failed dry run's allowed and mocked blocks, which a rerun of it names again; null for any
+   * other run, or when the viewer's group withholds execution data.
+   *
+   * permission-group-enforced: logs.trace_spans
+   */
+  dryRun: DryRunOptions | null
 }
 
 /**
@@ -297,6 +308,7 @@ export async function getProjectedWorkflowExecutionStatus(
     stateExecutionId: resolved.stateExecutionId,
     pausePoints: resolved.pausePoints,
     failedBlock: projection.hideTraceSpans ? null : resolved.failedBlock,
+    dryRun: projection.hideTraceSpans ? null : resolved.dryRun,
   }
 }
 
@@ -361,6 +373,8 @@ interface ResolvedExecutionStatus {
   pausePoints: unknown
   /** The failing block the recorded trace names, when the answered `error` is the run's own. */
   failedBlock: FailedTraceBlock | null
+  /** A failed dry run's allowed and mocked blocks, as its log's trigger recorded them. */
+  dryRun: DryRunOptions | null
 }
 
 async function readWorkflowExecutionStatus(
@@ -450,6 +464,7 @@ async function readWorkflowExecutionStatus(
         stateExecutionId: executionId,
         pausePoints: null,
         failedBlock: null,
+        dryRun: null,
       }
     }
   }
@@ -472,7 +487,13 @@ async function readWorkflowExecutionStatus(
       finalOutput: null,
       blockOutputs: null,
     }
-    return { status, stateExecutionId: executionId, pausePoints: null, failedBlock: null }
+    return {
+      status,
+      stateExecutionId: executionId,
+      pausePoints: null,
+      failedBlock: null,
+      dryRun: null,
+    }
   }
 
   if (!logRow) {
@@ -489,6 +510,7 @@ async function readWorkflowExecutionStatus(
       pausePoints: run.pausePoints,
       failedBlock:
         status.status === 'failed' && run.status.status === 'failed' ? run.failedBlock : null,
+      dryRun: null,
     }
   }
 
@@ -573,6 +595,7 @@ async function readWorkflowExecutionStatus(
       stateExecutionId: executionId,
       pausePoints: paused ? pausedRow?.pausePoints : null,
       failedBlock: null,
+      dryRun: null,
     }
   }
 
@@ -607,7 +630,19 @@ async function readWorkflowExecutionStatus(
     stateExecutionId: executionId,
     pausePoints: paused ? pausedRow?.pausePoints : null,
     failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans, error) : null,
+    dryRun:
+      status === 'failed' && logRow.trigger === TEST_TRIGGER ? readDryRun(executionData) : null,
   }
+}
+
+/**
+ * A dry run's allowed and mocked blocks from its log's trigger, recovered with the rest of the
+ * execution data however it was stored; null for a test run that recorded none (a workflow test)
+ * or a record not in that shape.
+ */
+function readDryRun(executionData: ExecutionDataShape | null): DryRunOptions | null {
+  const parsed = v2RunDryRunSchema.safeParse(executionData?.trigger?.data?.dryRun)
+  return parsed.success ? parsed.data : null
 }
 
 /**

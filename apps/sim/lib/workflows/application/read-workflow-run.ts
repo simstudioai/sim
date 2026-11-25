@@ -15,7 +15,6 @@ import {
   getWorkflowRunFiles,
   type WorkflowRunFileDescriptor,
 } from '@/lib/workflows/executor/execution-run-files'
-import { getWorkflowExecutionDryRun } from '@/lib/workflows/executor/execution-state'
 import {
   getProjectedWorkflowExecutionStatus,
   projectPausedRunPoints,
@@ -95,6 +94,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         stateExecutionId,
         pausePoints: loadedPausePoints,
         failedBlock,
+        dryRun,
       } = projected
 
       /**
@@ -188,17 +188,6 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
             (await loadWorkflowFromNormalizedTables(context.workflowId))?.blocks ?? {}
           )
         : undefined
-
-      /**
-       * A failed dry run's allowed and mocked blocks, which its rerun passes again. The mocks are
-       * outputs, so a group that withholds execution data withholds them too.
-       *
-       * permission-group-enforced: logs.trace_spans
-       */
-      const dryRun =
-        status.status === 'failed' && !projection.hideTraceSpans
-          ? await getWorkflowExecutionDryRun(stateExecutionId, context.workflowId)
-          : null
 
       return {
         ...status,

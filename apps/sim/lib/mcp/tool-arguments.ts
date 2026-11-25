@@ -3,18 +3,27 @@ import { isPlainRecord } from '@sim/utils/object'
 
 const logger = createLogger('McpToolArguments')
 
+/**
+ * Params an Agent's tool call carries for the run itself (every env var, workflow variable and
+ * block output), which no tool sends: neither an MCP server's arguments nor a stubbed write's
+ * recorded request may show them.
+ */
+export const RUN_CONTEXT_PARAMS: ReadonlySet<string> = new Set([
+  'envVars',
+  'workflowVariables',
+  'blockData',
+  'blockNameMapping',
+])
+
 /** Params an MCP tool call carries for the run, never sent to the server as arguments. */
-const MCP_SYSTEM_PARAMETERS = new Set([
+const MCP_SYSTEM_PARAMETERS: ReadonlySet<string> = new Set([
+  ...RUN_CONTEXT_PARAMS,
   'operationPolicy',
   'serverId',
   'serverUrl',
   'toolName',
   'serverName',
   '_context',
-  'envVars',
-  'workflowVariables',
-  'blockData',
-  'blockNameMapping',
   '_toolSchema',
 ])
 

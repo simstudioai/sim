@@ -87,7 +87,7 @@ export interface ExecutionMetadata {
   allowLargeValueWorkflowScope?: boolean
   callChain?: string[]
   correlation?: AsyncExecutionCorrelation
-  /** A dry run's allowed and mocked blocks, recorded on its log so a rerun can pass them again. */
+  /** A dry run's allowed and mocked blocks, recorded on its log so a rerun can name them again. */
   dryRun?: DryRunOptions
   executionMode?: 'sync' | 'stream' | 'async'
   /**
@@ -320,10 +320,10 @@ export interface ExecutionTestHooks {
   recordSpy(call: { blockId: string; input: unknown; output: unknown }): void
 }
 
-/** The blocks of the workflow a dry run started that it sent and mocked, by id. */
+/** The blocks of the workflow a dry run started that it sent and mocked, by id; never a mock's output. */
 export interface DryRunOptions {
   allowBlocks: string[]
-  mocks: Record<string, NormalizedBlockOutput>
+  mockedBlocks: string[]
 }
 
 /** Where a call that may change state outside the run was made: a block of one executing workflow. */
@@ -365,7 +365,9 @@ export interface AnsweredBlockCall extends SideEffectBlockSite {
  * `tools/index.ts` consults it for every tool call not declared `read` (an MCP tool declares
  * nothing, so every one) before a hosted key is drawn, and answers a stubbed call after
  * credentials resolve and before anything is sent; the block executor consults it before each
- * block's handler.
+ * block's handler. Its presence alone also means the run keeps nothing beyond its log: an Agent
+ * writes no memory, and files uploaded to a provider's Files API are deleted once the call
+ * settles. Where only the log is at hand, the `test` trigger says the same.
  */
 export interface SideEffectPolicy {
   /**

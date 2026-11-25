@@ -21,6 +21,7 @@ import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import type { ExecutionTestHooks } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { attachAttemptedExecutionId } from '@/executor/utils/errors'
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
 export type WorkflowTestVersion = 'draft' | 'deployed'
 
@@ -45,8 +46,9 @@ export interface RunWorkflowForTestInput {
 /**
  * One workflow run inside a workflow test: the workflow's single runnable trigger, the
  * test's input, and its mocks installed as executor test hooks. A write the test does not mock
- * is not sent: as in a dry run, it is answered with a placeholder shaped like the tool's output.
- * Billed and logged like any run, under the `test` trigger.
+ * is not sent: as in a dry run, it is answered with a placeholder shaped like the tool's output,
+ * and so is a Human in the loop or Wait block, so the run never pauses. Billed and logged like any
+ * run, under the `test` trigger.
  *
  * A step of the `workflow_tests.run` operation, which authorized the caller's write access to
  * the workspace before any test ran; nothing else may call it. Each nested run is not
@@ -132,13 +134,13 @@ export async function runWorkflowForTest(
         enabled: true,
         principal,
         useDraftState,
-        workflowTriggerType: 'test',
+        workflowTriggerType: TEST_TRIGGER,
         enforceCredentialAccess: true,
         triggerBlockId: prepared.triggerBlockId,
         abortSignal: input.abortSignal,
         billingAttribution,
         testHooks: input.testHooks,
-        sideEffects: new WriteStubPolicy({ workflowId: context.workflowId, pausingBlocks: 'run' }),
+        sideEffects: new WriteStubPolicy({ workflowId: context.workflowId }),
       },
       executionId
     )
