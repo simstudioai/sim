@@ -86,6 +86,17 @@ describe('validateReadOnlyQuery', () => {
     expect(result.error).toMatch(/backslash before a quote/)
   })
 
+  /** A sequence advances on every evaluation, so even a lone SELECT changes server state. */
+  it.each([
+    'SELECT NEXT VALUE FOR dbo.order_number',
+    'SELECT id, NEXT VALUE\n  FOR dbo.order_number AS n FROM dbo.orders',
+  ])('rejects the sequence advance %s', (query) => {
+    const result = validateReadOnlyQuery(query)
+
+    expect(result.isValid).toBe(false)
+    expect(result.error).toMatch(/NEXT VALUE/)
+  })
+
   it('rejects an unpaired quote', () => {
     expect(validateReadOnlyQuery(`SELECT * FROM dbo.t WHERE a = 'x`).isValid).toBe(false)
   })

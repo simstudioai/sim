@@ -229,10 +229,14 @@ export interface ToolParameterItemSchema {
 /**
  * What running a tool does outside Sim. `read` means the call changes nothing outside Sim: it
  * creates, updates, deletes, sends, posts, triggers, enqueues, consumes, and marks read nothing,
- * leaves no job, run, conversation, history item, or other resource in an account, makes no
- * credit-funded reveal, and delivers nothing elsewhere. Usage billing for the call itself does not
- * count. `write` is anything else, including an effect that depends on the params. Public catalog
- * metadata, audited by `check:tool-effects`.
+ * leaves no job, run, conversation, history item, or other resource in an account, reveals no
+ * contact data for credits, and delivers nothing elsewhere. Usage billing for the call itself does
+ * not count. `write` is anything else, including an effect that depends on the params.
+ *
+ * Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic
+ * lookups and verifications that only spend lookup credits are `read`.
+ *
+ * Public catalog metadata, audited by `check:tool-effects`.
  */
 export type ToolEffect = 'read' | 'write'
 

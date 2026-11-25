@@ -24,7 +24,7 @@ export const sixtyfourFindEmailTool: ToolConfig<
   name: 'Sixtyfour Find Email',
   description: 'Find email addresses for a lead using Sixtyfour AI.',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: SIXTYFOUR_CREDENTIAL_OAUTH,
 
   params: {

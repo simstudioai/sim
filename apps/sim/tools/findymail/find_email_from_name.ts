@@ -15,7 +15,7 @@ export const findEmailFromNameTool: ToolConfig<
   description:
     "Find someone's email from their name and a company domain or company name. Uses one finder credit when a verified email is found.",
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
 
   hosting: findymailHosting<FindymailFindEmailFromNameParams>((_params, output) => {
     const contact = output.contact as { email?: string } | null

@@ -17,7 +17,8 @@ export const findPhoneTool: ToolConfig<DatagmaFindPhoneParams, DatagmaFindPhoneR
   description:
     "Find a mobile phone number from a person's LinkedIn URL. Optionally supply an email to improve match accuracy. Uses 30 credits when a number is found.",
   version: '1.0.0',
-  effect: 'read',
+  // tool-effect: the GET spends Datagma credits to reveal a person's mobile number
+  effect: 'write',
 
   hosting: datagmaHosting<DatagmaFindPhoneParams>((_params, output) => {
     const phone = output.phone as string | null

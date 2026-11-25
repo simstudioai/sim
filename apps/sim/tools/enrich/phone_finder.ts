@@ -7,7 +7,8 @@ export const phoneFinderTool: ToolConfig<EnrichPhoneFinderParams, EnrichPhoneFin
   name: 'Enrich Phone Finder',
   description: 'Find a phone number from a LinkedIn profile URL.',
   version: '1.0.0',
-  effect: 'read',
+  // tool-effect: the GET spends Enrich credits to reveal a person's phone number
+  effect: 'write',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

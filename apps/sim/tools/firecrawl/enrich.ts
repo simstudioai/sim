@@ -100,7 +100,7 @@ export const firecrawlEnrichTool: ToolConfig<FirecrawlEnrichParams, FirecrawlEnr
   description:
     'Find work emails, phone numbers, LinkedIn profiles, company domains, and company information through Firecrawl Alexandria. Uses FullEnrich for contact lookups and People Data Labs for company, name-based profile, and single-part-name contact lookups. Provider terms must be enabled in Firecrawl. People Data Labs has a 50,000-record annual team limit.',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   hosting: firecrawlHosting<FirecrawlEnrichParams>(),
   params: {
     apiKey: {

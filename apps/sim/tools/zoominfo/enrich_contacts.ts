@@ -18,7 +18,7 @@ export const zoominfoEnrichContactsTool: InternalToolConfig<
   description:
     'Enrich up to 25 contacts in one request with verified emails, phone numbers, job details, and more.',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {

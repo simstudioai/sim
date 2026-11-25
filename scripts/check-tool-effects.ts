@@ -189,9 +189,11 @@ async function main() {
   console.error(
     '\n  `read` means the call changes nothing outside Sim: no create, update, delete, send, post,\n' +
       '  trigger, enqueue, consume, or mark-read; no job, run, conversation, history item, or other\n' +
-      '  resource left in an account; no credit-funded reveal; no external delivery. Usage billing\n' +
-      '  for the call itself does not count. Anything else, including an effect that depends on the\n' +
-      '  params, is `write`. When unsure, declare `write`.\n'
+      '  resource left in an account; no contact data revealed for credits; no external delivery.\n' +
+      '  Usage billing for the call itself does not count. Anything else, including an effect that\n' +
+      "  depends on the params, is `write`. Revealing a person's contact data (email, phone) for\n" +
+      '  credits is `write`; company/firmographic lookups and verifications that only spend lookup\n' +
+      '  credits are `read`. When unsure, declare `write`.\n'
   )
   process.exit(1)
 }

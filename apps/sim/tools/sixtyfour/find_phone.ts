@@ -10,7 +10,7 @@ export const sixtyfourFindPhoneTool: ToolConfig<
   name: 'Sixtyfour Find Phone',
   description: 'Find phone numbers for a lead using Sixtyfour AI.',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: SIXTYFOUR_CREDENTIAL_OAUTH,
 
   params: {

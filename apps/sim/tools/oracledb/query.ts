@@ -14,7 +14,7 @@ export const oracleQueryTool: InternalToolConfig<OracleQueryParams, OracleQueryR
   description:
     'Run one read-only Oracle SELECT statement or ordinary SELECT CTE with optional named IN binds',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: oracleDatabaseOAuth,
   params: {
     ...ORACLE_CONNECTION_PARAMS,

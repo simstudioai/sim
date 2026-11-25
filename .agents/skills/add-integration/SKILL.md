@@ -192,9 +192,11 @@ neither calls the other. Follow the full transport and handler rules in the `add
 
 Every tool declares `effect: 'read' | 'write'`. `read` means the call changes nothing outside Sim:
 no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no job, run,
-conversation, history item, or other resource left in an account; no credit-funded reveal; no
-external delivery (usage billing for the call itself does not count). Anything else, anything that
-depends on its params, and anything you are unsure of is `write`. Classify from the API docs you researched in Step 1; the full rules are in `add-tools` →
+conversation, history item, or other resource left in an account; no contact data revealed for
+credits; no external delivery (usage billing for the call itself does not count). Anything else,
+anything that depends on its params, and anything you are unsure of is `write`. Revealing a
+person's contact data (email, phone) for credits is `write`; company/firmographic lookups and
+verifications that only spend lookup credits are `read`. Classify from the API docs you researched in Step 1; the full rules are in `add-tools` →
 Declaring the effect, and `bun run check:tool-effects` enforces them.
 
 **types.ts:**

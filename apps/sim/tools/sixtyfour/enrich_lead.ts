@@ -14,7 +14,7 @@ export const sixtyfourEnrichLeadTool: ToolConfig<
   description:
     'Enrich lead information with contact details, social profiles, and company data using Sixtyfour AI.',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: SIXTYFOUR_CREDENTIAL_OAUTH,
 
   params: {

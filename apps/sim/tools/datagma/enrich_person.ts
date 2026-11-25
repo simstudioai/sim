@@ -17,7 +17,8 @@ export const enrichPersonTool: ToolConfig<DatagmaEnrichPersonParams, DatagmaEnri
     description:
       "Enrich a person's profile using their email, LinkedIn URL, or full name and company. Returns job title, company, location, and social data. Uses 2 credits per match; add 30 credits when a phone number is found.",
     version: '1.0.0',
-    effect: 'read',
+    // tool-effect: the GET spends Datagma credits to reveal the person's email and phone
+    effect: 'write',
 
     hosting: datagmaHosting<DatagmaEnrichPersonParams>((params, output) => {
       const name = output.name as string | null

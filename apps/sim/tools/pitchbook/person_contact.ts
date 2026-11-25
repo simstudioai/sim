@@ -8,7 +8,8 @@ export const pitchbookPersonContactTool: ToolConfig<PitchbookProfileParams, Pitc
   name: 'PitchBook Person Contact',
   description: 'Retrieve the direct contact details on file for a person',
   version: '1.0.0',
-  effect: 'read',
+  // tool-effect: the GET spends PitchBook credits to reveal a person's email and phone
+  effect: 'write',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

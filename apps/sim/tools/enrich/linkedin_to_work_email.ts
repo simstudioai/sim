@@ -13,7 +13,8 @@ export const linkedInToWorkEmailTool: ToolConfig<
   name: 'Enrich LinkedIn to Work Email',
   description: 'Find a work email address from a LinkedIn profile URL.',
   version: '1.0.0',
-  effect: 'read',
+  // tool-effect: the GET spends Enrich credits to reveal a person's work email
+  effect: 'write',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
