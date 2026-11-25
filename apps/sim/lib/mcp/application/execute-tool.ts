@@ -38,7 +38,10 @@ export interface ExecuteMcpToolInput {
   timeoutMs?: number
   signal?: AbortSignal
   onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
-  /** Authorize, discover and validate the call as a live one would, then stop before sending it. */
+  /**
+   * Authorize, discover and validate the call as a live one would, then stop before sending it,
+   * writing nothing a live call reads: no server health, tool cache or tool snapshot.
+   */
   checkOnly?: boolean
 }
 
@@ -168,7 +171,7 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       context.workspaceId,
       'skip-cache',
       input.onResolvedSecretTraceProvenance,
-      { signal: input.signal, requireComplete: true }
+      { signal: input.signal, requireComplete: true, readOnly: input.checkOnly }
     )
     const tool = tools.find((candidate) => candidate.name === input.toolName)
     if (!tool) throw new OrchestrationError('not_found', 'Tool not found on the specified server')

@@ -1,18 +1,19 @@
 /**
  * Dry runs against real PostgreSQL and Redis, through the manual run use cases and the v2 execute
  * route: a dry run writes no table row and sends no request, reports each write with the payload it
- * would have sent (credentials, run secrets and password fields masked before the request is built)
- * under the `test` trigger, and keeps nothing else: no Agent memory (which its Agents still read),
- * no workspace event, no run count. An MCP write is authorized before it is answered. An allowed
- * block writes for real while reads run for real; a child workflow's writes, an Agent's included,
- * stay stubbed; custom and Wait blocks are answered whole; code runs and is listed unchecked, a
- * Condition's expressions and a While loop's condition included; a mocked block steers a branch; a
- * failed dry run keeps its side effects and is the source only of another dry run. A test run is
- * never the source of a run that sends its writes (the v2 use case, Copilot and the editor route
- * alike) and is never resumed; a mock, a dry run's or a workflow test's, is data that never
- * controls the run, sets what it is billed or replaces a locked block; a rerun record keeps only
- * the ids of mocked blocks, while the log shows a mocked output redacted like any other. Model
- * calls are answered by a simulated Anthropic API.
+ * would have sent (credentials, run secrets and password fields masked before the request is built,
+ * and a write whose request cannot be built once masked still answered) under the `test` trigger,
+ * and keeps nothing else: no Agent memory (which its Agents still read), no workspace event, no run
+ * count. An MCP write is authorized before it is answered, and its check leaves the server's health
+ * as it found it. An allowed block writes for real while reads run for real; a child workflow's
+ * writes, an Agent's included, stay stubbed; custom and Wait blocks are answered whole; code runs
+ * and is listed unchecked, a Condition's expressions and a While loop's condition included; a
+ * mocked block steers a branch; a failed dry run keeps its side effects and is the source only of
+ * another dry run. A test run is never the source of a run that sends its writes (the v2 use case,
+ * Copilot and the editor route alike) and is never resumed; a mock, a dry run's or a workflow
+ * test's, is data that never controls the run, sets what it is billed or replaces a locked block; a
+ * rerun record keeps only the ids of mocked blocks, while the log shows a mocked output redacted
+ * like any other. Model calls are answered by a simulated Anthropic API.
  */
 import { db } from '@sim/db'
 import {
@@ -20,6 +21,7 @@ import {
   apiKey,
   customBlock,
   customTools,
+  mcpServers,
   memory,
   organization,
   pausedExecutions,
@@ -107,6 +109,7 @@ const organizationId = generateId()
 const workspaceId = generateId()
 const SECRET = `dry-secret-${generateId()}`
 const UNREFERENCED_SECRET = `unreferenced-${generateId()}`
+const SECRET_URL = `http://dry-run.invalid/hook/${generateId()}`
 const API_KEY = `sk-sim-fixture-${generateId()}`
 const principal = createDelegatedPrincipal({
   subjectUserId: ownerId,
@@ -423,6 +426,7 @@ beforeAll(async () => {
     variables: {
       DRY_SECRET: (await encryptSecret(SECRET)).encrypted,
       UNREFERENCED_SECRET: (await encryptSecret(UNREFERENCED_SECRET)).encrypted,
+      DRY_SECRET_URL: (await encryptSecret(SECRET_URL)).encrypted,
     },
   })
   await db.insert(apiKey).values({
@@ -685,6 +689,53 @@ describe('a dry run', () => {
     expect(result.sideEffects?.stubbed).toEqual([])
   })
 
+  it('checks an MCP write without changing the server’s health, which live calls read', async () => {
+    const serverId = generateId()
+    await db.insert(mcpServers).values({
+      id: serverId,
+      workspaceId,
+      createdBy: ownerId,
+      name: 'Unreachable',
+      transport: 'streamable-http',
+      url: 'http://dry-run.invalid/mcp',
+      connectionStatus: 'connected',
+      statusConfig: { consecutiveFailures: 0 },
+    })
+    const serverHealth = () =>
+      db
+        .select({
+          connectionStatus: mcpServers.connectionStatus,
+          lastError: mcpServers.lastError,
+          statusConfig: mcpServers.statusConfig,
+        })
+        .from(mcpServers)
+        .where(eq(mcpServers.id, serverId))
+    const healthBefore = await serverHealth()
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('remove', 'mcp', {
+            operation: 'run',
+            serverSelector: serverId,
+            serverReference: serverId,
+            toolSelector: 'delete_file',
+            toolReference: 'delete_file',
+            arguments: { path: '/reports/q3.csv' },
+          }),
+        ],
+        [['start', 'remove']]
+      ).state
+    )
+
+    const first = await run(workflowId, { dry: true })
+    const second = await run(workflowId, { dry: true })
+
+    expect(first.status).toBe('failed')
+    expect(await serverHealth()).toEqual(healthBefore)
+    expect(second.error).toEqual(first.error)
+  })
+
   it('masks a run secret before building a write’s request, so no encoding carries it', async () => {
     const knowledgeBaseId = generateId()
     const workflowId = await saveWorkflow(
@@ -747,6 +798,31 @@ describe('a dry run', () => {
       }),
     ])
     expect(JSON.stringify(result.sideEffects)).not.toContain(routingKey)
+  })
+
+  it('answers a write whose request it cannot build once masked, so the run goes on', async () => {
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('hook', 'api', { url: '{{DRY_SECRET_URL}}', method: 'POST' }),
+          notify('notify'),
+        ],
+        [
+          ['start', 'hook'],
+          ['hook', 'notify'],
+        ]
+      ).state
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(result.sideEffects?.stubbed).toEqual([
+      expect.objectContaining({ block: 'hook', tool: 'http_request', request: null }),
+      expect.objectContaining({ block: 'notify', tool: 'http_request' }),
+    ])
+    expect(JSON.stringify(result.sideEffects)).not.toContain(SECRET_URL)
   })
 
   it('answers custom and Wait blocks whole, without running the publisher’s workflow or pausing', async () => {

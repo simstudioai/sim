@@ -36,7 +36,10 @@ export interface ExecuteManagedMcpToolInput {
   callChain?: string[]
   timeoutMs?: number
   signal?: AbortSignal
-  /** Authorize, discover and validate the call as a live one would, then stop before sending it. */
+  /**
+   * Authorize, discover and validate the call as a live one would, then stop before sending it,
+   * writing nothing a live call reads: no server health, tool cache or tool snapshot.
+   */
   checkOnly?: boolean
 }
 
@@ -101,12 +104,13 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       input.signal,
       { requireComplete: true }
     )
-    await saveManagedMcpToolSnapshot(
-      runtime.credentialId,
-      toManagedMcpToolSnapshots(tools),
-      runtime.oauthConfigVersion,
-      runtime.grantedAt
-    )
+    if (!input.checkOnly)
+      await saveManagedMcpToolSnapshot(
+        runtime.credentialId,
+        toManagedMcpToolSnapshots(tools),
+        runtime.oauthConfigVersion,
+        runtime.grantedAt
+      )
     const discovered = tools.find((tool) => tool.name === input.toolName)
     if (!discovered) {
       throw new OrchestrationError('not_found', 'Tool not found on the managed MCP connection')

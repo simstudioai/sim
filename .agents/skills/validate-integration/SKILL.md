@@ -85,8 +85,9 @@ For **every** tool file, check:
 - [ ] A dry run (`sim workflows run <workflowId> --dry --input '{…}'` on a workflow using the
       block) lists every write operation in `sideEffects.stubbed` (at most 50 entries; the rest
       are counted in `sideEffects.omitted.stubbed`) with the request the API docs expect where
-      `request` is not `null`, and every read runs for real (rules: `add-tools` → Declaring the
-      effect)
+      `request` is not `null`, and every read runs for real; a write absent from `stubbed` counts
+      only if its block ran (not on an untaken branch or `--mock`ed) (rules: `add-tools` →
+      Declaring the effect)
 
 ### Params
 - [ ] All required API params are marked `required: true`

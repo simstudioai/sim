@@ -83,6 +83,12 @@ interface McpRequestOptions {
    * discovery left its tools cached, without connecting.
    */
   bestEffort?: boolean
+  /**
+   * A discovery that checks a call without making it (a dry run's MCP write): it reads the cooldown
+   * as a live call would, but writes none of the server's shared state, so a check never changes
+   * what live calls see. No status, failure count, cooldown, or tool cache write or eviction.
+   */
+  readOnly?: boolean
 }
 
 interface McpToolExecutionOptions extends McpRequestOptions {
@@ -1192,7 +1198,12 @@ class McpService {
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
     options: McpRequestOptions = {}
   ): Promise<McpTool[]> {
-    if (onResolvedSecretTraceProvenance || options.signal || options.requireComplete) {
+    if (
+      onResolvedSecretTraceProvenance ||
+      options.signal ||
+      options.requireComplete ||
+      options.readOnly
+    ) {
       return this.discoverServerToolsImpl(
         userId,
         serverId,
@@ -1231,7 +1242,12 @@ class McpService {
     workspaceId: string,
     refresh: McpDiscoveryRefresh,
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
-    { signal, requireComplete = false, bestEffort = false }: McpRequestOptions = {}
+    {
+      signal,
+      requireComplete = false,
+      bestEffort = false,
+      readOnly = false,
+    }: McpRequestOptions = {}
   ): Promise<McpTool[]> {
     signal?.throwIfAborted()
     const requestId = generateRequestId()
@@ -1285,6 +1301,7 @@ class McpService {
           bestEffort
         )
         logger.info(`Discovered ${tools.length} tools from server ${config.name}`, { requestId })
+        if (readOnly) return tools
         const cacheWrite = this.cacheAdapter
           .set(serverCacheKey(workspaceId, serverId), tools, this.cacheTimeout)
           .catch((err) => logger.warn(`Cache write failed for ${config.name}:`, err, { requestId }))
@@ -1317,7 +1334,7 @@ class McpService {
           signal?.throwIfAborted()
           continue
         }
-        if (bestEffort) throw error
+        if (bestEffort || readOnly) throw error
         // Drop positive cache so a follow-up doesn't return stale tools.
         const statusApplied = isOauthAuthorizationError(error, authType)
           ? await this.markServerOauthPending(serverId, workspaceId, discoveryStartedAt)

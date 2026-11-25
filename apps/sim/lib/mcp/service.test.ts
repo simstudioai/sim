@@ -651,4 +651,50 @@ describe('McpService best-effort discovery', () => {
       expect.any(Number)
     )
   })
+
+  describe('read-only, as a dry run checks a call', () => {
+    it('leaves status, cooldown and the cached tools as they were when discovery fails', async () => {
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+      mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+      await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+      resetDbChainMock()
+      wireSelectsToWorkspaceRows()
+      mockCacheAdapter.set.mockClear()
+      mockCacheAdapter.delete.mockClear()
+      mockListTools.mockReset()
+      mockListTools.mockRejectedValueOnce(new Error('Connection refused'))
+
+      await expect(
+        mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, 'skip-cache', undefined, {
+          requireComplete: true,
+          readOnly: true,
+        })
+      ).rejects.toThrow('Connection refused')
+
+      expectNoSharedStateWrites()
+      const cached = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+      expect(cached.map((t) => t.name)).toEqual(['a1'])
+      expect(mockListTools).toHaveBeenCalledOnce()
+    })
+
+    it('neither caches the tools it finds nor stamps status', async () => {
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+      mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+      await mcpService.discoverServerTools(
+        USER_ID,
+        'mcp-a',
+        WORKSPACE_ID,
+        'skip-cache',
+        undefined,
+        {
+          requireComplete: true,
+          readOnly: true,
+        }
+      )
+
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      expect(mockCacheAdapter.set).not.toHaveBeenCalled()
+    })
+  })
 })

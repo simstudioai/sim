@@ -261,7 +261,8 @@ export async function redactSideEffectPayload(input: {
  * The response answering a write tool call the run's side-effect policy does not send, after the
  * policy recorded the request it would have sent: `describe` builds it from params whose secrets
  * are already masked ({@link maskRequestParams}), and the result is redacted again as a payload
- * ({@link redactSideEffectPayload}). Null when either step cannot vouch that no secret remains.
+ * ({@link redactSideEffectPayload}). The request is null when either step cannot vouch that no
+ * secret remains, or it cannot be built from the masked params; the write is answered either way.
  */
 export async function answerUnsentWrite(
   write: UnsentWrite,
@@ -281,9 +282,12 @@ export async function answerUnsentWrite(
     if (!(error instanceof SecretScanDepthError)) throw error
     maskedParams = null
   }
-  const request = maskedParams
+  const described = maskedParams
+    ? describeMaskedRequest(call.toolId, input.describe, maskedParams)
+    : null
+  const request = described
     ? await redactSideEffectPayload({
-        payload: input.describe(maskedParams),
+        payload: described.payload,
         params: input.params,
         blockTypes,
         executionContext: write.executionContext,
@@ -291,6 +295,26 @@ export async function answerUnsentWrite(
       })
     : null
   return { success: true, output: write.policy.stubWrite({ ...call, request }) }
+}
+
+/**
+ * The request a write would send, or null when it cannot be built from masked params (a URL that is
+ * wholly a masked secret fails URL validation): describing an unsent write never fails the run.
+ */
+function describeMaskedRequest(
+  toolId: string,
+  describe: (maskedParams: Record<string, unknown>) => unknown,
+  maskedParams: Record<string, unknown>
+): { payload: unknown } | null {
+  try {
+    return { payload: describe(maskedParams) }
+  } catch (error) {
+    logger.warn('Could not describe an unsent write from its masked params; recording no request', {
+      toolId,
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    })
+    return null
+  }
 }
 
 /**

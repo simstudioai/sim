@@ -2009,7 +2009,7 @@ const v2RunSideEffectsSchema = z
             .record(z.string(), z.unknown().describe('Request field.'))
             .nullable()
             .describe(
-              "What the call would have sent: an in-process operation's input, an HTTP call's `method`, `url` and `body` (never headers), or a custom or MCP tool's `arguments`. For a block answered whole, its logged inputs. Credentials, secrets, password fields and (when the workspace redacts it) PII are redacted; null when the run could not prove none remain."
+              "What the call would have sent: an in-process operation's input, an HTTP call's `method`, `url` and `body` (never headers), or a custom or MCP tool's `arguments`. For a block answered whole, its logged inputs. Credentials, secrets, password fields and (when the workspace redacts it) PII are redacted; null when the run could not prove none remain, or could not build the request once they were masked (such as a URL that is wholly a secret)."
             ),
           returned: z
             .record(z.string(), z.unknown().describe('Placeholder field.'))
