@@ -92,6 +92,16 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
     },
   },
 
+  /**
+   * A dry run's placeholder names the file the call asks for (a write that would collide is
+   * suffixed live) and sizes the text it writes; a stored file's name and size stay placeholders.
+   */
+  dryRunOutput: (params) => ({
+    name: params.fileName,
+    size:
+      params.content === undefined ? undefined : new TextEncoder().encode(params.content).length,
+  }),
+
   transformResponse: async (response) => {
     const data = await response.json()
     if (!response.ok || !data.success) {

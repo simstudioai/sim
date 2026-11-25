@@ -259,10 +259,11 @@ export async function redactSideEffectPayload(input: {
 
 /**
  * The response answering a write tool call the run's side-effect policy does not send, after the
- * policy recorded the request it would have sent: `describe` builds it from params whose secrets
- * are already masked ({@link maskRequestParams}), and the result is redacted again as a payload
- * ({@link redactSideEffectPayload}). The request is null when either step cannot vouch that no
- * secret remains, or it cannot be built from the masked params; the write is answered either way.
+ * policy recorded the request it would have sent: `describe` builds it, and `echo` (a tool's
+ * `dryRunOutput`) the output that request determines, both from params whose secrets are already
+ * masked ({@link maskRequestParams}), and each result is redacted again as a payload
+ * ({@link redactSideEffectPayload}). Either is null when a step cannot vouch that no secret remains,
+ * or it cannot be built from the masked params; the write is answered either way.
  */
 export async function answerUnsentWrite(
   write: UnsentWrite,
@@ -270,6 +271,7 @@ export async function answerUnsentWrite(
     params: Record<string, unknown>
     registry: ResolvedSecretTraceRegistry | undefined
     describe: (maskedParams: Record<string, unknown>) => unknown
+    echo?: (maskedParams: Record<string, unknown>) => Record<string, unknown>
   }
 ): Promise<ToolResponse> {
   const { call } = write
@@ -282,34 +284,40 @@ export async function answerUnsentWrite(
     if (!(error instanceof SecretScanDepthError)) throw error
     maskedParams = null
   }
-  const described = maskedParams
-    ? describeMaskedRequest(call.toolId, input.describe, maskedParams)
-    : null
-  const request = described
-    ? await redactSideEffectPayload({
-        payload: described.payload,
-        params: input.params,
-        blockTypes,
-        executionContext: write.executionContext,
-        registry: input.registry,
-      })
-    : null
-  return { success: true, output: write.policy.stubWrite({ ...call, request }) }
+  const fromMaskedParams = async (
+    build: ((maskedParams: Record<string, unknown>) => unknown) | undefined
+  ): Promise<Record<string, unknown> | null> => {
+    const built =
+      maskedParams && build ? buildFromMaskedParams(call.toolId, build, maskedParams) : null
+    return built
+      ? redactSideEffectPayload({
+          payload: built.payload,
+          params: input.params,
+          blockTypes,
+          executionContext: write.executionContext,
+          registry: input.registry,
+        })
+      : null
+  }
+  const request = await fromMaskedParams(input.describe)
+  const echoed = await fromMaskedParams(input.echo)
+  return { success: true, output: write.policy.stubWrite({ ...call, request, echoed }) }
 }
 
 /**
- * The request a write would send, or null when it cannot be built from masked params (a URL that is
- * wholly a masked secret fails URL validation): describing an unsent write never fails the run.
+ * What `build` makes of a write's masked params (its request, or the output it determines), or
+ * null when it cannot be built from them (a URL that is wholly a masked secret fails URL
+ * validation): answering an unsent write never fails the run.
  */
-function describeMaskedRequest(
+function buildFromMaskedParams(
   toolId: string,
-  describe: (maskedParams: Record<string, unknown>) => unknown,
+  build: (maskedParams: Record<string, unknown>) => unknown,
   maskedParams: Record<string, unknown>
 ): { payload: unknown } | null {
   try {
-    return { payload: describe(maskedParams) }
+    return { payload: build(maskedParams) }
   } catch (error) {
-    logger.warn('Could not describe an unsent write from its masked params; recording no request', {
+    logger.warn('Could not build from the masked params of an unsent write; recording none', {
       toolId,
       errorName: error instanceof Error ? error.name : 'UnknownError',
     })

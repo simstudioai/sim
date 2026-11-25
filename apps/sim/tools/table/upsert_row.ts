@@ -60,6 +60,9 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
     },
   },
 
+  /** A dry run's placeholder row holds the data the call writes; its id stays a placeholder. */
+  dryRunOutput: (params) => ({ row: { data: params.data } }),
+
   transformResponse: async (response): Promise<TableUpsertResponse> => {
     const result = await response.json()
     const data = result.data || result

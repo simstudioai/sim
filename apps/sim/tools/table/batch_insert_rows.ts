@@ -55,6 +55,12 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
     },
   },
 
+  /** A dry run's placeholder rows hold the data the call writes; their ids stay placeholders. */
+  dryRunOutput: (params) => ({
+    rows: params.rows.map((data) => ({ data })),
+    insertedCount: params.rows.length,
+  }),
+
   transformResponse: async (response): Promise<TableBatchInsertResponse> => {
     const result = await response.json()
     const data = result.data || result

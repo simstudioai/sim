@@ -114,7 +114,8 @@ class RecordedList<T> {
 
 /**
  * The side-effect policy of a dry run (`run.dry`) and of a workflow test's unmocked writes: every
- * write tool call is answered with a placeholder shaped like the tool's output and recorded with
+ * write tool call is answered with a placeholder shaped like the tool's output, holding what the
+ * request determines where the tool declares it (`dryRunOutput`), and recorded with
  * the request it would have sent, except an allowed block's, which are sent and recorded once per
  * block and tool. Reads always run, and code runs and is listed unchecked. Custom blocks and
  * {@link PAUSING_BLOCK_TYPES} are answered whole, as is a block that acts outside the tool seam
@@ -192,7 +193,7 @@ export class WriteStubPolicy implements SideEffectPolicy {
   }
 
   stubWrite(call: StubbedToolCall): Record<string, unknown> {
-    const returned = sampleToolOutput(call.toolId)
+    const returned = sampleToolOutput(call.toolId, call.echoed)
     this.stubbed.add({ ...recordedSite(call), tool: call.toolId, request: call.request, returned })
     return returned
   }

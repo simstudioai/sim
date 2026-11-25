@@ -59,6 +59,9 @@ export const tableUpdateRowTool: InternalToolConfig<TableRowUpdateParams, TableR
     },
   },
 
+  /** A dry run's placeholder row is the row named, holding the data the call writes to it. */
+  dryRunOutput: (params) => ({ row: { id: params.rowId, data: params.data } }),
+
   transformResponse: async (response): Promise<TableRowWriteResponse> => {
     const result = await response.json()
     const data = result.data || result

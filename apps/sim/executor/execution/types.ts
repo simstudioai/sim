@@ -347,6 +347,11 @@ export interface StubbedToolCall extends SideEffectSite {
   toolId: string
   /** The request with credentials, secrets and PII redacted; null when that cannot be vouched for. */
   request: Record<string, unknown> | null
+  /**
+   * The output the tool's `dryRunOutput` derives from that request, redacted like it; null when
+   * the tool declares none or that cannot be vouched for, so the placeholder is the sample alone.
+   */
+  echoed: Record<string, unknown> | null
 }
 
 /** A block the run answers instead of running its handler. */

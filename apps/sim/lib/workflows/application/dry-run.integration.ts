@@ -98,6 +98,7 @@ import {
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
 import { resumeWorkflowRun } from '@/lib/workflows/application/resume-run'
 import { runFromBlockFromCopilot } from '@/lib/workflows/application/run-workflow-from-copilot'
+import { sampleToolOutput } from '@/lib/workflows/dry-run'
 import type { ExecuteWorkflowServiceRun } from '@/lib/workflows/executor/execute-service'
 import { getWorkflowExecutionLogStatus } from '@/lib/workflows/executor/execution-state'
 import { POST as v2Execute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
@@ -206,6 +207,7 @@ async function createTable(): Promise<string> {
       columns: [
         { id: 'col_email', name: 'email', type: 'string', required: true, unique: true },
         { id: 'col_score', name: 'score', type: 'number' },
+        { id: 'col_note', name: 'note', type: 'string' },
       ],
     },
   })
@@ -484,6 +486,52 @@ describe('a dry run', () => {
     expect(stubbed[2].request).toMatchObject({ data: { email: 'child@b.co' } })
   })
 
+  it('answers a table write with the row it would have written, its secrets masked', async () => {
+    const tableId = await createTable()
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('save', 'table', {
+            operation: 'upsert_row',
+            tableSelector: tableId,
+            data: JSON.stringify({ email: 'a@b.co', score: 82, note: 'key={{DRY_SECRET}}' }),
+          }),
+          notify('notify'),
+          block('read', 'function', {
+            language: 'javascript',
+            code: 'return { score: <save.row.data.score>, email: <save.row.data.email>, note: <save.row.data.note>, notified: <notify.status> }',
+          }),
+        ],
+        [
+          ['start', 'save'],
+          ['save', 'notify'],
+          ['notify', 'read'],
+        ]
+      ).state
+    )
+
+    const result = await run(workflowId, { dry: true, selectedOutputs: ['read.result'] })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(await tableRows(tableId)).toEqual([])
+    const read = toRecord(result.blockOutputs?.['read.result'])
+    expect(read).toMatchObject({
+      score: 82,
+      email: 'a@b.co',
+      note: expect.stringContaining('key='),
+    })
+    expect(JSON.stringify(result)).not.toContain(SECRET)
+    const [save, sent] = result.sideEffects?.stubbed ?? []
+    expect(toRecord(save.returned.row).data).toEqual({
+      email: 'a@b.co',
+      score: 82,
+      note: read.note,
+    })
+    expect(sent).toMatchObject({ tool: 'http_request', returned: sampleToolOutput('http_request') })
+    expect(read.notified).toBe(sampleToolOutput('http_request').status)
+  })
+
   it('keeps nothing beyond its own log: no run count and no workspace event', async () => {
     const { parentId } = await parentFixture()
     const subscriber = await saveWorkflow(graph([block('start', 'start_trigger')], []).state)
@@ -758,7 +806,10 @@ describe('a dry run', () => {
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     const [write] = result.sideEffects?.stubbed ?? []
-    expect(write).toMatchObject({ tool: 'knowledge_create_document' })
+    expect(write).toMatchObject({
+      tool: 'knowledge_create_document',
+      returned: { data: { documentName: 'notes.txt' } },
+    })
     const [document] = toArray<unknown>(toRecord(write.request).documents)
     const fileUrl = String(toRecord(document).fileUrl)
     const content = Buffer.from(fileUrl.slice(fileUrl.indexOf(',') + 1), 'base64').toString('utf8')

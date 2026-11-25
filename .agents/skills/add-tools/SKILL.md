@@ -234,6 +234,10 @@ search that returns no email or phone, and an email verifier.
   when the run cannot vouch that no secret remains in it, or cannot build it once secrets are
   masked (a URL that is wholly a secret); then check the tool label alone and compare the request
   fields only on entries that carry one.
+- A dry run answers a `write` with a sample of its `outputs`. When downstream blocks read output the
+  request alone determines (a table write's `row.data`, a created file's `name`), declare a pure
+  `dryRunOutput(params)` returning just those fields; it gets params with secrets masked, and the
+  sample fills ids and everything else. Never guess at what the provider would add.
 
 ## Critical Rules for Parameters
 
