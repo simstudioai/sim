@@ -94,4 +94,47 @@ describe('installMainProcessFailureObservers', () => {
     await vi.waitFor(() => expect(app.relaunch).toHaveBeenCalledOnce())
     expect(app.exit).toHaveBeenCalledWith(1)
   })
+
+  function emitAppEvent(event: string) {
+    const handler = vi.mocked(app.on).mock.calls.find(([name]) => name === event)?.[1]
+    if (!handler) throw new Error(`No ${event} listener`)
+    ;(handler as () => void)()
+  }
+
+  it('exits without prompting when the failure arrives after quitting has begun', () => {
+    const events = { filePath: '/tmp/events.log', record: vi.fn() }
+    const { handlers, source } = createProcessSource()
+    installMainProcessFailureObservers({ events, getWindow: () => null, processSource: source })
+
+    emitAppEvent('before-quit')
+    handlers.get('uncaughtException')?.(new Error('during shutdown') as never)
+
+    expect(events.record).toHaveBeenCalledWith('main_uncaught_exception', { valueType: 'Error' })
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
+    expect(app.relaunch).not.toHaveBeenCalled()
+    expect(app.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('answers an open recovery prompt as Quit when the app starts quitting', async () => {
+    vi.mocked(dialog.showMessageBox).mockImplementationOnce(
+      (options: { cancelId?: number; signal?: AbortSignal }) =>
+        new Promise((resolve) => {
+          options.signal?.addEventListener('abort', () =>
+            resolve({ response: options.cancelId ?? 0, checkboxChecked: false })
+          )
+        })
+    )
+    const events = { filePath: '/tmp/events.log', record: vi.fn() }
+    const { handlers, source } = createProcessSource()
+    installMainProcessFailureObservers({ events, getWindow: () => null, processSource: source })
+
+    handlers.get('uncaughtException')?.(new Error('while running') as never)
+    expect(dialog.showMessageBox).toHaveBeenCalledOnce()
+    expect(app.exit).not.toHaveBeenCalled()
+
+    emitAppEvent('will-quit')
+
+    await vi.waitFor(() => expect(app.exit).toHaveBeenCalledWith(1))
+    expect(app.relaunch).not.toHaveBeenCalled()
+  })
 })
