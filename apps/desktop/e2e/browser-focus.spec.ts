@@ -98,6 +98,15 @@ test('browser focus and shortcuts stay with the surface the user is using', asyn
           : null
       })
     const visiblePageUrl = async () => (await visiblePage())?.url ?? null
+    /** Whether a page at exactly `url` finished loading, visible or not. */
+    const pageLoaded = (url: string) =>
+      app.evaluate(
+        ({ webContents }, url) =>
+          webContents
+            .getAllWebContents()
+            .some((contents) => contents.getURL() === url && !contents.isLoading()),
+        url
+      )
     /** How many popup pages have finished loading, wherever they are in the strip. */
     const loadedPopups = () =>
       app.evaluate(
@@ -186,7 +195,8 @@ test('browser focus and shortcuts stay with the surface the user is using', asyn
         ['browser_open_tab', '/three'],
       ] as const) {
         await execute(tool, { url: `${site}${path}` })
-        await expect.poll(visiblePage).toEqual({ url: `${site}${path}`, loading: false })
+        // browser_open_tab works in a background tab, so the page need not be the visible one.
+        await expect.poll(() => pageLoaded(`${site}${path}`)).toBe(true)
         expect(await composerFocused()).toBe(true)
         expect(await focusedPageUrls()).toEqual([])
       }

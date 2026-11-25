@@ -71,17 +71,14 @@ mountUpdateNotificationFixture(DesktopUpdateNotification);`,
         ipcMain.removeHandler('desktop:updates:get-state')
         ipcMain.handle('desktop:updates:get-state', () => ({ status: 'ready', version: '2.0.0' }))
       })
-      // The page's timers run on Playwright's clock, installed before the reload so they all use it.
-      await page.clock.install()
       await page.reload()
       await expect(restart).toHaveCount(1)
       await expect(restart).toBeVisible()
       await page.getByRole('button', { name: 'Switch workspace' }).click()
       await expect(page.getByLabel('Current route')).toHaveText('/workspace/second')
-      // Past any auto-dismiss timer the notice could have started.
-      const before = await page.evaluate(() => Date.now())
-      await page.clock.fastForward(5_500)
-      expect(await page.evaluate(() => Date.now())).toBeGreaterThanOrEqual(before + 5_500)
+      // Outlasts the 5s default toast lifetime: proving a real timer doesn't dismiss the notice needs
+      // its real duration, and a fake clock would also freeze the dismiss animations used below.
+      await page.waitForTimeout(5_500)
       await expect(restart).toBeVisible()
     })
 

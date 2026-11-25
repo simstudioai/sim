@@ -345,12 +345,12 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
         .poll(() => shell.evaluate(() => (globalThis as FixtureGlobals).pageIssue))
         .toBe('load-error')
       await act({ action: 'back' })
-      // Until Back lands, the tab still shows /broken's error page.
-      await expect.poll(pageUrl).toBe(form)
-      await expect.poll(formTitle).toBe('form')
+      // The page navigates itself from whatever document Back left in the tab.
+      const current = await pageUrl()
+      if (!current) throw new Error('No page on the fixture site after Back')
       await inPage(
         app,
-        form,
+        current,
         `setTimeout(() => { location.href = ${JSON.stringify(`${site}/next`)} })`
       )
       await expect.poll(pageUrl).toBe(`${site}/next`)

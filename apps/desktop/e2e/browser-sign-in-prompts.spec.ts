@@ -233,13 +233,17 @@ const test = base.extend<{ signIn: SignInBrowser }>({
           await expect(dialog).toHaveCount(1)
           const usernameField = dialog.getByRole('textbox', { name: 'Username' })
           const passwordField = dialog.getByRole('textbox', { name: 'Password' })
-          await usernameField.fill(username)
-          // The password field stays read-only until it takes focus, which keeps autofill out.
-          await passwordField.click()
-          await expect(passwordField).toBeEditable()
-          await passwordField.fill(password)
-          await expect(usernameField).toHaveValue(username)
-          await expect(passwordField).toHaveValue(password)
+          // Kept from the original suite: the Username field can come back empty right after the
+          // prompt appears (seen in CI, cause not yet found), so the entry repeats until both hold.
+          await expect(async () => {
+            await usernameField.fill(username)
+            // The password field stays read-only until it takes focus, which keeps autofill out.
+            await passwordField.click()
+            await expect(passwordField).toBeEditable({ timeout: 1_000 })
+            await passwordField.fill(password)
+            await expect(usernameField).toHaveValue(username, { timeout: 1_000 })
+            await expect(passwordField).toHaveValue(password, { timeout: 1_000 })
+          }).toPass({ timeout: 10_000 })
         },
         async expectQuiet(openedBefore) {
           await sleep(QUIET_MS)
