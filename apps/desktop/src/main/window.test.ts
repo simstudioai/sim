@@ -10,7 +10,7 @@ import type { ConfigStore } from '@/main/config'
 import type { EventRecorder } from '@/main/observability'
 import {
   createMainWindow,
-  detachVisibilityListenersOnClose,
+  guardVisibilityListenersAfterDestroy,
   resolvePermission,
   setupPermissionHandlers,
 } from '@/main/window'
@@ -202,32 +202,43 @@ describe('createMainWindow', () => {
   })
 })
 
-describe('detachVisibilityListenersOnClose', () => {
+describe('guardVisibilityListenersAfterDestroy', () => {
   /** A window wired the way Electron wires every BrowserWindow: its visibility listener reads the native window. */
   function electronLikeWindow() {
     let destroyed = false
+    const visibilityChecks = vi.fn()
     const win = Object.assign(new EventEmitter(), {
+      isDestroyed: () => destroyed,
       isVisible: () => {
         if (destroyed) throw new TypeError('Object has been destroyed')
+        visibilityChecks()
         return true
       },
       destroy: () => {
         destroyed = true
-        win.emit('closed')
       },
     })
     const visibilityChanged = () => win.isVisible()
     for (const event of ['show', 'hide', 'minimize', 'maximize', 'restore']) {
       win.on(event, visibilityChanged)
     }
-    return win
+    return { win, visibilityChecks }
   }
 
-  it('a visibility event delivered after the window closed no longer throws', () => {
-    const win = electronLikeWindow()
-    detachVisibilityListenersOnClose(win as never)
+  it('keeps tracking visibility while the window lives', () => {
+    const { win, visibilityChecks } = electronLikeWindow()
+    guardVisibilityListenersAfterDestroy(win as never)
 
     win.emit('show')
+    win.emit('minimize')
+
+    expect(visibilityChecks).toHaveBeenCalledTimes(2)
+  })
+
+  it('a visibility event delivered after the window was destroyed no longer throws', () => {
+    const { win } = electronLikeWindow()
+    guardVisibilityListenersAfterDestroy(win as never)
+
     win.destroy()
 
     expect(() => win.emit('show')).not.toThrow()
