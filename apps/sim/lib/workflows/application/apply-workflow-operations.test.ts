@@ -216,6 +216,7 @@ describe('applyWorkflowOperations', () => {
       validationErrors: [],
       skippedItems: [],
       declinedOperationCount: 0,
+      removedEdges: [],
       mintedBlockIds: {},
     })
     mocks.collectReferences.mockResolvedValue([])
@@ -242,6 +243,7 @@ describe('applyWorkflowOperations', () => {
       validationErrors: [],
       skippedItems: [],
       declinedOperationCount: 0,
+      removedEdges: [],
       mintedBlockIds: {},
     })
     mocks.lintGraph.mockReturnValue({ ...EMPTY_GRAPH_LINT, orphanBlocks: [orphan] })
@@ -307,6 +309,7 @@ describe('applyWorkflowOperations', () => {
         validationErrors: [],
         skippedItems: [],
         declinedOperationCount: 0,
+        removedEdges: [],
         mintedBlockIds: { triage: 'preview-uuid' },
       })
 
@@ -397,6 +400,7 @@ describe('applyWorkflowOperations', () => {
         },
       ],
       declinedOperationCount: 1,
+      removedEdges: [],
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -422,6 +426,7 @@ describe('applyWorkflowOperations', () => {
         },
       ],
       declinedOperationCount: 0,
+      removedEdges: [],
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -446,6 +451,7 @@ describe('applyWorkflowOperations', () => {
         },
       ],
       declinedOperationCount: 1,
+      removedEdges: [],
     })
 
     const failure = await applyWorkflowOperations
@@ -500,6 +506,7 @@ describe('applyWorkflowOperations', () => {
         validationErrors: [],
         skippedItems: [],
         declinedOperationCount: 0,
+        removedEdges: [],
         mintedBlockIds: {},
       })
 
@@ -628,6 +635,7 @@ describe('applyWorkflowOperations', () => {
       validationErrors: [],
       skippedItems: [],
       declinedOperationCount: 0,
+      removedEdges: [],
     })
     mocks.collectReferences.mockResolvedValue([])
     mocks.collectToolReferences.mockResolvedValue([])
@@ -649,6 +657,7 @@ describe('applyWorkflowOperations', () => {
       validationErrors: [],
       skippedItems: [],
       declinedOperationCount: 0,
+      removedEdges: [],
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -747,6 +756,7 @@ describe('applyWorkflowOperations', () => {
       validationErrors: [],
       skippedItems: [],
       declinedOperationCount: 0,
+      removedEdges: [],
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -779,6 +789,7 @@ describe('applyWorkflowOperations', () => {
       validationErrors: [],
       skippedItems: [],
       declinedOperationCount: 0,
+      removedEdges: [],
     })
 
     const result = await applyWorkflowOperations.execute({

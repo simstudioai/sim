@@ -1,6 +1,7 @@
 /**
- * Real PostgreSQL coverage for what an operations batch persists when it renames a block or
- * sets a loop or parallel count from a string, read back from the normalized tables.
+ * Real PostgreSQL coverage for what an operations batch persists when it renames a block, sets a
+ * loop or parallel count from a string, or moves a connected block into a loop, read back from
+ * the normalized tables.
  */
 import { db } from '@sim/db'
 import { auditLog, permissions, user, workflow, workspace } from '@sim/db/schema'
@@ -38,7 +39,10 @@ function block(id: string, type: string, name: string, code?: string): BlockStat
   }
 }
 
-async function seedWorkflow(blocks: BlockState[]): Promise<string> {
+async function seedWorkflow(
+  blocks: BlockState[],
+  edges: WorkflowState['edges'] = []
+): Promise<string> {
   const id = generateId()
   const now = new Date()
   await db.insert(workflow).values({
@@ -52,7 +56,7 @@ async function seedWorkflow(blocks: BlockState[]): Promise<string> {
   })
   const state: WorkflowState = {
     blocks: Object.fromEntries(blocks.map((entry) => [entry.id, entry])),
-    edges: [],
+    edges,
     loops: {},
     parallels: {},
   }
@@ -131,6 +135,48 @@ describe('renaming a block through an operations batch', () => {
       'return { saved: <saveorderedited.row>, all: <saveorderedited.result> }'
     )
     expect(blocks[unrelated].subBlocks.code.value).toBe('return <saveorders.row>')
+  })
+})
+
+describe('moving a connected block into a loop', () => {
+  it('removes the edges the move leaves crossing the boundary, names them, and applies atomically', async () => {
+    const start = generateId()
+    const fetch = generateId()
+    const notify = generateId()
+    const loop = generateId()
+    const edge = (source: string, target: string) => ({
+      id: generateId(),
+      source,
+      target,
+      sourceHandle: 'source',
+      targetHandle: 'target',
+    })
+    const kept = edge(start, fetch)
+    const workflowId = await seedWorkflow(
+      [
+        block(start, 'starter', 'Start'),
+        block(fetch, 'function', 'Fetch', 'return 1'),
+        block(notify, 'function', 'Notify', 'return 2'),
+        { ...block(loop, 'loop', 'Repeat'), data: { loopType: 'for', count: 2 } },
+      ],
+      [kept, edge(fetch, notify)]
+    )
+
+    const result = await apply(
+      workflowId,
+      [{ operation_type: 'edit', block_id: notify, params: { parentId: loop } }],
+      true
+    )
+
+    expect(result.skipped).toEqual([])
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining(
+        'Removed 1 existing edge(s) this batch left invalid: "Fetch" -> "Notify"'
+      )
+    )
+    const { blocks, edges } = await stored(workflowId)
+    expect(blocks[notify].data?.parentId).toBe(loop)
+    expect(edges.map(({ id }) => id)).toEqual([kept.id])
   })
 })
 

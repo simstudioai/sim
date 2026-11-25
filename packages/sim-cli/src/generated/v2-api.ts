@@ -20648,7 +20648,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Column definition to add: {"name":"status","type":"string"}. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
+          'Column definition to add: {"name":"status","type":"string"}. Column fields: id - Optional client-provided column identifier; name (required) - Column name; type (required) - Column data type; required - Whether inserts must supply a value for this column; unique - Whether values in the column must be unique; options - Select options for select-type columns, as [{"id":"open","name":"Open"}]; multiple - Whether a select column accepts multiple values; currencyCode - ISO 4217 code for currency columns; position - Zero-based insertion position for the column. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
       },
     },
   },
@@ -22232,7 +22232,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Initial table column definitions: {"columns":[{"name":"email","type":"string"}]}. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
+          'Initial table column definitions: {"columns":[{"name":"email","type":"string","required":true,"unique":true}]}. Column fields: id - Optional client-provided column identifier; name (required) - Column name; type (required) - Column data type; required - Whether inserts must supply a value for this column; unique - Whether values in the column must be unique; options - Select options for select-type columns, as [{"id":"open","name":"Open"}]; multiple - Whether a select column accepts multiple values; currencyCode - ISO 4217 code for currency columns. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
       },
       folderPath: { kind: 'string', describe: 'Folder in which to create the table.' },
     },

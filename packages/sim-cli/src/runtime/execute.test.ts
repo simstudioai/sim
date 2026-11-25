@@ -183,9 +183,9 @@ describe('a chat publish that lands on public auth', () => {
 })
 
 describe('a workflow export', () => {
-  const PORTABLE = {
+  const EXPORTED = {
     version: '1.0',
-    state: { blocks: { a: { subBlocks: { tableSelector: null } } } },
+    state: { blocks: { a: { subBlocks: { tableSelector: { value: 'tbl_1' } } } } },
   }
 
   function exportWorkflow(flags: Record<string, unknown>) {
@@ -198,27 +198,24 @@ describe('a workflow export', () => {
     )
   }
 
-  it('explains the nulled bindings on stderr and leaves stdout the portable document', async () => {
-    request.mockResolvedValue({ data: PORTABLE })
+  it('asks for the workspace bindings by default and prints only the document', async () => {
+    request.mockResolvedValue({ data: EXPORTED })
     const captured = streams()
 
     await exportWorkflow({})
 
-    expect(captured.stderr).toContain('prints as null here')
-    expect(captured.stderr).toContain('sim workflows outline <workflowId>')
-    expect(captured.stderr).toContain('sim workflows state get <workflowId>')
-    expect(captured.stdout).not.toContain('note:')
-    expect(JSON.parse(captured.stdout)).toEqual(PORTABLE)
+    expect(request.mock.calls[0][1].query).toMatchObject({ includeWorkspaceBindings: true })
+    expect(captured.stderr).toBe('')
+    expect(JSON.parse(captured.stdout)).toEqual(EXPORTED)
   })
 
-  it('still says a credential is null when the bindings were asked for', async () => {
-    request.mockResolvedValue({ data: PORTABLE })
-    const captured = streams()
+  it('clears the bindings when the caller asks for a copy to share', async () => {
+    request.mockResolvedValue({ data: EXPORTED })
+    streams()
 
-    await exportWorkflow({ includeWorkspaceBindings: true })
+    await exportWorkflow({ includeWorkspaceBindings: false })
 
-    expect(captured.stderr).toContain('a credential always prints as null')
-    expect(captured.stderr).not.toContain('workspace binding')
+    expect(request.mock.calls[0][1].query).toMatchObject({ includeWorkspaceBindings: false })
   })
 })
 

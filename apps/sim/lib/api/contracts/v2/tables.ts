@@ -471,9 +471,23 @@ const v2TableColumnInputShape = {
   type: columnTypeSchema.describe('Column data type.'),
   required: z.boolean().optional().describe('Whether inserts must supply a value for this column.'),
   unique: z.boolean().optional().describe('Whether values in the column must be unique.'),
-  options: selectOptionsSchema.optional().describe('Select options for select-type columns.'),
+  options: selectOptionsSchema
+    .optional()
+    .describe('Select options for select-type columns, as [{"id":"open","name":"Open"}].'),
   multiple: z.boolean().optional().describe('Whether a select column accepts multiple values.'),
   currencyCode: currencyCodeSchema.optional().describe('ISO 4217 code for currency columns.'),
+}
+
+/**
+ * Every field a column input accepts and what it means, read from the shape the server validates,
+ * so the help cannot name a field the server rejects or leave out one it takes.
+ */
+function describeColumnFields(shape: Record<string, z.ZodType>): string {
+  const fields = Object.entries(shape).map(
+    ([field, schema]) =>
+      `${field}${schema.isOptional() ? '' : ' (required)'} - ${schema.description?.replace(/\.$/, '')}`
+  )
+  return `Column fields: ${fields.join('; ')}.`
 }
 
 /**
@@ -519,7 +533,7 @@ export const v2CreateTableBodySchema = v1CreateTableBodySchema
       })
       .strict()
       .describe(
-        `Initial table column definitions: {"columns":[{"name":"email","type":"string"}]}. ${COLUMN_TYPES_HELP}`
+        `Initial table column definitions: {"columns":[{"name":"email","type":"string","required":true,"unique":true}]}. ${describeColumnFields(v2TableColumnInputShape)} ${COLUMN_TYPES_HELP}`
       ),
     folderPath: v2FolderPathInputSchema.optional().describe('Folder in which to create the table.'),
   })
@@ -730,23 +744,25 @@ export const v2DeleteTableContract = defineRouteContract({
   },
 })
 
+const v2AddedColumnInputShape = {
+  ...v2TableColumnInputShape,
+  position: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Zero-based insertion position for the column.'),
+}
+
 export const v2CreateTableColumnBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the table.'),
     column: z
-      .object({
-        ...v2TableColumnInputShape,
-        position: z
-          .number()
-          .int()
-          .min(0)
-          .optional()
-          .describe('Zero-based insertion position for the column.'),
-      })
+      .object(v2AddedColumnInputShape)
       .strict()
       .superRefine(refineColumnOptions)
       .describe(
-        `Column definition to add: {"name":"status","type":"string"}. ${COLUMN_TYPES_HELP}`
+        `Column definition to add: {"name":"status","type":"string"}. ${describeColumnFields(v2AddedColumnInputShape)} ${COLUMN_TYPES_HELP}`
       ),
   })
   .strict()
