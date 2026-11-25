@@ -86,7 +86,7 @@ export const hubspotUpdateContactTool: ToolConfig<
     placeholderCrmRecord(
       'contact',
       params.properties,
-      params.idProperty ? undefined : params.contactId.trim()
+      params.idProperty ? undefined : String(params.contactId).trim()
     ),
 
   transformResponse: async (response: Response) => {

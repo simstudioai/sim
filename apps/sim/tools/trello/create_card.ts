@@ -138,16 +138,15 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
   },
 
   /**
-   * A dry run's placeholder holds the open card the call creates, named and described as it asks,
+   * A dry run's placeholder holds the card the call creates, named and described as it asks,
    * in the list it names; its id is a placeholder.
    */
   dryRunOutput: (params) => ({
     card: {
       id: dryRunId('card'),
       name: params.name,
-      desc: params.desc || '',
+      ...(params.desc ? { desc: params.desc } : {}),
       idList: params.listId.trim(),
-      closed: false,
     },
   }),
 

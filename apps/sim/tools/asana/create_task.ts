@@ -67,12 +67,11 @@ export const asanaCreateTaskTool: InternalToolConfig<
     }),
   },
 
-  /** A dry run's placeholder holds the open task the call creates; its gid is a placeholder. */
+  /** A dry run's placeholder holds the name and notes the call sets; its gid is a placeholder. */
   dryRunOutput: (params) => ({
     gid: dryRunId('task'),
     name: params.name,
-    notes: params.notes || '',
-    completed: false,
+    ...(params.notes ? { notes: params.notes } : {}),
   }),
 
   transformResponse: async (response: Response) => {

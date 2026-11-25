@@ -8,7 +8,10 @@ import {
   type MicrosoftTeamsGraphObject,
 } from '@/lib/internal/microsoft-teams/client'
 import { MicrosoftTeamsOperationError } from '@/lib/internal/microsoft-teams/errors'
-import { rewritesTeamsMessage } from '@/lib/internal/microsoft-teams/message-rewrite'
+import {
+  parseMentionNames,
+  rewritesTeamsMessage,
+} from '@/lib/internal/microsoft-teams/message-rewrite'
 import type {
   MicrosoftTeamsWriteChannelInput,
   MicrosoftTeamsWriteChatInput,
@@ -196,17 +199,6 @@ async function uploadFilesForMessage(
     })
   }
   return { attachments, files }
-}
-
-function parseMentionNames(content: string): Array<{ name: string; tag: string; id: number }> {
-  const parsed: Array<{ name: string; tag: string; id: number }> = []
-  const pattern = /<at>([^<]+)<\/at>/gi
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(content)) !== null) {
-    const name = match[1].trim()
-    if (name) parsed.push({ name, tag: match[0], id: parsed.length })
-  }
-  return parsed
 }
 
 async function resolveMentions(

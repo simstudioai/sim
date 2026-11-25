@@ -180,14 +180,15 @@ interface SheetWriteCounts {
 
 /**
  * The counts a write of `values` reports, or null when the request alone cannot say: `values`
- * is not a grid, or a null cell leaves the sheet's value in place.
+ * is not a grid, or a null cell leaves the sheet's value in place. An empty row or column writes
+ * no cell, so it is not counted as updated.
  */
 function sheetWriteCounts(values: unknown, majorDimension: string): SheetWriteCounts | null {
   if (!Array.isArray(values) || !values.every(Array.isArray)) return null
   const rows: unknown[][] = values
   if (rows.some((row) => row.some((cell) => cell === null || cell === undefined))) return null
-  const lines = rows.length
-  const width = Math.max(0, ...rows.map((row) => row.length))
+  const lines = rows.filter((row) => row.length > 0).length
+  const width = rows.reduce((widest, row) => Math.max(widest, row.length), 0)
   const cells = rows.reduce((total, row) => total + row.length, 0)
   const byColumns = majorDimension === 'COLUMNS'
   return {
@@ -219,11 +220,12 @@ export function sheetWritePlaceholder(
   values: unknown
 ): Record<string, unknown> {
   const majorDimension = params.majorDimension || 'ROWS'
+  const spreadsheetId = String(params.spreadsheetId).trim()
   return {
     ...sheetWriteCounts(values, majorDimension),
     metadata: {
-      spreadsheetId: params.spreadsheetId,
-      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${params.spreadsheetId}`,
+      spreadsheetId,
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
     },
     updatedData: params.includeValuesInResponse ? { majorDimension, values } : null,
   }

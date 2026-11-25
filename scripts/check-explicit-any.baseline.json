@@ -436,7 +436,7 @@
     "apps/sim/tools/github/create_comment_reaction.ts": 1,
     "apps/sim/tools/github/create_file.ts": 1,
     "apps/sim/tools/github/create_gist.ts": 2,
-    "apps/sim/tools/github/create_issue.ts": 4,
+    "apps/sim/tools/github/create_issue.ts": 3,
     "apps/sim/tools/github/create_issue_reaction.ts": 1,
     "apps/sim/tools/github/create_milestone.ts": 1,
     "apps/sim/tools/github/create_pr.ts": 1,

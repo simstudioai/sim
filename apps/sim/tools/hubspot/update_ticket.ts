@@ -78,7 +78,7 @@ export const hubspotUpdateTicketTool: ToolConfig<
     placeholderCrmRecord(
       'ticket',
       params.properties,
-      params.idProperty ? undefined : params.ticketId.trim()
+      params.idProperty ? undefined : String(params.ticketId).trim()
     ),
 
   transformResponse: async (response: Response) => {

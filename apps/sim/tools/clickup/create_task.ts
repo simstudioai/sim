@@ -167,7 +167,7 @@ export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpT
   },
 
   /**
-   * A dry run's placeholder holds the unarchived task the call creates, named as it asks, with the
+   * A dry run's placeholder holds the task the call creates, named as it asks, with the
    * plain description it sends (ClickUp derives one from markdown) and the parent it names; its id
    * is a placeholder.
    */
@@ -176,7 +176,6 @@ export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpT
       id: dryRunId('task'),
       name: params.name,
       ...(params.description && !params.markdownContent ? { description: params.description } : {}),
-      archived: false,
       ...(params.parent ? { parent: params.parent } : {}),
     },
   }),

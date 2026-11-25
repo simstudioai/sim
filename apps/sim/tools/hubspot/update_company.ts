@@ -86,7 +86,7 @@ export const hubspotUpdateCompanyTool: ToolConfig<
     placeholderCrmRecord(
       'company',
       params.properties,
-      params.idProperty ? undefined : params.companyId.trim()
+      params.idProperty ? undefined : String(params.companyId).trim()
     ),
 
   transformResponse: async (response: Response) => {

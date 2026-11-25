@@ -25,14 +25,13 @@ function asReturnedProperties(properties: unknown): unknown {
 /**
  * A dry run's placeholder for the CRM record a create or update of `kind` returns, under `kind`
  * and `${kind}Id`: the properties the call writes, as the strings HubSpot returns (it returns the
- * rest of the record's too), unarchived, with the record id the call names, or a placeholder id
- * for one HubSpot assigns or resolves from another id property.
+ * rest of the record's too), with the record id the call names, or a placeholder id for one
+ * HubSpot assigns or resolves from another id property.
  */
 export function placeholderCrmRecord(kind: string, properties: unknown, id = dryRunId(kind)) {
   return {
     [kind]: {
       id,
-      archived: false,
       properties: asReturnedProperties(parseHubSpotProperties(properties)),
     },
     [`${kind}Id`]: id,

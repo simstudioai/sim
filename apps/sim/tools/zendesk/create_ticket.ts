@@ -165,19 +165,31 @@ export const zendeskCreateTicketTool: ToolConfig<
   },
 
   /**
-   * A dry run's placeholder holds the subject, first comment and the priority, status and type
-   * the call sets on the ticket it creates; Zendesk's defaults and its id stay placeholders.
+   * A dry run's placeholder holds the subject, first comment and the priority, status, type,
+   * assignee, group and requester the call sets on the ticket it creates (each id as the number
+   * Zendesk returns); Zendesk's defaults and the ticket's id stay placeholders.
    */
-  dryRunOutput: (params) => ({
-    ticket: {
-      subject: params.subject,
-      raw_subject: params.subject,
-      description: params.description,
-      ...(params.priority ? { priority: params.priority } : {}),
-      ...(params.status ? { status: params.status } : {}),
-      ...(params.type ? { type: params.type } : {}),
-    },
-  }),
+  dryRunOutput: (params) => {
+    const ids = Object.entries({
+      assignee_id: params.assigneeId,
+      group_id: params.groupId,
+      requester_id: params.requesterId,
+    }).flatMap(([field, id]) => {
+      const digits = id ? String(id).trim() : ''
+      return /^\d+$/.test(digits) ? [[field, Number(digits)] as const] : []
+    })
+    return {
+      ticket: {
+        subject: params.subject,
+        raw_subject: params.subject,
+        description: params.description,
+        ...(params.priority ? { priority: params.priority } : {}),
+        ...(params.status ? { status: params.status } : {}),
+        ...(params.type ? { type: params.type } : {}),
+        ...Object.fromEntries(ids),
+      },
+    }
+  },
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

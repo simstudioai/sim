@@ -76,7 +76,7 @@ export const hubspotUpdateDealTool: ToolConfig<HubSpotUpdateDealParams, HubSpotU
       placeholderCrmRecord(
         'deal',
         params.properties,
-        params.idProperty ? undefined : params.dealId.trim()
+        params.idProperty ? undefined : String(params.dealId).trim()
       ),
 
     transformResponse: async (response: Response) => {
