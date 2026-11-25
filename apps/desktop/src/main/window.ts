@@ -19,6 +19,21 @@ const MIN_HEIGHT = 600
 const WINDOW_TITLE = 'Sim'
 const BOUNDS_SAVE_DELAY_MS = 400
 const ROUTE_SAVE_DELAY_MS = 500
+/** The events Electron's own per-window `visibilityChanged` listener subscribes to. */
+const VISIBILITY_EVENTS = ['show', 'hide', 'minimize', 'maximize', 'restore'] as const
+
+/**
+ * Drops a closed window's visibility listeners. macOS can deliver a window's
+ * `show` (an occlusion change) after the window has closed and been destroyed,
+ * as when the app quits just as its first window appears; Electron's own
+ * listener then reads `isVisible()` from the dead window and throws "Object has
+ * been destroyed" as an uncaught main-process exception during shutdown.
+ */
+export function detachVisibilityListenersOnClose(win: BrowserWindow): void {
+  win.once('closed', () => {
+    for (const event of VISIBILITY_EVENTS) win.removeAllListeners(event)
+  })
+}
 
 /**
  * The permission matrix: sanitized clipboard writes and microphone access for
