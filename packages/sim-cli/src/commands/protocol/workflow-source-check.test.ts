@@ -689,6 +689,38 @@ describe('sim workflows source check', () => {
     expect(untyped()).toHaveLength(1)
   })
 
+  it('reports an untyped JSON reference on a bound block an edit elsewhere makes store it bare, as the server does', async () => {
+    cacheCatalog()
+    writeLock(['start', 'done'])
+    printedWithFixture()
+    writeFileSync(join(dir, 'workflow.ts'), CLEAN)
+    const record = storedEdgesWrite(
+      {
+        files: { 'workflow.ts': CLEAN },
+        lock: JSON.parse(readFileSync(join(dir, '.sim/lock.json'), 'utf8')),
+        base: { fingerprint: 'sf1:a' },
+      },
+      JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+    )
+    if (!record) throw new Error('no stored-edges record')
+    writeFileSync(join(dir, record[0]), record[1])
+    const untyped = () =>
+      ((result().diagnostics ?? []) as Array<{ code: string; message: string }>)
+        .filter((finding) => finding.code === 'W_JSON_REF_UNTYPED')
+        .map((finding) => finding.message)
+
+    await check()
+    expect(untyped()).toEqual([])
+
+    // Only the Start trigger changes: done's body no longer reads a declared string, so it compiles bare.
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace("inputFormat: { message: 'string' }", "inputFormat: { topic: 'string' }")
+    )
+    await check()
+    expect(untyped()).toEqual([expect.stringContaining('<start.message>')])
+  })
+
   it('fails on an iteration reference a new block reads outside its loop, and on one a move left behind', async () => {
     cacheCatalog()
     const source = (echo: string) => `// @sim-sdk 1

@@ -27,7 +27,14 @@ import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import { diagnostic } from '../diagnostics/factory'
 import type { ResponseForm } from '../forms/response'
-import { JsonRef, type JsonTree, jsonFieldText, parseJsonField, refValueKind } from '../json-fields'
+import {
+  JsonRef,
+  type JsonTree,
+  jsonFieldText,
+  parseJsonField,
+  refDeclaresString,
+  refValueKind,
+} from '../json-fields'
 import { CODE_FILE_EXTENSIONS, isCodeFilePath, SOURCE_CODE_DIR } from '../limits'
 import type { AnchorKey, CanonicalBlock, ParamMode, Value } from '../model'
 import { getOwn, setOwn } from '../records'
@@ -154,13 +161,15 @@ function printParamValue(
 /**
  * JSON field text as the object or array literal compile turns back into exactly that text
  * (`json-fields.ts`), or `null` to keep the text form. A quoted token prints as a bare reference
- * when its value is a string and as `` t`${ref}` `` otherwise; a bare token prints bare, which
- * only a non-string value can be.
+ * when a declaration types its value a string ({@link refDeclaresString}) and as `` t`${ref}` ``
+ * otherwise, so its storage never rests on what other code returns; a bare token prints bare,
+ * which only a non-string value can be.
  */
 function printJsonField(ctx: PrintContext, block: CanonicalBlock, text: string): Expr | null {
   const tree = parseJsonField(text)
   if (tree === undefined) return null
   const isString = (token: string) => refValueKind(token, ctx.refTypes) === 'string'
+  const printsBare = (token: string) => refDeclaresString(token, ctx.refTypes)
   let expressible = true
   const asCompiled = (node: JsonTree): JsonTree => {
     if (node instanceof JsonRef) {
@@ -168,7 +177,7 @@ function printJsonField(ctx: PrintContext, block: CanonicalBlock, text: string):
         if (isString(node.token)) expressible = false
         return node
       }
-      return isString(node.token) ? node : node.token
+      return printsBare(node.token) ? node : node.token
     }
     if (node === null || typeof node !== 'object') return node
     if (Array.isArray(node)) return node.map(asCompiled)
@@ -184,7 +193,7 @@ function printJsonField(ctx: PrintContext, block: CanonicalBlock, text: string):
     if (node instanceof JsonRef) {
       const expr = ctx.refs.resolveToken(node.token, from)
       if (expr === null) return node.quoted ? ctx.values.string(node.token) : null
-      if (!node.quoted || isString(node.token)) return refExpr(expr)
+      if (!node.quoted || printsBare(node.token)) return refExpr(expr)
       ctx.imports.add('t')
       return { doc: ['t`${', expr, '}`'], shape: 'template', depth: 2 + pathDepth(expr) }
     }

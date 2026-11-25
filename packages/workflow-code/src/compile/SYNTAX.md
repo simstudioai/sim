@@ -231,7 +231,10 @@ nor, against a stored workflow, for a field the source left as stored. A templat
 string, which is how a value becomes text on purpose. A resource (`table('x')`, `credential()`,
 `file()`) or `raw(node)` is not data, so inside the literal it is `E_UNSUPPORTED_SYNTAX`. The printer writes a field's text back as the
 literal only when serializing that literal gives the same bytes; otherwise the text prints as a
-template.
+template. A stored quoted token prints as the bare reference only when a declaration (the catalog,
+a variable's type, an input or response format) types it `string`; one typed only by what a
+Function's code or a child workflow returns prints as `` t`${ref}` ``, so an edit to that code never
+changes how an unedited field stores it.
 
 ### Structured fields
 
