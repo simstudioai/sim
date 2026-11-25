@@ -1,7 +1,7 @@
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
-import { tableSuccess } from '@/tools/table/response'
+import { placeholderRow, tableSuccess } from '@/tools/table/response'
 import {
   IGNORED_COLUMNS_OUTPUT,
   type TableRowUpdateParams,
@@ -59,8 +59,14 @@ export const tableUpdateRowTool: InternalToolConfig<TableRowUpdateParams, TableR
     },
   },
 
-  /** A dry run's placeholder row is the row named, holding the data the call writes to it. */
-  dryRunOutput: (params) => ({ row: { id: params.rowId, data: params.data } }),
+  /**
+   * A dry run's placeholder is the row named, holding only the fields the call patches: its other
+   * columns are stored state the request cannot know.
+   */
+  dryRunOutput: (params) => ({
+    row: placeholderRow(params.data, 0, params.rowId),
+    ignoredColumns: [],
+  }),
 
   transformResponse: async (response): Promise<TableRowWriteResponse> => {
     const result = await response.json()

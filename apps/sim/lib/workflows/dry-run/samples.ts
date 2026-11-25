@@ -22,42 +22,61 @@ export function sampleBlockOutput(block: {
   )
 }
 
+/** The fields a declared output lays out: its `properties`, or a nested map of fields. */
+function declaredFields(output: unknown): Record<string, unknown> | null {
+  if (!isPlainRecord(output)) return null
+  if (typeof output.type !== 'string') return output
+  return (output.type === 'object' || output.type === 'json') && isPlainRecord(output.properties)
+    ? output.properties
+    : null
+}
+
 /**
- * `value` with what it leaves out taken from `sample`: a record field by field, and each item of
- * an array from the sample's first item.
+ * `echoed` laid over `sample` by the declared `output`: field by field where it declares fields,
+ * item by item where it declares an array's `items`, and anywhere else `echoed` replaces the sample
+ * whole.
  */
-function fillFromSample(sample: unknown, value: unknown): unknown {
-  if (value === undefined) return sample
-  if (Array.isArray(value)) {
-    const item = Array.isArray(sample) ? sample[0] : undefined
-    return value.map((entry) => fillFromSample(item, entry))
+function overlay(output: unknown, sample: unknown, echoed: unknown): unknown {
+  if (echoed === undefined) return sample
+  const fields = declaredFields(output)
+  if (fields) {
+    return isPlainRecord(echoed) && isPlainRecord(sample)
+      ? overlayFields(fields, sample, echoed)
+      : echoed
   }
-  if (!isPlainRecord(value) || !isPlainRecord(sample)) return value
-  return Object.fromEntries([
-    ...Object.entries(sample),
-    ...Object.entries(value).map(([key, entry]) => [
-      key,
-      fillFromSample(Object.hasOwn(sample, key) ? sample[key] : undefined, entry),
-    ]),
-  ])
+  if (isPlainRecord(output) && output.type === 'array' && isPlainRecord(output.items)) {
+    if (!Array.isArray(echoed)) return echoed
+    const item = Array.isArray(sample) ? sample[0] : undefined
+    return echoed.map((entry) => overlay(output.items, item, entry))
+  }
+  return echoed
+}
+
+/** The sample's declared fields, each with what `echoed` holds for it laid over it. */
+function overlayFields(
+  fields: Record<string, unknown>,
+  sample: Record<string, unknown>,
+  echoed: Record<string, unknown>
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(sample).map(([field, value]) => [
+      field,
+      Object.hasOwn(echoed, field) ? overlay(fields[field], value, echoed[field]) : value,
+    ])
+  )
 }
 
 /**
  * Placeholder output shaped like a tool's declared outputs; empty for a tool that declares none.
- * `echoed`, what the tool's `dryRunOutput` derived from the request it would have sent, fills each
- * declared output it names, and the sample everything else.
+ * `echoed`, the tool's `dryRunOutput`, is laid over the sample by the declared schema (see
+ * `ToolConfig.dryRunOutput`).
  */
 export function sampleToolOutput(
   toolId: string,
   echoed: Record<string, unknown> | null = null
 ): Record<string, unknown> {
   const outputs = getToolOutputsMetadata(toolId)
-  const sample = outputs ? generateMockPayloadFromOutputsDefinition(outputs) : {}
-  if (!echoed) return sample
-  return Object.fromEntries(
-    Object.entries(sample).map(([field, value]) => [
-      field,
-      Object.hasOwn(echoed, field) ? fillFromSample(value, echoed[field]) : value,
-    ])
-  )
+  if (!outputs) return {}
+  const sample = generateMockPayloadFromOutputsDefinition(outputs)
+  return echoed ? overlayFields(outputs, sample, echoed) : sample
 }

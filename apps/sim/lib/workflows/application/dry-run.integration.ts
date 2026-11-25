@@ -98,7 +98,6 @@ import {
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
 import { resumeWorkflowRun } from '@/lib/workflows/application/resume-run'
 import { runFromBlockFromCopilot } from '@/lib/workflows/application/run-workflow-from-copilot'
-import { sampleToolOutput } from '@/lib/workflows/dry-run'
 import type { ExecuteWorkflowServiceRun } from '@/lib/workflows/executor/execute-service'
 import { getWorkflowExecutionLogStatus } from '@/lib/workflows/executor/execution-state'
 import { POST as v2Execute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
@@ -495,12 +494,17 @@ describe('a dry run', () => {
           block('save', 'table', {
             operation: 'upsert_row',
             tableSelector: tableId,
-            data: JSON.stringify({ email: 'a@b.co', score: 82, note: 'key={{DRY_SECRET}}' }),
+            data: JSON.stringify({
+              email: 'a@b.co',
+              score: 82,
+              note: 'key={{DRY_SECRET}}',
+              reset_token: 'a',
+            }),
           }),
           notify('notify'),
           block('read', 'function', {
             language: 'javascript',
-            code: 'return { score: <save.row.data.score>, email: <save.row.data.email>, note: <save.row.data.note>, notified: <notify.status> }',
+            code: 'return { id: <save.row.id>, score: <save.row.data.score>, email: <save.row.data.email>, note: <save.row.data.note>, notified: <notify.status> }',
           }),
         ],
         [
@@ -515,21 +519,181 @@ describe('a dry run', () => {
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     expect(await tableRows(tableId)).toEqual([])
-    const read = toRecord(result.blockOutputs?.['read.result'])
-    expect(read).toMatchObject({
+    expect(result.blockOutputs?.['read.result']).toEqual({
+      id: 'dry_run_row_1',
       score: 82,
       email: 'a@b.co',
-      note: expect.stringContaining('key='),
+      note: 'key={{DRY_SECRET}}',
+      notified: 42,
     })
     expect(JSON.stringify(result)).not.toContain(SECRET)
     const [save, sent] = result.sideEffects?.stubbed ?? []
-    expect(toRecord(save.returned.row).data).toEqual({
+    const written = {
       email: 'a@b.co',
       score: 82,
-      note: read.note,
+      note: 'key={{DRY_SECRET}}',
+      reset_token: '[REDACTED]',
+    }
+    expect(save.request).toMatchObject({ data: written })
+    expect(save.returned).toEqual({
+      success: true,
+      row: {
+        id: 'dry_run_row_1',
+        data: written,
+        position: 0,
+        createdAt: '1970-01-01T00:00:00.000Z',
+        updatedAt: '1970-01-01T00:00:00.000Z',
+      },
+      operation: 'mock_operation',
+      ignoredColumns: [],
+      message: 'mock_message',
     })
-    expect(sent).toMatchObject({ tool: 'http_request', returned: sampleToolOutput('http_request') })
-    expect(read.notified).toBe(sampleToolOutput('http_request').status)
+    expect(sent).toMatchObject({ tool: 'http_request', returned: { status: 42 } })
+  })
+
+  it('masks a run secret wherever it appears, though a secret-named column holds part of it', async () => {
+    const tableId = await createTable()
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('save', 'table', {
+            operation: 'upsert_row',
+            tableSelector: tableId,
+            data: JSON.stringify({
+              email: 'a@b.co',
+              note: 'key={{DRY_SECRET}}',
+              session_token: SECRET.slice(0, 16),
+            }),
+          }),
+        ],
+        [['start', 'save']]
+      ).state
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    const written = { email: 'a@b.co', note: 'key={{DRY_SECRET}}', session_token: '[REDACTED]' }
+    const [save] = result.sideEffects?.stubbed ?? []
+    expect(save.request).toMatchObject({ data: written })
+    expect(toRecord(save.returned.row).data).toEqual(written)
+    expect(JSON.stringify(result)).not.toContain(SECRET.slice(16))
+  })
+
+  it('answers each write that declares it with the output its request determines', async () => {
+    const tableId = await createTable()
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('add', 'table', {
+            operation: 'insert_row',
+            tableSelector: tableId,
+            data: JSON.stringify({ email: 'a@b.co' }),
+          }),
+          block('batch', 'table', {
+            operation: 'batch_insert_rows',
+            tableSelector: tableId,
+            rows: JSON.stringify([{ email: 'b@b.co' }, { email: 'c@d.co', score: 3 }]),
+          }),
+          block('edit', 'table', {
+            operation: 'update_row',
+            tableSelector: tableId,
+            rowId: 'row_named',
+            data: JSON.stringify({ score: 7 }),
+          }),
+          block('report', 'file_v4', {
+            operation: 'file_write',
+            fileName: 'report.txt',
+            content: 'héllo',
+          }),
+        ],
+        [
+          ['start', 'add'],
+          ['add', 'batch'],
+          ['batch', 'edit'],
+          ['edit', 'report'],
+        ]
+      ).state
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(await tableRows(tableId)).toEqual([])
+    const placeholderRow = (id: string, data: Record<string, unknown>, position: number) => ({
+      id,
+      data,
+      position,
+      createdAt: '1970-01-01T00:00:00.000Z',
+      updatedAt: '1970-01-01T00:00:00.000Z',
+    })
+    const returned = Object.fromEntries(
+      (result.sideEffects?.stubbed ?? []).map((entry) => [entry.tool, entry.returned])
+    )
+    expect(returned).toEqual({
+      table_insert_row: {
+        success: true,
+        row: { ...placeholderRow('dry_run_row_1', { email: 'a@b.co' }, 0), executions: {} },
+        ignoredColumns: [],
+        message: 'mock_message',
+      },
+      table_batch_insert_rows: {
+        success: true,
+        rows: [
+          { ...placeholderRow('dry_run_row_1', { email: 'b@b.co' }, 0), executions: {} },
+          { ...placeholderRow('dry_run_row_2', { email: 'c@d.co', score: 3 }, 1), executions: {} },
+        ],
+        insertedCount: 2,
+        ignoredColumns: [],
+        message: 'mock_message',
+      },
+      table_update_row: {
+        success: true,
+        row: placeholderRow('row_named', { score: 7 }, 0),
+        ignoredColumns: [],
+        message: 'mock_message',
+      },
+      file_write: {
+        id: 'mock_id',
+        name: 'report.txt',
+        size: 6,
+        url: 'mock_url',
+        version: 42,
+        revision: 'mock_revision',
+      },
+    })
+  })
+
+  it('answers a write with the sample alone when its output cannot be derived from the request', async () => {
+    const tableId = await createTable()
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('batch', 'table', {
+            operation: 'batch_insert_rows',
+            tableSelector: tableId,
+            rows: JSON.stringify({ email: 'a@b.co' }),
+          }),
+        ],
+        [['start', 'batch']]
+      ).state
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    const [batch] = result.sideEffects?.stubbed ?? []
+    expect(batch.request).toMatchObject({ rows: { email: 'a@b.co' } })
+    expect(batch.returned).toEqual({
+      success: true,
+      rows: [{ id: 'item_1', name: 'Sample Item', value: 'Sample Value' }],
+      insertedCount: 42,
+      ignoredColumns: ['mock_ignoredColumns_item'],
+      message: 'mock_message',
+    })
   })
 
   it('keeps nothing beyond its own log: no run count and no workspace event', async () => {
@@ -794,7 +958,7 @@ describe('a dry run', () => {
             operation: 'create_document',
             knowledgeBaseSelector: knowledgeBaseId,
             manualKnowledgeBaseId: knowledgeBaseId,
-            name: 'notes.txt',
+            name: 'notes',
             content: 'The deploy key is {{DRY_SECRET}}',
           }),
         ],
@@ -808,7 +972,10 @@ describe('a dry run', () => {
     const [write] = result.sideEffects?.stubbed ?? []
     expect(write).toMatchObject({
       tool: 'knowledge_create_document',
-      returned: { data: { documentName: 'notes.txt' } },
+      returned: {
+        message: 'mock_message',
+        data: { documentId: 'mock_documentId', documentName: 'notes.txt', type: 'mock_type' },
+      },
     })
     const [document] = toArray<unknown>(toRecord(write.request).documents)
     const fileUrl = String(toRecord(document).fileUrl)
@@ -818,38 +985,43 @@ describe('a dry run', () => {
     expect(JSON.stringify(result.sideEffects)).not.toContain(SECRET)
   })
 
-  it('masks a secret typed into a password field, whatever the field is called', async () => {
-    const routingKey = `routing-${generateId()}`
-    const workflowId = await saveWorkflow(
-      graph(
-        [
-          block('start', 'start_trigger'),
-          block('page', 'pagerduty', {
-            operation: 'send_event',
-            routingKey,
-            eventAction: 'trigger',
-            eventSummary: 'Disk full',
-            eventSource: 'db-1',
-            eventSeverity: 'critical',
+  it.each([
+    ['a', `routing-${generateId()}`],
+    ['a short', 'rk-7Q'],
+  ])(
+    'masks %s secret typed into a password field, whatever the field is called',
+    async (_, routingKey) => {
+      const workflowId = await saveWorkflow(
+        graph(
+          [
+            block('start', 'start_trigger'),
+            block('page', 'pagerduty', {
+              operation: 'send_event',
+              routingKey,
+              eventAction: 'trigger',
+              eventSummary: 'Disk full',
+              eventSource: 'db-1',
+              eventSeverity: 'critical',
+            }),
+          ],
+          [['start', 'page']]
+        ).state
+      )
+
+      const result = await run(workflowId, { dry: true })
+
+      expect(result.status, JSON.stringify(result.error)).toBe('completed')
+      expect(result.sideEffects?.stubbed).toEqual([
+        expect.objectContaining({
+          tool: 'pagerduty_send_event',
+          request: expect.objectContaining({
+            body: expect.objectContaining({ event_action: 'trigger', routing_key: '[REDACTED]' }),
           }),
-        ],
-        [['start', 'page']]
-      ).state
-    )
-
-    const result = await run(workflowId, { dry: true })
-
-    expect(result.status, JSON.stringify(result.error)).toBe('completed')
-    expect(result.sideEffects?.stubbed).toEqual([
-      expect.objectContaining({
-        tool: 'pagerduty_send_event',
-        request: expect.objectContaining({
-          body: expect.objectContaining({ event_action: 'trigger' }),
         }),
-      }),
-    ])
-    expect(JSON.stringify(result.sideEffects)).not.toContain(routingKey)
-  })
+      ])
+      expect(JSON.stringify(result.sideEffects)).not.toContain(routingKey)
+    }
+  )
 
   it('answers a write whose request it cannot build once masked, so the run goes on', async () => {
     const workflowId = await saveWorkflow(
