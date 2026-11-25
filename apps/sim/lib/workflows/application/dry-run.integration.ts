@@ -26,6 +26,7 @@ import {
   apiKey,
   customBlock,
   customTools,
+  folder,
   mcpServers,
   memory,
   organization,
@@ -2414,7 +2415,13 @@ describe('a dry run’s overrides of a child workflow', () => {
     expect(byName.status, JSON.stringify(byName.error)).toBe('completed')
     expect(await tableRows(tableId)).toEqual([expect.stringContaining('child@b.co')])
     expect(byName.sideEffects?.allowed).toEqual([
-      { workflowId: childId, blockId: child.idOf('save'), block: 'save', tool: 'table_upsert_row' },
+      {
+        workflowId: childId,
+        blockId: child.idOf('save'),
+        block: 'save',
+        tool: 'table_upsert_row',
+        mcp: null,
+      },
     ])
     expect(byName.sideEffects?.unused).toEqual([])
     const recorded = {
@@ -2769,6 +2776,39 @@ describe('a dry run’s block selectors', () => {
     }
     expect(await logTriggers(parentId)).toEqual([])
   })
+
+  it('refuse a workflow name shared by more workflows than a lookup returns, rather than resolve a partial list', async () => {
+    const { parentId } = await parentFixture()
+    const crowded = `Crowded ${generateId()}`
+    const now = new Date()
+    const folders = Array.from({ length: 101 }, () => ({
+      id: generateId(),
+      resourceType: 'workflow' as const,
+      name: `Folder ${generateId()}`,
+      userId: ownerId,
+      workspaceId,
+    }))
+    await db.insert(folder).values(folders)
+    const crowd = folders.map((entry) => ({
+      id: generateId(),
+      userId: ownerId,
+      workspaceId,
+      folderId: entry.id,
+      name: crowded,
+      lastSynced: now,
+      createdAt: now,
+      updatedAt: now,
+    }))
+    await db.insert(workflow).values(crowd)
+    workflowIds.push(...crowd.map((entry) => entry.id))
+
+    await expect(
+      run(parentId, { dry: true, allowBlocks: [`${crowded}.save`] })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('name more than 100 workflows'),
+    })
+  })
 })
 
 describe('a dry run’s mocks from an earlier run, read as that run shows them', () => {
@@ -2820,6 +2860,33 @@ describe('a dry run’s mocks from an earlier run, read as that run shows them',
     })
     expect(replayed.status, JSON.stringify(replayed.error)).toBe('completed')
     expect(replayed.sideEffects?.stubbed[0]?.request).toMatchObject({ data: { note: 'count 7' } })
+  })
+
+  it('judge a block as the earlier run ran it, not as the draft has since been edited', async () => {
+    const tableId = await createTable()
+    const fixture = lookupThenSave(tableId, 'a@b.co')
+    const workflowId = await saveWorkflow(fixture.state)
+    const source = await run(workflowId, { dry: true })
+    expect(source.status, JSON.stringify(source.error)).toBe('completed')
+    const lookupId = fixture.idOf('lookup')
+    const saveId = fixture.idOf('save')
+    const edited = structuredClone(fixture.state)
+    edited.blocks[lookupId] = { ...upsertLead('lookup', tableId, 'c@b.co'), id: lookupId }
+    edited.blocks[saveId] = { ...queryLeads('save', tableId), id: saveId }
+    const saved = await saveWorkflowToNormalizedTables(workflowId, edited)
+    expect(saved.success, saved.error).toBe(true)
+
+    await expect(
+      run(workflowId, { dry: true, mocksFrom: { runId: source.executionId, blocks: ['save'] } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('answered this block with a placeholder'),
+    })
+    const replayed = await run(workflowId, {
+      dry: true,
+      mocksFrom: { runId: source.executionId, blocks: ['lookup'] },
+    })
+    expect(replayed.status, JSON.stringify(replayed.error)).toBe('completed')
   })
 
   it('are refused while the run is running, when its outputs are hidden, and before it has any', async () => {

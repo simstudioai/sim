@@ -23,7 +23,9 @@ import {
 import {
   isCustomBlockSourceWorkflow,
   listActiveWorkflowIdsByIdOrName,
+  loadRunSnapshotBlocks,
   loadWorkflowReadSnapshots,
+  MAX_WORKFLOWS_BY_ID_OR_NAME,
 } from '@/lib/workflows/queries'
 import { getWorkflowInvocationTarget } from '@/lib/workflows/streaming/nested-output-options'
 import { getBlock } from '@/blocks/registry'
@@ -239,6 +241,12 @@ class OverrideResolver {
         ),
       ]
       const ids = await listActiveWorkflowIdsByIdOrName(this.workspaceId, names)
+      if (ids === null) {
+        throw new OrchestrationError(
+          'validation',
+          `The workflow parts of these <workflow>.<block> selectors name more than ${MAX_WORKFLOWS_BY_ID_OR_NAME} workflows of this workspace; name each workflow by its id.`
+        )
+      }
       return loadWorkspaceWorkflows(ids, this.workspaceId)
     })()
     return this.inWorkspace
@@ -366,6 +374,7 @@ interface RecordedMock {
  * Refused: a block the run did not execute; one inside a loop or parallel, whose recorded output
  * is one iteration's, unless the run mocked it (every iteration answered alike); and, when the
  * run was itself a test run, a block it answered with a placeholder rather than mocked or allowed.
+ * Each block is judged as that run's snapshot holds it, not as the draft has since been edited.
  */
 async function readRecordedOutputs(
   principal: WorkflowExecutionPrincipal,
@@ -423,6 +432,13 @@ async function readRecordedOutputs(
       `run.mocksFrom.runId "${runId}" has no recorded block outputs yet; mock from a run whose log is written.`
     )
   }
+  const sourceBlocks = await loadRunSnapshotBlocks(root.id, runId)
+  if (!sourceBlocks) {
+    throw new OrchestrationError(
+      'conflict',
+      `run.mocksFrom.runId "${runId}" has no recorded workflow state; mock from a run whose log is written.`
+    )
+  }
   const sourceIsTestRun = run.trigger === TEST_TRIGGER
   const sourceMocked = new Set([
     ...(run.dryRun?.mockedBlocks ?? []),
@@ -431,14 +447,15 @@ async function readRecordedOutputs(
   const sourceAllowed = new Set(run.dryRun?.allowBlocks ?? [])
   return selected.map(({ label, blockId }) => {
     const mockedThere = sourceMocked.has(blockId)
-    if (!mockedThere && blockAndAncestors(root.blocks, blockId).length > 1) {
+    const sourceBlock = sourceBlocks[blockId]
+    if (!mockedThere && blockAndAncestors(sourceBlocks, blockId).length > 1) {
       throw new OrchestrationError(
         'validation',
         `${label} is inside a loop or parallel, whose recorded output is one iteration's; pass its output with run.mocks instead.`
       )
     }
     const output = blockOutputs[blockId]
-    if (output === undefined) {
+    if (output === undefined || !sourceBlock) {
       throw new OrchestrationError(
         'validation',
         mockedThere
@@ -456,7 +473,7 @@ async function readRecordedOutputs(
       sourceIsTestRun &&
       !mockedThere &&
       !sourceAllowed.has(blockId) &&
-      answeredWithPlaceholder(root.blocks[blockId])
+      answeredWithPlaceholder(sourceBlock)
     ) {
       throw new OrchestrationError(
         'validation',

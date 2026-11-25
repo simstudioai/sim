@@ -121,7 +121,7 @@ describe('withRunNext on a failed run', () => {
     expect(withRunNext('executeWorkflow', hostile)).toBe(hostile)
   })
 
-  it('repeats a dry run’s child blocks and mocks, reading passed ones from the run itself when it can', () => {
+  it('repeats a dry run’s child blocks and mocks, reading passed ones from the run only where it reached them', () => {
     const dryRun = {
       allowBlocks: [],
       mockedBlocks: ['blk_2'],
@@ -133,8 +133,18 @@ describe('withRunNext on a failed run', () => {
       next: "sim workflows run wf_1 --from-block blk_3 --source-run run_9 --dry --allow wf_child.blk_c1 --mock-from run_1 --mock blk_4 --mock 'blk_2=<json>' --mock 'wf_child.blk_c2=<json>'",
     })
     const passedOnly = { allowBlocks: [], mockedBlocks: ['blk_2', 'blk_5'] }
-    expect(withRunNext('executeWorkflow', { ...failed, dryRun: passedOnly })).toMatchObject({
-      next: 'sim workflows run wf_1 --from-block blk_3 --source-run run_9 --dry --mock-from run_9 --mock blk_2 --mock blk_5',
+    const sideEffects = {
+      unused: [{ workflowId: 'wf_1', blockId: 'blk_5', block: 'Notify', override: 'mock' }],
+    }
+    expect(
+      withRunNext('executeWorkflow', { ...failed, dryRun: passedOnly, sideEffects })
+    ).toMatchObject({
+      next: "sim workflows run wf_1 --from-block blk_3 --source-run run_9 --dry --mock-from run_9 --mock blk_2 --mock 'blk_5=<json>'",
+    })
+    expect(
+      withRunNext('getWorkflowRun', { ...failed, trigger: 'test', dryRun: passedOnly })
+    ).toMatchObject({
+      next: "sim workflows run wf_1 --from-block blk_3 --source-run run_9 --dry --mock 'blk_2=<json>' --mock 'blk_5=<json>'",
     })
     for (const hostile of [
       { ...dryRun, childAllowBlocks: [{ workflowId: '$(id)', blockId: 'blk_c1' }] },

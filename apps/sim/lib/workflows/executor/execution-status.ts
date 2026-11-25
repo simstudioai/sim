@@ -270,8 +270,10 @@ export interface ProjectedWorkflowExecutionStatus {
    */
   failedBlock: FailedTraceBlock | null
   /**
-   * A dry run's allowed and mocked blocks, whatever its status; null for any other run, or when
-   * the viewer's group withholds execution data.
+   * A dry run's allowed and mocked blocks, whatever its status, when the read loads execution data
+   * (a failed run, or one read with its output or selected block outputs); null otherwise, for any
+   * other run, or when the viewer's group withholds execution data. The v2 run read returns only
+   * a failed run's, and a `run.mocksFrom` read always selects block outputs.
    *
    * permission-group-enforced: logs.trace_spans
    */
@@ -373,7 +375,7 @@ interface ResolvedExecutionStatus {
   pausePoints: unknown
   /** The failing block the recorded trace names, when the answered `error` is the run's own. */
   failedBlock: FailedTraceBlock | null
-  /** A dry run's allowed and mocked blocks, as its log's trigger recorded them. */
+  /** A dry run's allowed and mocked blocks, as its log's trigger recorded them, when execution data was read. */
   dryRun: DryRunOptions | null
 }
 

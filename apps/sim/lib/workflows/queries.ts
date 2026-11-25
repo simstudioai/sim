@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { customBlock, workflow } from '@sim/db/schema'
+import {
+  customBlock,
+  workflow,
+  workflowExecutionLogs,
+  workflowExecutionSnapshots,
+} from '@sim/db/schema'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { and, asc, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { WorkflowListItem } from '@/lib/api/contracts/workflows'
 import {
@@ -138,16 +144,17 @@ export async function listActiveWorkflowsNamed(workspaceId: string, name: string
 }
 
 /** At most this many workflows answer {@link listActiveWorkflowIdsByIdOrName}. */
-const MAX_WORKFLOWS_BY_ID_OR_NAME = 100
+export const MAX_WORKFLOWS_BY_ID_OR_NAME = 100
 
 /**
  * Ids of the active workflows of `workspaceId` whose id or exact name is one of `keys`, in one
- * query, at most {@link MAX_WORKFLOWS_BY_ID_OR_NAME}.
+ * query; null when more than {@link MAX_WORKFLOWS_BY_ID_OR_NAME} match, so no caller resolves
+ * against a partial answer.
  */
 export async function listActiveWorkflowIdsByIdOrName(
   workspaceId: string,
   keys: readonly string[]
-): Promise<string[]> {
+): Promise<string[] | null> {
   if (keys.length === 0) return []
   const rows = await db
     .select({ id: workflow.id })
@@ -159,8 +166,38 @@ export async function listActiveWorkflowIdsByIdOrName(
         or(inArray(workflow.id, [...keys]), inArray(workflow.name, [...keys]))
       )
     )
-    .limit(MAX_WORKFLOWS_BY_ID_OR_NAME)
-  return rows.map((row) => row.id)
+    .limit(MAX_WORKFLOWS_BY_ID_OR_NAME + 1)
+  return rows.length > MAX_WORKFLOWS_BY_ID_OR_NAME ? null : rows.map((row) => row.id)
+}
+
+/**
+ * The blocks of the workflow state `executionId`, a run of `workflowId`, executed, as its log's
+ * snapshot holds them; null when the run has no log.
+ */
+export async function loadRunSnapshotBlocks(
+  workflowId: string,
+  executionId: string
+): Promise<Record<string, BlockState> | null> {
+  const [row] = await db
+    .select({
+      blocks: sql<Record<
+        string,
+        BlockState
+      > | null>`${workflowExecutionSnapshots.stateData} -> 'blocks'`,
+    })
+    .from(workflowExecutionLogs)
+    .innerJoin(
+      workflowExecutionSnapshots,
+      eq(workflowExecutionSnapshots.id, workflowExecutionLogs.stateSnapshotId)
+    )
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  return row?.blocks ?? null
 }
 
 /** Whether `workflowId` is the source workflow a custom block runs. */

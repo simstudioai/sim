@@ -17,7 +17,7 @@ function holdsLargeValueRef(value: unknown): boolean {
     const next = pending.pop()
     if (next === null || typeof next !== 'object') continue
     if (Object.hasOwn(next, LARGE_VALUE_REF_MARKER)) return true
-    pending.push(...Object.values(next))
+    for (const child of Object.values(next)) pending.push(child)
   }
   return false
 }

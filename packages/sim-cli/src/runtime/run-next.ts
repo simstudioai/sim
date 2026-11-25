@@ -57,15 +57,34 @@ function childSelector(entry: unknown): string | null {
 }
 
 /**
+ * The run's own mocked blocks it reached, so recorded an output for: every mocked block of this
+ * workflow its `sideEffects.unused` does not list. None when the record carries no such list (a run
+ * read back later, which keeps no side effects), so no `--mock-from` names an output never recorded.
+ */
+function reachedMocks(record: Record<string, unknown>): Set<unknown> {
+  const unused = toRecordOrNull(record.sideEffects)?.unused
+  if (!Array.isArray(unused)) return new Set()
+  const unreached = new Set(
+    unused.flatMap((entry) =>
+      isRecordLike(entry) && entry.override === 'mock' && entry.workflowId === record.workflowId
+        ? [entry.blockId]
+        : []
+    )
+  )
+  const mocked = toArray(toRecordOrNull(record.dryRun)?.mockedBlocks)
+  return new Set(mocked.filter((blockId) => !unreached.has(blockId)))
+}
+
+/**
  * The flags that keep a rerun of a test run a test: `--dry`, with a dry run's own `--allow`
  * blocks (`dryRun.allowBlocks`, and a child's as `<workflowId>.<blockId>`), so following `next`
  * never sends what the run held back. A workflow test's run has no `dryRun` but held its writes
  * back all the same. A mock is recorded only by block, never its output, so `next` reads it again
  * from a run: the run it was read from (`--mock-from`), or, for a mock the caller passed to this
- * workflow's block, this run itself, which recorded the output the block answered with. Only one
- * run can be read from, and a child's block never is, so a passed mock left over holds a `<json>`
- * placeholder the caller replaces with the output. Null when an id is not in the format the server
- * issues.
+ * workflow's block, this run itself, which recorded the output the block answered with if the run
+ * reached it ({@link reachedMocks}). Only one run can be read from, and a child's block never is,
+ * so a passed mock left over holds a `<json>` placeholder the caller replaces with the output.
+ * Null when an id is not in the format the server issues.
  */
 function dryRerunFlags(record: Record<string, unknown>): string | null {
   if (!isTestRun(record)) return ''
@@ -82,9 +101,14 @@ function dryRerunFlags(record: Record<string, unknown>): string | null {
   }
   const mocksFrom = toRecordOrNull(dryRun?.mocksFrom)
   const passed = toArray(dryRun?.mockedBlocks)
+  const reached = reachedMocks(record)
   const [readFrom, read, unread] = mocksFrom
     ? [mocksFrom.runId, toArray(mocksFrom.blockIds), passed]
-    : [record.runId, passed, []]
+    : [
+        record.runId,
+        passed.filter((blockId) => reached.has(blockId)),
+        passed.filter((blockId) => !reached.has(blockId)),
+      ]
   if (read.length > 0) {
     if (!issuedId(readFrom)) return null
     flags.push(` --mock-from ${shellArgument(readFrom)}`)
