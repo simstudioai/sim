@@ -1268,8 +1268,8 @@ export async function executeScheduleJob(
           )
         } catch (recoveryError: unknown) {
           // A secondary failure during error recovery (e.g. a transient DB blip while
-          // releasing the claim or scheduling an infra retry) must not fault the run. The
-          // claim expires on its TTL and the next tick re-claims the schedule. Record the
+          // releasing the claim or scheduling an infra retry) must not fault the run. A
+          // tick re-examines the held claim after the claim recheck window. Record the
           // exception on the span so it stays visible in traces without faulting the run.
           logger.error(
             `Failed to recover schedule ${payload.scheduleId} after error`,
