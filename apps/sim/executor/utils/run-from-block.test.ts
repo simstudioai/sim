@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge, NodeMetadata } from '@/executor/dag/types'
-import { computeExecutionSets, validateRunFromBlock } from '@/executor/utils/run-from-block'
+import {
+  computeExecutionSets,
+  findRerunStartBlockId,
+  validateRunFromBlock,
+} from '@/executor/utils/run-from-block'
 import type { SerializedLoop, SerializedParallel } from '@/serializer/types'
 
 /**
@@ -860,5 +864,40 @@ describe('upstream block addition/deletion scenarios', () => {
     const result = validateRunFromBlock('C', dag, executedBlocks)
 
     expect(result.valid).toBe(true)
+  })
+})
+
+describe('findRerunStartBlockId', () => {
+  const blocks = {
+    start: { data: {} },
+    loop: { data: {} },
+    inLoop: { data: { parentId: 'loop' } },
+    parallel: { data: { parentId: 'loop' } },
+    deep: { data: { parentId: 'parallel' } },
+    orphan: { data: { parentId: 'gone' } },
+    a: { data: { parentId: 'b' } },
+    b: { data: { parentId: 'a' } },
+  }
+
+  it('starts a top-level block, including a container, at itself', () => {
+    expect(findRerunStartBlockId('start', blocks)).toBe('start')
+    expect(findRerunStartBlockId('loop', blocks)).toBe('loop')
+  })
+
+  it('starts a block inside a loop or parallel at the outermost container, however deep', () => {
+    expect(findRerunStartBlockId('inLoop', blocks)).toBe('loop')
+    expect(findRerunStartBlockId('parallel', blocks)).toBe('loop')
+    expect(findRerunStartBlockId('deep', blocks)).toBe('loop')
+  })
+
+  it('reads a parallel branch id as the block it clones', () => {
+    expect(findRerunStartBlockId('deep₍2₎', blocks)).toBe('loop')
+  })
+
+  it('names no start for a block or container missing from the workflow, or a parent cycle', () => {
+    expect(findRerunStartBlockId('missing', blocks)).toBeUndefined()
+    expect(findRerunStartBlockId('orphan', blocks)).toBeUndefined()
+    expect(findRerunStartBlockId('a', blocks)).toBeUndefined()
+    expect(findRerunStartBlockId('constructor', blocks)).toBeUndefined()
   })
 })

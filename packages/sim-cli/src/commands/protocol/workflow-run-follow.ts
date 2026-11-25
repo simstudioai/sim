@@ -613,8 +613,9 @@ branch on status, or on the exit code. With --follow it is the stream's final fr
 instead: success and output.
 
 A run that failed in a block has next: the command that reruns the saved draft from that block
-with this run as --source-run, so after a fix only the failed block and those after it run again.
-Add --stop-after <block> to stop after a block; naming the failed block reruns only it.
+(or from the outermost loop or parallel holding it) with this run as --source-run, so after a fix
+only that block and those after it run again. Add --stop-after <block> to stop after a block;
+naming the block next starts from reruns only it.
 
 Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed
 first, then the error on stderr), or the command failed; ${STILL_RUNNING_EXIT_CODE} still running when --wait-timeout

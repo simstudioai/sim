@@ -1603,6 +1603,17 @@ export const v2ExecutionErrorSchema = z
       .describe(
         'Integration or block type that failed, when attributable. Present whenever `blockId` is.'
       ),
+    /**
+     * A run cannot start inside a loop or parallel, so a failure in one is rerun from the
+     * outermost container holding it. Execute reads containment from the graph the run
+     * executed; the run resource, which keeps no graph, from the saved draft a rerun runs.
+     */
+    rerunFromBlockId: z
+      .string()
+      .optional()
+      .describe(
+        'Block a rerun of this failure starts from (`run.entry` of type `block` naming it, with this run as `sourceRunId`): the failing block, or the outermost loop or parallel holding it, since a run cannot start inside one. Set by Execute workflow from the graph the run executed and by Get workflow run from the saved draft; absent elsewhere, whenever `blockId` is, and when that graph no longer has the block.'
+      ),
   })
   .meta({
     id: 'ExecutionError',

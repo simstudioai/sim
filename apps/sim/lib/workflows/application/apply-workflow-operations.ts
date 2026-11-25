@@ -180,7 +180,7 @@ function applyBlockEnabledChanges(
 /**
  * One warning naming every stored edge the batch removed, by block name (the final name, or the
  * stored one for a deleted block): the caller never sent these edges, so their ids mean nothing
- * to it.
+ * to it. How to wire across a loop's or parallel's boundary is added only when an edge crossed one.
  */
 function describeRemovedEdges(
   removedEdges: readonly RemovedEdge[],
@@ -192,8 +192,11 @@ function describeRemovedEdges(
     (edge) =>
       `${label(edge.source)} -> ${label(edge.target)} (${edge.sourceHandle}): ${edge.reason}`
   )
+  const boundaryAdvice = removedEdges.some((edge) => edge.kind === 'scope')
+    ? " An edge cannot cross a loop's or parallel's boundary: wire into its body from loop-start-source (parallel-start-source) and onward from loop-end-source (parallel-end-source)."
+    : ''
   return [
-    `Removed ${removedEdges.length} existing edge(s) this batch left invalid: ${edges.join('; ')}. An edge cannot cross a loop's or parallel's boundary: wire into its body from loop-start-source (parallel-start-source) and onward from loop-end-source (parallel-end-source).`,
+    `Removed ${removedEdges.length} existing edge(s) this batch left invalid: ${edges.join('; ')}.${boundaryAdvice}`,
   ]
 }
 

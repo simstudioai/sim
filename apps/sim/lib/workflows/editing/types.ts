@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import type { DroppedEdgeKind } from '@/stores/workflows/workflow/edge-validation'
 
 /** Selector subblock types that can be validated */
 export const SELECTOR_TYPES = new Set([
@@ -159,6 +160,7 @@ export interface RemovedEdge {
   source: string
   target: string
   sourceHandle: string
+  kind: DroppedEdgeKind
   reason: string
 }
 

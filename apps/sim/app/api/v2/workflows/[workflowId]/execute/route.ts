@@ -36,7 +36,7 @@ import {
   SIM_VIA_HEADER,
   validateCallChain,
 } from '@/lib/execution/call-chain'
-import { presentV2RunPause, v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { presentV2RunError, presentV2RunPause, v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import {
   executeManualWorkflowFromBlockOperation,
   executeManualWorkflowOperation,
@@ -133,7 +133,7 @@ function presentRun(result: ExecuteWorkflowServiceRun) {
     runId: result.executionId,
     workflowId: result.workflowId,
     status: result.status,
-    error: result.error,
+    error: presentV2RunError(result.error, result.rerunFromBlockId),
     startedAt: result.startedAt,
     endedAt: result.endedAt,
     durationMs: result.durationMs,

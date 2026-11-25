@@ -7,6 +7,7 @@ export {
   v2WorkflowErrorPolicies,
   WORKFLOW_NOT_FOUND_MESSAGE,
 } from '@/lib/workflows/api/route-policies'
+export { presentV2RunError } from '@/lib/workflows/api/run-error'
 export { presentV2RunPause } from '@/lib/workflows/api/run-pause'
 export { withBoundSourceFindings } from '@/lib/workflows/api/source-findings'
 export { presentSourceOutcome } from '@/lib/workflows/api/source-presenters'

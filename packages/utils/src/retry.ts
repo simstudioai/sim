@@ -13,7 +13,8 @@ export interface BackoffOptions {
  * When `retryAfterMs` is non-null (from a `Retry-After` response header), the
  * value is clamped to `[baseMs, maxMs]` so a malformed `Retry-After: 0` cannot
  * pin the loop into a tight retry. Otherwise returns exponential backoff with
- * ±20% jitter to avoid thundering-herd alignment across concurrent callers.
+ * ±20% jitter to avoid thundering-herd alignment across concurrent callers,
+ * never above `maxMs`: at the cap the jitter only shortens the wait.
  * Attempt is 1-indexed.
  */
 export function backoffWithJitter(
@@ -29,7 +30,7 @@ export function backoffWithJitter(
   const exponential = Math.min(baseMs * 2 ** (attempt - 1), maxMs)
   // Inline crypto float to avoid cross-file imports within the package (Turbopack limitation)
   const jitter = crypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000
-  return exponential * (0.8 + jitter * 0.4)
+  return Math.min(exponential * (0.8 + jitter * 0.4), maxMs)
 }
 
 /** Default maximum `Retry-After` value honored: 30 s. Prevents a misconfigured upstream from stalling callers. */

@@ -131,6 +131,19 @@ describe('v2 run detail and cancel adapters', () => {
     expect(mocks.readRun).not.toHaveBeenCalled()
   })
 
+  it('names on the failure the block a rerun starts from, apart from the block that failed', async () => {
+    mocks.readRun.mockResolvedValueOnce({
+      ...baseStatus,
+      failedBlock: { blockId: 'send', blockName: 'Send Email', blockType: 'gmail' },
+      rerunFromBlockId: 'loop',
+    })
+
+    expect((await (await callStatus()).json()).data.error).toMatchObject({
+      blockId: 'send',
+      rerunFromBlockId: 'loop',
+    })
+  })
+
   it('returns the public pause context without its internal paused-execution ID', async () => {
     mocks.readRun.mockResolvedValueOnce({
       ...baseStatus,

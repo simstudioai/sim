@@ -165,8 +165,9 @@ not move counts as unchanged, so the server may refuse what the check passes. A 
 function file to a block the lock binds that the source no longer declares stays a warning, unless
 a warning cap left findings out: the server may infer that block was renamed and rewrite the
 reference, and refuses it otherwise.
-${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the edit added or changed (one an
-edit elsewhere makes compile differently included), and with --strict on every block.`
+${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the edit added or changed,
+including an unedited block that an edit elsewhere makes compile differently, and with --strict
+on every block.`
 }
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */

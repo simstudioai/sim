@@ -501,13 +501,14 @@ function removeInvalidScopeEdges(
 
   const refusedEdgeIds: string[] = []
   const removedEdges: RemovedEdge[] = []
-  for (const { edge, reason } of dropped) {
+  for (const { edge, kind, reason } of dropped) {
     if (storedEdgeIds.has(edge.id)) {
       removedEdges.push({
         id: edge.id,
         source: edge.source,
         target: edge.target,
         sourceHandle: edge.sourceHandle ?? 'source',
+        kind,
         reason,
       })
       continue

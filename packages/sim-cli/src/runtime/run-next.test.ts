@@ -83,21 +83,34 @@ describe('withRunNext on a failed run', () => {
     workflowId: 'wf_1',
     status: 'failed',
     output: {},
-    error: { message: 'boom', code: 'BLOCK_EXECUTION_FAILED', blockId: 'blk_3' },
+    error: {
+      message: 'boom',
+      code: 'BLOCK_EXECUTION_FAILED',
+      blockId: 'blk_3',
+      rerunFromBlockId: 'blk_3',
+    },
   }
 
-  it('names the rerun from the failed block with the run as its source, on a run or a run resource', () => {
+  it('names the rerun from the block the server says it starts at, with the run as its source', () => {
     const next = 'sim workflows run wf_1 --from-block blk_3 --source-run run_9'
     expect(withRunNext('executeWorkflow', failed)).toEqual({ ...failed, next })
     expect(withRunNext('getWorkflowRun', failed)).toMatchObject({ next })
   })
 
-  it('names no rerun for a failure no block owns, a parallel branch, or an id the server never issues', () => {
+  it('reruns a failure inside a loop or parallel from the container the server names, not the failed block', () => {
+    const inLoop = { ...failed, error: { ...failed.error, rerunFromBlockId: 'loop_1' } }
+    expect(withRunNext('executeWorkflow', inLoop)).toMatchObject({
+      next: 'sim workflows run wf_1 --from-block loop_1 --source-run run_9',
+    })
+  })
+
+  it('names no rerun when the server names no start block, or an id it never issues', () => {
+    const unstartable = { message: 'boom', code: 'BLOCK_EXECUTION_FAILED', blockId: 'blk_3' }
     for (const unnamed of [
       { ...failed, error: { message: 'The run timed out', code: 'TIMEOUT' } },
       { ...failed, error: null },
-      { ...failed, error: { ...failed.error, blockId: 'blk_3₍0₎' } },
-      { ...failed, error: { ...failed.error, blockId: '$(id)' } },
+      { ...failed, error: unstartable },
+      { ...failed, error: { ...failed.error, rerunFromBlockId: '$(id)' } },
       { ...failed, runId: 'run; id' },
     ]) {
       expect(withRunNext('executeWorkflow', unnamed)).toBe(unnamed)

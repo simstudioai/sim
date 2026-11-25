@@ -45,17 +45,17 @@ export function resumeCommandFor(
 }
 
 /**
- * The exact command that reruns a failed run from the block it failed in, with the run as the
- * source of every upstream output, so a fix applied to that block's source is tested without
- * repeating the blocks before it. Null when the failure names no block, names a parallel branch
- * (`block₍0₎`, which a run cannot enter), or an id is not in the format the server issues.
+ * The exact command that reruns a failed run from where the server says a rerun of its failure
+ * starts (`error.rerunFromBlockId`: the failed block, or the outermost loop or parallel holding
+ * it, which a rerun cannot start inside), with the run as the source of every upstream output, so
+ * a fix applied to that block's source is tested without repeating the blocks before it. Null
+ * when the server names no start block or an id is not in the format the server issues.
  */
 function rerunCommandFor(record: Record<string, unknown>, workflowId: string): string | null {
-  const blockId = toRecordOrNull(record.error)?.blockId
+  const startBlockId = toRecordOrNull(record.error)?.rerunFromBlockId
   const { runId } = record
-  if (!issuedId(blockId) || !issuedId(runId) || !issuedId(workflowId)) return null
-  if (/[\u208D\u208E]/u.test(blockId)) return null
-  return `sim workflows run ${shellArgument(workflowId)} --from-block ${shellArgument(blockId)} --source-run ${shellArgument(runId)}`
+  if (!issuedId(startBlockId) || !issuedId(runId) || !issuedId(workflowId)) return null
+  return `sim workflows run ${shellArgument(workflowId)} --from-block ${shellArgument(startBlockId)} --source-run ${shellArgument(runId)}`
 }
 
 /**

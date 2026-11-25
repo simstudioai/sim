@@ -17193,6 +17193,10 @@
           "blockType": {
             "description": "Integration or block type that failed, when attributable. Present whenever `blockId` is.",
             "type": "string"
+          },
+          "rerunFromBlockId": {
+            "description": "Block a rerun of this failure starts from (`run.entry` of type `block` naming it, with this run as `sourceRunId`): the failing block, or the outermost loop or parallel holding it, since a run cannot start inside one. Set by Execute workflow from the graph the run executed and by Get workflow run from the saved draft; absent elsewhere, whenever `blockId` is, and when that graph no longer has the block.",
+            "type": "string"
           }
         },
         "required": ["message", "code"],

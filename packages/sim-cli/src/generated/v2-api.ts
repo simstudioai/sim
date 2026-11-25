@@ -7152,6 +7152,7 @@ type ExecuteWorkflowResponseRef0 = {
   blockId?: string
   blockName?: string
   blockType?: string
+  rerunFromBlockId?: string
 }
 
 type ExecuteWorkflowResponseRef1 = {
@@ -10330,6 +10331,7 @@ type GetWorkflowRunResponseRef2 = {
   blockId?: string
   blockName?: string
   blockType?: string
+  rerunFromBlockId?: string
 }
 
 type GetWorkflowRunResponseRef3 = {
@@ -17811,6 +17813,7 @@ type ResumeWorkflowResponseRef0 = {
   blockId?: string
   blockName?: string
   blockType?: string
+  rerunFromBlockId?: string
 }
 
 type ResumeWorkflowResponseRef1 = {

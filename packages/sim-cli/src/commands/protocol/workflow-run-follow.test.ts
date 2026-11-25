@@ -445,7 +445,12 @@ describe('sim workflows run --follow', () => {
           workflowId: WORKFLOW_ID,
           status: 'failed',
           output: {},
-          error: { message: 'Agent failed', code: 'BLOCK_EXECUTION_FAILED', blockId: 'agent-1' },
+          error: {
+            message: 'Agent failed',
+            code: 'BLOCK_EXECUTION_FAILED',
+            blockId: 'agent-1',
+            rerunFromBlockId: 'agent-1',
+          },
         },
       })
     )
