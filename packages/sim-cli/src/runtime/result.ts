@@ -17,7 +17,7 @@ import {
   timestamp,
 } from '../output/render'
 import { printTraceSpans } from '../output/trace'
-import { withResumeNext } from './paused-run'
+import { withRunNext } from './run-next'
 
 /** Result fields holding a command to run, printed whole (a clipped flag would make it wrong). */
 const RUN_COMMAND_FIELDS: ReadonlySet<string> = new Set(['next'])
@@ -441,7 +441,7 @@ export function renderResult(
   // The single-key unwrap exists for the human table: `{ mcpServer: {...} }` rendered as-is
   // printed nothing. Machine formats print the API's data verbatim, so `--output json`
   // matches the OpenAPI shape the docs and the agent reference card are generated from.
-  const data = withResumeNext(
+  const data = withRunNext(
     operation,
     format === 'json' || format === 'yaml' ? raw : unwrapResource(raw)
   )

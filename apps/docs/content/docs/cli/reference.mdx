@@ -8518,8 +8518,8 @@ sim workflows run <workflowId> [options]
 | `--manual` | No | Run the current saved workflow state instead of the active deployment. |
 | `--trigger <blockId>` | No | Enter the run through this runnable trigger, by its block id; runs the current saved workflow state (implies --manual). |
 | `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
-| `--from-block <block>` | No | Run manually from this saved workflow block: its id, display name or key. |
-| `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
+| `--from-block <block>` | No | Rerun the saved draft from this block (its id, display name or key), reusing the outputs --source-run produced before it; a failed run prints this command as next. |
+| `--source-run <runId>` | No | Earlier run of this workflow, deployed or draft, whose outputs the blocks before --from-block keep (requires --from-block). |
 | `--stop-after <block>` | No | Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty. |
 | `--dir <dir>` | No | This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json. Not with --async or --follow, and not for a run --wait-timeout leaves running. |
 | `--wait-timeout <seconds>` | No | Wait at most this many seconds for a synchronous run (0 waits until it settles). A run still going then continues in the background under async limits: the command prints its run record and exits 4, and `sim workflows runs wait` keeps waiting. Not with --async or --follow. |
@@ -8532,6 +8532,8 @@ sim workflows run <workflowId> [options]
 Without --manual (or a flag that implies it) this runs the active deployment; a workflow never deployed has none. --manual runs the saved draft, as the source loop leaves it.
 
 The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the workflow's final output) and blockOutputs (what --select-output named). It has no success field: branch on status, or on the exit code. With --follow it is the stream's final frame instead: success and output.
+
+A run that failed in a block has next: the command that reruns the saved draft from that block with this run as --source-run, so after a fix only the failed block and those after it run again. Add --stop-after &lt;block&gt; to stop after a block; naming the failed block reruns only it.
 
 Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed first, then the error on stderr), or the command failed; 4 still running when --wait-timeout elapsed.
 

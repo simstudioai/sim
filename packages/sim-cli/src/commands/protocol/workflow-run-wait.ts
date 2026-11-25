@@ -10,8 +10,8 @@ import { STILL_RUNNING_EXIT_CODE } from '../../exit-codes'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
-import { resumeCommandFor } from '../../runtime/paused-run'
 import { renderResult } from '../../runtime/result'
+import { resumeCommandFor } from '../../runtime/run-next'
 
 /**
  * Statuses a run never leaves.
