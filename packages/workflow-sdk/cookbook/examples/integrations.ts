@@ -35,10 +35,14 @@ export default workflow(
     })
 
     // HTTP request: headers (and query params) are table rows, { cells: { Key, Value } }.
+    // retries resend only the request, after a timeout, a reset, a 429 or a 5xx, before the
+    // block fails (block meta retry reruns the whole block).
     const lookup = api('Company Lookup', {
       url: t`https://company.clearbit.com/v2/companies/find?domain=${hook.domain}`,
       method: 'GET',
       headers: [{ cells: { Key: 'Authorization', Value: t`Bearer ${env.CLEARBIT_KEY}` } }],
+      retries: 3,
+      retryDelayMs: 500,
     })
 
     // Update one row by id: data holds only the columns to change. lookup.data is untyped JSON,

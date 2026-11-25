@@ -18,9 +18,32 @@ import {
   workflow,
 } from '@sim/workflow-sdk'
 
+// Index: file:line, a name on that line, what it shows (the comment above each line explains it).
+//   cookbook.ts:50 trigger.schedule: daily schedule (trigger.start just above)
+//   cookbook.ts:59 agent: structured output (responseFormat), retry as block meta
+//   cookbook.ts:86 condition: keys tested in order, first true wins, else: true last
+//   cookbook.ts:93 fn: inline JavaScript in js``
+//   cookbook.ts:98 table.queryRows: outputs rows, each row { id, data }
+//   cookbook.ts:109 table.upsertRow: conflictColumn; insertRow, updateRowsByFilter
+//   cookbook.ts:116 knowledge.search: knowledge base search
+//   cookbook.ts:132 human: human in the loop: approval.submission.<field>
+//   cookbook.ts:147 loop.forEach: p.currentItem, p.index, each.results; $ref.loop in code files
+//   cookbook.ts:180 fn: branches that rejoin: ?? picks the one that ran
+//   cookbook.ts:186 response: body and status
+//   cookbook.ts:215 onError: error path: x.error, a Function's x.errorMessage
+//   integrations.ts:24 trigger.webhook: webhook with a token
+//   integrations.ts:31 trigger.schedule: cron schedule
+//   integrations.ts:40 api: HTTP request: headers, retries, retryDelayMs
+//   integrations.ts:50 table.updateRowById: update one row by id
+//   integrations.ts:87 onError: error path to a response
+//   agents.ts:31 router: routes the model picks from
+//   agents.ts:51 tools: agent tools: custom, MCP, integration, child workflow
+//   agents.ts:62 runWorkflow: child workflow: inputMapping, enrich.result.data.<field>
+//   agents.ts:71 parallel.collection: parallel fan-out
+
 // An example to copy from, not a workflow of yours: `orders`, `policies`, `ops-slack` and
-// ANTHROPIC_API_KEY stand in for this workspace's resources. `sim workflows source resources`
-// lists the real keys, and .sim/sdk/workspace.d.ts types them.
+// ANTHROPIC_API_KEY stand in for this workspace's resources, whose real keys
+// .sim/sdk/workspace.d.ts types.
 export default workflow('Cookbook', { description: 'One example of each common block.' }, () => {
   // Triggers: trigger.start (API/manual input), trigger.schedule, trigger.webhook.
   const start = trigger.start('Start', { inputFormat: { orderId: 'string', amount: 'number' } })
@@ -31,28 +54,33 @@ export default workflow('Cookbook', { description: 'One example of each common b
   })
 
   // Agent: structured output via responseFormat; its fields become outputs (check.risk).
-  // apiKey: needed on self-hosted Sim; hosted Sim supplies one.
-  const check = agent('Check Order', {
-    model: 'claude-sonnet-4-6',
-    apiKey: env.ANTHROPIC_API_KEY,
-    messages: [
-      { role: 'system', content: 'Rate the fraud risk of an order as low, med or high.' },
-      { role: 'user', content: t`Order ${start.orderId} for ${start.amount}` },
-    ],
-    responseFormat: {
-      name: 'risk',
-      strict: true,
-      schema: {
-        type: 'object',
-        properties: {
-          risk: { type: 'string', enum: ['low', 'med', 'high'] },
-          reason: { type: 'string' },
+  // apiKey: needed on self-hosted Sim; hosted Sim supplies one. Retry is block meta, the third
+  // argument of any builder: a failed run of the block is tried again, up to maxTries in all.
+  const check = agent(
+    'Check Order',
+    {
+      model: 'claude-sonnet-4-6',
+      apiKey: env.ANTHROPIC_API_KEY,
+      messages: [
+        { role: 'system', content: 'Rate the fraud risk of an order as low, med or high.' },
+        { role: 'user', content: t`Order ${start.orderId} for ${start.amount}` },
+      ],
+      responseFormat: {
+        name: 'risk',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            risk: { type: 'string', enum: ['low', 'med', 'high'] },
+            reason: { type: 'string' },
+          },
+          required: ['risk', 'reason'],
+          additionalProperties: false,
         },
-        required: ['risk', 'reason'],
-        additionalProperties: false,
       },
     },
-  })
+    { retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 2000 } }
+  )
 
   // Condition: one branch per key, `else: true` last; wire with route.<key>.to(...).
   const route = condition('Route Risk', {
@@ -66,7 +94,7 @@ export default workflow('Cookbook', { description: 'One example of each common b
     code: js`return { id: ${start.orderId}, cents: Math.round(${start.amount} * 100) }`,
   })
 
-  // Tables: query rows (each row is { id, data: { column } }) and write one.
+  // Tables: query rows (each row is { id, data }: recent.rows[0].data.status) and write one.
   const recent = table.queryRows('Recent Orders', {
     tableId: table('orders'),
     filterInput: { all: [{ field: 'status', op: 'eq', value: 'open' }] },
