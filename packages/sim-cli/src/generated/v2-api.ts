@@ -7122,6 +7122,9 @@ export type ExecuteWorkflowBody = {
               sourceRunId: string
             }
         stopAfterBlockId?: string
+        dry?: boolean
+        allowBlocks?: Array<string>
+        mocks?: Record<string, unknown>
       }
   async?: boolean
   executionTimeoutSeconds?: number
@@ -7156,6 +7159,30 @@ type ExecuteWorkflowResponseRef0 = {
 }
 
 type ExecuteWorkflowResponseRef1 = {
+  stubbed: Array<{
+    workflowId: string
+    blockId: string
+    block: string
+    tool: string | null
+    request: Record<string, unknown> | null
+    returned: Record<string, unknown>
+  }>
+  allowed: Array<{
+    workflowId: string
+    blockId: string
+    block: string
+    tool: string | null
+  }>
+  unchecked: Array<{
+    workflowId: string
+    blockId: string
+    block: string
+    reason: string
+  }>
+  omitted: number
+}
+
+type ExecuteWorkflowResponseRef2 = {
   runId: string
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
@@ -7174,9 +7201,10 @@ type ExecuteWorkflowResponseRef1 = {
       status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
     }>
   } | null
+  sideEffects?: ExecuteWorkflowResponseRef1
 }
 
-type ExecuteWorkflowResponseRef2 = {
+type ExecuteWorkflowResponseRef3 = {
   runId: string
   statusUrl: string
   executionTimeoutSeconds: number | null
@@ -7184,10 +7212,10 @@ type ExecuteWorkflowResponseRef2 = {
 
 export type ExecuteWorkflowResponse =
   | {
-      data: ExecuteWorkflowResponseRef1
+      data: ExecuteWorkflowResponseRef2
     }
   | {
-      data: ExecuteWorkflowResponseRef2
+      data: ExecuteWorkflowResponseRef3
     }
 
 /** `GET /api/v2/knowledge/[knowledgeBaseId]/export` */

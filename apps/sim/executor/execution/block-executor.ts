@@ -285,6 +285,14 @@ export class BlockExecutor {
     const testHooks = this.contextExtensions.testHooks
     const mockedBlockId = node.metadata.originalBlockId ?? block.id
     const isMocked = !isSentinel && testHooks?.mocksBlock(mockedBlockId) === true
+    const sideEffects = this.contextExtensions.sideEffects
+    const site = {
+      workflowId: blockCtx.workflowId,
+      blockId: mockedBlockId,
+      blockName: block.metadata?.name ?? mockedBlockId,
+      blockType: block.metadata?.id ?? '',
+    }
+    const isStubbed = !isSentinel && !isMocked && sideEffects?.stubsBlock(site) === true
     try {
       /**
        * Only the handler call is retried. A streaming handler returns before any
@@ -302,6 +310,9 @@ export class BlockExecutor {
             inputsForLog,
             inputDisplayRegistry
           )
+        }
+        if (isStubbed && sideEffects) {
+          return Promise.resolve(sideEffects.stubBlock({ ...site, input: blockLog?.input ?? {} }))
         }
         const invocationMetadata = retry ? { ...nodeMetadata, retry } : nodeMetadata
         return handler.executeWithNode

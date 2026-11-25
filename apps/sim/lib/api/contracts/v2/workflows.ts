@@ -1702,6 +1702,31 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .describe(
           'Saved workflow block after which the run stops (its id, display name or reference key); downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.'
         ),
+      dry: z
+        .boolean()
+        .optional()
+        .describe(
+          "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls, custom and MCP tools) is not sent; it returns a placeholder shaped like the tool's output and is listed in `sideEffects.stubbed` with the request it would have sent, credentials and secrets redacted. Reads, model calls, conditions and credential resolution run for real, and so do Function blocks, listed in `sideEffects.unchecked`. Child workflows inherit it. Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`."
+        ),
+      allowBlocks: z
+        .array(z.string().min(1, 'run.allowBlocks entries cannot be empty'))
+        .max(50)
+        .optional()
+        .describe(
+          'Blocks (id, display name or reference key) whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block cannot be allowed.'
+        ),
+      mocks: z
+        .record(
+          z.string(),
+          z.unknown().describe('Output object that answers the block instead of its handler.')
+        )
+        .optional()
+        .refine((mocks) => mocks === undefined || Object.keys(mocks).length <= 50, {
+          message: 'run.mocks names at most 50 blocks',
+        })
+        .describe(
+          'Blocks (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. With or without `dry`.'
+        ),
     })
     .strict(),
 ])
@@ -1951,6 +1976,64 @@ const v2WorkflowRunPausePointSchema = z
     description: 'One point at which a paused run waits.',
   })
 
+const sideEffectBlockFields = {
+  workflowId: z
+    .string()
+    .describe('Workflow whose block it was: the run workflow, or a child workflow it called.'),
+  blockId: z.string().describe('Block id in that workflow; empty when the call named no block.'),
+  block: z.string().describe('Block display name.'),
+}
+
+const v2RunSideEffectsSchema = z
+  .object({
+    stubbed: z
+      .array(
+        z.object({
+          ...sideEffectBlockFields,
+          tool: z
+            .string()
+            .nullable()
+            .describe(
+              'Tool the block (or an Agent) called; null when the whole block was answered instead of run.'
+            ),
+          request: z
+            .record(z.string(), z.unknown().describe('Request field.'))
+            .nullable()
+            .describe(
+              "What the call would have sent: an in-process operation's input, or an HTTP call's `method`, `url` and `body` (never headers). For a block answered whole, its logged inputs. Credentials and resolved secrets are redacted; null when the run could not prove none remain."
+            ),
+          returned: z
+            .record(z.string(), z.unknown().describe('Placeholder field.'))
+            .describe('Placeholder output the block or tool call returned to the run instead.'),
+        })
+      )
+      .describe('Writes that were not sent, in the order the run reached them.'),
+    allowed: z
+      .array(
+        z.object({
+          ...sideEffectBlockFields,
+          tool: z.string().nullable().describe('Tool sent; null when the whole block ran.'),
+        })
+      )
+      .describe('Writes sent for real because `run.allowBlocks` named their block.'),
+    unchecked: z
+      .array(
+        z.object({
+          ...sideEffectBlockFields,
+          reason: z.string().describe('Why the run cannot see what this block changed.'),
+        })
+      )
+      .describe(
+        'Blocks that ran for real whose own effects the run cannot see: Function blocks, whose code may make network calls.'
+      ),
+    omitted: z.number().int().nonnegative().describe('Entries left out once a list held 50.'),
+  })
+  .meta({
+    id: 'WorkflowRunSideEffects',
+    title: 'Workflow run side effects',
+    description: 'What a dry run did with each write it reached.',
+  })
+
 /**
  * The run result resource. In-band run failures are `status: 'failed'`
  * with a structured `error` — never an HTTP error: **a `runId` means 200/202 +
@@ -1997,6 +2080,9 @@ export const v2ExecuteWorkflowDataSchema = z
       })
       .nullable()
       .describe('Where the run waits when `status` is `paused`; null otherwise.'),
+    sideEffects: v2RunSideEffectsSchema
+      .optional()
+      .describe('What a dry run (`run.dry`) did with each write it reached; absent otherwise.'),
   })
   .meta({
     id: 'WorkflowRunResult',
@@ -2090,7 +2176,7 @@ export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema
 export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
 
 export const v2ResumeWorkflowDataSchema = v2ExecuteWorkflowDataSchema
-  .omit({ executionTimeoutSeconds: true })
+  .omit({ executionTimeoutSeconds: true, sideEffects: true })
   .extend({
     error: v2ExecutionErrorSchema
       .omit({ rerunFromBlockId: true })

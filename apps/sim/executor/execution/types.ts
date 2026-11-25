@@ -318,6 +318,46 @@ export interface ExecutionTestHooks {
   recordSpy(call: { blockId: string; input: unknown; output: unknown }): void
 }
 
+/** Where a call that may change state outside the run was made: a block of one executing workflow. */
+export interface SideEffectSite {
+  workflowId: string
+  /** The workflow block id, never a parallel-branch clone id; empty when the caller named none. */
+  blockId: string
+  blockName: string
+  blockType: string
+}
+
+/** A write tool call the run answers instead of sending, with the request it would have sent. */
+export interface StubbedToolCall extends SideEffectSite {
+  toolId: string
+  /** The request with credentials and resolved secrets redacted; null when it could not be. */
+  request: Record<string, unknown> | null
+}
+
+/** A block the run answers instead of running its handler, with the inputs its log shows. */
+export interface StubbedBlockCall extends SideEffectSite {
+  input: Record<string, unknown>
+}
+
+/**
+ * How a run treats work that may change state outside it: a dry run, or a workflow test's
+ * unmocked writes. Unlike {@link ExecutionTestHooks}, every child execution inherits it, including
+ * a custom block's source workflow and a workflow or custom block an Agent calls as a tool, so a
+ * child's writes follow the run that started it. `tools/index.ts` consults it for every tool call
+ * not declared `read` (an MCP tool declares nothing, so every one), after credentials resolve and
+ * before anything is sent; the block executor consults it before each block's handler.
+ */
+export interface SideEffectPolicy {
+  /** Whether this write tool call is sent for real; a sent call is recorded with why it was. */
+  sendsWrite(call: SideEffectSite & { toolId: string }): boolean
+  /** Records a write that was not sent and returns the placeholder output answering it. */
+  stubWrite(call: StubbedToolCall): Record<string, unknown>
+  /** Whether this block is answered with a placeholder instead of running its handler. */
+  stubsBlock(block: SideEffectSite): boolean
+  /** Records a block that did not run and returns the placeholder output answering it. */
+  stubBlock(call: StubbedBlockCall): NormalizedBlockOutput
+}
+
 export interface ContextExtensions {
   workspaceId?: string
   executionId?: string
@@ -418,6 +458,7 @@ export interface ContextExtensions {
   stopAfterBlockId?: string
 
   testHooks?: ExecutionTestHooks
+  sideEffects?: SideEffectPolicy
 
   /**
    * Ordered list of workflow IDs in the current call chain, used for cycle detection.

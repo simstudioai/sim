@@ -22,6 +22,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import type { TraceSpan } from '@/lib/logs/types'
 import { MAX_MCP_WORKFLOW_RESPONSE_BYTES } from '@/lib/mcp/constants'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
+import type { DryRunSideEffects, SideEffectsSummary } from '@/lib/workflows/dry-run'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -52,7 +53,11 @@ import {
 import { workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
+import type {
+  ExecutionMetadata,
+  ExecutionTestHooks,
+  SerializableExecutionState,
+} from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
 import {
   classifyExecutionError,
@@ -154,6 +159,14 @@ export interface ExecuteWorkflowServiceParams {
   }
   /** Saved block after which execution stops, validated by the application use case. */
   stopAfterBlockId?: string
+  /**
+   * A dry run: writes are answered with placeholders, and what each would have sent is returned
+   * as the run's `sideEffects`. Requires `useDraftState` and a `sync` or non-detachable
+   * `sync-result-stream` run, the modes that return the run's result.
+   */
+  dryRun?: DryRunSideEffects
+  /** Blocks answered with fixed outputs instead of running, built by the application use case. */
+  testHooks?: ExecutionTestHooks
 }
 
 export interface ExecuteWorkflowServiceFailure {
@@ -189,6 +202,8 @@ export interface ExecuteWorkflowServiceRun {
   executionTimeoutMs: number
   /** Where a `paused` run waits; absent otherwise. */
   paused?: RunPause | null
+  /** What a dry run did with each write it reached; absent for any other run. */
+  sideEffects?: SideEffectsSummary
 }
 
 /** A run's result before the applied timeout is stamped onto it. */
@@ -334,6 +349,8 @@ export async function executeWorkflowService(
     runFromBlock,
     stopAfterBlockId,
     detachable = false,
+    dryRun,
+    testHooks,
   } = params
 
   let reqLogger = logger.withMetadata({ requestId, workflowId, userId })
@@ -356,6 +373,12 @@ export async function executeWorkflowService(
   }
   if (draftState && !useDraftState) {
     throw new Error('A preloaded draft state requires manual execution state')
+  }
+  if ((dryRun || testHooks) && !useDraftState) {
+    throw new Error('Dry runs and block mocks require manual execution state')
+  }
+  if (dryRun && (mode === 'stream' || detachable)) {
+    throw new Error('A dry run returns its side effects with the result it waits for')
   }
   if (detachable && (mode !== 'sync-result-stream' || abortSignal)) {
     throw new Error('A detachable run returns its pending result and outlives its request')
@@ -450,6 +473,8 @@ export async function executeWorkflowService(
       executionId,
       requestId,
       checkDeployment: !useDraftState,
+      // A draft run is unmetered like the editor's, under `manual` or, for a dry run, `test`.
+      ...(useDraftState ? { checkRateLimit: false } : {}),
       rateLimitCounter: detachable ? 'async' : rateLimitCounter,
       loggingSession,
       useAuthenticatedUserAsActor,
@@ -671,6 +696,7 @@ export async function executeWorkflowService(
               pinnedDeploymentVersionId: deploymentVersionId,
               runFromBlock,
               stopAfterBlockId,
+              testHooks,
               onStream,
               onBlockComplete: (blockId, data) =>
                 onBlockComplete(blockId, data.output, data.outputBlockId),
@@ -776,6 +802,8 @@ export async function executeWorkflowService(
           runFromBlock,
           stopAfterBlockId,
           draftState,
+          testHooks,
+          sideEffects: dryRun,
         })
 
         await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
@@ -980,8 +1008,18 @@ export async function executeWorkflowService(
     }
 
     const pending = runSynchronousWorkflow().then(
-      (result): ExecuteWorkflowServiceTerminalResult =>
-        result.ok ? { ...result, executionTimeoutMs } : result
+      async (result): Promise<ExecuteWorkflowServiceTerminalResult> =>
+        result.ok
+          ? {
+              ...result,
+              executionTimeoutMs,
+              ...(dryRun
+                ? {
+                    sideEffects: await compactServiceOutput(dryRun.summary(), compactionContext),
+                  }
+                : {}),
+            }
+          : result
     )
     if (mode === 'sync-result-stream') {
       /** Keep the claim until the pending run can prove whether durable ownership exists. */

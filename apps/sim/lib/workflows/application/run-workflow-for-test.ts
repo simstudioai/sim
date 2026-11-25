@@ -16,6 +16,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { resolveTriggerExecution } from '@/lib/workflows/application/run-workflow-from-copilot'
+import { DryRunSideEffects } from '@/lib/workflows/dry-run'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import type { ExecutionTestHooks } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
@@ -43,8 +44,9 @@ export interface RunWorkflowForTestInput {
 
 /**
  * One workflow run inside a workflow test: the workflow's single runnable trigger, the
- * test's input, and its mocks installed as executor test hooks. Billed and logged like any
- * run, under the `test` trigger.
+ * test's input, and its mocks installed as executor test hooks. A write the test does not mock
+ * is not sent: as in a dry run, it is answered with a placeholder shaped like the tool's output.
+ * Billed and logged like any run, under the `test` trigger.
  *
  * A step of the `workflow_tests.run` operation, which authorized the caller's write access to
  * the workspace before any test ran; nothing else may call it. Each nested run is not
@@ -136,6 +138,7 @@ export async function runWorkflowForTest(
         abortSignal: input.abortSignal,
         billingAttribution,
         testHooks: input.testHooks,
+        sideEffects: new DryRunSideEffects({ allowBlockIds: new Set(), pausingBlocks: 'run' }),
       },
       executionId
     )

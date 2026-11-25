@@ -8516,6 +8516,9 @@ sim workflows run <workflowId> [options]
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
 | `--manual` | No | Run the current saved workflow state instead of the active deployment. |
+| `--dry` | No | Dry run of the saved draft (implies --manual): writes are not sent but answered with placeholders and listed with their request payloads in sideEffects; reads, model calls and Function code run for real. Logged as a test run. Not with --follow, --async or --wait-timeout. |
+| `--allow <block>` | No | Send this block's writes for real during a --dry run (its id, display name or key); repeatable. |
+| `--mock <block>=<json\|@file>` | No | Answer this block with the given JSON object instead of running it (its id, display name or key), to steer a branch or give a stubbed write a realistic result; repeatable, implies --manual. |
 | `--trigger <blockId>` | No | Enter the run through this runnable trigger, by its block id; runs the current saved workflow state (implies --manual). |
 | `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
 | `--from-block <block>` | No | Rerun the saved draft from this block (its id, display name or key), reusing the outputs --source-run produced before it; a failed run prints this command as next. |
@@ -8530,6 +8533,8 @@ sim workflows run <workflowId> [options]
 </CommandTable>
 
 Without --manual (or a flag that implies it) this runs the active deployment; a workflow never deployed has none. --manual runs the saved draft, as the source loop leaves it.
+
+--dry runs the saved draft without its side effects: every tool call not declared read (sends, table writes, HTTP calls, custom and MCP tools) returns a placeholder and is listed in sideEffects.stubbed with the request it would have sent; check those payloads. Function blocks run and are listed in sideEffects.unchecked. Child workflows run dry too. --allow &lt;block&gt; sends that block's writes for real (use a test resource); --mock &lt;block&gt;=&lt;json&gt; answers a block with fixed output, to steer a branch.
 
 The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the workflow's final output) and blockOutputs (what --select-output named). It has no success field: branch on status, or on the exit code. With --follow it is the stream's final frame instead: success and output.
 

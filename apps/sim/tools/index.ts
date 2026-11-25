@@ -133,6 +133,7 @@ import {
   readRequestedDeadline,
 } from '@/tools/request-transport'
 import { AWS_CREDENTIAL_OAUTH, AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
+import { answerUnsentWrite, describeToolRequest } from '@/tools/side-effects'
 import type {
   BYOKProviderId,
   CredentialParamSource,
@@ -1916,6 +1917,16 @@ async function executeToolImplementation(
         logger.error(`Custom tool not found: ${normalizedToolId}`, { requestId })
       }
     } else if (isMcpTool(normalizedToolId)) {
+      // An MCP tool declares no effect, so a dry run never sends one.
+      const unsent = answerUnsentWrite({
+        toolId: normalizedToolId,
+        params,
+        executionContext,
+        registry: resolvedSecretTraceRegistry,
+        describeRequest: () =>
+          Object.fromEntries(Object.entries(params).filter(([key]) => !key.startsWith('_'))),
+      })
+      if (unsent) return unsent
       return await executeMcpTool(
         normalizedToolId,
         params,
@@ -2243,6 +2254,8 @@ async function executeToolImplementation(
           // copies (`normalizeStringRecord`); this boundary is the longest-lived one.
           environmentVariables: { ...executionContext?.environmentVariables },
           piiBlockOutputRedaction: executionContext?.piiBlockOutputRedaction,
+          // The child runs under this run's side-effect policy, so its own writes are decided.
+          sideEffects: executionContext?.sideEffects,
         }
       )
       const endTime = new Date()
@@ -2286,6 +2299,7 @@ async function executeToolImplementation(
           abortSignal: effectiveSignal,
           resolvedSecretTraceRegistry,
           principal: executionContext?.principal,
+          sideEffects: executionContext?.sideEffects,
         }
       )
       const endTime = new Date()
@@ -2300,6 +2314,20 @@ async function executeToolImplementation(
           duration: endTime.getTime() - startTime.getTime(),
         },
       }
+    }
+
+    // After the workflow-running tools above, whose children decide their own writes.
+    if (tool.effect !== 'read') {
+      const unsentTool = tool
+      const unsent = answerUnsentWrite({
+        toolId: normalizedToolId,
+        params: contextParams,
+        executionContext,
+        registry: resolvedSecretTraceRegistry,
+        describeRequest: () =>
+          describeToolRequest(unsentTool, contextParams, resolvedSecretTraceRegistry),
+      })
+      if (unsent) return unsent
     }
 
     if (tool.operation) {

@@ -21,10 +21,12 @@ Point the agent at `.sim/AGENTS.md` before it edits.
 3. Run one chained command, then fix whatever it reports in the next step:
 
    ```bash
-   sim workflows source check --dir <dir> && sim workflows source apply --dir <dir> --yes && sim workflows run <workflowId> --manual --input '{...}'
+   sim workflows source check --dir <dir> && sim workflows source apply --dir <dir> --yes && sim workflows run <workflowId> --dry --input '{...}'
    ```
 
    A non-zero exit code stops the chain at the first failure. `apply` compiles the source and compares it with the saved draft again, so an agent can skip `--dry-run`. `check` also type-checks the directory, so the chain needs no separate `tsc`. People and CI use `apply --dry-run` to review the plan, and `status` shows what changed and what to run next.
+
+   `run --dry` tests the saved draft without sending its writes: each write returns a placeholder and is listed under `sideEffects` with the request it would have sent, so the agent checks payloads instead of cleaning up rows or messages. `--allow <block>` sends one block's writes for real against a test resource, and `--manual` runs everything for real.
 
 For a whole workspace, use `sim workspaces source` with the same steps; see [Manage a workspace as code](/workflows/code/workspace).
 

@@ -82,6 +82,9 @@ For **every** tool file, check:
       `add-tools` → Declaring the effect)
 - [ ] Any `// tool-effect: <reason>` sits on a genuine verb/label exception, and
       `bun run check:tool-effects` passes
+- [ ] A dry run (`sim workflows run <workflowId> --dry --input '{…}'` on a workflow using the
+      block) lists every write operation in `sideEffects.stubbed` with the request the API docs
+      expect, and every read runs for real (rules: `add-tools` → Declaring the effect)
 
 ### Params
 - [ ] All required API params are marked `required: true`

@@ -1,4 +1,5 @@
 import { requirePrincipalSubjectUserId, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
+import { isPlainRecord } from '@sim/utils/object'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
@@ -11,6 +12,11 @@ import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/aut
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import type { ExecuteWorkflowInput } from '@/lib/workflows/application/execute-workflow'
 import { workflowOperations } from '@/lib/workflows/application/operations'
+import {
+  createBlockMockHooks,
+  DryRunSideEffects,
+  PAUSING_BLOCK_TYPES,
+} from '@/lib/workflows/dry-run'
 import {
   type ExecuteWorkflowServiceResult,
   executeWorkflowService,
@@ -29,6 +35,12 @@ interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mod
   input?: unknown
   mode: 'sync' | 'stream' | 'sync-result-stream'
   stopAfterBlockId?: string
+  /** Answer writes with placeholders and return what each would have sent (`run.dry`). */
+  dry?: boolean
+  /** Blocks, by selector, whose writes a dry run sends for real (`run.allowBlocks`). */
+  allowBlocks?: string[]
+  /** Block selector to the output that answers the block instead of its handler (`run.mocks`). */
+  mocks?: Record<string, unknown>
 }
 
 export interface ExecuteManualWorkflowInput extends ManualExecutionInput {
@@ -154,6 +166,53 @@ function resolveStopAfterBlock(
   return blockId
 }
 
+/**
+ * The dry run and block mocks a manual run asked for, their blocks resolved like
+ * {@link resolveBlockSelector}. A dry run is logged under the `test` trigger, never as a manual
+ * run, and returns its side effects with the result it waits for, so it cannot stream or detach.
+ */
+function resolveRunOverrides(state: ManualWorkflowState, input: ManualExecutionInput) {
+  if (input.allowBlocks?.length && !input.dry) {
+    throw new OrchestrationError('validation', 'run.allowBlocks requires run.dry')
+  }
+  if (input.dry && (input.mode === 'stream' || input.detachable)) {
+    throw new OrchestrationError(
+      'validation',
+      'run.dry returns its side effects with the run result, so it cannot be combined with stream or waitTimeoutSeconds'
+    )
+  }
+  const allowBlockIds = new Set<string>()
+  for (const selector of input.allowBlocks ?? []) {
+    const blockId = resolveBlockSelector(state, selector, 'run.allowBlocks')
+    if (PAUSING_BLOCK_TYPES.has(state.blocks[blockId].type)) {
+      throw new OrchestrationError(
+        'validation',
+        `run.allowBlocks "${selector}" pauses the run, which would resume without the dry run; mock its output with run.mocks instead.`
+      )
+    }
+    allowBlockIds.add(blockId)
+  }
+  const mocks = new Map<string, Record<string, unknown>>()
+  for (const [selector, output] of Object.entries(input.mocks ?? {})) {
+    if (!isPlainRecord(output)) {
+      throw new OrchestrationError(
+        'validation',
+        `run.mocks "${selector}" must be an object, the output the block returns`
+      )
+    }
+    const blockId = resolveBlockSelector(state, selector, 'run.mocks')
+    if (mocks.has(blockId)) {
+      throw new OrchestrationError('validation', `run.mocks names block "${blockId}" twice`)
+    }
+    mocks.set(blockId, output)
+  }
+  return {
+    triggerType: input.dry ? ('test' as const) : ('manual' as const),
+    dryRun: input.dry ? new DryRunSideEffects({ allowBlockIds, pausingBlocks: 'stub' }) : undefined,
+    testHooks: mocks.size > 0 ? createBlockMockHooks(mocks) : undefined,
+  }
+}
+
 function listTriggers(options: ReturnType<typeof resolveTriggerRunOptions>): string {
   return options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
 }
@@ -167,6 +226,7 @@ function executionServiceInput(params: {
   stopAfterBlockId: string | undefined
 }) {
   return {
+    ...resolveRunOverrides(params.draftState, params.input),
     workflowId: params.context.workflowId,
     principal: params.principal,
     userId: requirePrincipalSubjectUserId(params.principal),
@@ -191,7 +251,6 @@ function executionServiceInput(params: {
     requestHeaders: params.input.requestHeaders,
     includeThinking: params.input.includeThinking,
     includeToolCalls: params.input.includeToolCalls,
-    triggerType: 'manual' as const,
     useDraftState: true,
     draftState: params.draftState,
   }

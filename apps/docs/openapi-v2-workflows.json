@@ -17204,6 +17204,143 @@
         "title": "Execution error",
         "description": "Structured in-band failure details for a workflow run."
       },
+      "WorkflowRunSideEffects": {
+        "type": "object",
+        "properties": {
+          "stubbed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow whose block it was: the run workflow, or a child workflow it called."
+                },
+                "blockId": {
+                  "type": "string",
+                  "description": "Block id in that workflow; empty when the call named no block."
+                },
+                "block": {
+                  "type": "string",
+                  "description": "Block display name."
+                },
+                "tool": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Tool the block (or an Agent) called; null when the whole block was answered instead of run."
+                },
+                "request": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "description": "Request field."
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "What the call would have sent: an in-process operation's input, or an HTTP call's `method`, `url` and `body` (never headers). For a block answered whole, its logged inputs. Credentials and resolved secrets are redacted; null when the run could not prove none remain."
+                },
+                "returned": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "description": "Placeholder field."
+                  },
+                  "description": "Placeholder output the block or tool call returned to the run instead."
+                }
+              },
+              "required": ["workflowId", "blockId", "block", "tool", "request", "returned"],
+              "additionalProperties": false
+            },
+            "description": "Writes that were not sent, in the order the run reached them."
+          },
+          "allowed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow whose block it was: the run workflow, or a child workflow it called."
+                },
+                "blockId": {
+                  "type": "string",
+                  "description": "Block id in that workflow; empty when the call named no block."
+                },
+                "block": {
+                  "type": "string",
+                  "description": "Block display name."
+                },
+                "tool": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Tool sent; null when the whole block ran."
+                }
+              },
+              "required": ["workflowId", "blockId", "block", "tool"],
+              "additionalProperties": false
+            },
+            "description": "Writes sent for real because `run.allowBlocks` named their block."
+          },
+          "unchecked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow whose block it was: the run workflow, or a child workflow it called."
+                },
+                "blockId": {
+                  "type": "string",
+                  "description": "Block id in that workflow; empty when the call named no block."
+                },
+                "block": {
+                  "type": "string",
+                  "description": "Block display name."
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Why the run cannot see what this block changed."
+                }
+              },
+              "required": ["workflowId", "blockId", "block", "reason"],
+              "additionalProperties": false
+            },
+            "description": "Blocks that ran for real whose own effects the run cannot see: Function blocks, whose code may make network calls."
+          },
+          "omitted": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Entries left out once a list held 50."
+          }
+        },
+        "required": ["stubbed", "allowed", "unchecked", "omitted"],
+        "additionalProperties": false,
+        "title": "Workflow run side effects",
+        "description": "What a dry run did with each write it reached."
+      },
       "WorkflowRunResult": {
         "type": "object",
         "properties": {
@@ -17325,6 +17462,10 @@
               }
             ],
             "description": "Where the run waits when `status` is `paused`; null otherwise."
+          },
+          "sideEffects": {
+            "description": "What a dry run (`run.dry`) did with each write it reached; absent otherwise.",
+            "$ref": "#/components/schemas/WorkflowRunSideEffects"
           }
         },
         "required": [
@@ -17523,6 +17664,29 @@
                     "description": "Saved workflow block after which the run stops (its id, display name or reference key); downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.",
                     "type": "string",
                     "minLength": 1
+                  },
+                  "dry": {
+                    "description": "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls, custom and MCP tools) is not sent; it returns a placeholder shaped like the tool's output and is listed in `sideEffects.stubbed` with the request it would have sent, credentials and secrets redacted. Reads, model calls, conditions and credential resolution run for real, and so do Function blocks, listed in `sideEffects.unchecked`. Child workflows inherit it. Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`.",
+                    "type": "boolean"
+                  },
+                  "allowBlocks": {
+                    "description": "Blocks (id, display name or reference key) whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block cannot be allowed.",
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "mocks": {
+                    "description": "Blocks (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. With or without `dry`.",
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "description": "Output object that answers the block instead of its handler."
+                    }
                   }
                 },
                 "required": ["source"],

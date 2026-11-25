@@ -13,7 +13,7 @@ import { safeOneLine, sanitize } from '../../output/render'
 import { callsOperations, connect } from '../../runtime/called-operations'
 import { executeOperation, runFailureMessage } from '../../runtime/execute'
 import { retypeApiError } from '../../runtime/naming'
-import { buildRequest } from '../../runtime/request'
+import { buildRequest, readArgumentSource } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
 import { printRunFailureSite } from './run-source-location'
@@ -60,20 +60,83 @@ type WorkflowRunSelection = {
     | { type: 'trigger'; blockId?: string; useMockPayload?: boolean }
     | { type: 'block'; blockId: string; sourceRunId: string }
   stopAfterBlockId?: string
+  dry?: true
+  allowBlocks?: string[]
+  mocks?: Record<string, unknown>
+}
+
+/** Collects every use of a repeatable option, in order. */
+function collect(value: string, previous: string[] = []): string[] {
+  return [...previous, value]
+}
+
+/** `--mock <block>=<json|@file>` values as the block selector each names and its output object. */
+async function readBlockMocks(values: string[]): Promise<Record<string, unknown>> {
+  const mocks: Record<string, unknown> = {}
+  for (const value of values) {
+    const separator = value.indexOf('=')
+    const block = separator > 0 ? value.slice(0, separator).trim() : ''
+    if (!block) {
+      throw new SimApiError(`--mock "${value}" must be <block>=<json|@file>`, 0)
+    }
+    const source = await readArgumentSource(value.slice(separator + 1), 'mock')
+    let output: unknown
+    try {
+      output = JSON.parse(source.text)
+    } catch {
+      throw new SimApiError(`--mock ${block}: the output${source.from} is not valid JSON`, 0)
+    }
+    if (!isRecordLike(output) || Array.isArray(output)) {
+      throw new SimApiError(
+        `--mock ${block}: the output must be a JSON object, like {"ok":true}`,
+        0
+      )
+    }
+    if (Object.hasOwn(mocks, block)) throw new SimApiError(`--mock names ${block} twice`, 0)
+    mocks[block] = output
+  }
+  return mocks
 }
 
 /** Projects friendly CLI flags into the API's strict nested run selector. */
-function resolveWorkflowRunSelection(
+async function resolveWorkflowRunSelection(
   flags: Record<string, unknown>
-): WorkflowRunSelection | undefined {
+): Promise<WorkflowRunSelection | undefined> {
   const trigger = typeof flags.trigger === 'string' ? flags.trigger : undefined
   const useMockPayload = flags.mockPayload === true
   const stopAfter = typeof flags.stopAfter === 'string' ? flags.stopAfter : undefined
-  /** A trigger entry and a stop block only exist on the draft, so these flags imply `--manual`. */
+  const dry = flags.dry === true
+  const allowBlocks = Array.isArray(flags.allow) ? (flags.allow as string[]) : []
+  const mockValues = Array.isArray(flags.mock) ? (flags.mock as string[]) : []
+  /** These flags only apply to the draft, so each implies `--manual`. */
   const manual =
-    flags.manual === true || trigger !== undefined || useMockPayload || stopAfter !== undefined
+    flags.manual === true ||
+    trigger !== undefined ||
+    useMockPayload ||
+    stopAfter !== undefined ||
+    dry ||
+    mockValues.length > 0
   const fromBlock = typeof flags.fromBlock === 'string' ? flags.fromBlock : undefined
   const sourceRun = typeof flags.sourceRun === 'string' ? flags.sourceRun : undefined
+
+  if (allowBlocks.length > 0 && !dry) {
+    throw new SimApiError("--allow sends one block's writes during a dry run; add --dry", 0)
+  }
+  if (allowBlocks.some((block) => block.trim() === '')) {
+    throw new SimApiError('--allow requires a block id, name or key', 0)
+  }
+  if (dry && flags.follow === true) {
+    throw new SimApiError(
+      '--dry reports its side effects with the run result, which --follow does not return; drop --follow',
+      0
+    )
+  }
+  if (dry && flags.waitTimeout !== undefined) {
+    throw new SimApiError(
+      '--dry reports its side effects with the run result, so the command waits for it; drop --wait-timeout',
+      0
+    )
+  }
 
   if (fromBlock && (trigger || useMockPayload)) {
     throw new SimApiError('--from-block cannot be combined with --trigger or --mock-payload', 0)
@@ -97,16 +160,22 @@ function resolveWorkflowRunSelection(
     throw new SimApiError('--stop-after requires a block id, name or key', 0)
   }
 
-  const stop = stopAfter !== undefined ? { stopAfterBlockId: stopAfter } : {}
+  const mocks = await readBlockMocks(mockValues)
+  const options = {
+    ...(stopAfter !== undefined ? { stopAfterBlockId: stopAfter } : {}),
+    ...(dry ? { dry: true as const } : {}),
+    ...(allowBlocks.length > 0 ? { allowBlocks } : {}),
+    ...(mockValues.length > 0 ? { mocks } : {}),
+  }
   if (fromBlock && sourceRun) {
     return {
       source: 'manual',
       entry: { type: 'block', blockId: fromBlock, sourceRunId: sourceRun },
-      ...stop,
+      ...options,
     }
   }
   if (!manual) return undefined
-  if (!trigger && !useMockPayload) return { source: 'manual', ...stop }
+  if (!trigger && !useMockPayload) return { source: 'manual', ...options }
   return {
     source: 'manual',
     entry: {
@@ -114,8 +183,37 @@ function resolveWorkflowRunSelection(
       ...(trigger ? { blockId: trigger } : {}),
       ...(useMockPayload ? { useMockPayload: true } : {}),
     },
-    ...stop,
+    ...options,
   }
+}
+
+/**
+ * A dry run's side effects in a few lines on stderr, for the human formats: each write that was
+ * not sent, sent because its block was allowed, or made by code the run cannot see. The request
+ * payloads are in the result itself (`--output json`).
+ */
+function printSideEffects(sideEffects: unknown): void {
+  if (!isRecordLike(sideEffects)) return
+  const list = (key: string) =>
+    Array.isArray(sideEffects[key]) ? sideEffects[key].filter(isRecordLike) : []
+  const stubbed = list('stubbed')
+  const allowed = list('allowed')
+  const unchecked = list('unchecked')
+  const label = (entry: Record<string, unknown>) =>
+    safeOneLine(`${String(entry.block)}${typeof entry.tool === 'string' ? ` → ${entry.tool}` : ''}`)
+  const lines = [
+    `Dry run: ${stubbed.length} not sent, ${allowed.length} sent (allowed), ${unchecked.length} unchecked`,
+    ...stubbed.map((entry) => `  not sent   ${label(entry)}`),
+    ...allowed.map((entry) => `  sent       ${label(entry)}`),
+    ...unchecked.map(
+      (entry) => `  unchecked  ${label(entry)}: ${safeOneLine(String(entry.reason))}`
+    ),
+  ]
+  if (typeof sideEffects.omitted === 'number' && sideEffects.omitted > 0) {
+    lines.push(`  … ${sideEffects.omitted} more`)
+  }
+  lines.push('Request payloads: sideEffects in --output json')
+  writeStderr(styles().dim(`${lines.join('\n')}\n`))
 }
 
 function stringField(frame: Record<string, unknown>, key: string): string | null {
@@ -264,6 +362,9 @@ async function runWithResultStream(
     renderResult('executeWorkflow', profile.output, payload, commandSpec, {
       expandedTrace: flags.trace === true,
     })
+    if (profile.output === 'table' || profile.output === 'text') {
+      printSideEffects(payload.sideEffects)
+    }
 
     const failure = runFailureMessage('executeWorkflow', payload)
     if (failure) {
@@ -555,7 +656,7 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
         0
       )
     }
-    const selection = resolveWorkflowRunSelection(initialFlags)
+    const selection = await resolveWorkflowRunSelection(initialFlags)
     const stopBlock = stopBlockSelection(selection, initialFlags)
     if (stopBlock) command.setOptionValue('selectOutput', stopBlock)
     const flags = command.optsWithGlobals() as Record<string, unknown>
@@ -607,6 +708,13 @@ const RUN_HELP = `
 Without --manual (or a flag that implies it) this runs the active deployment; a workflow never
 deployed has none. --manual runs the saved draft, as the source loop leaves it.
 
+--dry runs the saved draft without its side effects: every tool call not declared read (sends,
+table writes, HTTP calls, custom and MCP tools) returns a placeholder and is listed in
+sideEffects.stubbed with the request it would have sent; check those payloads. Function blocks run
+and are listed in sideEffects.unchecked. Child workflows run dry too. --allow <block> sends that
+block's writes for real (use a test resource); --mock <block>=<json> answers a block with fixed
+output, to steer a branch.
+
 The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the
 workflow's final output) and blockOutputs (what --select-output named). It has no success field:
 branch on status, or on the exit code. With --follow it is the stream's final frame
@@ -646,6 +754,20 @@ export function attachWorkflowRunFollow(workflows: Command): void {
 
   run
     .option('--manual', 'Run the current saved workflow state instead of the active deployment')
+    .option(
+      '--dry',
+      'Dry run of the saved draft (implies --manual): writes are not sent but answered with placeholders and listed with their request payloads in sideEffects; reads, model calls and Function code run for real. Logged as a test run. Not with --follow, --async or --wait-timeout'
+    )
+    .option(
+      '--allow <block>',
+      "Send this block's writes for real during a --dry run (its id, display name or key); repeatable",
+      collect
+    )
+    .option(
+      '--mock <block>=<json|@file>',
+      'Answer this block with the given JSON object instead of running it (its id, display name or key), to steer a branch or give a stubbed write a realistic result; repeatable, implies --manual',
+      collect
+    )
     .option(
       '--trigger <blockId>',
       'Enter the run through this runnable trigger, by its block id; runs the current saved workflow state (implies --manual)'

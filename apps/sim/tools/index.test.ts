@@ -77,6 +77,7 @@ import { executeVantaTool } from '@/lib/internal/vanta/execute-tool'
 import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
 import { buildFalVideoRequest } from '@/lib/internal/video/fal-request'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import { DryRunSideEffects } from '@/lib/workflows/dry-run'
 import { VideoGeneratorV2Block, VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
@@ -7488,6 +7489,22 @@ describe('MCP Tool Execution', () => {
       success: true,
       output: { content: [{ type: 'text', text: 'Files listed successfully' }] },
     })
+  })
+
+  it('stubs an MCP tool in a dry run, since it declares no effect', async () => {
+    const dryRun = new DryRunSideEffects({ allowBlockIds: new Set(), pausingBlocks: 'stub' })
+
+    const result = await executeTool(
+      'mcp-123-delete_file',
+      { path: '/test', _context: { blockId: 'agent-1' } },
+      { executionContext: createToolExecutionContext({ sideEffects: dryRun }) }
+    )
+
+    expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(dryRun.summary().stubbed).toEqual([
+      expect.objectContaining({ blockId: 'agent-1', tool: 'mcp-123-delete_file' }),
+    ])
   })
 
   it('preserves MCP operation error envelopes', async () => {

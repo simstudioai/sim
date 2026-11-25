@@ -62,6 +62,7 @@ import type {
   ExecutionTestHooks,
   IterationContext,
   SerializableExecutionState,
+  SideEffectPolicy,
 } from '@/executor/execution/types'
 import type { ExecutionResult, StartBlockRunMetadata } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -147,6 +148,8 @@ export interface ExecuteWorkflowCoreOptions {
   base64MaxBytes?: number
   stopAfterBlockId?: string
   testHooks?: ExecutionTestHooks
+  /** A dry run's or workflow test's handling of writes; every child execution inherits it. */
+  sideEffects?: SideEffectPolicy
   /** Trusted encrypted provenance captured by a server-only pre-execution boundary. */
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /** Immutable deployment admitted by the durable parent log for a resumed execution. */
@@ -665,6 +668,7 @@ async function executeWorkflowCoreImpl(
     includeFileBase64,
     base64MaxBytes,
     testHooks,
+    sideEffects,
     runFromBlock,
     resumeDeploymentVersionId,
     draftState,
@@ -1329,6 +1333,7 @@ async function executeWorkflowCoreImpl(
       base64MaxBytes,
       stopAfterBlockId: resolvedStopAfterBlockId,
       ...(testHooks ? { testHooks } : {}),
+      ...(sideEffects ? { sideEffects } : {}),
       onChildWorkflowInstanceReady,
       callChain: metadata.callChain,
       // The live block stream has a single known, authenticated Sim viewer only on
