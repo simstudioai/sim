@@ -9,7 +9,11 @@ import {
 } from '@sim/db/schema'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import type { TestCaseStatus, TestCollection, TestReport } from '@/lib/workflow-tests/protocol'
+import type {
+  StoredTestReport,
+  TestCaseStatus,
+  TestCollection,
+} from '@/lib/workflow-tests/protocol'
 import type { WorkflowTestVersion } from '@/lib/workflows/application/run-workflow-for-test'
 
 export type WorkflowTestRow = typeof workflowTest.$inferSelect
@@ -282,7 +286,7 @@ export async function readDeploymentFacts(
 
 export async function completeWorkflowTestRun(
   runId: string,
-  report: TestReport,
+  report: StoredTestReport,
   sourceHash: string,
   ranAgainst: RanAgainstEntry[]
 ): Promise<void> {

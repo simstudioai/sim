@@ -127,7 +127,48 @@ export const testReportSchema = z.object({
     })
   ),
 })
-export type TestReport = z.infer<typeof testReportSchema>
+
+/** What one workflow run of a test did with the writes it reached, without their payloads. */
+const testRunSideEffectsSchema = z.object({
+  /** Writes no mock answered, stubbed with a placeholder; `tool` is null for a block answered whole. */
+  stubbed: z.array(
+    z.object({
+      workflowId: z.string(),
+      blockId: z.string().nullable(),
+      block: z.string().nullable(),
+      tool: z.string().nullable(),
+      /** Calls folded into this entry. */
+      count: z.number().int().positive(),
+    })
+  ),
+  /** Code that ran for real, whose network calls are not stubbed. */
+  unchecked: z.array(
+    z.object({
+      block: z.string().nullable(),
+      reason: z.string(),
+      count: z.number().int().positive(),
+    })
+  ),
+  /** Calls each list left out once it was full. */
+  omitted: z.object({ stubbed: z.number().int(), unchecked: z.number().int() }),
+})
+export type TestRunSideEffects = z.infer<typeof testRunSideEffectsSchema>
+
+/**
+ * A test file's report as the host stores it: the sandbox's {@link testReportSchema} report, and
+ * the side effects of each run that reached any, which the host records from the runs themselves,
+ * never from the sandbox.
+ */
+export const storedTestReportSchema = testReportSchema.extend({
+  sideEffects: z
+    .object({
+      /** By execution id; at most a fixed number of runs, the rest counted in `omittedExecutions`. */
+      executions: z.record(z.string(), testRunSideEffectsSchema),
+      omittedExecutions: z.number().int(),
+    })
+    .optional(),
+})
+export type StoredTestReport = z.infer<typeof storedTestReportSchema>
 
 export const testCollectionSchema = z.object({
   topLevel: z.array(z.object({ kind: z.enum(['suite', 'test']), name: z.string() })),

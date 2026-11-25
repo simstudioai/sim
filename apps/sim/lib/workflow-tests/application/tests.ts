@@ -8,7 +8,7 @@ import { workflowTestOperations } from '@/lib/workflow-tests/application/operati
 import { starterTestSource, testSourceHash } from '@/lib/workflow-tests/definition'
 import { requireWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { assertTestName, testFilePath } from '@/lib/workflow-tests/paths'
-import type { TestCaseStatus, TestReport } from '@/lib/workflow-tests/protocol'
+import type { StoredTestReport, TestCaseStatus } from '@/lib/workflow-tests/protocol'
 import {
   type DeploymentFacts,
   getLatestWorkflowTestRun,
@@ -237,7 +237,7 @@ export const getWorkflowTestDetail = defineAuthorizedWorkspaceUseCase({
 function presentRunDetail(row: WorkflowTestRunRow, testSourceHash: string, facts: DeploymentFacts) {
   return {
     ...presentRun(row, testSourceHash, facts),
-    report: row.report as TestReport | null,
+    report: row.report as StoredTestReport | null,
     progress: row.progress as Record<string, TestCaseStatus> | null,
   }
 }
@@ -390,7 +390,7 @@ export const readWorkflowTestRuns = defineAuthorizedWorkspaceUseCase({
       runs: rows.map((row) => ({
         ...presentRun(row, row.testSourceHash, facts),
         name: row.testName,
-        report: row.report as TestReport | null,
+        report: row.report as StoredTestReport | null,
       })),
     }
   },

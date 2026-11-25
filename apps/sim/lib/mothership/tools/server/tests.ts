@@ -18,7 +18,7 @@ import {
   readWorkflowTestRuns,
   updateWorkflowTest,
 } from '@/lib/workflow-tests/application/tests'
-import type { TestReport } from '@/lib/workflow-tests/protocol'
+import type { StoredTestReport } from '@/lib/workflow-tests/protocol'
 
 const RUN_POLL_MS = 2_000
 
@@ -31,7 +31,7 @@ function workspaceFor(input: { workspaceId?: string }, context?: ServerToolConte
 }
 
 /** Each failing case once: where it failed and why, in vitest's own words or the judge's. */
-function failures(report: TestReport | null) {
+function failures(report: StoredTestReport | null) {
   if (!report) return []
   return report.tests
     .filter((test) => test.status === 'fail')
@@ -44,6 +44,21 @@ function failures(report: TestReport | null) {
         executions: test.executions.map((execution) => execution.executionId),
       }
     })
+}
+
+/**
+ * Each write a run stubbed because no mock answered it, once, as `block → tool` (a block answered
+ * whole by its name alone): a test that passes may still lean on a placeholder.
+ */
+function unmockedWrites(report: StoredTestReport | null): string[] {
+  const executions = Object.values(report?.sideEffects?.executions ?? {})
+  const writes = executions.flatMap((execution) =>
+    execution.stubbed.map(({ block, blockId, tool }) => {
+      const site = block ?? blockId ?? 'unnamed block'
+      return tool ? `${site} → ${tool}` : site
+    })
+  )
+  return [...new Set(writes)]
 }
 
 const TEST_READ_ACTIONS = new Set(['list', 'get'])
@@ -123,6 +138,7 @@ export const testsServerTool: BaseServerTool = {
                 failed: detail.latestRun.failed,
                 error: detail.latestRun.error,
                 failures: failures(detail.latestRun.report),
+                unmockedWrites: unmockedWrites(detail.latestRun.report),
               }
             : null,
         }
@@ -161,6 +177,7 @@ export const testsServerTool: BaseServerTool = {
                 skipped: run.skipped,
                 ...(run.error ? { error: run.error } : {}),
                 failures: failures(run.report),
+                unmockedWrites: unmockedWrites(run.report),
               })),
             }
           }
