@@ -368,6 +368,24 @@ async function proveToolbar(page: Page, toolbar: Locator) {
   )
 }
 
+const FOCUS_SETTLED = 'markdownViewerFocusSettled'
+
+/**
+ * ProseMirror writes its own selection back to the DOM 20 ms after the editor gains focus
+ * (prosemirror-view's focus handler). In WebKit that timer can run after a key's native selection
+ * change but before the `selectionchange` event that reports it, so the keystroke is reverted.
+ * Timers with equal delays fire in the order they were set, so one set by a later focus listener,
+ * or now when the editor already has focus, sets {@link FOCUS_SETTLED} after ProseMirror's has run.
+ */
+async function armFocusSettled(editor: Locator) {
+  await editor.evaluate((element, flag) => {
+    Reflect.set(window, flag, false)
+    const settle = () => setTimeout(() => Reflect.set(window, flag, true), 20)
+    if (document.activeElement === element) settle()
+    else element.addEventListener('focus', settle, { once: true })
+  }, FOCUS_SETTLED)
+}
+
 async function editLastCell(page: Page, marker: string) {
   await wideTableProof(page)
   const last = page
@@ -404,11 +422,16 @@ async function editLastCell(page: Page, marker: string) {
     timeout: 120_000,
   })
   await page.bringToFront()
+  const editor = page.locator('.rich-markdown-prose[contenteditable="true"]')
+  await armFocusSettled(editor)
   await page
     .locator('.rich-markdown-prose strong')
     .filter({ hasText: /^bold$/ })
     .click()
-  await expect(page.locator('.rich-markdown-prose[contenteditable="true"]')).toBeFocused()
+  await expect(editor).toBeFocused()
+  await expect
+    .poll(() => page.evaluate((flag) => Reflect.get(window, flag), FOCUS_SETTLED))
+    .toBe(true)
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('Shift+ArrowRight')
   try {
@@ -416,7 +439,7 @@ async function editLastCell(page: Page, marker: string) {
       .poll(() => page.evaluate(() => getSelection()?.toString().trim() ?? ''))
       .not.toBe('')
   } catch {
-    // Rare in WebKit and not reproduced yet: name where the caret and focus ended up.
+    // Name where the caret and focus ended up.
     const state = await page.evaluate(() => {
       const selection = getSelection()
       return {
