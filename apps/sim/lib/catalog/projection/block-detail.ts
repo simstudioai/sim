@@ -21,7 +21,7 @@ import {
   type CatalogToolSummary,
   projectToolDetail,
 } from '@/lib/catalog/projection/tool'
-import { accessIdEffect } from '@/blocks/access-effect'
+import { accessIdEffect, blockEffect } from '@/blocks/access-effect'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import {
   type BlockConfig,
@@ -115,6 +115,8 @@ export interface CatalogTriggerConfigField {
 /** The full authoring shape of one block. */
 export interface CatalogBlockDetail extends CatalogBlockSummary {
   bestPractices?: string
+  /** What running the block does outside Sim ({@link blockEffect}); absent when it has no tools. */
+  effect?: CatalogToolDetail['effect']
   /** Configuration fields that apply regardless of the selected operation. */
   inputSchema: CatalogSubBlock[]
   /** Configuration fields keyed by the operation that reveals them. */
@@ -463,8 +465,15 @@ function projectCustomBlockDetail(block: BlockConfig): CatalogBlockDetail {
     tools: [],
     triggers: [],
     outputs: projectBlockOutputs(block.outputs),
+    ...effectOf(block),
     ...(block.bestPractices !== undefined ? { bestPractices: block.bestPractices } : {}),
   }
+}
+
+/** The block's effect as its detail carries it: absent for a block with no tools. */
+function effectOf(block: BlockConfig): Pick<CatalogBlockDetail, 'effect'> {
+  const effect = blockEffect(block)
+  return effect ? { effect } : {}
 }
 
 /** Projects one block config to its full catalog detail. */
@@ -532,6 +541,7 @@ export function projectBlockDetail(
     tools,
     triggers: projectBlockTriggers(block),
     outputs: projectBlockOutputs(block.outputs),
+    ...effectOf(block),
     ...(block.bestPractices !== undefined ? { bestPractices: block.bestPractices } : {}),
   }
 }

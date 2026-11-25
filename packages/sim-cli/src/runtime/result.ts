@@ -5,6 +5,7 @@ import { truncationMetadata } from '#sim-cli/output/truncation'
 import type { OutputFormat } from '../config/index'
 import type { ColumnSpec, CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
+import { nextStepText } from '../output/next-step'
 import {
   bool,
   bytes,
@@ -443,6 +444,13 @@ function writeEnvelopeTruncation(envelope: unknown): void {
   }
 }
 
+/** A result whose `next` a person reads: its command, then why ({@link nextStepText}). */
+function withNextText(data: unknown): unknown {
+  if (!isRecordLike(data)) return data
+  const step = nextStepText(data.next)
+  return step === null ? data : { ...data, next: step }
+}
+
 /** Renders one non-paginated operation result according to its CLI contract. */
 export function renderResult(
   operation: V2OperationName,
@@ -462,15 +470,15 @@ export function renderResult(
   }
 
   // The single-key unwrap exists for the human table: `{ mcpServer: {...} }` rendered as-is
-  // printed nothing. Machine formats print the API's data verbatim, so `--output json`
-  // matches the OpenAPI shape the docs and the agent reference card are generated from.
-  const data = withRunNext(
+  // printed nothing. Machine formats print the API's data as the OpenAPI shape the docs and the
+  // agent reference card are generated from, plus the fields the CLI adds for a run or deploy:
+  // `live`, and `next` with `{ command, reason }` (a person reads it as the command, then why).
+  const machine = format === 'json' || format === 'yaml'
+  const added = withRunNext(
     operation,
-    withDeploymentLive(
-      operation,
-      format === 'json' || format === 'yaml' ? raw : withLintFindingsOnly(unwrapResource(raw))
-    )
+    withDeploymentLive(operation, machine ? raw : withLintFindingsOnly(unwrapResource(raw)))
   )
+  const data = machine ? added : withNextText(added)
   if (spec.itemsPath) {
     const items = at(data, spec.itemsPath)
     if (!Array.isArray(items)) {

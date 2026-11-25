@@ -732,7 +732,7 @@ sim workspaces source status [options]
 
 </CommandTable>
 
-With --json, `plan` is what applying would do as `apply --dry-run --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
+With --json, `plan` is what applying would do as `apply --dry --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
 
 Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); a server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11); 1 the command failed; 7 the source is too large for the server to read in one dry run; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished; 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`.
 
@@ -753,7 +753,7 @@ sim workspaces source apply [options]
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 | `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
-| `--dry-run` | No | Plan and check without writing anything. |
+| `--dry` | No | Plan and check without writing anything. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
 | `--allow-delete` | No | Delete resources, columns and data the directory no longer declares (with --to, only what it deleted since the last promotion: the target's own resources are kept). |
 | `--delete-target-only` | No | With --to and --allow-delete, also delete the target's resources this directory never declared and no promotion from it left there (prod-only tables and their rows, skills made in prod). Without it a promotion keeps them, naming each with a warning. |

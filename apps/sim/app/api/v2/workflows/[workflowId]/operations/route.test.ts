@@ -119,7 +119,7 @@ describe('/api/v2/workflows/[workflowId]/operations', () => {
     })
 
     const response = await POST(
-      new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}/operations?dryRun=true`, {
+      new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}/operations?dry=true`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ operations: [ADD] }),
@@ -131,7 +131,7 @@ describe('/api/v2/workflows/[workflowId]/operations', () => {
     expect((await response.json()).data).toMatchObject({
       mintedBlockIds: {},
       previewBlockIds: { triage: 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77' },
-      dryRun: true,
+      dry: true,
     })
   })
 

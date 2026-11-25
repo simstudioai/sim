@@ -119,7 +119,7 @@ describe('manual workflow execution application operations', () => {
     }
     await executeManualWorkflowOperation.execute({
       principal: delegated,
-      input: { ...baseInput, useMockPayload: false, triggerBlockId: 'trigger-1' },
+      input: { ...baseInput, sample: false, triggerBlockId: 'trigger-1' },
     })
     expect(mocks.executeService).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -172,7 +172,7 @@ describe('manual workflow execution application operations', () => {
       await expect(
         executeManualWorkflowOperation.execute({
           principal: principal as never,
-          input: { ...baseInput, useMockPayload: false },
+          input: { ...baseInput, sample: false },
         })
       ).rejects.toThrow()
       await expect(
@@ -201,7 +201,7 @@ describe('manual workflow execution application operations', () => {
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, useMockPayload: false },
+        input: { ...baseInput, sample: false },
       })
     ).rejects.toThrow()
     expect(mocks.executeService).not.toHaveBeenCalled()
@@ -230,17 +230,17 @@ describe('manual workflow execution application operations', () => {
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, triggerBlockId: undefined, useMockPayload: false },
+        input: { ...baseInput, triggerBlockId: undefined, sample: false },
       })
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.executeService).not.toHaveBeenCalled()
   })
 
-  it('rejects input combined with a mock payload before loading saved state', async () => {
+  it('rejects input combined with the sample payload before loading saved state', async () => {
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, useMockPayload: true },
+        input: { ...baseInput, sample: true },
       })
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mockLoadManualState).not.toHaveBeenCalled()
@@ -253,7 +253,7 @@ describe('manual workflow execution application operations', () => {
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, input: undefined, useMockPayload: false },
+        input: { ...baseInput, input: undefined, sample: false },
       })
     ).rejects.toMatchObject({ code: 'validation', message: 'event payload is required' })
     expect(mocks.executeService).not.toHaveBeenCalled()
@@ -302,7 +302,7 @@ describe('manual workflow execution application operations', () => {
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'missing' },
+        input: { ...baseInput, sample: false, stopAfterBlockId: 'missing' },
       })
     ).rejects.toMatchObject({ code: 'validation', message: expect.stringContaining('not a block') })
     await expect(
@@ -333,7 +333,7 @@ describe('manual workflow execution application operations', () => {
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'agent-1' },
+        input: { ...baseInput, sample: false, stopAfterBlockId: 'agent-1' },
       })
     ).rejects.toMatchObject({ code: 'validation', message: expect.stringContaining('inside loop') })
     expect(mocks.executeService).not.toHaveBeenCalled()
@@ -365,7 +365,7 @@ describe('manual workflow execution application operations', () => {
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'unconnected' },
+        input: { ...baseInput, sample: false, stopAfterBlockId: 'unconnected' },
       })
     ).rejects.toMatchObject({
       code: 'validation',
@@ -391,13 +391,13 @@ describe('manual workflow execution application operations', () => {
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'agent-1' },
+        input: { ...baseInput, sample: false, stopAfterBlockId: 'agent-1' },
       })
     ).rejects.toMatchObject({ code: 'validation', message: expect.stringContaining('is disabled') })
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'agent-2' },
+        input: { ...baseInput, sample: false, stopAfterBlockId: 'agent-2' },
       })
     ).rejects.toMatchObject({
       code: 'validation',
@@ -422,7 +422,7 @@ describe('manual workflow execution application operations', () => {
 
     await executeManualWorkflowOperation.execute({
       principal,
-      input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'Score lead' },
+      input: { ...baseInput, sample: false, stopAfterBlockId: 'Score lead' },
     })
     expect(mocks.executeService).toHaveBeenLastCalledWith(
       expect.objectContaining({ stopAfterBlockId: 'agent-1' })
@@ -458,7 +458,7 @@ describe('manual workflow execution application operations', () => {
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'scorer' },
+        input: { ...baseInput, sample: false, stopAfterBlockId: 'scorer' },
       })
     ).rejects.toMatchObject({
       code: 'validation',
@@ -481,7 +481,7 @@ describe('manual workflow execution application operations', () => {
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
-        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'toString' },
+        input: { ...baseInput, sample: false, stopAfterBlockId: 'toString' },
       })
     ).rejects.toMatchObject({ code: 'validation', message: expect.stringContaining('not a block') })
     expect(mocks.executeService).not.toHaveBeenCalled()

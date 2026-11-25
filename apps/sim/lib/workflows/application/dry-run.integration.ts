@@ -316,7 +316,7 @@ async function run(
       input: {},
       mode: 'sync',
       requestHeaders: new Headers(),
-      useMockPayload: false,
+      sample: false,
       ...options,
     },
   })
@@ -765,7 +765,7 @@ describe('a dry run', () => {
   it('sends an allowed block’s writes, keyed to the run’s own blocks, while reads run for real', async () => {
     const { tableId, parent, parentId } = await parentFixture()
 
-    const allowed = await run(parentId, { dry: true, allowBlocks: ['save'] })
+    const allowed = await run(parentId, { dry: true, allow: ['save'] })
 
     expect(allowed.status, JSON.stringify(allowed.error)).toBe('completed')
     expect(await tableRows(tableId)).toEqual([expect.stringContaining('a@b.co')])
@@ -775,18 +775,17 @@ describe('a dry run', () => {
         blockId: parent.idOf('save'),
         block: 'save',
         tool: 'table_upsert_row',
-        mcp: null,
       },
     ])
     expect(allowed.sideEffects?.stubbed.map((entry) => entry.block)).toEqual([
       'notify',
       'childsave',
     ])
-    expect(allowed.dryRun).toEqual({ allowBlocks: [parent.idOf('save')], mockedBlocks: [] })
+    expect(allowed.overrides).toEqual({ allow: [parent.idOf('save')], mocks: [] })
 
     const reread = await run(parentId, { dry: true, selectedOutputs: ['lookup.rows'] })
     expect(JSON.stringify(reread.blockOutputs?.['lookup.rows'])).toContain('a@b.co')
-    await expect(run(parentId, { dry: true, allowBlocks: ['child'] })).rejects.toMatchObject(
+    await expect(run(parentId, { dry: true, allow: ['child'] })).rejects.toMatchObject(
       validationError
     )
   })
@@ -1142,7 +1141,7 @@ describe('a dry run', () => {
       .where(eq(pausedExecutions.executionId, result.executionId))
     expect(paused).toEqual([])
     for (const allowed of ['hold', 'published']) {
-      await expect(run(workflowId, { dry: true, allowBlocks: [allowed] })).rejects.toMatchObject(
+      await expect(run(workflowId, { dry: true, allow: [allowed] })).rejects.toMatchObject(
         validationError
       )
     }
@@ -1230,8 +1229,8 @@ describe('a dry run', () => {
     const { tableId, parentId } = await parentFixture()
 
     for (const options of [
-      { allowBlocks: ['save'] },
-      { dry: true, allowBlocks: ['nope'] },
+      { allow: ['save'] },
+      { dry: true, allow: ['nope'] },
       { dry: true, mode: 'stream' as const },
       { dry: true, mode: 'sync-result-stream' as const, detachable: true },
     ]) {
@@ -1316,8 +1315,6 @@ describe('a dry run', () => {
               block: 'save',
               tool: 'table_upsert_row',
               mcp: null,
-              dependsOnStub: false,
-              readOnlyHint: false,
               count: 1,
             },
           ],
@@ -1354,11 +1351,11 @@ describe('a dry run', () => {
       return body.data
     }
 
-    const first = await execute({ source: 'manual', dry: true })
+    const first = await execute({ source: 'draft', dry: true })
     expect(first.status).toBe('completed')
     expect(first.sideEffects?.stubbed).toHaveLength(3)
     const rerun = await execute({
-      source: 'manual',
+      source: 'draft',
       dry: true,
       entry: { type: 'block', blockId: 'save', sourceRunId: first.runId },
     })
@@ -1541,12 +1538,10 @@ describe('a dry run’s reads', () => {
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     expect(mcpCalls).toEqual([])
     const stubbed = result.sideEffects?.stubbed ?? []
-    expect(
-      stubbed.map((entry) => [entry.block, entry.mcp, entry.readOnlyHint, entry.dependsOnStub])
-    ).toEqual([
-      ['read', { server: serverId, tool: 'read_file' }, true, false],
-      ['remove', { server: serverId, tool: 'delete_file' }, false, false],
-      ['purge', { server: serverId, tool: 'purge_cache' }, false, false],
+    expect(stubbed.map((entry) => [entry.block, entry.mcp, entry.reason])).toEqual([
+      ['read', { server: serverId, tool: 'read_file' }, 'mcp-read-only'],
+      ['remove', { server: serverId, tool: 'delete_file' }, undefined],
+      ['purge', { server: serverId, tool: 'purge_cache' }, undefined],
     ])
     expect(result.blockOutputs?.['read.structuredContent']).toEqual({
       path: 'dry_run_path_1',
@@ -1556,7 +1551,7 @@ describe('a dry run’s reads', () => {
 
     const allowed = await run(workflowId, {
       dry: true,
-      allowBlocks: ['read'],
+      allow: ['read'],
       selectedOutputs: ['read.structuredContent'],
     })
     expect(allowed.status, JSON.stringify(allowed.error)).toBe('completed')
@@ -1612,11 +1607,11 @@ describe('a dry run’s reads', () => {
     expect(await tableRows(tableId)).toEqual([])
     expect(mcpCalls).toEqual([])
     const stubbed = result.sideEffects?.stubbed ?? []
-    expect(stubbed.map((entry) => [entry.block, entry.tool, entry.dependsOnStub])).toEqual([
-      ['save', 'table_upsert_row', false],
-      ['fetch', 'table_get_row', true],
-      ['refetch', 'table_get_row', true],
-      ['read', 'mcp_run_operation', true],
+    expect(stubbed.map((entry) => [entry.block, entry.tool, entry.reason])).toEqual([
+      ['save', 'table_upsert_row', undefined],
+      ['fetch', 'table_get_row', 'placeholder'],
+      ['refetch', 'table_get_row', 'placeholder'],
+      ['read', 'mcp_run_operation', 'placeholder'],
     ])
     expect(stubbed[1].request).toMatchObject({ rowId: 'dry_run_row_1' })
     expect(result.blockOutputs?.['lookup.totalCount']).toBe(0)
@@ -1657,9 +1652,9 @@ describe('a dry run’s reads', () => {
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     const stubbed = result.sideEffects?.stubbed ?? []
-    expect(stubbed.map((entry) => [entry.block, entry.tool, entry.dependsOnStub])).toEqual([
-      ['file', 'github_create_issue', false],
-      ['reread', 'github_get_issue', true],
+    expect(stubbed.map((entry) => [entry.block, entry.tool, entry.reason])).toEqual([
+      ['file', 'github_create_issue', undefined],
+      ['reread', 'github_get_issue', 'placeholder'],
     ])
     expect(JSON.stringify(stubbed[1].request)).toMatch(/\/issues\/9000000\d\d/)
   })
@@ -1781,7 +1776,7 @@ describe('a test run', () => {
         input: {},
         mode: 'sync',
         requestHeaders: new Headers(),
-        useMockPayload: false,
+        sample: false,
       },
     })) as ExecuteWorkflowServiceRun
     expect(paused.status, JSON.stringify(paused.error)).toBe('paused')
@@ -2014,17 +2009,17 @@ describe('a dry run’s mocks', () => {
       ]
     )
     const workflowId = await saveWorkflow(fixture.state)
-    const recorded = { allowBlocks: [fixture.idOf('save')], mockedBlocks: [fixture.idOf('lookup')] }
+    const recorded = { allow: [fixture.idOf('save')], mocks: [fixture.idOf('lookup')] }
 
     const mockKey = `mock-key-${generateId()}`
     const failed = await run(workflowId, {
       dry: true,
-      allowBlocks: ['save'],
+      allow: ['save'],
       mocks: { lookup: { rows: [], rowCount: 0, totalCount: 0, note: secret, apiKey: mockKey } },
     })
 
     expect(failed.status).toBe('failed')
-    expect(failed.dryRun).toEqual(recorded)
+    expect(failed.overrides).toEqual(recorded)
     const [row] = await db
       .select({ executionData: workflowExecutionLogs.executionData })
       .from(workflowExecutionLogs)
@@ -2033,8 +2028,8 @@ describe('a dry run’s mocks', () => {
       row.executionData as Record<string, unknown>,
       { workspaceId, workflowId, executionId: failed.executionId }
     )
-    const trigger = executionData.trigger as { data?: { dryRun?: unknown } }
-    expect(trigger.data?.dryRun).toEqual(recorded)
+    const trigger = executionData.trigger as { data?: { overrides?: unknown } }
+    expect(trigger.data?.overrides).toEqual(recorded)
     /** The log shows the mocked block's output, which `save` consumed, redacted like any other. */
     const traceSpans = JSON.stringify(executionData.traceSpans)
     expect(traceSpans).toContain(secret)
@@ -2043,7 +2038,7 @@ describe('a dry run’s mocks', () => {
       principal,
       input: { workflowId, runId: failed.executionId, includeOutput: false, selectedOutputs: [] },
     })
-    expect(read.dryRun).toEqual(recorded)
+    expect(read.overrides).toEqual(recorded)
     expect(JSON.stringify(read)).not.toContain(secret)
   })
 })
@@ -2254,7 +2249,7 @@ await fetch('${server.url}${prefix}/b', { method: 'DELETE' })
 return 1`
     )
 
-    const result = await run(workflowId, { dry: true, allowBlocks: ['code'] })
+    const result = await run(workflowId, { dry: true, allow: ['code'] })
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     expect(arrivalsUnder(prefix)).toEqual([`POST ${prefix}/a`, `DELETE ${prefix}/b`])
@@ -2271,7 +2266,7 @@ return 1`
 return await res.json()`
     )
 
-    const result = await run(workflowId, { dry: true, allowBlocks: ['code'] })
+    const result = await run(workflowId, { dry: true, allow: ['code'] })
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     expect(arrivalsUnder(prefix)).toEqual([`GET ${prefix}`])
@@ -2365,12 +2360,12 @@ return res.headers.get('x-sim-dry-run')`,
     expect(result.blockOutputs?.['code.result']).toEqual({ status: 200, stubbed: 'stubbed' })
     expect(result.blockOutputs?.['header.result']).toBe('stubbed')
     expect(
-      result.sideEffects?.stubbed.map((entry) => [entry.block, entry.tool, entry.dependsOnStub])
+      result.sideEffects?.stubbed.map((entry) => [entry.block, entry.tool, entry.reason])
     ).toEqual([
-      ['save', 'table_upsert_row', false],
-      ['code', 'function_execute', true],
-      ['header', 'function_execute', true],
-      ['fetch', 'http_request', true],
+      ['save', 'table_upsert_row', undefined],
+      ['code', 'function_execute', 'placeholder'],
+      ['header', 'function_execute', 'placeholder'],
+      ['fetch', 'http_request', 'placeholder'],
     ])
   })
 
@@ -2449,7 +2444,7 @@ describe('a dry run’s overrides of a child workflow', () => {
     const childId = await saveWorkflow(child.state, childName)
     const parentId = await saveWorkflow(callerOf(childId))
 
-    const byName = await run(parentId, { dry: true, allowBlocks: [`${childName}.save`] })
+    const byName = await run(parentId, { dry: true, allow: [`${childName}.save`] })
 
     expect(byName.status, JSON.stringify(byName.error)).toBe('completed')
     expect(await tableRows(tableId)).toEqual([expect.stringContaining('child@b.co')])
@@ -2459,26 +2454,21 @@ describe('a dry run’s overrides of a child workflow', () => {
         blockId: child.idOf('save'),
         block: 'save',
         tool: 'table_upsert_row',
-        mcp: null,
       },
     ])
-    expect(byName.sideEffects?.unused).toEqual([])
-    const recorded = {
-      allowBlocks: [],
-      mockedBlocks: [],
-      childAllowBlocks: [{ workflowId: childId, blockId: child.idOf('save') }],
-    }
-    expect(byName.dryRun).toEqual(recorded)
+    expect(byName.sideEffects?.unreached).toBeUndefined()
+    const recorded = { allow: [`${childId}.${child.idOf('save')}`], mocks: [] }
+    expect(byName.overrides).toEqual(recorded)
 
     const byId = await run(parentId, {
       dry: true,
-      allowBlocks: [`${childId}.${child.idOf('save')}`],
+      allow: [`${childId}.${child.idOf('save')}`],
     })
     expect(byId.sideEffects?.allowed.map((entry) => entry.blockId)).toEqual([child.idOf('save')])
-    expect(byId.dryRun).toEqual(recorded)
+    expect(byId.overrides).toEqual(recorded)
 
-    const doubleDot = await run(parentId, { dry: true, allowBlocks: [`${childName}..save`] })
-    expect(doubleDot.dryRun).toEqual(recorded)
+    const doubleDot = await run(parentId, { dry: true, allow: [`${childName}..save`] })
+    expect(doubleDot.overrides).toEqual(recorded)
   })
 
   it('answers a grandchild’s block with a mock, at whatever depth it runs', async () => {
@@ -2498,10 +2488,9 @@ describe('a dry run’s overrides of a child workflow', () => {
     const [save] = result.sideEffects?.stubbed ?? []
     expect(save).toMatchObject({ workflowId: grandchildId, block: 'save' })
     expect(save.request).toMatchObject({ data: { email: 'grand@b.co', note: 'count 99' } })
-    expect(result.dryRun).toEqual({
-      allowBlocks: [],
-      mockedBlocks: [],
-      childMockedBlocks: [{ workflowId: grandchildId, blockId: grandchild.idOf('lookup') }],
+    expect(result.overrides).toEqual({
+      allow: [],
+      mocks: [`${grandchildId}.${grandchild.idOf('lookup')}`],
     })
     expect(await tableRows(tableId)).toEqual([])
   })
@@ -2555,7 +2544,7 @@ describe('a dry run’s overrides of a child workflow', () => {
     const missingId = generateId()
 
     const refusal = async (selector: string) =>
-      run(parentId, { dry: true, allowBlocks: [selector] }).then(
+      run(parentId, { dry: true, allow: [selector] }).then(
         () => 'ran',
         (error: OrchestrationError) => {
           expect(error.code).toBe('validation')
@@ -2592,7 +2581,7 @@ describe('a dry run’s overrides of a child workflow', () => {
     )
 
     for (const selector of ['repeat', 'fanout']) {
-      await expect(run(workflowId, { dry: true, allowBlocks: [selector] })).rejects.toMatchObject({
+      await expect(run(workflowId, { dry: true, allow: [selector] })).rejects.toMatchObject({
         ...validationError,
         message: expect.stringContaining('is a loop or parallel'),
       })
@@ -2604,7 +2593,7 @@ describe('a dry run’s overrides of a child workflow', () => {
       })
     }
     for (const selector of ['off', 'deep']) {
-      await expect(run(workflowId, { dry: true, allowBlocks: [selector] })).rejects.toMatchObject({
+      await expect(run(workflowId, { dry: true, allow: [selector] })).rejects.toMatchObject({
         ...validationError,
         message: expect.stringContaining('is disabled'),
       })
@@ -2634,7 +2623,7 @@ describe('a dry run’s overrides of a child workflow', () => {
 
     const result = await run(workflowId, {
       dry: true,
-      allowBlocks: ['save'],
+      allow: ['save'],
       mocks: {
         lookup: { rows: [], totalCuont: 3 },
         recheck: { rows: [], totalCount: 0 },
@@ -2642,12 +2631,12 @@ describe('a dry run’s overrides of a child workflow', () => {
     })
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
-    expect(result.sideEffects?.unused).toEqual([
-      { workflowId, blockId: fixture.idOf('save'), block: 'save', override: 'allow' },
-      { workflowId, blockId: fixture.idOf('recheck'), block: 'recheck', override: 'mock' },
+    expect(result.sideEffects?.unreached).toEqual([
+      { workflowId, blockId: fixture.idOf('save'), block: 'save', kind: 'allow' },
+      { workflowId, blockId: fixture.idOf('recheck'), block: 'recheck', kind: 'mock' },
     ])
-    expect(result.sideEffects?.undeclaredMockFields).toEqual([
-      { workflowId, blockId: fixture.idOf('lookup'), block: 'lookup', fields: ['totalCuont'] },
+    expect(result.sideEffects?.mockFields).toEqual([
+      { workflowId, blockId: fixture.idOf('lookup'), block: 'lookup', undeclared: ['totalCuont'] },
     ])
   })
 })
@@ -2676,18 +2665,18 @@ describe('a dry run’s mocks from an earlier run', () => {
     for (const field of ['cost', 'tokens', 'model', 'providerTiming']) {
       expect(output).not.toHaveProperty(field)
     }
-    expect(replayed.dryRun).toEqual({
-      allowBlocks: [],
-      mockedBlocks: [],
-      mocksFrom: { runId: source.executionId, blockIds: [fixture.idOf('assistant')] },
+    expect(replayed.overrides).toEqual({
+      allow: [],
+      mocks: [],
+      mocksFrom: { runId: source.executionId, blocks: [fixture.idOf('assistant')] },
     })
-    expect(replayed.sideEffects?.unused).toEqual([])
-    expect(replayed.sideEffects?.droppedMockFields).toEqual([
+    expect(replayed.sideEffects?.unreached).toBeUndefined()
+    expect(replayed.sideEffects?.mockFields).toEqual([
       {
         workflowId,
         blockId: fixture.idOf('assistant'),
         block: 'assistant',
-        fields: expect.arrayContaining(['model', 'tokens', 'cost']),
+        dropped: expect.arrayContaining(['model', 'tokens', 'cost']),
       },
     ])
   })
@@ -2787,7 +2776,7 @@ describe('a dry run’s block selectors', () => {
     )
     const parentId = await saveWorkflow(parent.state)
 
-    const result = await run(parentId, { dry: true, allowBlocks: [`${childName}.Send`] })
+    const result = await run(parentId, { dry: true, allow: [`${childName}.Send`] })
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     expect(result.sideEffects?.allowed.map((entry) => [entry.workflowId, entry.blockId])).toEqual([
@@ -2801,12 +2790,12 @@ describe('a dry run’s block selectors', () => {
     const long = `${'a.'.repeat(128)}save`
 
     for (const selection of [
-      { allowBlocks: [long] },
+      { allow: [long] },
       { mocks: { [long]: { rows: [] } } },
       { mocksFrom: { runId: generateId(), blocks: [long] } },
     ]) {
       const { status, body } = await postRun(parentId, {
-        source: 'manual',
+        source: 'draft',
         dry: true,
         ...selection,
       })
@@ -2841,9 +2830,7 @@ describe('a dry run’s block selectors', () => {
     await db.insert(workflow).values(crowd)
     workflowIds.push(...crowd.map((entry) => entry.id))
 
-    await expect(
-      run(parentId, { dry: true, allowBlocks: [`${crowded}.save`] })
-    ).rejects.toMatchObject({
+    await expect(run(parentId, { dry: true, allow: [`${crowded}.save`] })).rejects.toMatchObject({
       ...validationError,
       message: expect.stringContaining('name more than 100 workflows'),
     })

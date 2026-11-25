@@ -229,7 +229,7 @@ async function main() {
     })
 
     await check('a re-apply changes nothing and a fresh get reproduces the directory', async () => {
-      const again = sim(config, 'workspaces', 'source', 'apply', '--dir', dir, '--dry-run')
+      const again = sim(config, 'workspaces', 'source', 'apply', '--dir', dir, '--dry')
       assert.equal(again.status, 0, again.stderr)
       assert.equal(again.output.unchanged, 2)
       const read = sim(
@@ -342,7 +342,7 @@ async function main() {
         const [document] = await handbookDocuments()
         assert.equal(document?.filename, 'intro.md')
 
-        const again = sim(config, 'workspaces', 'source', 'apply', '--dir', kbDir, '--dry-run')
+        const again = sim(config, 'workspaces', 'source', 'apply', '--dir', kbDir, '--dry')
         assert.equal(again.status, 0, again.stderr)
         assert.equal(again.output.unchanged, 1)
 

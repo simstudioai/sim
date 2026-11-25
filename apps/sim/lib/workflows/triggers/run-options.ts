@@ -361,7 +361,7 @@ export function validateTriggerInput(
           ok: false,
           error:
             `Trigger "${option.blockName}" (${option.triggerType}) requires a non-empty event payload. ` +
-            `Build workflow_input matching this shape, or run with useMockPayload: true. ` +
+            `Send an input matching this shape, or run with the trigger's sample payload. ` +
             `Expected shape: ${JSON.stringify(option.inputSchema)}`,
         }
       }

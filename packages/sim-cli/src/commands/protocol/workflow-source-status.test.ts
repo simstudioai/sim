@@ -66,12 +66,12 @@ function printed(): Record<string, unknown> {
 }
 
 /** A dry run's answer: the graph diff and the findings. */
-function dryRun(diagnostics: Array<Record<string, unknown>> = [], modified = 0) {
+function dry(diagnostics: Array<Record<string, unknown>> = [], modified = 0) {
   return {
     data: {
       workflowId: WORKFLOW_ID,
       workspaceId: WORKSPACE_ID,
-      dryRun: true,
+      dry: true,
       applied: false,
       diff: {
         noop: modified === 0,
@@ -125,7 +125,7 @@ describe('workflows source status', () => {
       write(starter, '.sim/starter.json', JSON.stringify({ workspaceId: WORKSPACE_ID }))
 
       await expect(run(starter, command)).rejects.toThrow(
-        `It holds a starter no workflow was created from yet: run \`sim workflows source create --dir ${starter} --workspace ${WORKSPACE_ID} --dry-run\``
+        `It holds a starter no workflow was created from yet: run \`sim workflows source create --dir ${starter} --workspace ${WORKSPACE_ID} --dry\``
       )
       expect(mockRequest).not.toHaveBeenCalled()
     }
@@ -146,7 +146,7 @@ describe('workflows source status', () => {
   })
 
   it('is clean, exit 0, with nothing changed on either side', async () => {
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run(root, 'status')
 
@@ -176,7 +176,7 @@ describe('workflows source status', () => {
       query: { allowDelete: true },
       body: { files: GOT, lock: LOCK, base: BASE },
     })
-    expect(request.query).not.toHaveProperty('dryRun')
+    expect(request.query).not.toHaveProperty('dry')
     expect(request.body).not.toHaveProperty('provenance')
     expect(process.exitCode ?? 0).toBe(0)
   })
@@ -191,7 +191,7 @@ describe('workflows source status', () => {
       column: 8,
       frame: '> 1 | return $ref.nosuch.x',
     }
-    mockRequest.mockResolvedValue(dryRun([warning, STALE]))
+    mockRequest.mockResolvedValue(dry([warning, STALE]))
 
     await run(root, 'status')
 
@@ -223,7 +223,7 @@ describe('workflows source status', () => {
       severity: 'info',
       message: '40 more findings were left out.',
     }
-    mockRequest.mockResolvedValue(dryRun([warning, truncated]))
+    mockRequest.mockResolvedValue(dry([warning, truncated]))
 
     await run(root, 'status')
 
@@ -241,7 +241,7 @@ describe('workflows source status', () => {
     )
     unlinkSync(join(root, 'functions/score.js'))
     write(root, 'functions/rank.js', 'return 2\n')
-    mockRequest.mockResolvedValue(dryRun([], 1))
+    mockRequest.mockResolvedValue(dry([], 1))
 
     await run(root, 'status')
 
@@ -270,7 +270,7 @@ describe('workflows source status', () => {
       ENTRY.replace('})\n})', "})\n  fn('Rank', { code: codeFile('./functions/rank.js') })\n})")
     )
     write(root, 'functions/rank.js', 'return 2\n')
-    mockRequest.mockResolvedValue(dryRun([], 1))
+    mockRequest.mockResolvedValue(dry([], 1))
 
     await run(root, 'status', '--summary-file', file)
 
@@ -281,7 +281,7 @@ describe('workflows source status', () => {
 
   it('names --allow-delete in the apply it recommends when the edit removes a variable', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
-    const plan = dryRun([], 1)
+    const plan = dry([], 1)
     plan.data.diff.variables.removed = ['threshold'] as never[]
     mockRequest.mockResolvedValue(plan)
 
@@ -294,7 +294,7 @@ describe('workflows source status', () => {
 
   it('leaves out a function file no codeFile() names, which applying never sends, and says so', async () => {
     write(root, 'functions/notes.js', 'return 3\n')
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run(root, 'status')
 
@@ -313,7 +313,7 @@ describe('workflows source status', () => {
 
   it('lists the files no codeFile() names in --summary-file, not "No local changes" alone', async () => {
     write(root, 'functions/notes.js', 'return 3\n')
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
     const file = join(root, 'status.md')
 
     await run(root, 'status', '--summary-file', file)
@@ -323,7 +323,7 @@ describe('workflows source status', () => {
 
   it('lists the plan errors in --summary-file, not only their count', async () => {
     mockRequest.mockResolvedValue(
-      dryRun([
+      dry([
         {
           code: 'E_UNRESOLVED_BLOCK',
           severity: 'error',
@@ -349,7 +349,7 @@ describe('workflows source status', () => {
       ENTRY.replace("  fn('Score', { code: codeFile('./functions/score.js') })\n", '')
     )
     write(root, '.sim/lock.json', JSON.stringify({ ...LOCK, blocks: {} }))
-    mockRequest.mockResolvedValue(dryRun([], 1))
+    mockRequest.mockResolvedValue(dry([], 1))
 
     await run(root, 'status')
 
@@ -367,7 +367,7 @@ describe('workflows source status', () => {
   })
 
   it('reports drift when the workflow changed on the server and nothing here, exit 12', async () => {
-    mockRequest.mockResolvedValue(dryRun([STALE]))
+    mockRequest.mockResolvedValue(dry([STALE]))
 
     await run(root, 'status')
 
@@ -382,7 +382,7 @@ describe('workflows source status', () => {
   })
 
   it('writes the drift to --summary-file for a scheduled job to act on', async () => {
-    mockRequest.mockResolvedValue(dryRun([STALE]))
+    mockRequest.mockResolvedValue(dry([STALE]))
     const file = join(root, 'status.md')
 
     await run(root, 'status', '--summary-file', file)
@@ -397,7 +397,7 @@ describe('workflows source status', () => {
 
   it('reports a conflict when both sides changed, exit 12, and names a fresh get', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
-    mockRequest.mockResolvedValue(dryRun([STALE]))
+    mockRequest.mockResolvedValue(dry([STALE]))
 
     await run(root, 'status')
 
@@ -502,7 +502,7 @@ describe('workflows source status', () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
     mkdirSync(join(root, '.sim/sdk/workspace.d.ts'), { recursive: true })
     write(root, '.sim/sdk/workspace.manifest.json', '{}\n')
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await expect(run(root, 'status')).rejects.toMatchObject({ name: 'SourceDirError' })
     expect(process.exitCode).toBeUndefined()
@@ -565,7 +565,7 @@ describe('workflows source status', () => {
 describe('workflows source diff', () => {
   it('shows an edit against the base text, and with --server against the server now', async () => {
     write(root, 'functions/score.js', 'return 2\n')
-    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+    mockRequest.mockResolvedValue({ data: { ...dry().data, files: GOT } })
 
     await run(root, 'diff')
 
@@ -584,7 +584,7 @@ describe('workflows source diff', () => {
     })
 
     mockRequest.mockResolvedValue({
-      data: { ...dryRun().data, files: { ...GOT, 'workflow.ts': `${ENTRY}// theirs\n` } },
+      data: { ...dry().data, files: { ...GOT, 'workflow.ts': `${ENTRY}// theirs\n` } },
     })
     await run(root, 'diff', '--server', 'workflow.ts')
 
@@ -596,7 +596,7 @@ describe('workflows source diff', () => {
 
   it('selects files by ./, an absolute path or a path from the current directory', async () => {
     write(root, 'functions/score.js', 'return 2\n')
-    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+    mockRequest.mockResolvedValue({ data: { ...dry().data, files: GOT } })
     const cwd = process.cwd()
     try {
       process.chdir(dirname(root))
@@ -615,7 +615,7 @@ describe('workflows source diff', () => {
 
   it('refuses a filter that selects no file instead of printing no changes', async () => {
     write(root, 'functions/score.js', 'return 2\n')
-    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+    mockRequest.mockResolvedValue({ data: { ...dry().data, files: GOT } })
 
     await expect(run(root, 'diff', 'functions/scroe.js')).rejects.toMatchObject({
       code: 'SOURCE_PATH_UNMATCHED',
@@ -626,7 +626,7 @@ describe('workflows source diff', () => {
 
   it('prints a colorless unified diff for a person when stdout is not a terminal', async () => {
     write(root, 'functions/score.js', 'return 2\n')
-    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+    mockRequest.mockResolvedValue({ data: { ...dry().data, files: GOT } })
     mockProfileFrom.mockReturnValue({
       ...mockedProfile(),
       workspaceId: WORKSPACE_ID,

@@ -25,7 +25,7 @@ function applied() {
     data: {
       workflowId: WORKFLOW_ID,
       workspaceId: WORKSPACE_ID,
-      dryRun: false,
+      dry: false,
       applied: true,
       diff: {
         noop: false,

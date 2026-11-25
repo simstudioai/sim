@@ -285,11 +285,11 @@ Treat this as an opaque placeholder. `version` is part of the contract; `id`, `k
 
 File outputs contain metadata by default; request inline base64 only when needed. JavaScript Function code can read large files, value references, and manifest-backed arrays with `sim.files` and `sim.values` under memory caps. See [Function](/workflows/blocks/function).
 
-## Manual draft execution
+## Draft runs
 
-V2 supports explicit `run.source: "manual"` for a personal API-key or OAuth caller with Write access. Workspace keys and anonymous callers cannot use it. Choose `run.entry.blockId` when several triggers are runnable; mock payloads and explicit input cannot be combined.
+`run.source: "draft"` runs the saved draft, for a personal API-key or OAuth caller with Write access. Workspace keys and anonymous callers cannot use it. Choose `run.entry.blockId` when several triggers are runnable; `run.entry.sample: true` runs with the trigger's sample payload, which cannot be combined with `input`.
 
-Manual mode uses the saved draft and supports sync or streaming, not async. Run-from-block and stop-after options have additional validation. See [Execute workflow](/api-reference/workflows/executeWorkflowV2) for the full request.
+A draft run supports sync or streaming, not async; `run.dry` runs it without sending its writes. Run-from-block and stop-after options have additional validation. See [Execute workflow](/api-reference/workflows/executeWorkflowV2) for the full request.
 
 ## Limits and recovery
 

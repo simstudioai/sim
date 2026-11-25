@@ -46,7 +46,7 @@ export const GET = defineV2JsonRoute({
  * the findings at least as much as one that edits an existing graph — reporting
  * them on only one of the two was the asymmetry this closes.
  *
- * `?dryRun=true` validates and lints without persisting, so a caller can see
+ * `?dry=true` validates and lints without persisting, so a caller can see
  * exactly what a write would produce before committing to it.
  */
 export const PUT = defineV2JsonRoute({
@@ -58,7 +58,7 @@ export const PUT = defineV2JsonRoute({
   parseOptions: { maxBodyBytes: MAX_IMPORT_BODY_BYTES },
   mapInput: ({ params, query, body }) => ({
     workflowId: params.workflowId,
-    dryRun: query.dryRun,
+    dryRun: query.dry,
     // double-cast-allowed: the wire schema leaves sub-block `type` an open string, which the domain type narrows to the block registry's union; the persistence layer re-validates every sub-block.
     blocks: body.blocks as unknown as Record<string, BlockState>,
     edges: body.edges as WorkflowState['edges'],
@@ -66,6 +66,12 @@ export const PUT = defineV2JsonRoute({
   }),
   useCase: replaceWorkflowState,
   present: ({ workflowId, warnings, needsRedeployment, lint, dryRun }) => ({
-    data: { id: workflowId, warnings, needsRedeployment, lint: presentWorkflowLint(lint), dryRun },
+    data: {
+      id: workflowId,
+      warnings,
+      needsRedeployment,
+      lint: presentWorkflowLint(lint),
+      dry: dryRun,
+    },
   }),
 })

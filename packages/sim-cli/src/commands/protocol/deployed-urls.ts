@@ -48,26 +48,25 @@ export function namedUrls(
 }
 
 /**
- * The URL of each webhook `workflowId`'s live deployment serves, named through `names`. A failed
- * read is reported and yields none: the deploy itself stands. A cancelled read is rethrown, so a
- * cancelled command never reports success.
+ * The deployment status after a deploy of `workflowId`: what serves, its webhooks and whether the
+ * draft still differs, as the server reports them. A failed read is reported and yields null: the
+ * deploy itself stands. A cancelled read is rethrown, so a cancelled command never reports success.
  */
-export async function deployedUrls(
+export async function deploymentAfterDeploy(
   client: OperationClient<'getWorkflowDeployment'>,
-  workflowId: string,
-  names: ReadonlyMap<string, string>
-): Promise<DeployedUrl[]> {
+  workflowId: string
+): Promise<GetWorkflowDeploymentResponse['data'] | null> {
   try {
     const { data } = await client.request<GetWorkflowDeploymentResponse>('getWorkflowDeployment', {
       params: { workflowId },
     })
-    return namedUrls(data.webhooks, names)
+    return data
   } catch (error) {
     if (isRequestCancelled(error)) throw error
     printError(
-      `The deploy succeeded, but its webhook URLs could not be read (${sanitize(getErrorMessage(error))}): \`sim workflows deployment status ${sanitize(workflowId)}\` lists them.`
+      `The deploy succeeded, but its deployment status could not be read (${sanitize(getErrorMessage(error))}): \`sim workflows deployment status ${sanitize(workflowId)}\` shows it and its webhook URLs.`
     )
-    return []
+    return null
   }
 }
 

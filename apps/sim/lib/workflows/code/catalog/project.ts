@@ -20,7 +20,7 @@ import { probeThunk, readsOnly } from '@/lib/workflows/code/catalog/probe'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { deriveValueShape } from '@/lib/workflows/code/catalog/value-kind'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
-import { accessIdEffect } from '@/blocks/access-effect'
+import { accessIdEffect, blockEffect } from '@/blocks/access-effect'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import {
   isHumanInTheLoopBlock,
@@ -511,28 +511,21 @@ function projectOperationOutputs(
 }
 
 /**
- * The block's effect from its access ids' effects ({@link accessIdEffect}), and, when the
- * operation picks the tool, each operation whose tool differs from it. A block that runs tools its
- * user chooses (a `tool-input` field, as an Agent has) is `write`, whatever its access ids say. An
- * opaque selector cannot be probed, so its operations inherit the block effect.
+ * The block's effect ({@link blockEffect}), and, when the operation picks the tool, each operation
+ * whose tool differs from it. An opaque selector cannot be probed, so its operations inherit the
+ * block effect.
  */
 function projectEffects(
   block: BlockConfig,
   operationTools: ReadonlyMap<string, string> | null
 ): Pick<CatalogBlock, 'effect' | 'operationEffects'> {
-  if (block.tools.access.length === 0) return {}
-  const accessEffects = new Map(
-    block.tools.access.map((toolId) => [toolId, accessIdEffect(toolId)] as const)
-  )
-  const runsChosenTools = block.subBlocks.some((subBlock) => subBlock.type === 'tool-input')
-  const effect =
-    !runsChosenTools && [...accessEffects.values()].every((entry) => entry === 'read')
-      ? 'read'
-      : 'write'
+  const effect = blockEffect(block)
+  if (effect === undefined) return {}
   if (effect === 'read' || !operationTools) return { effect }
+  const access = new Set(block.tools.access)
   const operationEffects: NonNullable<CatalogBlock['operationEffects']> = {}
   for (const [operation, toolId] of operationTools) {
-    const operationEffect = accessEffects.get(toolId) ?? 'write'
+    const operationEffect = access.has(toolId) ? accessIdEffect(toolId) : 'write'
     if (operationEffect !== effect) operationEffects[operation] = operationEffect
   }
   return Object.keys(operationEffects).length > 0 ? { effect, operationEffects } : { effect }

@@ -16950,8 +16950,8 @@
           "depth": 2
         },
         {
-          "title": "Run a deployed workflow or execute saved state manually",
-          "url": "#run-a-deployed-workflow-or-execute-saved-state-manually",
+          "title": "Run a deployed workflow, or its saved draft",
+          "url": "#run-a-deployed-workflow-or-its-saved-draft",
           "depth": 3
         },
         {
@@ -182082,8 +182082,8 @@
           "depth": 2
         },
         {
-          "title": "Manual draft execution",
-          "url": "#manual-draft-execution",
+          "title": "Draft runs",
+          "url": "#draft-runs",
           "depth": 2
         },
         {

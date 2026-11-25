@@ -451,16 +451,16 @@ function refusalDetails(
 }
 
 /**
- * How a source write proceeds: `dry-run` checks only; `write` writes at once (`--yes`); `ask`
+ * How a source write proceeds: `dry` checks only; `write` writes at once (`--yes`); `ask`
  * previews and asks on a terminal; `plan` (no `--yes` and no terminal to ask) previews, prints the
  * plan and stops with {@link SOURCE_PLANNED_EXIT_CODE}, so an agent's edit loop sees the plan
  * without a separate dry run and applies it with `--yes`.
  */
-export type WriteMode = 'dry-run' | 'write' | 'ask' | 'plan'
+export type WriteMode = 'dry' | 'write' | 'ask' | 'plan'
 
-/** The {@link WriteMode} of a write's `--dry-run` and `--yes` flags, here. */
-export function writeMode(options: { dryRun?: boolean; yes?: boolean }): WriteMode {
-  if (options.dryRun) return 'dry-run'
+/** The {@link WriteMode} of a write's `--dry` and `--yes` flags, here. */
+export function writeMode(options: { dry?: boolean; yes?: boolean }): WriteMode {
+  if (options.dry) return 'dry'
   if (options.yes) return 'write'
   return canPrompt() ? 'ask' : 'plan'
 }

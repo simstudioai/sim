@@ -133,7 +133,10 @@ describe('sim workflows runs get on a paused run', () => {
 
     expect(JSON.parse(out())).toEqual({
       ...run,
-      next: `sim workflows runs resume ${RUN_ID} --workflow ${WORKFLOW_ID} --context ctx_1`,
+      next: {
+        command: `sim workflows runs resume ${RUN_ID} --workflow ${WORKFLOW_ID} --context ctx_1`,
+        reason: 'resumes the run where it waits for input',
+      },
     })
   })
 })

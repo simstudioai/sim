@@ -32,12 +32,12 @@ import { BlockType } from '@/executor/constants'
 import { isRunControlledOutputField, mockOutputRefusal } from '@/executor/utils/mock-output'
 import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
-/** The blocks a manual run asks a dry run to send or answer. */
+/** The blocks a draft run asks a dry run to send or answer. */
 export interface DryRunRequest {
   /** Answer writes with placeholders and return what each would have sent (`run.dry`). */
   dry?: boolean
-  /** Blocks, by selector, whose writes a dry run sends for real (`run.allowBlocks`). */
-  allowBlocks?: string[]
+  /** Blocks, by selector, whose writes a dry run sends for real (`run.allow`). */
+  allow?: string[]
   /** Block selector to the output that answers the block in a dry run (`run.mocks`). */
   mocks?: Record<string, Record<string, unknown>>
   /** Blocks answered with their outputs in another run of this workflow (`run.mocksFrom`). */
@@ -407,9 +407,10 @@ async function readRecordedOutputs(
     )
   }
   const sourceIsTestRun = run.trigger === TEST_TRIGGER
+  // A block of this workflow is recorded by its bare id, so a child's `<workflowId>.<blockId>` never matches.
   const sourceMocked = new Set([
-    ...(run.dryRun?.mockedBlocks ?? []),
-    ...(run.dryRun?.mocksFrom?.blockIds ?? []),
+    ...(run.overrides?.mocks ?? []),
+    ...(run.overrides?.mocksFrom?.blocks ?? []),
   ])
   const sourcePlaceholders = run.placeholderBlockIds && new Set(run.placeholderBlockIds)
   return selected.map(({ label, blockId }) => {
@@ -484,8 +485,8 @@ export async function resolveRunOverrides(params: {
 }) {
   const { request } = params
   if (!request.dry) {
-    if (request.allowBlocks?.length) {
-      throw new OrchestrationError('validation', 'run.allowBlocks requires run.dry')
+    if (request.allow?.length) {
+      throw new OrchestrationError('validation', 'run.allow requires run.dry')
     }
     if ((request.mocks && Object.keys(request.mocks).length > 0) || request.mocksFrom) {
       throw new OrchestrationError(
@@ -504,17 +505,17 @@ export async function resolveRunOverrides(params: {
   const root: OverrideWorkflow = { ...params.workflow, blocks: params.blocks }
   const passedMocks = Object.entries(request.mocks ?? {})
   const resolver = new OverrideResolver(root, params.workspaceId, [
-    ...(request.allowBlocks ?? []),
+    ...(request.allow ?? []),
     ...passedMocks.map(([selector]) => selector),
   ])
 
-  const allowBlocks: DryRunOverride[] = []
-  for (const selector of request.allowBlocks ?? []) {
-    const label = `run.allowBlocks "${selector}"`
-    const target = await resolver.resolve(selector, 'run.allowBlocks')
+  const allow: DryRunOverride[] = []
+  for (const selector of request.allow ?? []) {
+    const label = `run.allow "${selector}"`
+    const target = await resolver.resolve(selector, 'run.allow')
     refuseUnrunnable(target, label)
     refuseUnallowable(target, label)
-    allowBlocks.push({
+    allow.push({
       workflowId: target.workflowId,
       blockId: target.blockId,
       block: target.block,
@@ -594,6 +595,6 @@ export async function resolveRunOverrides(params: {
 
   return {
     triggerType: TEST_TRIGGER,
-    sideEffectPolicy: new WriteStubPolicy({ workflowId: root.id, allowBlocks, blockMocks }),
+    sideEffectPolicy: new WriteStubPolicy({ workflowId: root.id, allow, mocks: blockMocks }),
   }
 }

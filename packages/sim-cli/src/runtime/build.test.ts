@@ -225,7 +225,7 @@ describe('commands parsed through commander', () => {
    * teach callers to pass `--yes` reflexively — the exact habit the confirm gate
    * depends on not forming.
    */
-  describe('destructive confirmation and --dry-run', () => {
+  describe('destructive confirmation and --dry', () => {
     it('refuses a graph replace without --yes', async () => {
       await expect(
         run(['workflows', 'state', 'replace', 'wf-1', '--blocks', '{}', '--edges', '[]'])
@@ -243,10 +243,10 @@ describe('commands parsed through commander', () => {
         '{}',
         '--edges',
         '[]',
-        '--dry-run',
+        '--dry',
       ])
 
-      expect(options.query).toMatchObject({ dryRun: true })
+      expect(options.query).toMatchObject({ dry: true })
     })
   })
 

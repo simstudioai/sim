@@ -345,7 +345,7 @@ async function pause(fixture: PipelineFixture, stopAfterBlockId?: string) {
   const result = v2ExecuteWorkflowDataSchema.parse(
     record(
       await execute(fixture.workflowId, {
-        run: { source: 'manual', ...(stopAfterBlockId ? { stopAfterBlockId } : {}) },
+        run: { source: 'draft', ...(stopAfterBlockId ? { stopAfterBlockId } : {}) },
         selectedOutputs: selectAll,
       })
     ).data
@@ -506,7 +506,7 @@ try {
   await check('the execute route compiles and refuses a run before it starts', () =>
     expectBadRequest(
       pipeline.workflowId,
-      { run: { source: 'manual', stopAfterBlockId: '' } },
+      { run: { source: 'draft', stopAfterBlockId: '' } },
       'BAD_REQUEST',
       ROUTE_COMPILE_TIMEOUT_MS
     )
@@ -515,7 +515,7 @@ try {
   let sourceRunId = ''
   await check('a full manual run executes every block and persists its state', async () => {
     const full = await run(pipeline.workflowId, {
-      run: { source: 'manual' },
+      run: { source: 'draft' },
       selectedOutputs: selectAll,
     })
     assert.deepEqual(full.blockOutputs, {
@@ -555,7 +555,7 @@ try {
 
   await check('a trigger-entry run stops after the named block', async () => {
     const until = await run(pipeline.workflowId, {
-      run: { source: 'manual', stopAfterBlockId: pipeline.slow },
+      run: { source: 'draft', stopAfterBlockId: pipeline.slow },
       selectedOutputs: selectAll,
     })
     assert.deepEqual(until.blockOutputs, { 'Slow.status': 'completed' })
@@ -563,7 +563,7 @@ try {
 
   await check('reaching the stop block retires a pause on another branch', async () => {
     const result = await run(forkedPause.workflowId, {
-      run: { source: 'manual', stopAfterBlockId: forkedPause.check },
+      run: { source: 'draft', stopAfterBlockId: forkedPause.check },
       selectedOutputs: selectAll,
     })
     assert.equal(result.blockOutputs?.['Check.status'], 'completed')
@@ -710,7 +710,7 @@ try {
     'a stop block on the branch the condition takes still stops the run there',
     async () => {
       const until = await run(branch.workflowId, {
-        run: { source: 'manual', stopAfterBlockId: branch.taken },
+        run: { source: 'draft', stopAfterBlockId: branch.taken },
         selectedOutputs: branchOutputs,
       })
       assert.deepEqual(until.blockOutputs, { 'Taken.status': 'completed' })
@@ -723,7 +723,7 @@ try {
       const skipped = v2ExecuteWorkflowDataSchema.parse(
         record(
           await execute(branch.workflowId, {
-            run: { source: 'manual', stopAfterBlockId: branch.skipped },
+            run: { source: 'draft', stopAfterBlockId: branch.skipped },
             selectedOutputs: branchOutputs,
           })
         ).data
@@ -753,7 +753,7 @@ try {
   await check('a block entry without stopAfterBlockId still runs downstream blocks', async () => {
     const fromCheck = await run(pipeline.workflowId, {
       run: {
-        source: 'manual',
+        source: 'draft',
         entry: { type: 'block', blockId: pipeline.check, sourceRunId },
       },
       selectedOutputs: selectAll,
@@ -769,19 +769,19 @@ try {
       await sql`select count(*)::int as count from workflow_execution_logs where workflow_id = ${pipeline.workflowId}`
     await expectBadRequest(
       pipeline.workflowId,
-      { run: { source: 'manual', stopAfterBlockId: otherPipeline.check } },
+      { run: { source: 'draft', stopAfterBlockId: otherPipeline.check } },
       'BAD_REQUEST'
     )
     await expectBadRequest(
       pipeline.workflowId,
-      { run: { source: 'manual', stopAfterBlockId: '' } },
+      { run: { source: 'draft', stopAfterBlockId: '' } },
       'BAD_REQUEST'
     )
     await expectBadRequest(
       pipeline.workflowId,
       {
         run: {
-          source: 'manual',
+          source: 'draft',
           entry: { type: 'block', blockId: pipeline.check, sourceRunId },
           stopAfterBlockId: pipeline.slow,
         },
@@ -790,14 +790,14 @@ try {
     )
     await expectBadRequest(
       pipeline.workflowId,
-      { run: { source: 'manual', stopAfterBlockId: pipeline.check }, async: true },
+      { run: { source: 'draft', stopAfterBlockId: pipeline.check }, async: true },
       'BAD_REQUEST'
     )
     await expectBadRequest(
       pipeline.workflowId,
       {
         run: {
-          source: 'manual',
+          source: 'draft',
           entry: { type: 'block', blockId: pipeline.check, sourceRunId: 'not-a-run' },
           stopAfterBlockId: pipeline.check,
         },
@@ -810,12 +810,12 @@ try {
   })
 
   await check('a source run from another workflow is not accepted', async () => {
-    const foreign = await run(otherPipeline.workflowId, { run: { source: 'manual' } })
+    const foreign = await run(otherPipeline.workflowId, { run: { source: 'draft' } })
     await expectBadRequest(
       pipeline.workflowId,
       {
         run: {
-          source: 'manual',
+          source: 'draft',
           entry: { type: 'block', blockId: pipeline.check, sourceRunId: foreign.runId },
           stopAfterBlockId: pipeline.check,
         },

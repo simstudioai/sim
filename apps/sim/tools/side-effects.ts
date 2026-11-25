@@ -26,6 +26,7 @@ import type {
   SideEffectPolicy,
   SideEffectSite,
   StubbedToolCall,
+  StubReason,
   ToolCallSite,
 } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
@@ -95,9 +96,7 @@ export function unsentWriteFor(input: {
   const policy = executionContext?.sideEffects
   if (!executionContext || !policy) return null
   const call = toolCallSite(executionContext, input.toolId, input.params)
-  return policy.decideWrite(call) === 'stub'
-    ? { policy, executionContext, call: { ...call, dependsOnStub: false, readOnlyHint: false } }
-    : null
+  return policy.decideWrite(call) === 'stub' ? { policy, executionContext, call } : null
 }
 
 /**
@@ -116,11 +115,7 @@ export function unsentReadFor(input: {
   const sent = Object.entries(params).filter(([key]) => Object.hasOwn(tool.params, key))
   if (!policy.sendsPlaceholder(Object.fromEntries(sent))) return null
   const call = toolCallSite(executionContext, tool.id, params)
-  return {
-    policy,
-    executionContext,
-    call: { ...call, dependsOnStub: true, readOnlyHint: false },
-  }
+  return { policy, executionContext, call: { ...call, reason: 'placeholder' } }
 }
 
 /** A string body as the JSON it carries, when it carries JSON. */
@@ -382,6 +377,19 @@ export async function answerUnsentCall(
   }
 ): Promise<ToolResponse> {
   const { call } = write
+  // Once the stubbed list is full the request is only counted, and without an echo nothing else
+  // is built from the params: the placeholder is the sample alone, as it would be anyway.
+  if (!input.echo && write.policy.stubbedFull()) {
+    return {
+      success: true,
+      output: write.policy.stubCall({
+        ...call,
+        request: null,
+        echoed: null,
+        discoveredOutputs: input.discoveredOutputs,
+      }),
+    }
+  }
   const toolBlockType = getBlockByToolName(call.toolId)?.type
   const blockTypes = [call.blockType, toolBlockType].filter((type): type is string => Boolean(type))
   let maskedParams: Record<string, unknown> | null
@@ -457,18 +465,16 @@ export async function answerCheckedMcpCall(
   if (!checked.success) return checked
   const { params } = input
   const tool = checked.output.checked === true ? toRecord(checked.output.tool) : {}
-  const readOnlyHint = tool.readOnlyHint === true
   const outputSchema = readMcpToolOutputSchema(tool.outputSchema)
   const args = parseMcpToolArguments(params)
+  const reason: StubReason | undefined =
+    tool.readOnlyHint !== true
+      ? undefined
+      : unsent.policy.sendsPlaceholder(args)
+        ? 'placeholder'
+        : 'mcp-read-only'
   return answerUnsentCall(
-    {
-      ...unsent,
-      call: {
-        ...unsent.call,
-        readOnlyHint,
-        dependsOnStub: readOnlyHint && unsent.policy.sendsPlaceholder(args),
-      },
-    },
+    { ...unsent, call: { ...unsent.call, ...(reason ? { reason } : {}) } },
     {
       ...input,
       params: typeof params.arguments === 'string' ? { ...params, arguments: args } : params,

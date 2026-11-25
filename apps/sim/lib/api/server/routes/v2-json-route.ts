@@ -196,10 +196,10 @@ const V2_SOURCE_PLAN_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 60_000,
 }
 
-/** Whether `request` asks for a dry run (`?dryRun=true`), as the source apply contract reads it. */
-function isDryRunRequest(request: NextRequest): boolean {
+/** Whether `request` asks for a dry run (`?dry=true`), as the source apply contract reads it. */
+function isDryRequest(request: NextRequest): boolean {
   const flag = booleanQueryFlagSchema.safeParse(
-    request.nextUrl.searchParams.get('dryRun') ?? undefined
+    request.nextUrl.searchParams.get('dry') ?? undefined
   )
   return flag.success && flag.data
 }
@@ -238,7 +238,7 @@ export const v2RateLimits = {
   } satisfies V2RateLimitPolicy,
   /**
    * A source write route (an apply or a create from source) that also serves dry runs
-   * (`?dryRun=true`): a dry run writes nothing and runs what a plan runs, so it draws on the
+   * (`?dry=true`): a dry run writes nothing and runs what a plan runs, so it draws on the
    * {@link V2_SOURCE_PLAN_RATE_LIMIT} bucket as the plan routes do, and only a real write spends
    * the {@link V2_SOURCE_WRITE_RATE_LIMIT} bucket, one shared by every source write so alternating
    * an apply and a create cannot double it. Capped at the smaller bucket, so the largest request
@@ -247,7 +247,7 @@ export const v2RateLimits = {
   sourceApply: {
     maxCost: Math.min(V2_SOURCE_WRITE_RATE_LIMIT.maxTokens, V2_SOURCE_PLAN_RATE_LIMIT.maxTokens),
     async enforce(request, auth, _operation, cost = 1) {
-      return isDryRunRequest(request)
+      return isDryRequest(request)
         ? enforceV2Buckets(request, auth, 'source.plan', V2_SOURCE_PLAN_RATE_LIMIT, cost)
         : enforceV2Buckets(
             request,

@@ -11,6 +11,7 @@ import { stripTrailingSlashes } from '@sim/utils/string'
 import type { FileChange, SourceStatus } from '@sim/workspace-code/status'
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from 'diff'
 import { publishSummary } from '#sim-cli/output/github-actions'
+import type { NextStep } from '#sim-cli/output/next-step'
 import type { OutputFormat } from '../../config/index'
 import {
   AUTH_REQUIRED_CODE,
@@ -55,12 +56,6 @@ export function planFindings(diagnostics: readonly Diagnostic[]): Diagnostic[] {
   )
 }
 
-/** The next command a status recommends, and why. */
-export interface NextStep {
-  command: string
-  reason: string
-}
-
 /** What `status --output json` prints; `plan` is the command's own dry-run summary. */
 export interface StatusReport<Plan> extends SourceStatus {
   dir: string
@@ -78,7 +73,7 @@ export function statusHelp(
   command: 'workflows source status' | 'workspaces source status'
 ): string {
   return `
-With --json, \`plan\` is what applying would do as \`apply --dry-run --allow-delete\` reports it
+With --json, \`plan\` is what applying would do as \`apply --dry --allow-delete\` reports it
 (its errors and warnings counted the same, a conflict as an error), and \`next\` the command to
 run (with --allow-delete only when the plan deletes something).
 ${sourceExitCodesHelp(command)}`
@@ -531,13 +526,13 @@ export function nextStep(status: SourceStatus, input: NextStepInput): NextStep |
   }
   if (input.server !== 'checked') {
     return {
-      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}${summaryFileFlag(input.summaryFile)}`,
+      command: `${prefix} apply --dir ${dir} --dry${input.scope}${summaryFileFlag(input.summaryFile)}`,
       reason: 'The dry run checks the changes against the server.',
     }
   }
   if (input.errors > 0) {
     return {
-      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}${summaryFileFlag(input.summaryFile)}`,
+      command: `${prefix} apply --dir ${dir} --dry${input.scope}${summaryFileFlag(input.summaryFile)}`,
       reason: `It prints the ${input.errors} error(s) to fix before applying.`,
     }
   }

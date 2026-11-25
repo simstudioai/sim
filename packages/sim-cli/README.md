@@ -339,7 +339,7 @@ sim workflows source get <workflowId> --dir ./support-triage   # write workflow.
 sim workflows source check --dir ./support-triage              # compile offline, no request
 sim workflows source status --dir ./support-triage             # your edits, server changes, next step
 sim workflows source diff --dir ./support-triage               # your edits as a unified diff
-sim workflows source apply --dir ./support-triage --dry-run    # run every check a save runs
+sim workflows source apply --dir ./support-triage --dry    # run every check a save runs
 sim workflows source apply --dir ./support-triage --yes        # save the draft (never deploys)
 ```
 
@@ -350,7 +350,7 @@ starts a new workflow in that workspace.
 
 Coding agents (Claude Code, Cursor, Codex) start at `.sim/AGENTS.md`, which `get`
 writes into the directory. The loop is get, edit `workflow.ts`, check, status,
-apply with `--dry-run`, then apply with `--yes`. Saving source acts as a person:
+apply with `--dry`, then apply with `--yes`. Saving source acts as a person:
 use a personal API key or an OAuth login, since a workspace API key cannot save
 workflows.
 

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
-import { MODEL_PROVIDER_ACCESS_IDS } from '@/blocks/access-effect'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
+import { MODEL_PROVIDER_ACCESS_IDS } from '@/blocks/model-provider-access'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {

@@ -19,7 +19,7 @@ Set the target's secrets (`sim secrets set NAME --scope workspace -w <workspaceI
 Apply a directory read from one workspace (dev) to another (prod) with `--to`:
 
 ```bash
-sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --dry-run
+sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --dry
 sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --yes
 ```
 
@@ -27,7 +27,7 @@ Each resource binds by key to the target's own. One the target holds under the s
 
 ## Deletes
 
-A resource you deleted from the directory since the last promotion is deleted in the target too, and like any delete it needs `--allow-delete`. Resources only the target holds, such as a table created in prod and the rows its runs wrote, are kept, with or without `--allow-delete`: the plan names each with a `W_UNDECLARED` warning. To delete them as well, pass `--delete-target-only` beside `--allow-delete`; the plan then names each with a `W_PROMOTE_DELETES_TARGET_ONLY` warning, so run it with `--dry-run` first.
+A resource you deleted from the directory since the last promotion is deleted in the target too, and like any delete it needs `--allow-delete`. Resources only the target holds, such as a table created in prod and the rows its runs wrote, are kept, with or without `--allow-delete`: the plan names each with a `W_UNDECLARED` warning. To delete them as well, pass `--delete-target-only` beside `--allow-delete`; the plan then names each with a `W_PROMOTE_DELETES_TARGET_ONLY` warning, so run it with `--dry` first.
 
 ## The target record
 

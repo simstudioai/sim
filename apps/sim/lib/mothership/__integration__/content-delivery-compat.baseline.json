@@ -790,7 +790,6 @@
       "data": {
         "blockOutputs": null,
         "cost": null,
-        "dryRun": null,
         "durationMs": null,
         "endedAt": "<time>",
         "error": null,
@@ -849,6 +848,7 @@
             "url": "http://localhost:3000/api/files/serve/<minted>"
           }
         },
+        "overrides": null,
         "paused": null,
         "runId": "<run>",
         "startedAt": "<time>",

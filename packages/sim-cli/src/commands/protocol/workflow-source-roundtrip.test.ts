@@ -110,7 +110,7 @@ function appliedResponse(
       workflowId,
       workflowName: 'W',
       workspaceId: WORKSPACE_ID,
-      dryRun: false,
+      dry: false,
       applied: true,
       diff: {
         noop: false,
@@ -1032,7 +1032,7 @@ describe('checking a workflow holding a type the workspace catalog withholds', (
   it('finds what the dry run finds for every builder only the workflow catalog declares', async () => {
     serve(EVERY_WITHHELD_BUILDER)
     await get()
-    const dryRun = compileWorkflow({
+    const dry = compileWorkflow({
       entry: { path: 'workflow.ts', text: EVERY_WITHHELD_BUILDER },
       files: new Map(),
       catalog: CATALOG,
@@ -1044,12 +1044,12 @@ describe('checking a workflow holding a type the workspace catalog withholds', (
     expect(WITHHELD_BUILDERS).toEqual(
       expect.arrayContaining(['table.insertRow', 'knowledge.search'])
     )
-    expect(dryRun.map(({ code }) => code)).not.toContain('E_UNKNOWN_BUILDER')
+    expect(dry.map(({ code }) => code)).not.toContain('E_UNKNOWN_BUILDER')
     expect(
       (checked().diagnostics as Array<{ code: string; message: string; line?: number }>).map(
         ({ code, message, line }) => ({ code, message, line })
       )
-    ).toEqual(dryRun)
+    ).toEqual(dry)
   })
 
   it('caches each catalog once by its hash, fetching the workflow catalog only while uncached', async () => {

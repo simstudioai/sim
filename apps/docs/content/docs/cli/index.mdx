@@ -77,7 +77,7 @@ b8c0d247-9e13-4a86-97f5-2ad4e1638c09  Weekly digest  /Reporting  no        18   
 sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"ticketId":"T-4821"}'
 ```
 
-Ordinary execution runs the active deployment. Deploy from the workflow builder or with `sim workflows deploy <workflowId>`; its first line, `live`, says which version serves, and while a new version activates it names the version still serving. To run an earlier deployed version, pass `--deployment-version <n>`; it needs workspace write access, through a full-access API key or an OAuth token with `api:write`, and child workflows still run their own active deployment. To execute the current saved workflow state, use `sim workflows run <workflowId> --manual`. To test it without sending its writes, use `--dry`: each write is answered with a placeholder and listed with its request under `sideEffects` in the result.
+Ordinary execution runs the active deployment. Deploy from the workflow builder or with `sim workflows deploy <workflowId>`; its first line, `live`, says which version serves, and while a new version activates it names the version still serving. To run an earlier deployed version, pass `--deployment-version <n>`; it needs workspace write access, through a full-access API key or an OAuth token with `api:write`, and child workflows still run their own active deployment. To execute the current saved workflow state, use `sim workflows run <workflowId> --draft`. To test it without sending its writes, use `--dry`: each write is answered with a placeholder and listed with its request under `sideEffects` in the result.
 
 ## How commands are shaped
 

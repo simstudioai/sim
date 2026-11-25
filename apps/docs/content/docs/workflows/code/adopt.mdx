@@ -70,7 +70,7 @@ Locked blocks cannot be changed from the files, by anyone. Lock a block in the b
 
   ```bash
   git restore --source=<commit> -- ./support-triage ':(exclude,glob)support-triage/**/.sim/**'
-  sim workflows source apply --dir ./support-triage --dry-run
+  sim workflows source apply --dir ./support-triage --dry
   ```
 
   Applying an earlier commit as a whole, `.sim/` included, is refused as stale (exit `5`), because its `.sim/base.json` records an older version than Sim holds. A block or resource deleted since that commit comes back as a new one, without its run history, webhook URLs or schedules, and blocks added since are deletes the apply refuses without `--allow-delete`.

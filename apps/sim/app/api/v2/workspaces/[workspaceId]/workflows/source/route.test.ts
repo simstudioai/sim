@@ -170,11 +170,11 @@ describe('POST /api/v2/workspaces/{workspaceId}/workflows/source', () => {
         : Promise.resolve(created)
     )
     const running = Array.from({ length: 4 }, () =>
-      POST(createRequest({ files }, '?dryRun=true'), context)
+      POST(createRequest({ files }, '?dry=true'), context)
     )
     await vi.waitFor(() => expect(finish).toHaveLength(4))
 
-    const refused = await POST(createRequest({ files }, '?dryRun=true'), context)
+    const refused = await POST(createRequest({ files }, '?dry=true'), context)
     expect(refused.status).toBe(429)
     expect(refused.headers.get('Retry-After')).toBe('5')
     expect((await refused.json()).error.code).toBe('RATE_LIMITED')
@@ -186,10 +186,10 @@ describe('POST /api/v2/workspaces/{workspaceId}/workflows/source', () => {
     ])
   })
 
-  it('passes dryRun through', async () => {
+  it('passes dry through', async () => {
     mocks.create.mockResolvedValue({ ...created, dryRun: true, applied: false })
 
-    const response = await POST(createRequest({ files }, '?dryRun=true'), context)
+    const response = await POST(createRequest({ files }, '?dry=true'), context)
 
     expect(response.status).toBe(200)
     expect(mocks.create.mock.calls[0][0].input).toMatchObject({ dryRun: true })

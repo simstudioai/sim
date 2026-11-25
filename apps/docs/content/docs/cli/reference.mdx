@@ -7757,14 +7757,14 @@ sim workflows operations apply <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
-| `--no-dry-run` | No | Send --dry-run as false. |
+| `--dry` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
+| `--no-dry` | No | Send --dry as false. |
 | `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"source":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId. To move an existing block into a loop or parallel (keeping its id), edit it with params &#123;"parentId":"&lt;loop-id&gt;"&#125;; &#123;"parentId":null&#125; moves it out (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
 | `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after --operations: [&#123;"block_id":"&lt;uuid&gt;","enabled":false&#125;]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Conditional | Confirm this operation (required unless --dry-run). |
+| `-y, --yes` | Conditional | Confirm this operation (required unless --dry). |
 
 </CommandTable>
 
@@ -8485,7 +8485,7 @@ API request and response schemas: [duplicateWorkflow](/api-reference/workflows/d
 
 ### sim workflows run
 
-Run a deployed workflow or execute saved state manually
+Run a deployed workflow, or its saved draft
 
 ```bash
 sim workflows run <workflowId> [options]
@@ -8515,17 +8515,17 @@ sim workflows run <workflowId> [options]
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
-| `--manual` | No | Run the current saved workflow state instead of the active deployment. |
-| `--deployment-version <n>` | No | Run this deployed version instead of the active one (a version number from `sim workflows versions list`); a Workflow block in it still runs its child workflow's active deployment. Needs workspace write access, through a full-access API key or an OAuth token with api:write. Not with --manual or any flag that runs the draft. |
-| `--dry` | No | Dry run of the saved draft (implies --manual): writes are not sent but answered with placeholders and listed with their request payloads in sideEffects; reads, model calls and code run for real. Logged as a test run. Not with --follow, --async or --wait-timeout. |
+| `--draft` | No | Run the saved draft instead of the active deployment, sending its writes. |
+| `--deployment-version <n>` | No | Run this deployed version instead of the active one (a version number from `sim workflows versions list`); a Workflow block in it still runs its child workflow's active deployment. Needs workspace write access, through a full-access API key or an OAuth token with api:write. Not with --draft or any flag that runs the draft. |
+| `--dry` | No | Dry run of the saved draft (implies --draft): writes are not sent but answered with placeholders and listed with their request payloads in sideEffects; reads, model calls and code run for real. Logged as a test run. Not with --follow, --async or --wait-timeout. |
 | `--allow <block>` | No | Send this block's writes for real during a --dry run (its id, display name or key, or &lt;workflow&gt;.&lt;block&gt; for a workflow it calls); for an Agent, only its own tool calls, not a workflow or custom block it calls; repeatable. |
-| `--mock <block>=<json\|@file>` | No | Answer this block with the given JSON object instead of running it during a --dry run (its id, display name or key, or &lt;workflow&gt;.&lt;block&gt; for a workflow it calls), to steer a branch or give a stubbed write a realistic result; a bare --mock &lt;block&gt; takes its output from --mock-from. Not a locked block, or one of a locked workflow or folder; data only, so no cost, tokens, model or other field the run’s trace or billing reads, and no field starting with _. The run records only which blocks were mocked, not the outputs (its log shows each like any other block’s output), so a rerun reads them again with --mock-from; repeatable. |
-| `--mock-from <runId>` | No | Answer each block a bare --mock &lt;block&gt; names (this workflow's blocks only) with the output it recorded in this earlier run of the workflow, redacted as the run shows it; fields only a block sets, such as cost or model, are left out (requires --dry). |
-| `--trigger <blockId>` | No | Enter the run through this runnable trigger, by its block id; runs the current saved workflow state (implies --manual). |
-| `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
+| `--mock <block>=<json\|@file>` | No | Answer this block with the given JSON object instead of running it during a --dry run (its id, display name or key, or &lt;workflow&gt;.&lt;block&gt; for a workflow it calls), to steer a branch or give a stubbed write a realistic result; a bare --mock &lt;block&gt; takes its output from --mock-from. Not a locked block, or one of a locked workflow or folder; data only (the API reference lists the fields a mock cannot set). The run records only which blocks were mocked, not the outputs, so a rerun reads them again with --mock-from; repeatable. |
+| `--mock-from <runId>` | No | Answer each block a bare --mock &lt;block&gt; names with the output it recorded in this earlier run of the workflow, redacted as the run shows it: this workflow's blocks (not a child's; not inside a loop or parallel unless that run mocked it); fields a mock cannot set, such as cost or model, are left out (requires --dry). |
+| `--trigger <blockId>` | No | Enter the run through this runnable trigger, by its block id; runs the saved draft (implies --draft). |
+| `--sample` | No | Run with the selected trigger's sample payload instead of --input; runs the saved draft (implies --draft), whose writes are sent unless --dry. |
 | `--from-block <block>` | No | Rerun the saved draft from this block (its id, display name or key), reusing the outputs --source-run produced before it; a failed run prints this command as next. |
 | `--source-run <runId>` | No | Earlier run of this workflow, deployed or draft, whose outputs the blocks before --from-block keep (requires --from-block). |
-| `--stop-after <block>` | No | Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty. |
+| `--stop-after <block>` | No | Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --draft). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty. |
 | `--dir <dir>` | No | This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json. Not with --async or --follow, and not for a run --wait-timeout leaves running. |
 | `--wait-timeout <seconds>` | No | Wait at most this many seconds for a synchronous run (0 waits until it settles). A run still going then continues in the background under async limits: the command prints its run record and exits 4, and `sim workflows runs wait` keeps waiting. Not with --async or --follow. |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
@@ -8534,13 +8534,13 @@ sim workflows run <workflowId> [options]
 
 </CommandTable>
 
-Without --manual (or a flag that implies it) this runs the active deployment; a workflow never deployed has none. --deployment-version &lt;n&gt; runs that deployed version instead, as a pin for comparing or reproducing (it needs workspace write access, through a full-access API key or an OAuth token with api:write); the child workflows it calls still run their own active deployment. --manual runs the saved draft, as the source loop leaves it.
+Without --draft (or a flag that implies it) this runs the active deployment; a workflow never deployed has none. --deployment-version &lt;n&gt; runs that deployed version instead (it needs workspace write access, through a full-access API key or an OAuth token with api:write); the child workflows it calls still run their own active deployment. --draft runs the saved draft, as the source loop leaves it, sending its writes.
 
---dry runs the saved draft without its side effects: every tool call not declared read (sends, table writes, HTTP calls other than GET/HEAD/OPTIONS, custom and MCP tools) returns a placeholder and is listed in sideEffects.stubbed with the request it would have sent; check those payloads. Placeholder ids are distinctive (dry_run_row_1, numbers above 900000000); a read (a GET included, a Function's fetch too) that would send one (a row a stubbed insert never made, or text quoting one) is not sent either and is listed there with dependsOnStub. MCP calls are stubbed even when the server declares the tool read-only, which Sim cannot verify: such an entry has readOnlyHint, and --allow &lt;block&gt; sends it. Code (a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes) runs: its other GET/HEAD/OPTIONS fetches are sent (an API that writes on a GET is not stubbed), and any other fetch, or one with a method-override header, gets an empty 200 and is listed in sideEffects.stubbed. Code in a remote sandbox (shell, Python, imports) is listed in sideEffects.unchecked, since its network cannot be seen. Child workflows run dry too; custom, Human in the loop and Wait blocks are answered whole, so the run never pauses. Agents read memory but write none, and the run raises no workspace event. --allow &lt;block&gt; sends that block's writes (a Function's fetches included) for real (use a test resource); allowing an Agent sends only its own tool calls, not a workflow or custom block it calls. --mock &lt;block&gt;=&lt;json&gt; answers a block with fixed output, to steer a branch; a locked block, or one of a locked workflow or folder, cannot be mocked, and a mock is data, so it cannot set a field the run's execution, trace or billing reads (such as cost, tokens, model or a field starting with _). --mock-from &lt;runId&gt; with a bare --mock &lt;block&gt; answers that block with the output it recorded in that run of this workflow (not a block a test run answered with a placeholder); fields only a block sets, such as cost or model, are left out and noted. --allow and --mock also name a block of a workflow this one calls as &lt;workflow&gt;.&lt;block&gt; (the workflow's id or name); the entry applies wherever that workflow runs, at every depth. Blocks for --from-block, --stop-after and a bare --mock with --mock-from are this workflow's only. Blocks never reached, and mock fields a block does not declare, are noted. A dry run is the --source-run only of another dry run, and is never resumed.
+--dry runs the saved draft without its writes: each call that could change something (a write tool, any MCP call, an HTTP request other than GET/HEAD/OPTIONS, code's other fetches) gets a placeholder (ids like dry_run_row_1, numbers above 900000000) and is listed in sideEffects.stubbed with the request it would have sent; check those payloads. A read that would send a placeholder is held back too (reason placeholder), and an MCP call its server calls read-only says so (reason mcp-read-only). Reads, model calls and code run for real; code in a remote sandbox (shell, Python, imports) is listed in sideEffects.unchecked. Child workflows run dry too; custom, Human in the loop and Wait blocks are answered whole, so the run never pauses. --allow &lt;block&gt; sends that block's writes for real (use a test resource). --mock &lt;block&gt;=&lt;json&gt; answers a block with fixed output, to steer a branch; --mock-from &lt;runId&gt; with a bare --mock &lt;block&gt; answers it with the output that run recorded. --allow and --mock also name a block of a workflow this one calls as &lt;workflow&gt;.&lt;block&gt;. Overrides the run never reached are listed in sideEffects.unreached, and mock fields a block never gets in sideEffects.mockFields. The API reference describes each list and refusal.
 
 The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the workflow's final output) and blockOutputs (what --select-output named). It has no success field: branch on status, or on the exit code. With --follow it is the stream's final frame instead: success and output.
 
-A run that failed in a block has next: the command that reruns the saved draft from that block (or from the outermost loop or parallel holding it) with this run as --source-run, so after a fix only that block and those after it run again; a dry run's keeps --dry and --allow, and reads its mocks again with --mock-from (this run, for mocks you passed). A mock of a child's block, or one passed beside --mock-from, comes back as --mock &lt;block&gt;=&lt;json&gt;: replace &lt;json&gt; with the output. Add --stop-after &lt;block&gt; to stop after a block; naming the block next starts from reruns only it.
+A run that failed in a block has next: &#123; command, reason &#125;, the command that reruns the saved draft from that block (or the outermost loop or parallel holding it) with this run as --source-run. A dry run's keeps --dry and --allow, and reads its mocks again with --mock-from; a mock it cannot read again (a child's block, one never reached, or one passed beside --mock-from) is left out and named in nextNote, for you to pass again. A run paused for input has next: the runs resume command.
 
 Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed first, then the error on stderr), or the command failed; 4 still running when --wait-timeout elapsed.
 
@@ -8673,7 +8673,7 @@ sim workflows source apply [workflowId] [options]
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 | `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. Defaults to `.`. |
-| `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
+| `--dry` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
 | `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
 | `--allow-delete` | No | Delete blocks and variables the source no longer declares; without it, an apply that deletes one is refused. |
@@ -8700,8 +8700,8 @@ sim workflows source create [options]
 | --- | --- | --- |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 | `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
-| `--dir <dir>` | Yes | Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry-run or --yes). |
-| `--dry-run` | No | Check the source and show the outcome without creating anything. |
+| `--dir <dir>` | Yes | Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry or --yes). |
+| `--dry` | No | Check the source and show the outcome without creating anything. |
 | `--name <name>` | No | The workflow name (default: the source's). |
 | `--folder <path>` | No | The folder to create it in (default: the root). |
 | `-y, --yes` | No | Create without asking for confirmation. |
@@ -8764,7 +8764,7 @@ sim workflows source status [options]
 
 </CommandTable>
 
-With --json, `plan` is what applying would do as `apply --dry-run --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
+With --json, `plan` is what applying would do as `apply --dry --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
 
 Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); a server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11); 1 the command failed; 7 the source is too large for the server to read in one dry run; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`.
 
@@ -8973,14 +8973,14 @@ sim workflows state replace <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
-| `--no-dry-run` | No | Send --dry-run as false. |
+| `--dry` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
+| `--no-dry` | No | Send --dry as false. |
 | `--blocks <json\|@file>` | Yes | Blocks keyed by block id. (JSON, or @path / @- to read a file or stdin). |
 | `--edges <json\|@file>` | Yes | Directed connections between blocks. (JSON, or @path / @- to read a file or stdin). |
 | `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Conditional | Confirm this operation (required unless --dry-run). |
+| `-y, --yes` | Conditional | Confirm this operation (required unless --dry). |
 
 </CommandTable>
 
@@ -10085,7 +10085,7 @@ sim workspaces source apply [options]
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 | `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
-| `--dry-run` | No | Plan and check without writing anything. |
+| `--dry` | No | Plan and check without writing anything. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
 | `--allow-delete` | No | Delete resources, columns and data the directory no longer declares (with --to, only what it deleted since the last promotion: the target's own resources are kept). |
 | `--delete-target-only` | No | With --to and --allow-delete, also delete the target's resources this directory never declared and no promotion from it left there (prod-only tables and their rows, skills made in prod). Without it a promotion keeps them, naming each with a warning. |
@@ -10152,7 +10152,7 @@ sim workspaces source status [options]
 
 </CommandTable>
 
-With --json, `plan` is what applying would do as `apply --dry-run --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
+With --json, `plan` is what applying would do as `apply --dry --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
 
 Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); a server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11); 1 the command failed; 7 the source is too large for the server to read in one dry run; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished; 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`.
 

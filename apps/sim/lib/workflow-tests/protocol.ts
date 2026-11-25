@@ -128,31 +128,40 @@ export const testReportSchema = z.object({
   ),
 })
 
+/**
+ * A stubbed call of a stored report, read from either shape it was stored in: `reason`, or the
+ * `dependsOnStub` and `readOnlyHint` flags a report stored before it held. The MCP target and
+ * reason are absent from a report stored before they were recorded.
+ */
+const storedStubbedCallSchema = z
+  .object({
+    workflowId: z.string(),
+    blockId: z.string().nullable(),
+    block: z.string().nullable(),
+    tool: z.string().nullable(),
+    /** The MCP server and tool an MCP block's call named; null for any other call. */
+    mcp: z.object({ server: z.string(), tool: z.string() }).nullable().default(null),
+    /** Why a call that is not a plain write was held back; unset for a plain write. */
+    reason: z.enum(['placeholder', 'mcp-read-only']).optional(),
+    dependsOnStub: z.boolean().optional(),
+    readOnlyHint: z.boolean().optional(),
+    /** Calls folded into this entry. */
+    count: z.number().int().positive(),
+  })
+  .transform(({ dependsOnStub, readOnlyHint, reason, ...call }) => {
+    const read =
+      reason ??
+      (dependsOnStub ? 'placeholder' : readOnlyHint ? ('mcp-read-only' as const) : undefined)
+    return { ...call, ...(read ? { reason: read } : {}) }
+  })
+
 /** What one workflow run of a test did with the writes it reached, without their payloads. */
 const testRunSideEffectsSchema = z.object({
   /**
    * Calls no mock answered, stubbed with a placeholder: writes, and reads that would have sent a
-   * placeholder (`dependsOnStub`). `tool` is null for a block answered whole.
+   * placeholder (reason `placeholder`). `tool` is null for a block answered whole.
    */
-  stubbed: z.array(
-    z.object({
-      workflowId: z.string(),
-      blockId: z.string().nullable(),
-      block: z.string().nullable(),
-      tool: z.string().nullable(),
-      /**
-       * The MCP server and tool an MCP block's call named; null for any other call. This and the
-       * two flags below default for reports stored before they were recorded.
-       */
-      mcp: z.object({ server: z.string(), tool: z.string() }).nullable().default(null),
-      /** A read that would have sent a placeholder an earlier stub returned. */
-      dependsOnStub: z.boolean().default(false),
-      /** An MCP call whose server declares the tool read-only, unverified, so it was not sent. */
-      readOnlyHint: z.boolean().default(false),
-      /** Calls folded into this entry. */
-      count: z.number().int().positive(),
-    })
-  ),
+  stubbed: z.array(storedStubbedCallSchema),
   /** Code that ran for real, whose network calls are not stubbed. */
   unchecked: z.array(
     z.object({
@@ -164,7 +173,7 @@ const testRunSideEffectsSchema = z.object({
   /** Calls each list left out once it was full. */
   omitted: z.object({ stubbed: z.number().int(), unchecked: z.number().int() }),
 })
-export type TestRunSideEffects = z.infer<typeof testRunSideEffectsSchema>
+export type TestRunSideEffects = z.output<typeof testRunSideEffectsSchema>
 
 /**
  * A test file's report as the host stores it: the sandbox's {@link testReportSchema} report, and

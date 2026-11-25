@@ -7523,7 +7523,7 @@ describe('MCP Tool Execution', () => {
     )
     const allowed = new WriteStubPolicy({
       workflowId: 'test-workflow',
-      allowBlocks: [{ workflowId: 'test-workflow', blockId: 'agent-1', block: 'Agent 1' }],
+      allow: [{ workflowId: 'test-workflow', blockId: 'agent-1', block: 'Agent 1' }],
     })
     await executeTool('mcp-123-delete_file', params, {
       executionContext: createToolExecutionContext({ sideEffects: allowed }),
@@ -7572,7 +7572,7 @@ describe('MCP Tool Execution', () => {
       structuredContent: { total: 900_000_001, label: 'dry_run_label_1', owner: 'dry_run_owner_1' },
     })
     expect(dryRun.summary().stubbed).toMatchObject([
-      { tool: 'mcp-123-count_files', readOnlyHint: true, dependsOnStub: false },
+      { tool: 'mcp-123-count_files', reason: 'mcp-read-only' },
     ])
   })
 

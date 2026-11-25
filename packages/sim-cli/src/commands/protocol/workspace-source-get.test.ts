@@ -640,7 +640,7 @@ describe('workspaces source get', () => {
         request.mockResolvedValue({
           data: {
             workspaceId: 'ws_local',
-            dryRun: true,
+            dry: true,
             plan: [],
             applied: [],
             needBlobs: [],
@@ -651,7 +651,7 @@ describe('workspaces source get', () => {
           },
         })
 
-        await runWorkspaceSource('apply', dir, '--dry-run', '--allow-delete')
+        await runWorkspaceSource('apply', dir, '--dry', '--allow-delete')
 
         expect(request.mock.calls[0][1].body.blobs).toEqual([
           {
@@ -671,7 +671,7 @@ describe('workspaces source get', () => {
       request.mockResolvedValue({
         data: {
           workspaceId: 'ws_local',
-          dryRun: true,
+          dry: true,
           plan: [],
           applied: [],
           needBlobs: [],
@@ -682,7 +682,7 @@ describe('workspaces source get', () => {
         },
       })
 
-      await runWorkspaceSource('apply', dir, '--dry-run', '--allow-delete')
+      await runWorkspaceSource('apply', dir, '--dry', '--allow-delete')
 
       expect(request.mock.calls[0][1].body.blobs).toEqual([
         { path: 'files/report.bin', sha256: listed().sha256, size: BYTES.length },

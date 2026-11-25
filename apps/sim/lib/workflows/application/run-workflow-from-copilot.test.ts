@@ -130,7 +130,7 @@ describe('Copilot workflow run application commands', () => {
               useDraftState: true,
               lifecycle,
               hasWorkflowInput: false,
-              useMockPayload: true,
+              sample: true,
               triggerBlockId,
             },
           })
@@ -168,7 +168,7 @@ describe('Copilot workflow run application commands', () => {
           },
         },
         hasWorkflowInput: false,
-        useMockPayload: true,
+        sample: true,
       },
     })
 
@@ -207,7 +207,7 @@ describe('Copilot workflow run application commands', () => {
           useDraftState: true,
           lifecycle,
           hasWorkflowInput: false,
-          useMockPayload: true,
+          sample: true,
         },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -227,7 +227,7 @@ describe('Copilot workflow run application commands', () => {
           useDraftState: true,
           lifecycle,
           hasWorkflowInput: false,
-          useMockPayload: true,
+          sample: true,
         },
       })
     ).rejects.toMatchObject({ code: 'validation' })
@@ -446,7 +446,7 @@ describe('Copilot workflow run application commands', () => {
       useDraftState: true,
       lifecycle,
       hasWorkflowInput: false,
-      useMockPayload: true,
+      sample: true,
     }
 
     const failWith = (input = runInput) =>
@@ -506,7 +506,7 @@ describe('Copilot workflow run application commands', () => {
             useDraftState: true,
             lifecycle: input.lifecycle,
             hasWorkflowInput: false,
-            useMockPayload: true,
+            sample: true,
           },
         })
       ).rejects.toThrow()

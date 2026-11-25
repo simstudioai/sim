@@ -79,7 +79,7 @@ function commandPath(command: Command): string {
  * instead of the positional it was typed as — `audit-logs get` and
  * `custom-tools get/update/delete` all take such an id. A flag on this surface
  * is either a single-character short (`-w`) or a lowercase kebab-case long
- * (`--dry-run`), so a lone dash followed by two or more characters of which at
+ * (`--allow-delete`), so a lone dash followed by two or more characters of which at
  * least one is an uppercase letter or a digit is not a flag any caller meant
  * to type. `--organisation` and every other misspelt flag keeps the plain
  * error and commander's own suggestion.

@@ -6,7 +6,10 @@ const MAX_TRACKED = 10_000
 /** Nesting a scan follows, and values it reads, before it stops looking. */
 const MAX_SCAN_DEPTH = 20
 const MAX_SCAN_VALUES = 2000
-/** Placeholder numbers run from just above {@link DRY_RUN_NUMBER_BASE} up to this many above it. */
+/**
+ * Placeholder numbers run from just above {@link DRY_RUN_NUMBER_BASE} up to this many above it:
+ * each output counts its own from 1, and a run tracks at most {@link MAX_TRACKED}, so none reaches it.
+ */
 const MAX_NUMBER_OFFSET = 1_000_000
 
 /** The shape `dryRunId` mints, and the prefix that finds it inside a longer string. */
@@ -16,6 +19,8 @@ const TOKEN_RUN = /^[a-z0-9_]+/
 /** Where a token can end inside a run: after a whole `_<digits>`. */
 const TOKEN_END = /_\d+/g
 const DIGIT_RUN = /\d+/g
+/** Digits a placeholder number has: every one is above {@link DRY_RUN_NUMBER_BASE}. */
+const PLACEHOLDER_NUMBER_DIGITS = String(DRY_RUN_NUMBER_BASE).length
 /** Longest token a scan reads at one `dry_run_`. */
 const MAX_TOKEN_LENGTH = 256
 
@@ -33,9 +38,15 @@ function leavesOf(value: unknown): Array<string | number> {
   const found: Array<string | number> = []
   const visit = (node: unknown, depth: number): void => {
     if (found.length >= MAX_SCAN_VALUES || depth > MAX_SCAN_DEPTH) return
-    if (typeof node === 'string' || typeof node === 'number') found.push(node)
-    else if (Array.isArray(node)) for (const item of node) visit(item, depth + 1)
-    else if (isPlainRecord(node)) for (const item of Object.values(node)) visit(item, depth + 1)
+    if (typeof node === 'string' || typeof node === 'number') {
+      found.push(node)
+      return
+    }
+    const items = Array.isArray(node) ? node : isPlainRecord(node) ? Object.values(node) : []
+    for (const item of items) {
+      if (found.length >= MAX_SCAN_VALUES) return
+      visit(item, depth + 1)
+    }
   }
   visit(value, 0)
   return found
@@ -45,13 +56,14 @@ function leavesOf(value: unknown): Array<string | number> {
  * Every token `text` could hold: at each `dry_run_` (any case, anywhere, even mid-word), each
  * candidate the following run of token characters holds up to a `_<digits>` end, so
  * `file_dry_run_row_1.json` and `dry_run_row_1_copy` both hold `dry_run_row_1`, while
- * `dry_run_row_10` does not.
+ * `dry_run_row_10` does not. A run is read at most `window` characters long: one past the longest
+ * token sought, so a longer run of digits is still seen to continue past it.
  */
-function* tokensIn(text: string): Generator<string> {
+function* tokensIn(text: string, window: number): Generator<string> {
   const lower = text.toLowerCase()
   let start = lower.indexOf(TOKEN_PREFIX)
   while (start !== -1) {
-    const run = lower.slice(start, start + MAX_TOKEN_LENGTH).match(TOKEN_RUN)?.[0] ?? ''
+    const run = lower.slice(start, start + window).match(TOKEN_RUN)?.[0] ?? ''
     for (const end of run.matchAll(TOKEN_END)) yield run.slice(0, end.index + end[0].length)
     start = lower.indexOf(TOKEN_PREFIX, start + 1)
   }
@@ -69,6 +81,8 @@ function* tokensIn(text: string): Generator<string> {
 export class PlaceholderTokens {
   private readonly tokens = new Set<string>()
   private readonly numbers = new Set<number>()
+  /** How far {@link tokensIn} reads at one `dry_run_`: one past the longest token registered. */
+  private tokenWindow = 0
 
   /**
    * Registers the placeholders of a placeholder answer, `returned`, except a number `echoed` (the
@@ -81,7 +95,9 @@ export class PlaceholderTokens {
       if (typeof value === 'number') {
         if (isPlaceholderNumber(value) && !given.has(value)) this.numbers.add(value)
       } else if (TOKEN.test(value.toLowerCase())) {
-        this.tokens.add(value.toLowerCase())
+        const token = value.toLowerCase()
+        this.tokens.add(token)
+        this.tokenWindow = Math.max(this.tokenWindow, Math.min(token.length + 1, MAX_TOKEN_LENGTH))
       }
     }
   }
@@ -94,9 +110,15 @@ export class PlaceholderTokens {
     if (this.tokens.size === 0 && this.numbers.size === 0) return false
     return leavesOf(sent).some((value) => {
       if (typeof value === 'number') return this.numbers.has(value)
-      for (const token of tokensIn(value)) if (this.tokens.has(token)) return true
+      if (this.tokens.size > 0) {
+        for (const token of tokensIn(value, this.tokenWindow))
+          if (this.tokens.has(token)) return true
+      }
+      if (this.numbers.size === 0) return false
       for (const digits of value.match(DIGIT_RUN) ?? []) {
-        if (this.numbers.has(Number(digits))) return true
+        if (digits.length >= PLACEHOLDER_NUMBER_DIGITS && this.numbers.has(Number(digits))) {
+          return true
+        }
       }
       return false
     })

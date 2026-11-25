@@ -54,15 +54,15 @@ function failures(report: StoredTestReport | null) {
  * or `omittedRuns` (runs past the per-file cap, whose writes went unrecorded) is nonzero, and
  * unknown (null) for a run with no report, such as one that errored before the sandbox returned.
  */
-function unmockedWrites(report: StoredTestReport | null) {
+function stubbedCalls(report: StoredTestReport | null) {
   if (!report) return null
   const executions = Object.values(report.sideEffects?.executions ?? {})
   const sites = executions.flatMap((execution) =>
-    execution.stubbed.map(({ block, blockId, tool, mcp, dependsOnStub }) => {
+    execution.stubbed.map(({ block, blockId, tool, mcp, reason }) => {
       const site = block ?? blockId ?? 'unnamed block'
       const called = mcp ? mcp.tool : tool
       const label = called ? `${site} → ${called}` : site
-      return dependsOnStub ? `${label} (read of a placeholder)` : label
+      return reason === 'placeholder' ? `${label} (read of a placeholder)` : label
     })
   )
   return {
@@ -149,7 +149,7 @@ export const testsServerTool: BaseServerTool = {
                 failed: detail.latestRun.failed,
                 error: detail.latestRun.error,
                 failures: failures(detail.latestRun.report),
-                unmockedWrites: unmockedWrites(detail.latestRun.report),
+                stubbedCalls: stubbedCalls(detail.latestRun.report),
               }
             : null,
         }
@@ -188,7 +188,7 @@ export const testsServerTool: BaseServerTool = {
                 skipped: run.skipped,
                 ...(run.error ? { error: run.error } : {}),
                 failures: failures(run.report),
-                unmockedWrites: unmockedWrites(run.report),
+                stubbedCalls: stubbedCalls(run.report),
               })),
             }
           }

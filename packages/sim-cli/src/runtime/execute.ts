@@ -464,14 +464,14 @@ export async function executeOperation(
   /**
    * A dry run writes nothing, so it never needs the destructive confirmation.
    *
-   * The gate exists to stop a caller discarding work by accident; `--dry-run`
+   * The gate exists to stop a caller discarding work by accident; `--dry`
    * is how a caller checks what a command WOULD do, and demanding `--yes` to
    * preview a change teaches people to pass `--yes` reflexively — which is
-   * exactly the habit the gate depends on not forming. `dryRun` is a v2-wide
+   * exactly the habit the gate depends on not forming. `dry` is a v2-wide
    * contract flag meaning "persist nothing", so this holds for every command
    * that accepts it rather than being a per-command exemption.
    */
-  if (commandSpec.confirm && !requestFlags.yes && requestFlags.dryRun !== true) {
+  if (commandSpec.confirm && !requestFlags.yes && requestFlags.dry !== true) {
     throw new SimApiError(`${commandSpec.confirm} Re-run with --yes to confirm.`, 0)
   }
 

@@ -27,6 +27,7 @@ import { serverResourceChanges } from '@sim/workspace-code/status'
 import type { Command } from 'commander'
 import { publishSummary } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
+import type { NextStep } from '#sim-cli/output/next-step'
 import { setSoftExitCode } from '../../embed-context'
 import { SOURCE_HELD_EXIT_CODE, SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
 import type {
@@ -38,7 +39,7 @@ import type {
 import { isRequestCancelled, SimApiError } from '../../http/client'
 import { sanitize } from '../../output/render'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
-import { draftIsLive, liveDeploymentStatus } from '../../runtime/deployment-live'
+import { liveDeploymentStatus } from '../../runtime/deployment-live'
 import { searchTasks } from '../search'
 import { type DeployedUrl, deployedUrlsText, lockBlockNames, namedUrls } from './deployed-urls'
 import { gitProvenance } from './git-provenance'
@@ -77,7 +78,7 @@ import {
   verboseFlag,
   writeMode,
 } from './source-ui'
-import { type NextStep, runSourceWrite } from './source-write'
+import { runSourceWrite } from './source-write'
 import {
   removedWorkflowRecords,
   unrecordedFoldersWarning,
@@ -106,7 +107,7 @@ type Change = ApplyData['plan'][number]
 interface ApplyOptions {
   dir: string
   verbose?: boolean
-  dryRun?: boolean
+  dry?: boolean
   yes?: boolean
   allowDelete?: boolean
   deleteTargetOnly?: boolean
@@ -709,7 +710,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
   ])
   command
     .option('--dir <dir>', 'Workspace source directory written by `workspaces source get`', '.')
-    .option('--dry-run', 'Plan and check without writing anything')
+    .option('--dry', 'Plan and check without writing anything')
     .option('-y, --yes', 'Apply without asking for confirmation')
     .option(
       '--allow-delete',
@@ -745,7 +746,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
           ) ?? undefined
         )
       const provenance = await gitProvenance(options.dir)
-      const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {
+      const post = async (submission: WorkspaceSubmission, dry: boolean) => {
         const body: ApplyWorkspaceSourceBody = {
           files: submission.files,
           kinds: submission.kinds,
@@ -761,7 +762,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
           'applyWorkspaceSource',
           {
             params: { workspaceId },
-            ...(dryRun ? { query: { dryRun: true } } : {}),
+            ...(dry ? { query: { dry: true } } : {}),
             body,
             retryRateLimited: true,
           }
@@ -785,24 +786,24 @@ export function attachWorkspaceSourceApply(source: Command): void {
        * CLI's guess from the base missed one) stages those and is sent once more.
        */
       let promotion: Promotion | null = null
-      const send = async (submission: WorkspaceSubmission, dryRun: boolean): Promise<ApplyData> => {
+      const send = async (submission: WorkspaceSubmission, dry: boolean): Promise<ApplyData> => {
         let refusal: unknown
         try {
-          return await post(submission, dryRun)
+          return await post(submission, dry)
         } catch (error) {
           refusal = error
         }
-        const missing = dryRun ? null : missingBlobPaths(refusal)
+        const missing = dry ? null : missingBlobPaths(refusal)
         if (missing && missing.length > 0) {
           await stage(submission, new Set(missing))
           try {
-            return await post(submission, dryRun)
+            return await post(submission, dry)
           } catch (error) {
             refusal = error
           }
         }
         return printRefusal(promotion ? rehinted(refusal, promotion) : refusal, profile.output, {
-          ...(dryRun ? {} : { ifAnswerLost: answerLostHint(options.dir) }),
+          ...(dry ? {} : { ifAnswerLost: answerLostHint(options.dir) }),
           verbose: options.verbose === true,
         })
       }
@@ -867,7 +868,6 @@ export function attachWorkspaceSourceApply(source: Command): void {
                 created: createdText(result.created),
                 ...(workflows.length > 0 ? { workflows: writtenWorkflowsText(workflows) } : {}),
                 ...(urls.length > 0 ? { urls: workflowUrlsText(urls) } : {}),
-                ...(next ? { next: next.command } : {}),
               }
             )
           }
@@ -940,7 +940,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             )
           )
         },
-        { readOnly: mode === 'dry-run' || mode === 'plan' }
+        { readOnly: mode === 'dry' || mode === 'plan' }
       )
     })
 }
@@ -951,18 +951,18 @@ export function attachWorkspaceSourceApply(source: Command): void {
  */
 function planMarkdown(data: ApplyData, workspaceId: string): string {
   const summary = summarize(data)
-  const [created, updated, deleted] = data.dryRun
+  const [created, updated, deleted] = data.dry
     ? ['to create', 'to update', 'to delete']
     : ['created', 'updated', 'deleted']
   const changes = data.plan.filter((change) => change.action !== 'noop')
   const rows = changes.slice(0, SUMMARY_ROWS).map((change) => {
     const fields = change.fields?.length ? ` (${markdownCell(change.fields.join(', '))})` : ''
-    const fate = data.dryRun && !change.held ? 'planned' : changeOutcome(change, data)
+    const fate = data.dry && !change.held ? 'planned' : changeOutcome(change, data)
     return `| ${SYMBOLS[change.action]} | ${markdownCell(resourceWhere(change.kind, change.key))}${fields} | ${change.action} | ${fate} |`
   })
   const errors = data.diagnostics.filter((finding) => finding.severity === 'error')
   const lines = [
-    `### Sim workspace ${data.dryRun ? 'plan' : 'apply'}: ${markdownCell(workspaceId)}`,
+    `### Sim workspace ${data.dry ? 'plan' : 'apply'}: ${markdownCell(workspaceId)}`,
     '',
     `${summary.created.length} ${created}, ${summary.updated} ${updated}, ${summary.deleted} ${deleted}, ${summary.unchanged} unchanged; ${summary.errors} error(s), ${summary.warnings} warning(s).`,
     ...(rows.length > 0
@@ -985,16 +985,18 @@ interface WorkflowUrl extends DeployedUrl {
 }
 
 /**
- * A workflow a written apply created, updated, deployed or undeployed, and what is live for it:
- * the id an agent would otherwise read out of `.sim/base.json`, and whether the draft serves.
+ * A workflow a written apply created, updated, deployed or undeployed, and what is live for it,
+ * as a single-workflow apply reports it: the id an agent would otherwise read out of
+ * `.sim/base.json`, the live version, whether the draft has diverged from it (the deployment
+ * status's `needsRedeployment`: false while a deploy activates, and when nothing is deployed),
+ * and `live`, which says what serves.
  */
 interface WrittenWorkflow {
   key: string
   workflowId: string
   /** The live version, or null when nothing is deployed. */
   deployedVersion: number | null
-  /** Whether that version is the draft: deployed, nothing activating, and no undeployed change. */
-  liveMatchesDraft: boolean
+  needsRedeployment: boolean
   live: string
 }
 
@@ -1036,7 +1038,7 @@ async function writtenWorkflows(
   data: ApplyData,
   savedLock?: (path: string) => Promise<string | null>
 ): Promise<WrittenWorkflows> {
-  if (data.dryRun) return { workflows: [], urls: [] }
+  if (data.dry) return { workflows: [], urls: [] }
   const base = parseWorkspaceBase(data.base).base
   // A deleted deployment leaves its workflow, which then reports `not deployed`.
   const written = data.applied.filter(
@@ -1069,7 +1071,7 @@ async function writtenWorkflows(
       key,
       workflowId,
       deployedVersion: status.activeDeployment?.version ?? null,
-      liveMatchesDraft: draftIsLive(status),
+      needsRedeployment: status.needsRedeployment,
       live: liveDeploymentStatus(status, workflowId).live,
     }
     if (!deployedKeys.has(key)) return { workflow, urls: [] }
@@ -1088,7 +1090,7 @@ async function writtenWorkflows(
   }
 }
 
-/** This apply as a command, without `--yes` or `--dry-run`: what a plan run names next. */
+/** This apply as a command, without `--yes` or `--dry`: what a plan run names next. */
 function applyCommand(options: ApplyOptions): string {
   return [
     `sim workspaces source apply --dir ${shellWord(options.dir)}`,
@@ -1138,7 +1140,7 @@ function notSentFindings(paths: readonly string[]): ApplyData['diagnostics'] {
  * an interrupt): it may or may not have been written.
  */
 function answerLostHint(dir: string): string {
-  return `It may have been written. Run \`sim workspaces source apply --dir ${dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`sim workspaces source get --dir <fresh dir>\` and compare it with ${dir}: if it holds your edits, \`sim workspaces source get --dir ${dir} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
+  return `It may have been written. Run \`sim workspaces source apply --dir ${dir} --dry\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`sim workspaces source get --dir <fresh dir>\` and compare it with ${dir}: if it holds your edits, \`sim workspaces source get --dir ${dir} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
 }
 
 /**
@@ -1146,12 +1148,12 @@ function answerLostHint(dir: string): string {
  * `created` lists each resource created, with its id once written.
  */
 function summarize(data: ApplyData) {
-  const changes = data.dryRun ? data.plan : data.applied
+  const changes = data.dry ? data.plan : data.applied
   const count = (action: Change['action']) =>
     changes.filter((change) => change.action === action).length
   return {
     workspaceId: data.workspaceId,
-    dryRun: data.dryRun,
+    dry: data.dry,
     applied: data.applied.length,
     created: changes
       .filter((change) => change.action === 'create' && !change.held)

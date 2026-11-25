@@ -349,18 +349,18 @@ export function addOperationOptions(
     // readers looking for a question the CLI never asks, and hid that the flag
     // is the only way the command ever runs.
     // A dry run is exempt at the gate itself, so on an operation that accepts
-    // `--dry-run` the flag is not unconditionally required and saying so
+    // `--dry` the flag is not unconditionally required and saying so
     // outright would send a caller reaching for `--yes` to preview a change.
-    const exemptedByDryRun =
-      operationSpec.query?.dryRun !== undefined || operationSpec.body?.dryRun !== undefined
+    const exemptedByDry =
+      operationSpec.query?.dry !== undefined || operationSpec.body?.dry !== undefined
     // Not "destructive": the gate also covers operations that only add —
     // `files unzip` writes the archive's contents into the workspace and
     // destroys nothing — so the adjective was wrong on the help line while the
     // refusal itself, which states the operation's own consequence, was right.
     command.option(
       '-y, --yes',
-      exemptedByDryRun
-        ? 'Confirm this operation (required unless --dry-run)'
+      exemptedByDry
+        ? 'Confirm this operation (required unless --dry)'
         : 'Confirm this operation (required)'
     )
   } else if (commandSpec.acceptsYes) {

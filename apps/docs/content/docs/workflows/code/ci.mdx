@@ -18,7 +18,7 @@ Saving and dry-running source act as a person. Use a personal API key (**Setting
 
 ## One workflow
 
-Run `sim workflows source apply --dir <dir> --dry-run` on pull requests. It exits `0` when the workflow is valid, `1` when it has errors, and `5` when the workflow was changed in the workflow builder after you committed the directory, so a failing check blocks the merge. `check` is not needed: the dry run runs every check a save runs, and `check` fails on a fresh runner that has no cached block catalog.
+Run `sim workflows source apply --dir <dir> --dry` on pull requests. It exits `0` when the workflow is valid, `1` when it has errors, and `5` when the workflow was changed in the workflow builder after you committed the directory, so a failing check blocks the merge. `check` is not needed: the dry run runs every check a save runs, and `check` fails on a fresh runner that has no cached block catalog.
 
 ```yaml title=".github/workflows/sim-workflow.yml"
 on:
@@ -41,7 +41,7 @@ jobs:
           node-version: 24
       - uses: oven-sh/setup-bun@v2
       - run: bun add -g sim
-      - run: sim workflows source apply --dir support-triage --dry-run
+      - run: sim workflows source apply --dir support-triage --dry
 ```
 
 ## A workspace
@@ -75,7 +75,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun add -g sim
       - run: sim workspaces source check --dir workspace
-      - run: sim workspaces source apply --dir workspace --dry-run
+      - run: sim workspaces source apply --dir workspace --dry
       - if: github.event_name == 'push'
         run: sim workspaces source apply --dir workspace --yes
       - if: ${{ !cancelled() && github.event_name == 'push' }}
@@ -102,7 +102,7 @@ The step summary appears on the run page, not in the pull request. To post the p
           GH_TOKEN: ${{ github.token }}
         run: |
           status=0
-          sim workspaces source apply --dir workspace --dry-run --summary-file plan.md || status=$?
+          sim workspaces source apply --dir workspace --dry --summary-file plan.md || status=$?
           gh pr comment "${{ github.event.pull_request.number }}" --edit-last --create-if-none --body-file plan.md
           exit "$status"
 ```

@@ -15,7 +15,7 @@ export function presentSourceOutcome(outcome: SourceOutcome): SourceOutcomeData 
   return {
     workflowId: outcome.workflowId,
     workspaceId: outcome.workspaceId,
-    dryRun: outcome.dryRun,
+    dry: outcome.dryRun,
     applied: outcome.applied,
     diff: outcome.diff,
     diagnostics: boundAnswerFindings(outcome.diagnostics),

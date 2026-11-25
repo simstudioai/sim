@@ -75,17 +75,14 @@ function tally<T extends object>(entries: readonly T[]) {
 /** A run's side effects as a report keeps them: who did what and how often, never a payload. */
 function compactSideEffects(summary: SideEffectsSummary): TestRunSideEffects {
   const stubbed = tally(
-    summary.stubbed.map(
-      ({ workflowId, blockId, block, tool, mcp, dependsOnStub, readOnlyHint }) => ({
-        workflowId,
-        blockId,
-        block,
-        tool,
-        mcp,
-        dependsOnStub,
-        readOnlyHint,
-      })
-    )
+    summary.stubbed.map(({ workflowId, blockId, block, tool, mcp, reason }) => ({
+      workflowId,
+      blockId,
+      block,
+      tool,
+      mcp: mcp ?? null,
+      ...(reason ? { reason } : {}),
+    }))
   )
   const unchecked = tally(summary.unchecked.map(({ block, reason }) => ({ block, reason })))
   return {

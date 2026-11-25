@@ -45,7 +45,7 @@ sim workflows source diff --dir ./support-triage
 ## 4. Dry run
 
 ```bash
-sim workflows source apply --dir ./support-triage --dry-run
+sim workflows source apply --dir ./support-triage --dry
 ```
 
 `apply` reads the workflow ID from `.sim/base.json`. Pass it as `apply <workflowId> --dir …` to have the CLI confirm the directory holds that workflow.
@@ -88,12 +88,12 @@ Keep the `.sim/` folder the commands write. `.sim/lock.json` ties each block in 
 
 ## Working with other people
 
-- If someone changes the workflow after you read it, the save (or `--dry-run`) is refused with exit code `5` and nothing is overwritten. Run `get` into a new directory, reapply your edit, and save. There is no automatic merge.
+- If someone changes the workflow after you read it, the save (or `--dry`) is refused with exit code `5` and nothing is overwritten. Run `get` into a new directory, reapply your edit, and save. There is no automatic merge.
 - Locked blocks cannot be changed from the file. Unlock them in the workflow builder first.
 
 ## Limits
 
-The file holds block declarations and connections only: helpers, loops that create blocks, and imports are refused. Function code is one file per block, with no imports between files. Workflows run in Sim, not locally, and `--dry-run` checks everything a save checks without running the workflow. Size caps are in [Limits](/workflows/code/limits).
+The file holds block declarations and connections only: helpers, loops that create blocks, and imports are refused. Function code is one file per block, with no imports between files. Workflows run in Sim, not locally, and `--dry` checks everything a save checks without running the workflow. Size caps are in [Limits](/workflows/code/limits).
 
 ## Related docs
 

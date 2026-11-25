@@ -316,19 +316,19 @@ export function wasExecutionFinalizedByCore(error: unknown, executionId?: string
 }
 
 /**
- * What a run records on its log's trigger: its correlation, a dry run's allowed and mocked blocks,
- * which a rerun of it reads back, and, for any run with a side-effect policy (a dry run or a
- * workflow test), `placeholdersRecorded`, which says its block states mark each block it answered
- * with a placeholder (a run logged before they did has no marks).
+ * What a run records on its log's trigger: its correlation, a dry run's overrides, which a rerun
+ * of it reads back, and, for any run with a side-effect policy (a dry run or a workflow test),
+ * `placeholdersRecorded`, which says its block states mark each block it answered with a
+ * placeholder (a run logged before they did has no marks).
  */
 function logTriggerData(
   metadata: ExecutionMetadata,
   sideEffects: SideEffectPolicy | undefined
 ): Record<string, unknown> | undefined {
-  if (!metadata.correlation && !metadata.dryRun && !sideEffects) return undefined
+  if (!metadata.correlation && !metadata.overrides && !sideEffects) return undefined
   return {
     ...(metadata.correlation ? { correlation: metadata.correlation } : {}),
-    ...(metadata.dryRun ? { dryRun: metadata.dryRun } : {}),
+    ...(metadata.overrides ? { overrides: metadata.overrides } : {}),
     ...(sideEffects ? { placeholdersRecorded: true } : {}),
   }
 }

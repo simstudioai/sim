@@ -2388,7 +2388,7 @@ always prints as null. For a copy to share outside this workspace, pass
   // `workflows execute create` and `workflows cancel create`.
   executeWorkflow: {
     command: 'workflows run',
-    describe: 'Run a deployed workflow or execute saved state manually',
+    describe: 'Run a deployed workflow, or its saved draft',
     flags: {
       async: { boolean: true, describe: 'Queue the run and return immediately' },
       executionTimeoutSeconds: {
@@ -2396,7 +2396,7 @@ always prints as null. For a copy to share outside this workspace, pass
           "Maximum duration of the run in seconds, capped by the plan's execution timeout. Requires --async or --wait-timeout",
       },
       input: { json: true, describe: 'Trigger input as JSON' },
-      // Built from --deployment-version, --manual, --trigger, --mock-payload, --from-block,
+      // Built from --deployment-version, --draft, --trigger, --sample, --from-block,
       // --source-run, --stop-after, --dry, --allow and --mock by `workflow-run-follow.ts`, so a
       // run is selected one way only.
       run: { omit: true },
@@ -2476,6 +2476,7 @@ always prints as null. For a copy to share outside this workspace, pass
       { header: 'blocked on', path: 'paused.blockedOnBlockId' },
       { header: 'pause points', path: 'paused.pausePointCount' },
       { header: 'next', path: 'next' },
+      { header: 'next note', path: 'nextNote' },
       { header: 'error', path: 'error.message' },
     ],
   },

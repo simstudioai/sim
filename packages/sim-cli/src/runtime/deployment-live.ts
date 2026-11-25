@@ -1,5 +1,6 @@
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import type { GetWorkflowDeploymentResponse, V2OperationName } from '../generated/v2-api'
+import type { NextStep } from '../output/next-step'
 import { shellArgument } from './run-next'
 
 type DeploymentState = Pick<
@@ -11,7 +12,7 @@ type DeploymentAttempt = NonNullable<DeploymentState['latestDeploymentAttempt']>
 /** What is live, in one line, and the command that follows from it, with why. */
 export interface LiveDeployment {
   live: string
-  next?: { command: string; reason: string }
+  next?: NextStep
 }
 
 /** Operations that switch which version is live, and how `live` names the switch. */
@@ -42,7 +43,7 @@ function failure(version: number, attempt: DeploymentAttempt): string {
 }
 
 /** The status read that shows when `version` is live. */
-function whenLive(workflowId: string, version: number): NonNullable<LiveDeployment['next']> {
+function whenLive(workflowId: string, version: number): NextStep {
   return {
     command: `sim workflows deployment status ${shellArgument(workflowId)}`,
     reason: `shows when version ${version} is live`,
@@ -66,14 +67,9 @@ export function liveAfterActivation(
   const attempt = state.latestDeploymentAttempt
   const target = version ?? attempt?.version
   if (target === undefined) return { live: serving(state, false) }
+  // Nothing follows a version that serves: running it would send its writes for real.
   if (state.activeDeployment?.version === target) {
-    return {
-      live: `version ${target}, serving (${subject})`,
-      next: {
-        command: `sim workflows run ${shellArgument(workflowId)}`,
-        reason: `runs version ${target}, the live deployment; add --input '<json>' for its input, or --manual to run the draft`,
-      },
-    }
+    return { live: `version ${target}, serving (${subject})` }
   }
   if (!attempt) {
     // No attempt reported: whether the version is on its way is unknown, and the status read says.
@@ -213,6 +209,5 @@ export function withDeploymentLive(operation: V2OperationName, payload: unknown)
             ? `sim workflows deploy ${shellArgument(payload.id)}`
             : undefined
         )
-  // The command, then why as a shell comment: pasted whole, the comment is ignored.
-  return { live, ...payload, ...(next ? { next: `${next.command}  # ${next.reason}` } : {}) }
+  return { live, ...payload, ...(next ? { next } : {}) }
 }

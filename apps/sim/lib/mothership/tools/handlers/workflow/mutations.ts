@@ -382,7 +382,7 @@ export async function executeRunWorkflow(
           triggerBlockId: resolveRunTriggerBlockId(params),
           workflowInput,
           hasWorkflowInput: workflowInput !== undefined,
-          useMockPayload: params.useMockPayload === true,
+          sample: params.sample === true || params.useMockPayload === true,
           inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
           lifecycle,
         })
@@ -470,7 +470,7 @@ export async function executeRunWorkflowUntilBlock(
             triggerBlockId: resolveRunTriggerBlockId(params),
             workflowInput,
             hasWorkflowInput: workflowInput !== undefined,
-            useMockPayload: params.useMockPayload === true,
+            sample: params.sample === true || params.useMockPayload === true,
             inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
             stopAfterBlockId,
             lifecycle,

@@ -69,9 +69,9 @@ The subject identifies the authenticated Sim user, chat email, or supported exte
 
 ## Multiple triggers
 
-A workflow can have several trigger blocks. When the editor chooses among alternatives on the same path, Start takes priority, followed by Schedule and external triggers. Choose an external trigger explicitly when testing that entry point; its expected output shape can supply a mock payload.
+A workflow can have several trigger blocks. When the editor chooses among alternatives on the same path, Start takes priority, followed by Schedule and external triggers. Choose an external trigger explicitly when testing that entry point; its expected output shape can supply a sample payload.
 
-The v2 manual API requires `run.entry.blockId` when several triggers are runnable. If you request a mock payload, do not also supply `input`. Each execution begins at its selected trigger; deployment is required for automatic events, while editor runs test the draft.
+A v2 draft run (`run.source: "draft"`) requires `run.entry.blockId` when several triggers are runnable. With `run.entry.sample: true` it runs with that sample payload, so do not also supply `input`. Each execution begins at its selected trigger; deployment is required for automatic events, while editor runs test the draft.
 
 ## Related docs
 

@@ -70,7 +70,7 @@ correct its request.
 
 ## Edit a whole workflow [#workflow-source]
 
-`getWorkflowSource` returns a workflow as TypeScript source files with its `lock` and `base`. Edit the files and send them back, with the same `lock` and `base`, through `applyWorkflowSource`, first with `query: {"dryRun": true}`. One call replaces a batch of graph operations. Workflows as code is in preview; see [Workflows as code](/workflows/code).
+`getWorkflowSource` returns a workflow as TypeScript source files with its `lock` and `base`. Edit the files and send them back, with the same `lock` and `base`, through `applyWorkflowSource`, first with `query: {"dry": true}`. One call replaces a batch of graph operations. Workflows as code is in preview; see [Workflows as code](/workflows/code).
 
 ## Code mode
 

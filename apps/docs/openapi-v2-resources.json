@@ -22138,6 +22138,11 @@
             "description": "Authored guidance on using the block correctly.",
             "type": "string"
           },
+          "effect": {
+            "description": "The block's effect: `write` when it runs tools its user chooses (an Agent's tools) or any of its tools writes, else `read`. Absent for a block with no tools.",
+            "type": "string",
+            "enum": ["read", "write"]
+          },
           "inputSchema": {
             "type": "array",
             "items": {

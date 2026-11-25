@@ -6,6 +6,7 @@ import {
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { applyOrDryRunLane, withSourceSlot } from '@/lib/workflows/api'
 import {
+  presentWorkspaceApply,
   v2WorkspaceSourceErrorPolicy,
   withBoundWorkspaceFindings,
   workspaceApplyRateCost,
@@ -64,9 +65,9 @@ export const POST = defineV2JsonRoute({
     ...(body.options?.only ? { only: body.options.only } : {}),
     ...(body.options?.allowDelete !== undefined ? { allowDelete: body.options.allowDelete } : {}),
     ...(body.provenance ? { provenance: body.provenance } : {}),
-    ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
+    ...(query.dry !== undefined ? { dryRun: query.dry } : {}),
   }),
   rateLimitCost: (input) => workspaceApplyRateCost(input.files, input.blobs),
   useCase: withSourceSlot(applyWorkspaceSource, applyOrDryRunLane),
-  present: (result) => ({ data: withBoundWorkspaceFindings(result) }),
+  present: (result) => ({ data: presentWorkspaceApply(result) }),
 })

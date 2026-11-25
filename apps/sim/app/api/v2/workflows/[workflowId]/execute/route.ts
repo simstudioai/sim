@@ -139,7 +139,7 @@ function presentRun(result: ExecuteWorkflowServiceRun) {
     durationMs: result.durationMs,
     executionTimeoutSeconds: executionTimeoutSeconds(result.executionTimeoutMs),
     sideEffects: result.sideEffects,
-    dryRun: result.dryRun,
+    overrides: result.overrides,
     output: result.output ?? null,
     blockOutputs: result.blockOutputs ?? null,
     paused: presentV2RunPause(result.paused),
@@ -199,7 +199,7 @@ async function settledBeforeDetach(
 /**
  * Presents an ordinary synchronous run as heartbeat-delimited NDJSON. The
  * execution promise is the same one used by the JSON path; only its response
- * framing changes, so manual draft selection and cancellation keep their
+ * framing changes, so draft selection and cancellation keep their
  * existing semantics. A detachable run ends the stream with a `detached` frame
  * carrying its receipt once the wait elapses, and a reader that goes away
  * leaves it running instead of cancelling it.
@@ -440,24 +440,24 @@ export const POST = withRouteHandler(
       })
       if (!parsed.success) return parsed.response
       const body = parsed.data.body
-      const manualRun = body.run?.source === 'manual' ? body.run : undefined
+      const draftRun = body.run?.source === 'draft' ? body.run : undefined
       const pinnedVersion = body.run?.source === 'deployment' ? body.run.version : undefined
 
-      if (manualRun && !apiKeyPrincipal) {
+      if (draftRun && !apiKeyPrincipal) {
         return v2Error(
           'UNAUTHORIZED',
-          'Manual execution requires an OAuth access token or personal API key'
+          'A draft run requires an OAuth access token or personal API key'
         )
       }
-      if (manualRun && body.async) {
-        return v2Error('BAD_REQUEST', 'Manual execution does not support async mode')
+      if (draftRun && body.async) {
+        return v2Error('BAD_REQUEST', 'A draft run does not support async mode')
       }
       if (
-        manualRun?.entry?.type === 'trigger' &&
-        manualRun.entry.useMockPayload === true &&
+        draftRun?.entry?.type === 'trigger' &&
+        draftRun.entry.sample === true &&
         body.input !== undefined
       ) {
-        return v2Error('BAD_REQUEST', 'input and run.entry.useMockPayload cannot be combined')
+        return v2Error('BAD_REQUEST', 'input and run.entry.sample cannot be combined')
       }
       if (pinnedVersion !== undefined && isPublicApiAccess) {
         return v2Error('BAD_REQUEST', 'run.version requires an OAuth access token or API key')
@@ -541,37 +541,37 @@ export const POST = withRouteHandler(
           includeToolCalls: body.includeToolCalls,
           callChain,
         }
-        if (manualRun?.entry?.type === 'block') {
+        if (draftRun?.entry?.type === 'block') {
           result = await executeManualWorkflowFromBlockOperation.execute({
             principal: apiKeyPrincipal,
             input: {
               ...commonInput,
               input: body.input,
               mode: body.stream ? 'stream' : syncMode,
-              blockId: manualRun.entry.blockId,
-              sourceRunId: manualRun.entry.sourceRunId,
-              stopAfterBlockId: manualRun.stopAfterBlockId,
-              dry: manualRun.dry,
-              allowBlocks: manualRun.allowBlocks,
-              mocks: manualRun.mocks,
-              mocksFrom: manualRun.mocksFrom,
+              blockId: draftRun.entry.blockId,
+              sourceRunId: draftRun.entry.sourceRunId,
+              stopAfterBlockId: draftRun.stopAfterBlockId,
+              dry: draftRun.dry,
+              allow: draftRun.allow,
+              mocks: draftRun.mocks,
+              mocksFrom: draftRun.mocksFrom,
             },
             request: req,
           })
-        } else if (manualRun) {
+        } else if (draftRun) {
           result = await executeManualWorkflowOperation.execute({
             principal: apiKeyPrincipal,
             input: {
               ...commonInput,
               input: body.input,
               mode: body.stream ? 'stream' : syncMode,
-              triggerBlockId: manualRun.entry?.blockId,
-              useMockPayload: manualRun.entry?.useMockPayload === true,
-              stopAfterBlockId: manualRun.stopAfterBlockId,
-              dry: manualRun.dry,
-              allowBlocks: manualRun.allowBlocks,
-              mocks: manualRun.mocks,
-              mocksFrom: manualRun.mocksFrom,
+              triggerBlockId: draftRun.entry?.blockId,
+              sample: draftRun.entry?.sample === true,
+              stopAfterBlockId: draftRun.stopAfterBlockId,
+              dry: draftRun.dry,
+              allow: draftRun.allow,
+              mocks: draftRun.mocks,
+              mocksFrom: draftRun.mocksFrom,
             },
             request: req,
           })
