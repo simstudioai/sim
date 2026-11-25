@@ -21,6 +21,7 @@ import {
   type CatalogToolSummary,
   projectToolDetail,
 } from '@/lib/catalog/projection/tool'
+import { accessIdEffect } from '@/blocks/access-effect'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import {
   type BlockConfig,
@@ -492,8 +493,7 @@ export function projectBlockDetail(
             id: toolId,
             name: toolId,
             description: '',
-            // An id with no registered tool declares no effect, which counts as a write.
-            effect: 'write',
+            effect: accessIdEffect(toolId),
             hostedApiKey: 'none',
             params: {},
             outputs: {},
@@ -518,7 +518,7 @@ export function projectBlockDetail(
       inputs,
       outputs: tool?.outputs ?? {},
       inputSchema: operationFields[operationId] ?? [],
-      ...(toolId !== undefined ? { toolId, effect: tool?.effect ?? 'write' } : {}),
+      ...(toolId !== undefined ? { toolId, effect: tool?.effect ?? accessIdEffect(toolId) } : {}),
       ...(tool ? { toolName: tool.name, description: describeTool(tool) } : {}),
     }
   }

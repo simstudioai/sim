@@ -15673,7 +15673,7 @@
           "kind": "router"
         }
       },
-      "effect": "write"
+      "effect": "read"
     },
     "schedule": {
       "type": "schedule",

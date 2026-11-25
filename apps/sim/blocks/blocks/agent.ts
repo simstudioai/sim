@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
+import { MODEL_PROVIDER_ACCESS_IDS } from '@/blocks/access-effect'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -415,14 +416,7 @@ Return ONLY the JSON array.`,
     },
   ],
   tools: {
-    access: [
-      'openai_chat',
-      'anthropic_chat',
-      'google_chat',
-      'xai_chat',
-      'deepseek_chat',
-      'deepseek_reasoner',
-    ],
+    access: [...MODEL_PROVIDER_ACCESS_IDS],
     config: {
       tool: (params: Record<string, any>) => {
         return resolveModelProviderId(params.model)
