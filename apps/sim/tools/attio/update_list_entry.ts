@@ -14,6 +14,7 @@ export const attioUpdateListEntryTool: ToolConfig<
   name: 'Attio Update List Entry',
   description: 'Update entry attribute values on an Attio list entry (appends multiselect values)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

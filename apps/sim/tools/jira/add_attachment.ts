@@ -10,6 +10,7 @@ export const jiraAddAttachmentTool: InternalToolConfig<
   name: 'Jira Add Attachment',
   description: 'Add attachments to a Jira issue',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

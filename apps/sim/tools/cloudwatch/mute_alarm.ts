@@ -13,6 +13,7 @@ export const muteAlarmTool: InternalToolConfig<
   name: 'CloudWatch Mute Alarm',
   description: 'Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

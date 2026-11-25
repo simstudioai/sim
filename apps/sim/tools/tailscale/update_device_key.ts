@@ -15,6 +15,7 @@ export const tailscaleUpdateDeviceKeyTool: ToolConfig<
   name: 'Tailscale Update Device Key',
   description: 'Enable or disable device key expiry',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

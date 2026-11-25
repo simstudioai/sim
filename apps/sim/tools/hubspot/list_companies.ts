@@ -16,6 +16,7 @@ export const hubspotListCompaniesTool: ToolConfig<
   name: 'List Companies from HubSpot',
   description: 'Retrieve all companies from HubSpot account with pagination support',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

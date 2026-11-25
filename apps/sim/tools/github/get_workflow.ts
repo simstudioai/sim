@@ -10,6 +10,7 @@ export const getWorkflowTool: ToolConfig<GetWorkflowParams, WorkflowResponse> = 
   description:
     'Get details of a specific GitHub Actions workflow by ID or filename. Returns workflow information including name, path, state, and badge URL.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -101,6 +102,7 @@ export const getWorkflowV2Tool: ToolConfig<GetWorkflowParams, any> = {
   name: getWorkflowTool.name,
   description: getWorkflowTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getWorkflowTool.params,
   request: getWorkflowTool.request,

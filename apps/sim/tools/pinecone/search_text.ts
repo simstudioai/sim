@@ -62,6 +62,7 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
   name: 'Pinecone Search Text',
   description: 'Search for similar text in a Pinecone index',
   version: '1.0',
+  effect: 'read',
 
   params: {
     indexHost: {

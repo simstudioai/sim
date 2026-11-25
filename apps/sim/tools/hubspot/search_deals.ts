@@ -13,6 +13,7 @@ export const hubspotSearchDealsTool: ToolConfig<
   name: 'Search Deals in HubSpot',
   description: 'Search for deals in HubSpot using filters, sorting, and queries',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

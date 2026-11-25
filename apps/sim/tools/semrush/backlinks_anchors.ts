@@ -22,6 +22,7 @@ export const semrushBacklinksAnchorsTool: ToolConfig<
   description:
     'List the anchor texts used in backlinks to a target, with domain and backlink counts.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

@@ -14,6 +14,7 @@ export const agentphoneUpdateContactTool: ToolConfig<
   name: 'Update Contact',
   description: "Update a contact's fields",
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

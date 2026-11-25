@@ -18,6 +18,7 @@ export const vantaListVulnerabilitiesTool: InternalToolConfig<
   description:
     'List the vulnerabilities detected across a Vanta account with filters for severity, fixability, SLA deadlines, package, and integration',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

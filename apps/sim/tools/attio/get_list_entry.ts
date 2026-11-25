@@ -12,6 +12,7 @@ export const attioGetListEntryTool: ToolConfig<AttioGetListEntryParams, AttioGet
     name: 'Attio Get List Entry',
     description: 'Get a single list entry by ID',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

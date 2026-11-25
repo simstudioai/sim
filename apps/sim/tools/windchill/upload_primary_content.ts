@@ -17,6 +17,7 @@ export const windchillUploadPrimaryContentTool: InternalToolConfig<
   name: 'Windchill Upload Primary Content',
   description: 'Upload a primary-content file to a document that has none',
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

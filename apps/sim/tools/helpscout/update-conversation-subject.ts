@@ -21,6 +21,7 @@ export const helpScoutUpdateConversationSubjectTool: ToolConfig<
   name: 'Help Scout Update Conversation Subject',
   description: 'Change the subject of a Help Scout conversation.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

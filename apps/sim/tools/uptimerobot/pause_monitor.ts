@@ -18,6 +18,7 @@ export const uptimeRobotPauseMonitorTool: ToolConfig<
   name: 'UptimeRobot Pause Monitor',
   description: 'Pause an UptimeRobot monitor so it stops running checks',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

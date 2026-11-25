@@ -14,6 +14,7 @@ export const shopifyCancelOrderTool: ToolConfig<
   name: 'Shopify Cancel Order',
   description: 'Cancel an order in your Shopify store',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

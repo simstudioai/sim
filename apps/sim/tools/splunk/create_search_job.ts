@@ -48,6 +48,7 @@ export const createSearchJobTool: ToolConfig<
   description:
     'Start a Splunk search job and return its search ID (sid). The search runs asynchronously — poll its status and fetch results separately.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {

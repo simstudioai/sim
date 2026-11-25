@@ -14,6 +14,7 @@ export const googleAdsListCampaignsTool: ToolConfig<
   name: 'List Google Ads Campaigns',
   description: 'List campaigns in a Google Ads account with optional status filtering',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

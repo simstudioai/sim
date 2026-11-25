@@ -37,6 +37,7 @@ export const sportmonksGetTransferRumoursBetweenDatesTool: ToolConfig<
   name: 'Get Transfer Rumours Between Dates',
   description: 'Retrieve transfer rumours within a date range (YYYY-MM-DD) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

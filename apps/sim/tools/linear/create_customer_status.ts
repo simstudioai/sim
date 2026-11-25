@@ -14,6 +14,7 @@ export const linearCreateCustomerStatusTool: ToolConfig<
   name: 'Linear Create Customer Status',
   description: 'Create a new customer status in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

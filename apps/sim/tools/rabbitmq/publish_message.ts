@@ -22,6 +22,7 @@ export const rabbitmqPublishMessageTool: ToolConfig<
   description:
     'Publish a message to a RabbitMQ exchange with a routing key. Reports whether the message was routed to at least one queue.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

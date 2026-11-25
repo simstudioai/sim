@@ -7,6 +7,7 @@ export const thinkingTool: InternalToolConfig<ThinkingToolParams, ThinkingToolRe
   description:
     'Processes a provided thought/instruction, making it available for subsequent steps.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     thought: {

@@ -13,6 +13,7 @@ export const terminateWorkerTool: InternalToolConfig<
   description:
     'Initiate a worker termination in Workday. Triggers the Terminate Employee business process.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     tenantUrl: {

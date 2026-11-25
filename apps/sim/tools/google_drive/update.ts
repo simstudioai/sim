@@ -23,6 +23,7 @@ export const updateTool: ToolConfig<GoogleDriveUpdateParams, GoogleDriveUpdateRe
   name: 'Update Google Drive File',
   description: 'Update file metadata in Google Drive (rename, move, star, add description)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

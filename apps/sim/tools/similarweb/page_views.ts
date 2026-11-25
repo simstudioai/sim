@@ -13,6 +13,7 @@ export const similarwebPageViewsTool: ToolConfig<
   name: 'SimilarWeb Page Views',
   description: 'Get total page views over time (desktop and mobile combined)',
   version: '1.0.0',
+  effect: 'read',
   oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {

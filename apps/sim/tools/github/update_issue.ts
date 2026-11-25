@@ -14,6 +14,7 @@ export const updateIssueTool: ToolConfig<UpdateIssueParams, IssueResponse> = {
   name: 'GitHub Update Issue',
   description: 'Update an existing issue in a GitHub repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -152,6 +153,7 @@ export const updateIssueV2Tool: ToolConfig = {
   name: updateIssueTool.name,
   description: updateIssueTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: updateIssueTool.params,
   request: updateIssueTool.request,
   oauth: updateIssueTool.oauth,

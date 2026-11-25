@@ -9,6 +9,7 @@ export const lookupPhoneTool: ToolConfig<GongLookupPhoneParams, GongLookupPhoneR
   description:
     'Find all references to a phone number in Gong (calls, email messages, meetings, CRM data, and associated contacts).',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

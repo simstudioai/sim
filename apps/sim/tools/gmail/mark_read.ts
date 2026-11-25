@@ -6,6 +6,7 @@ export const gmailMarkReadTool: InternalToolConfig<GmailMarkReadParams, GmailToo
   name: 'Gmail Mark as Read',
   description: 'Mark a Gmail message as read',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -85,6 +86,7 @@ export const gmailMarkReadV2Tool: InternalToolConfig<GmailMarkReadParams, GmailM
   name: 'Gmail Mark as Read',
   description: 'Mark a Gmail message as read.',
   version: '2.0.0',
+  effect: 'write',
   oauth: gmailMarkReadTool.oauth,
   params: gmailMarkReadTool.params,
   operation: gmailMarkReadTool.operation,

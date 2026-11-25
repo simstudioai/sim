@@ -8,6 +8,7 @@ export const listNotesTool: ToolConfig<GranolaListNotesParams, GranolaListNotesR
   name: 'Granola List Notes',
   description: 'Lists meeting notes from Granola with optional date filters and pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {

@@ -19,6 +19,7 @@ export const terminateClusterTool: ToolConfig<
   name: 'Databricks Terminate Cluster',
   description: 'Terminate a compute cluster while retaining its configuration for a later restart.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

@@ -14,6 +14,7 @@ export const enableStageTransitionTool: InternalToolConfig<
   description:
     'Re-enable artifacts transitioning into or out of a CodePipeline stage after it was disabled',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const agentphoneCreateCallTool: ToolConfig<
   name: 'Create Outbound Call',
   description: 'Initiate an outbound voice call from an AgentPhone agent',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

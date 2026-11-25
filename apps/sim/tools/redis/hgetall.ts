@@ -6,6 +6,7 @@ export const redisHGetAllTool: InternalToolConfig<RedisHGetAllParams, RedisHGetA
   name: 'Redis HGETALL',
   description: 'Get all fields and values of a hash stored at a key in Redis.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

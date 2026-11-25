@@ -14,6 +14,7 @@ export const agentphoneListContactsTool: ToolConfig<
   name: 'List Contacts',
   description: 'List contacts for this AgentPhone account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

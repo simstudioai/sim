@@ -8,6 +8,7 @@ export const ripplingCreateCustomSettingTool: ToolConfig<RipplingCreateCustomSet
   name: 'Rippling Create Custom Setting',
   description: 'Create a new custom setting',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

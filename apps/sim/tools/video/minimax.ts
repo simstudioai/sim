@@ -7,6 +7,7 @@ export const minimaxVideoTool: InternalToolConfig<VideoParams, VideoResponse> = 
   name: 'MiniMax Video',
   description: 'Generate videos using MiniMax H3 and Hailuo models',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     provider: {

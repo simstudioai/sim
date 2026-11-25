@@ -10,6 +10,7 @@ export const agiloftAsyncStatusTool: InternalToolConfig<
   description:
     'Check whether an asynchronous Agiloft call, such as a run action button, has completed.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     instanceUrl: {

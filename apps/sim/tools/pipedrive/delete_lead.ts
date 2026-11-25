@@ -17,6 +17,7 @@ export const pipedriveDeleteLeadTool: ToolConfig<
   name: 'Delete Lead from Pipedrive',
   description: 'Delete a specific lead from Pipedrive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

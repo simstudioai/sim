@@ -27,6 +27,7 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
   name: 'Outlook Update Calendar Event',
   description: 'Update an existing Outlook calendar event',
   version: '1.0.0',
+  effect: 'write',
 
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 

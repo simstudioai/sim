@@ -12,6 +12,7 @@ export const cbinsightsGetScoutingReportTool: InternalToolConfig<
   description:
     'Generate an AI-written Scouting Report on a private company covering its business model, market position, strengths, and opportunities. Only active companies are eligible, and generation can take several minutes.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

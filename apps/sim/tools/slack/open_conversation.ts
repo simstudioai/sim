@@ -8,6 +8,7 @@ export const slackOpenConversationTool = createSlackWebApiTool({
   name: 'Slack Open Conversation',
   description:
     'Open a DM or group DM with 1–8 user IDs, or resume a conversation by ID. Supply exactly one target; omit the calling user from User IDs.',
+  effect: 'write',
   endpoint: 'conversations.open',
   method: 'POST',
   oauth: { required: true, provider: 'slack', requiredScopes: [] },

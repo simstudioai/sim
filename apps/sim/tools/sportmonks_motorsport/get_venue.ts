@@ -30,6 +30,7 @@ export const sportmonksMotorsportGetVenueTool: ToolConfig<
   name: 'Get Venue by ID',
   description: 'Retrieve a single motorsport venue (racing track) by its ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

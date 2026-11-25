@@ -30,6 +30,7 @@ export const rabbitmqGetOverviewTool: ToolConfig<
   description:
     'Read broker-wide RabbitMQ status: version, cluster name, object totals, queue depth totals, and message rates.',
   version: '1.0.0',
+  effect: 'read',
 
   params: { ...RABBITMQ_CONNECTION_PARAMS },
 

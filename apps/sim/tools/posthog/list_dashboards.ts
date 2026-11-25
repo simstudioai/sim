@@ -41,6 +41,7 @@ export const listDashboardsTool: ToolConfig<
   description:
     'List all dashboards in a PostHog project. Returns dashboard configurations, tiles, and metadata.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

@@ -17,6 +17,7 @@ export const clickupCreateChecklistTool: ToolConfig<
   name: 'ClickUp Create Checklist',
   description: 'Add a new checklist to a ClickUp task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -15,6 +15,7 @@ export const gitlabListRepositoryTreeTool: ToolConfig<
   name: 'GitLab List Repository Tree',
   description: 'List files and directories in a GitLab project repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

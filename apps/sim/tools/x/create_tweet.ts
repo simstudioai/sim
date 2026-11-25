@@ -9,6 +9,7 @@ export const xCreateTweetTool: ToolConfig<XCreateTweetParams, XCreateTweetRespon
   name: 'X Create Tweet',
   description: 'Create a new tweet, reply, or quote tweet on X',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -12,6 +12,7 @@ export const getExpenseReportTool: InternalToolConfig<GetExpenseReportParams, Sa
   description:
     'Retrieve a single expense report header by id via Expense Report v4 (/expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

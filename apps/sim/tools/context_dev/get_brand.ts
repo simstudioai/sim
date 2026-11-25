@@ -18,6 +18,7 @@ export const contextDevGetBrandTool: ToolConfig<ContextDevGetBrandParams, Contex
     description:
       'Retrieve brand data for a domain: logos, colors, backdrops, socials, address, and industry.',
     version: '1.0.0',
+    effect: 'read',
 
     hosting: contextDevHosting<ContextDevGetBrandParams>(),
 

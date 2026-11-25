@@ -7,6 +7,7 @@ export const ripplingCreateCustomAppTool: ToolConfig<RipplingCreateCustomAppPara
   name: 'Rippling Create Custom App',
   description: 'Create a new custom app',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

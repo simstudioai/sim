@@ -13,6 +13,7 @@ export const revenuecatGetCustomerTool: ToolConfig<GetCustomerParams, CustomerRe
   name: 'RevenueCat Get Customer',
   description: 'Retrieve subscriber information by app user ID',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

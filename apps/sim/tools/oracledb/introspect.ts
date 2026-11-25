@@ -21,6 +21,7 @@ export const oracleIntrospectTool: InternalToolConfig<
   description:
     'Inspect accessible Oracle tables, columns, keys, non-primary-key indexes, and table-owning schemas using ALL_* dictionary views',
   version: '1.0.0',
+  effect: 'read',
   oauth: oracleDatabaseOAuth,
   params: {
     ...ORACLE_CONNECTION_PARAMS,

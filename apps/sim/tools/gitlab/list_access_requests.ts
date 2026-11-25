@@ -15,6 +15,7 @@ export const gitlabListAccessRequestsTool: ToolConfig<
   name: 'GitLab List Access Requests',
   description: 'List pending access requests for a GitLab project or group',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

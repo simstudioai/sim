@@ -14,6 +14,7 @@ export const createCalendarTool: ToolConfig<
   name: 'Google Calendar Create Calendar',
   description: 'Create a new secondary calendar',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -115,6 +116,7 @@ export const createCalendarV2Tool: ToolConfig<
   name: 'Google Calendar Create Calendar',
   description: 'Create a new secondary calendar.',
   version: '2.0.0',
+  effect: 'write',
   oauth: createCalendarTool.oauth,
   params: createCalendarTool.params,
   request: createCalendarTool.request,

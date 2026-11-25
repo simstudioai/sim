@@ -17,6 +17,7 @@ export const hubspotUpdateAppointmentTool: ToolConfig<
   name: 'Update Appointment in HubSpot',
   description: 'Update an existing appointment in HubSpot by ID',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

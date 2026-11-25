@@ -25,6 +25,7 @@ export const quickbooksCreateRefundReceiptTool: ToolConfig<
   name: 'QuickBooks Create Refund Receipt',
   description: 'Create a customer refund receipt against a required deposit account',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

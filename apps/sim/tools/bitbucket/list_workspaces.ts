@@ -30,6 +30,7 @@ export const bitbucketListWorkspacesTool: ToolConfig<
   name: 'Bitbucket List Workspaces',
   description: 'List Bitbucket Cloud workspaces available to the authenticated account',
   version: '1.0.0',
+  effect: 'read',
   /**
    * Lists the workspaces of the person who connected the account, so it needs a
    * person's OAuth account. A saved access token belongs to a workspace, project,

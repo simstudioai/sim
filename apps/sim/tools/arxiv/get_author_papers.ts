@@ -10,6 +10,7 @@ export const getAuthorPapersTool: ToolConfig<
   name: 'ArXiv Get Author Papers',
   description: 'Search for papers by a specific author on ArXiv.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     authorName: {

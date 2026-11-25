@@ -31,6 +31,7 @@ export const sportmonksOddsGetPremiumOddsByFixtureTool: ToolConfig<
   description:
     'Retrieve premium (historical) pre-match odds for a fixture from the Sportmonks Odds API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

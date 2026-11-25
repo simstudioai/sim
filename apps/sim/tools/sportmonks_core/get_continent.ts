@@ -30,6 +30,7 @@ export const sportmonksCoreGetContinentTool: ToolConfig<
   name: 'Get Continent by ID',
   description: 'Retrieve a single continent by its ID from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

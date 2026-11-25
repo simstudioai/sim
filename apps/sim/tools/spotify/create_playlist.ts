@@ -12,6 +12,7 @@ export const spotifyCreatePlaylistTool: ToolConfig<
   name: 'Spotify Create Playlist',
   description: 'Create a new playlist for the current user on Spotify.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

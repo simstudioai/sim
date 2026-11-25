@@ -21,6 +21,7 @@ export const listCategoriesTool: ToolConfig<
   description:
     'List all Downdetector categories (e.g. "Telecom", "Gaming", "Social Media"). Use the returned category id to filter company searches.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

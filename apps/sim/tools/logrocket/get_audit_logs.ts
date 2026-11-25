@@ -14,6 +14,7 @@ export const getAuditLogsTool: ToolConfig<
   description:
     'Export audit log entries from LogRocket, recording who viewed sessions and what actions were taken. Paginated with a cursor.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

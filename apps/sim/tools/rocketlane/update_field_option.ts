@@ -19,6 +19,7 @@ export const rocketlaneUpdateFieldOptionTool: ToolConfig<
   description:
     'Update the label or color of an existing option on a SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

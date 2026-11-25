@@ -14,6 +14,7 @@ export const clickupRemoveTagFromTaskTool: ToolConfig<
   name: 'ClickUp Remove Tag From Task',
   description: 'Remove a tag from a ClickUp task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

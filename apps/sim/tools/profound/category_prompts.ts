@@ -11,6 +11,7 @@ export const profoundCategoryPromptsTool: ToolConfig<
   name: 'Profound Category Prompts',
   description: 'List prompts for a specific category in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

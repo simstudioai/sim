@@ -13,6 +13,7 @@ export const checkAssignmentStatusTool: InternalToolConfig<
   name: 'Identity Center Check Assignment Status',
   description: 'Check the provisioning status of an account assignment creation request',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -24,6 +24,7 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
   name: 'Jira Assign Issue',
   description: 'Assign a Jira issue to a user',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

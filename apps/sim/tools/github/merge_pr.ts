@@ -8,6 +8,7 @@ export const mergePRTool: ToolConfig<MergePRParams, MergeResultResponse> = {
   name: 'GitHub Merge Pull Request',
   description: 'Merge a pull request in a GitHub repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -134,6 +135,7 @@ export const mergePRV2Tool: ToolConfig<MergePRParams, any> = {
   name: mergePRTool.name,
   description: mergePRTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: mergePRTool.params,
   request: mergePRTool.request,

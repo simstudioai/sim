@@ -16,6 +16,7 @@ export const gaugeListCategoriesTool: ToolConfig<
   name: 'Gauge List Categories',
   description: 'List the AI-search categories configured for an organization.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

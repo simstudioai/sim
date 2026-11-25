@@ -8,6 +8,7 @@ export const cancelDowntimeTool: ToolConfig<CancelDowntimeParams, CancelDowntime
   name: 'Datadog Cancel Downtime',
   description: 'Cancel a scheduled downtime.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

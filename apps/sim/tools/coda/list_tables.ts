@@ -22,10 +22,11 @@ import type { ToolConfig } from '@/tools/types'
 
 export const codaListTablesTool: ToolConfig<CodaListTablesParams, CodaListTablesResponse> = {
   id: 'coda_list_tables',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Coda List Tables',
   description: 'List the tables and views in a Coda doc',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

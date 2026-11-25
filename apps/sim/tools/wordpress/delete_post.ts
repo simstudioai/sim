@@ -11,6 +11,7 @@ export const deletePostTool: ToolConfig<WordPressDeletePostParams, WordPressDele
   name: 'WordPress Delete Post',
   description: 'Delete a blog post from WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

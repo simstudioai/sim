@@ -12,6 +12,7 @@ export const introspectTool: InternalToolConfig<MSSQLIntrospectParams, MSSQLIntr
   description:
     'Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes. Results only cover objects the login can see, so a low-privilege account returns a partial schema rather than an error',
   version: '1.0',
+  effect: 'read',
   oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {

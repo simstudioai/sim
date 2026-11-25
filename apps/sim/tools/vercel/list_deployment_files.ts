@@ -14,6 +14,7 @@ export const vercelListDeploymentFilesTool: ToolConfig<
   name: 'Vercel List Deployment Files',
   description: 'List files in a Vercel deployment',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

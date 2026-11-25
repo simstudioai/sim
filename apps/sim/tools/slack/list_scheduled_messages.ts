@@ -14,6 +14,7 @@ export const slackListScheduledMessagesTool: ToolConfig<
   description:
     'List pending scheduled messages in a Slack workspace, optionally filtered by channel.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

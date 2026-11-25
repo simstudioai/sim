@@ -6,6 +6,7 @@ export const dropboxMoveTool: ToolConfig<DropboxMoveParams, DropboxMoveResponse>
   name: 'Dropbox Move',
   description: 'Move or rename a file or folder in Dropbox',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

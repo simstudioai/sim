@@ -8,6 +8,7 @@ export const listThemesTool: ToolConfig<GammaListThemesParams, GammaListThemesRe
   description:
     'List available themes in your Gamma workspace. Returns theme IDs, names, and keywords for styling.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GAMMA_CREDENTIAL_OAUTH,
 
   params: {

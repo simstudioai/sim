@@ -24,6 +24,7 @@ export const codaListWorkspaceRolesTool: ToolConfig<
   description:
     'Get monthly counts of active and inactive Admins, Doc Makers, and Editors in a workspace. The workspace must belong to an organization.',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

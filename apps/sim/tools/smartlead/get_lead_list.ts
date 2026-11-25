@@ -22,6 +22,7 @@ export const getLeadListTool: ToolConfig<GetLeadListParams, SmartleadLeadListRes
   name: 'Smartlead Get Lead List',
   description: 'Retrieves a single Smartlead lead list by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

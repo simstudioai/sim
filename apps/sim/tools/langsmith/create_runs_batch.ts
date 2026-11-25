@@ -21,6 +21,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
   name: 'LangSmith Create Runs Batch',
   description: 'Forward multiple runs to LangSmith in a single batch.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     region: LANGSMITH_REGIONS.param,

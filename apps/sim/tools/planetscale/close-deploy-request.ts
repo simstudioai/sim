@@ -23,6 +23,7 @@ export const planetScaleCloseDeployRequestTool: ToolConfig<
   name: 'PlanetScale Close Deploy Request',
   description: 'Close a deploy request (Vitess only)',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

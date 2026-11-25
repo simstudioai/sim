@@ -17,6 +17,7 @@ export const listTagsTool: ToolConfig<CirclebackListTagsParams, CirclebackTagLis
   name: 'Circleback List Tags',
   description: 'Lists every tag available to the authenticated Circleback user.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

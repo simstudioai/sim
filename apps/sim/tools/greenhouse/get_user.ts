@@ -8,6 +8,7 @@ export const greenhouseGetUserTool: ToolConfig<GreenhouseGetUserParams, Greenhou
     name: 'Greenhouse Get User',
     description: 'Retrieves a specific Greenhouse user by ID',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       apiKey: {

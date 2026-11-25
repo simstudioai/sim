@@ -23,6 +23,7 @@ export const mailchimpUnscheduleCampaignTool: ToolConfig<
   name: 'Unschedule Campaign in Mailchimp',
   description: 'Unschedule a previously scheduled Mailchimp campaign',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

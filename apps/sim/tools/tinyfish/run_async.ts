@@ -26,6 +26,7 @@ export const runAsyncTool: ToolConfig<TinyFishRunAsyncParams, TinyFishRunAsyncRe
   description:
     'Queue a TinyFish web agent run and return its run ID immediately, without waiting for the automation to finish',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...AUTOMATION_TOOL_PARAMS,

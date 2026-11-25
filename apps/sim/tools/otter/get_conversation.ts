@@ -23,6 +23,7 @@ export const otterGetConversationTool: ToolConfig<
   description:
     'Get an Otter conversation with its summary and details, plus any requested action items, insights, outline, and transcript.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const loopsGetTransactionalEmailTool: ToolConfig<
   description:
     'Retrieve a single transactional email template from your Loops account by its ID, including its data variables and draft/published message IDs.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {

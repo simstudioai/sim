@@ -20,6 +20,7 @@ export const planeDeleteCommentTool: ToolConfig<
   name: 'Plane Delete a comment',
   description: 'Delete a comment in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

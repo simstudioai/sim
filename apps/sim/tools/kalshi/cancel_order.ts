@@ -105,6 +105,7 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
     name: 'Cancel Order on Kalshi',
     description: 'Cancel an existing order on Kalshi',
     version: '1.0.0',
+    effect: 'write',
     oauth: KALSHI_CREDENTIAL_OAUTH,
 
     params: {
@@ -259,6 +260,7 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
   name: 'Cancel Order on Kalshi V2',
   description: 'Cancel an existing order on Kalshi',
   version: '2.0.0',
+  effect: 'write',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {

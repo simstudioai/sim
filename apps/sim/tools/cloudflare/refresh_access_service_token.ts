@@ -22,6 +22,7 @@ export const refreshAccessServiceTokenTool: ToolConfig<
   name: 'Cloudflare Refresh Access Service Token',
   description: 'Refreshes the expiration of a service token.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

@@ -15,6 +15,7 @@ export const listAuthenticationMethodsTool: ToolConfig<
   description:
     'List the authentication methods a user has registered, such as passwords, phone numbers, FIDO2 keys, and authenticator apps',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

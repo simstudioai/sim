@@ -13,6 +13,7 @@ export const listInstancesTool: InternalToolConfig<
   name: 'Identity Center List Instances',
   description: 'List all AWS IAM Identity Center instances in your account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

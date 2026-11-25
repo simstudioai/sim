@@ -7,6 +7,7 @@ export const quiverListModelsTool: ToolConfig<QuiverListModelsParams, QuiverList
   name: 'Quiver List Models',
   description: 'List all available QuiverAI models',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUIVER_CREDENTIAL_OAUTH,
 
   params: {

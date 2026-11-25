@@ -14,6 +14,7 @@ export const squareCancelInvoiceTool: ToolConfig<CancelInvoiceParams, InvoiceRes
   name: 'Square Cancel Invoice',
   description: 'Cancel a published invoice that is unpaid or partially paid',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

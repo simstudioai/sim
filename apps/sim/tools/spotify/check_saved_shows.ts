@@ -18,6 +18,7 @@ export const spotifyCheckSavedShowsTool: ToolConfig<
   name: 'Spotify Check Saved Shows',
   description: 'Check if shows are saved in library.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

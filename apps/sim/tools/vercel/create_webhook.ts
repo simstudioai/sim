@@ -10,6 +10,7 @@ export const vercelCreateWebhookTool: ToolConfig<
   name: 'Vercel Create Webhook',
   description: 'Create a new webhook for a Vercel team',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

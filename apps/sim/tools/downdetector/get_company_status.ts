@@ -19,6 +19,7 @@ export const getCompanyStatusTool: ToolConfig<
   description:
     'Get the current detected status for a Downdetector company. Returns "success" (no problems), "warning", or "danger" (likely outage).',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     companyId: {

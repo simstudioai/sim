@@ -27,6 +27,7 @@ export const deleteTableColumnTool: ToolConfig<DeleteTableColumnParams, DeleteTa
     name: 'Delete Table Column in Google Slides',
     description: 'Delete the column containing the reference cell from a table.',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: { required: true, provider: 'google-drive' },
 

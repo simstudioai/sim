@@ -34,6 +34,7 @@ export const sportmonksGetLiveProbabilitiesTool: ToolConfig<
   name: 'Get Live Probabilities',
   description: 'Retrieve all live (in-play) prediction probabilities from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

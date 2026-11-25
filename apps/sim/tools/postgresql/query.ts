@@ -7,6 +7,7 @@ export const queryTool: InternalToolConfig<PostgresQueryParams, PostgresQueryRes
   name: 'PostgreSQL Query',
   description: 'Execute a SELECT query on PostgreSQL database',
   version: '1.0',
+  effect: 'write',
   oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {

@@ -9,6 +9,7 @@ export const getCollectionTool: ToolConfig<HexGetCollectionParams, HexGetCollect
   name: 'Hex Get Collection',
   description: 'Retrieve details for a specific Hex collection by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

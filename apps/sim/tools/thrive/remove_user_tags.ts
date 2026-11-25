@@ -14,6 +14,7 @@ export const removeUserTagsTool: ToolConfig<ThriveRemoveUserTagsParams, ThriveMe
   name: 'Thrive Remove User Tags',
   description: 'Remove one or more tags from a learner in Thrive.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

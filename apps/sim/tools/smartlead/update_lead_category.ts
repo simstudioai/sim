@@ -27,6 +27,7 @@ export const updateLeadCategoryTool: ToolConfig<UpdateLeadCategoryParams, Smartl
     description:
       'Sets the category of a lead in a Smartlead campaign, such as Interested or Not Interested. Use List Lead Categories to resolve a category ID.',
     version: '1.0.0',
+    effect: 'write',
     oauth: SMARTLEAD_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
     params: {

@@ -24,6 +24,7 @@ export const listCampaignEmailAccountsTool: ToolConfig<
   name: 'Smartlead List Campaign Email Accounts',
   description: 'Retrieves the sending email accounts attached to a Smartlead campaign.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

@@ -11,6 +11,7 @@ export const tableGetSchemaTool: InternalToolConfig<TableGetSchemaParams, TableG
     name: 'Get Schema',
     description: 'Get the schema configuration of a table',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       tableId: TABLE_ID_PARAM,

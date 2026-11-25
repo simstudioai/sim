@@ -16,6 +16,7 @@ export const declineBookingTool: ToolConfig<
   name: 'Cal.com Decline Booking',
   description: 'Decline a pending booking request',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -18,6 +18,7 @@ export const quartrListEventTypesTool: ToolConfig<
   description:
     'List the event types available in Quartr (e.g., earnings calls), useful for filtering events by type ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

@@ -10,6 +10,7 @@ export const profoundListDomainsTool: ToolConfig<
   name: 'Profound List Domains',
   description: 'List all organization domains in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

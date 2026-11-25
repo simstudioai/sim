@@ -29,6 +29,7 @@ export const rabbitmqListQueuesTool: ToolConfig<
   description:
     'List queues in a RabbitMQ virtual host with their depth, consumer count, and configuration.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

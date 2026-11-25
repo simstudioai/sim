@@ -55,6 +55,7 @@ export const exportCampaignLeadsTool: ToolConfig<
   description:
     'Exports every lead in a Smartlead campaign as CSV, including engagement counts and the sequence step last sent to each lead.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

@@ -13,6 +13,7 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
   name: 'SendGrid Add Contact',
   description: 'Add a new contact to SendGrid',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

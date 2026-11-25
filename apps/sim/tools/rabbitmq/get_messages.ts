@@ -82,6 +82,7 @@ export const rabbitmqGetMessagesTool: ToolConfig<
   description:
     'Retrieve messages from a RabbitMQ queue. Defaults to requeueing the messages so they stay available to real consumers.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

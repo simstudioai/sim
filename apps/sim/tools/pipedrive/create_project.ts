@@ -16,6 +16,7 @@ export const pipedriveCreateProjectTool: ToolConfig<
   name: 'Create Project in Pipedrive',
   description: 'Create a new project in Pipedrive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

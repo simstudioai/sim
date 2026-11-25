@@ -13,6 +13,7 @@ export const deleteDashboardTool: ToolConfig<
   name: 'Grafana Delete Dashboard',
   description: 'Delete a dashboard by its UID',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

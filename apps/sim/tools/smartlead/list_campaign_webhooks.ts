@@ -24,6 +24,7 @@ export const listCampaignWebhooksTool: ToolConfig<
   name: 'Smartlead List Campaign Webhooks',
   description: 'Retrieves the webhooks registered on a Smartlead campaign.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

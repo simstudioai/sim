@@ -21,6 +21,7 @@ export const jamaGetRelationshipTool: ToolConfig<
   name: 'Jama Get Relationship',
   description: "Get Relationship in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

@@ -10,6 +10,7 @@ export const getTreeTool: ToolConfig<GetTreeParams, TreeResponse> = {
   description:
     'Get the contents of a directory in a GitHub repository. Returns a list of files and subdirectories. Use empty path or omit to get root directory contents.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -168,10 +169,11 @@ Total items: ${items.length}
 
 export const getTreeV2Tool: ToolConfig<GetTreeParams, any> = {
   id: 'github_get_tree_v2',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: getTreeTool.name,
   description: getTreeTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getTreeTool.params,
   request: getTreeTool.request,

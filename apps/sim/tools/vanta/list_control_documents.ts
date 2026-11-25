@@ -17,6 +17,7 @@ export const vantaListControlDocumentsTool: InternalToolConfig<
   name: 'Vanta List Control Documents',
   description: 'List the evidence documents mapped to a specific Vanta control',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -8,6 +8,7 @@ export const queryTool: InternalToolConfig<RdsQueryParams, RdsQueryResponse> = {
   name: 'RDS Query',
   description: 'Execute a SELECT query on Amazon RDS using the Data API',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

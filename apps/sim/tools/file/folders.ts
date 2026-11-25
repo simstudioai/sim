@@ -71,6 +71,7 @@ export const fileListTool: InternalToolConfig<ListParams, ToolResponse> = {
   description:
     'List what is inside a workspace folder: its subfolders and its files together. Lists direct children by default; set Recursive to walk the whole subtree.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     path: {
@@ -143,6 +144,7 @@ export const fileCreateFolderTool: InternalToolConfig<CreateFolderParams, ToolRe
   description:
     'Create a workspace file folder at a path. Parent folders are created as needed. Fails if a folder already exists at the path.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     path: {
@@ -178,6 +180,7 @@ export const fileUpdateFolderTool: InternalToolConfig<UpdateFolderParams, ToolRe
   description:
     'Move or rename a workspace file folder by giving its full destination path. Everything inside the folder moves with it.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     path: {
@@ -217,6 +220,7 @@ export const fileDeleteFolderTool: InternalToolConfig<DeleteFolderParams, ToolRe
   description:
     'Delete a workspace file folder. It moves to Recently deleted and can be brought back with Restore File Folder. Deleting a folder that still has contents requires the recursive option.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     path: {
@@ -266,6 +270,7 @@ export const fileRestoreFolderTool: InternalToolConfig<RestoreFolderParams, Tool
   description:
     'Restore a deleted workspace file folder and its contents from Recently deleted. Addressed by folder ID, because a deleted folder has no live path.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     folderId: {
@@ -301,6 +306,7 @@ export const fileMoveTool: InternalToolConfig<MoveFileParams, ToolResponse> = {
   description:
     'Move an existing workspace file into a folder. Moves the file itself; use Move File Folder to relocate a whole folder.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     fileId: {

@@ -12,6 +12,7 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
   name: 'Google Forms: Get Responses',
   description: 'Retrieve a single response or list responses from a Google Form',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

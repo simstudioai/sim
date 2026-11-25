@@ -20,6 +20,7 @@ export const trelloUpdateChecklistItemTool: ToolConfig<
   name: 'Trello Update Checklist Item',
   description: 'Check off, uncheck, or rename a Trello checklist item',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

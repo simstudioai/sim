@@ -16,6 +16,7 @@ export const listClientsTool: ToolConfig<SmartleadBaseParams, SmartleadOpaqueLis
   description:
     'Retrieves the clients on a Smartlead agency account, including the client IDs used to scope campaigns and email accounts.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

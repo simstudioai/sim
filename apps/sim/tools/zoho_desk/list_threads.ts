@@ -15,6 +15,7 @@ export const zohoDeskListThreadsTool: ToolConfig<ZohoDeskListThreadsParams, Zoho
   description:
     'List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content) come back only from Get Thread.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'zoho-desk' },
 

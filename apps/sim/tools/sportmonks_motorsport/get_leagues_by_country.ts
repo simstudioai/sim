@@ -36,6 +36,7 @@ export const sportmonksMotorsportGetLeaguesByCountryTool: ToolConfig<
   name: 'Get Leagues by Country',
   description: 'Retrieve all motorsport leagues for a country by country ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

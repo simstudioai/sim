@@ -11,6 +11,7 @@ export const deleteTagTool: ToolConfig<WordPressDeleteTagParams, WordPressDelete
   name: 'WordPress Delete Tag',
   description: 'Delete a tag from WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

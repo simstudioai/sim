@@ -20,6 +20,7 @@ export const terminateWorkflowTool: ToolConfig<
   description:
     'Forcefully terminate a Temporal workflow execution immediately, without giving the workflow a chance to react.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

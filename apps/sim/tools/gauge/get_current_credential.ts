@@ -19,6 +19,7 @@ export const gaugeGetCurrentCredentialTool: ToolConfig<
   name: 'Gauge Get Current Credential',
   description: 'Read the identity, permissions, and expiry of the connected Gauge API key.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

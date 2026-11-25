@@ -13,6 +13,7 @@ export const vercelCreateDeploymentTool: ToolConfig<
   name: 'Vercel Create Deployment',
   description: 'Create a new deployment or redeploy an existing one',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const loopsRemoveContactSuppressionTool: ToolConfig<
   description:
     'Remove a Loops contact from the suppression list by email address or userId, allowing them to receive emails again. Subject to a team removal quota.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const clerkUpdateUserTool: ToolConfig<ClerkUpdateUserParams, ClerkUpdateU
   name: 'Update User in Clerk',
   description: 'Update an existing user in your Clerk application',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

@@ -24,6 +24,7 @@ export const listIncidentsTool: ToolConfig<
   description:
     'Search ServiceNow incidents by state, priority, assignment, caller, or text. All filters are ANDed together.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

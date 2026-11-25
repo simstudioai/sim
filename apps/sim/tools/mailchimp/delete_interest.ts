@@ -22,6 +22,7 @@ export const mailchimpDeleteInterestTool: ToolConfig<
   name: 'Delete Interest from Mailchimp Interest Category',
   description: 'Delete an interest from an interest category in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

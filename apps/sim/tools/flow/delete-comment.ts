@@ -16,6 +16,7 @@ export const flowDeleteCommentTool: ToolConfig<FlowDeleteCommentParams, FlowDele
     name: 'Flow Delete Comment',
     description: 'Delete a comment authored by the connected user.',
     version: '1.0.0',
+    effect: 'write',
     oauth: FLOW_OAUTH,
     params: {
       ...FLOW_AUTH_PARAMS,

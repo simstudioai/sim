@@ -14,6 +14,7 @@ export const getReleaseTool: ToolConfig<GetReleaseParams, ReleaseResponse> = {
   description:
     'Get detailed information about a specific GitHub release by ID. Returns release metadata including assets and download URLs.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -123,6 +124,7 @@ export const getReleaseV2Tool: ToolConfig<GetReleaseParams, any> = {
   name: getReleaseTool.name,
   description: getReleaseTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getReleaseTool.params,
   request: getReleaseTool.request,

@@ -47,6 +47,7 @@ export const listSurveysTool: ToolConfig<PostHogListSurveysParams, PostHogListSu
   description:
     'List all surveys in a PostHog project. Surveys allow you to collect feedback from users.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

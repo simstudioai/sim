@@ -10,6 +10,7 @@ export const brandfetchSearchTool: ToolConfig<BrandfetchSearchParams, Brandfetch
   name: 'Brandfetch Search',
   description: 'Search for brands by name and find their domains and logos',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: 'BRANDFETCH_API_KEY',

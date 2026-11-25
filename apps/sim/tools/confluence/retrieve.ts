@@ -16,6 +16,7 @@ export const confluenceRetrieveTool: InternalToolConfig<
   name: 'Confluence Retrieve',
   description: 'Retrieve content from Confluence pages using the Confluence API.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

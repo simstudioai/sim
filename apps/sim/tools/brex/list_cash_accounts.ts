@@ -17,6 +17,7 @@ export const brexListCashAccountsTool: ToolConfig<
   name: 'Brex List Cash Accounts',
   description: 'List all Brex cash accounts with balances and account details',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

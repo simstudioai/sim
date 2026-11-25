@@ -34,6 +34,7 @@ export const railwayGetProjectTool: ToolConfig<RailwayGetProjectParams, RailwayG
     name: 'Railway Get Project',
     description: 'Get a Railway project with its services and environments',
     version: '1.0.0',
+    effect: 'read',
     oauth: RAILWAY_CREDENTIAL_OAUTH,
 
     params: {

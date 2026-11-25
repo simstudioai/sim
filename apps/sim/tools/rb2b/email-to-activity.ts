@@ -15,6 +15,7 @@ export const rb2bEmailToActivityTool: ToolConfig<
   name: 'RB2B Email to Last Active Date',
   description: 'Return the last known active date for an email address.',
   version: '1.0.0',
+  effect: 'read',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

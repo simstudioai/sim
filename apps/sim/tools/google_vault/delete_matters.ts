@@ -8,6 +8,7 @@ export const deleteMattersTool: ToolConfig<GoogleVaultMatterActionParams> = {
   name: 'Vault Delete Matter',
   description: 'Permanently delete a matter (must be closed first)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -30,6 +30,7 @@ export const mailchimpAddMemberTagsTool: ToolConfig<
   name: 'Add Tags to Member in Mailchimp',
   description: 'Add tags to a member in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

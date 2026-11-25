@@ -17,6 +17,7 @@ export const startClusterTool: ToolConfig<DatabricksStartClusterParams, Databric
     name: 'Databricks Start Cluster',
     description: 'Start a terminated all-purpose compute cluster.',
     version: '1.0.0',
+    effect: 'write',
     oauth: DATABRICKS_CREDENTIAL_OAUTH,
     params: {
       ...DATABRICKS_AUTH_PARAMS,

@@ -22,6 +22,7 @@ export const listUserDevicesTool: ToolConfig<
   description:
     'List the devices a user has registered or owns. Devices the caller cannot read are returned with only their ID and the remaining fields null.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

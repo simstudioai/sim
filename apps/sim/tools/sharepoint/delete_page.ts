@@ -7,6 +7,7 @@ export const deletePageTool: ToolConfig<SharepointToolParams, SharepointDeletePa
   name: 'Delete SharePoint Page',
   description: 'Delete a page from a SharePoint site',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

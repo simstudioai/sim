@@ -7,6 +7,7 @@ export const updateTool: InternalToolConfig<DynamoDBUpdateParams, DynamoDBUpdate
   name: 'DynamoDB Update',
   description: 'Update an item in a DynamoDB table',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -16,6 +16,7 @@ export const parseTool: InternalToolConfig<ParseParams, ParseResponse> = {
   description:
     'Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     file: {

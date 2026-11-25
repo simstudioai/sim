@@ -31,6 +31,7 @@ export const confluenceUploadAttachmentTool: InternalToolConfig<
   name: 'Confluence Upload Attachment',
   description: 'Upload a file as an attachment to a Confluence page.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

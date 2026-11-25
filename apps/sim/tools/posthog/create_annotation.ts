@@ -40,6 +40,7 @@ export const createAnnotationTool: ToolConfig<
   description:
     'Create a new annotation in PostHog. Mark important events on your graphs with date and description.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'posthog-errors',
 
   params: {

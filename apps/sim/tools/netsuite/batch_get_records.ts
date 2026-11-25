@@ -11,6 +11,7 @@ export const netsuiteBatchGetRecordsTool: InternalToolConfig<
   name: 'NetSuite Batch Get Records',
   description: 'Submit an asynchronous request to retrieve up to 100 records of one type.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

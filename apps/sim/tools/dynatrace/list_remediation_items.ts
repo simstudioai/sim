@@ -23,6 +23,7 @@ export const listRemediationItemsTool: ToolConfig<
   description:
     'List the remediation items of a third-party vulnerability — the components to upgrade, their affected entities, and their mute state.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

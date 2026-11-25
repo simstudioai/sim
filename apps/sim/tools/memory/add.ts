@@ -6,6 +6,7 @@ export const memoryAddTool: InternalToolConfig<MemoryAddParams, MemoryResponse> 
   name: 'Add Memory',
   description: 'Add a new memory to the database or append to existing memory with the same ID.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     conversationId: {

@@ -9,6 +9,7 @@ export const gitlabCreateFileTool: ToolConfig<GitLabCreateFileParams, GitLabCrea
   name: 'GitLab Create File',
   description: 'Create a new file in a GitLab project repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

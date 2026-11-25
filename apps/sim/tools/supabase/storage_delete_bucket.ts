@@ -15,6 +15,7 @@ export const storageDeleteBucketTool: ToolConfig<
   name: 'Supabase Storage Delete Bucket',
   description: 'Delete a storage bucket in Supabase',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

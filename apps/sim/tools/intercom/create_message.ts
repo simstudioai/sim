@@ -146,6 +146,7 @@ export const intercomCreateMessageTool: ToolConfig<
   name: 'Create Message in Intercom',
   description: 'Create and send a new admin-initiated message in Intercom',
   version: '1.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...createMessageBase,
@@ -207,6 +208,7 @@ export const intercomCreateMessageV2Tool: ToolConfig<
   description:
     'Create and send a new admin-initiated message in Intercom. Returns API-aligned fields only.',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

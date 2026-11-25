@@ -47,6 +47,7 @@ export const tiktokGetUserTool: ToolConfig<TikTokGetUserParams, TikTokGetUserRes
   description:
     'Get the authenticated TikTok user profile information including display name, avatar, bio, follower count, and video statistics.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

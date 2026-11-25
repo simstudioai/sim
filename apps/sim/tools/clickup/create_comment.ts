@@ -18,6 +18,7 @@ export const clickupCreateCommentTool: ToolConfig<
   name: 'ClickUp Create Comment',
   description: 'Add a comment to a ClickUp task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

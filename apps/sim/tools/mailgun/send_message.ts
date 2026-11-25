@@ -8,6 +8,7 @@ export const mailgunSendMessageTool: ToolConfig<SendMessageParams, SendMessageRe
   name: 'Mailgun Send Message',
   description: 'Send an email using Mailgun API',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {

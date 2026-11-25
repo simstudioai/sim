@@ -30,6 +30,7 @@ export const railwayListDeploymentsTool: ToolConfig<
   name: 'Railway List Deployments',
   description: 'List deployments for a Railway service in an environment',
   version: '1.0.0',
+  effect: 'read',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

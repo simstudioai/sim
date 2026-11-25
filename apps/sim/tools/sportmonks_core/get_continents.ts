@@ -34,6 +34,7 @@ export const sportmonksCoreGetContinentsTool: ToolConfig<
   name: 'Get Continents',
   description: 'Retrieve all continents from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

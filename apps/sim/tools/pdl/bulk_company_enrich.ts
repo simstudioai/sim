@@ -32,6 +32,7 @@ export const bulkCompanyEnrichTool: ToolConfig<
   description:
     'Enrich up to 100 companies in a single call. Provide a JSON array of request objects, each with a `params` object. Reference: https://docs.peopledatalabs.com/docs/bulk-company-enrichment-api',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,

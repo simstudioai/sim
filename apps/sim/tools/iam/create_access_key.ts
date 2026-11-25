@@ -10,6 +10,7 @@ export const createAccessKeyTool: InternalToolConfig<
   name: 'IAM Create Access Key',
   description: 'Create a new access key pair for an IAM user',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

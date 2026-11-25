@@ -8,6 +8,7 @@ export const deleteMattersExportTool: ToolConfig<GoogleVaultDeleteMattersExportP
   name: 'Vault Delete Export',
   description: 'Delete an export from a matter',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

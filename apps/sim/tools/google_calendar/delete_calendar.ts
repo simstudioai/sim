@@ -29,6 +29,7 @@ export const deleteCalendarTool: ToolConfig<
   name: 'Google Calendar Delete Calendar',
   description: 'Permanently delete a secondary calendar (not the primary calendar)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -103,6 +104,7 @@ export const deleteCalendarV2Tool: ToolConfig<
   name: 'Google Calendar Delete Calendar',
   description: 'Permanently delete a secondary calendar.',
   version: '2.0.0',
+  effect: 'write',
   oauth: deleteCalendarTool.oauth,
   params: deleteCalendarTool.params,
   request: deleteCalendarTool.request,

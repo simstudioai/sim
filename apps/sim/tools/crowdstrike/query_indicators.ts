@@ -17,6 +17,7 @@ export const crowdstrikeQueryIndicatorsTool: InternalToolConfig<
   description:
     'Search custom CrowdStrike Falcon indicators of compromise (IOCs) with a Falcon Query Language filter and return their IDs (GET /iocs/queries/indicators/v1). Requires the "IOC Management: Read" API scope.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

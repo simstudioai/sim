@@ -15,6 +15,7 @@ export const extractTool: ToolConfig<ParallelExtractParams, ToolResponse> = {
   description:
     'Extract targeted information from specific URLs using Parallel AI. Processes provided URLs to pull relevant content based on your objective.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: 'PARALLEL_API_KEY',

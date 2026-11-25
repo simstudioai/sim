@@ -14,6 +14,7 @@ export const airtableListTablesTool: ToolConfig<
   name: 'Airtable List Tables',
   description: 'List all tables and their schema in an Airtable base',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

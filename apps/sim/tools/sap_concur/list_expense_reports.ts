@@ -11,6 +11,7 @@ export const listExpenseReportsTool: InternalToolConfig<
   description:
     'List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope with Items and NextPage.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

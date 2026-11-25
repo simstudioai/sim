@@ -69,6 +69,7 @@ export const flintGeneratePagesTool: ToolConfig<
   description:
     'Start a background Flint agent task that generates up to 10 pages from a template page.',
   version: '1.0.0',
+  effect: 'write',
   oauth: FLINT_CREDENTIAL_OAUTH,
 
   params: {

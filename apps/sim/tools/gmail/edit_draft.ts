@@ -33,6 +33,7 @@ export const gmailEditDraftV2Tool: InternalToolConfig<
   name: 'Gmail Edit Draft',
   description: 'Update an existing Gmail draft in place without deleting and recreating it.',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -19,6 +19,7 @@ export const deleteTagTool: ToolConfig<CirclebackDeleteTagParams, CirclebackTagR
   description:
     'Permanently deletes a Circleback tag and removes it from every meeting it was applied to.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const uploadTool: InternalToolConfig<OneDriveToolParams, OneDriveUploadRe
   name: 'Upload to OneDrive',
   description: 'Upload a file to OneDrive',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

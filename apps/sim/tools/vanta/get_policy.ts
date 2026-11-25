@@ -10,6 +10,7 @@ export const vantaGetPolicyTool: InternalToolConfig<VantaGetPolicyParams, VantaG
     description:
       'Get a Vanta security policy by ID, including its approval status and latest approved version documents',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

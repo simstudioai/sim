@@ -17,6 +17,7 @@ export const createLabelTool: ToolConfig<JotformCreateLabelParams, JotformLabelR
   description:
     'Create a Jotform label for grouping forms and other assets, optionally nested under a parent label.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const listContactPointsTool: ToolConfig<
   name: 'Grafana List Contact Points',
   description: 'List all alert notification contact points',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

@@ -24,6 +24,7 @@ export const monacoUpdateAccountTool: ToolConfig<
   description:
     "Update fields on an existing Monaco account by ID. Only the fields sent change. Domains replace the account's whole domain list, and a domain another account already uses fails the request.",
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

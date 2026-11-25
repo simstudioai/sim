@@ -16,6 +16,7 @@ export const addAudienceMembersTool: ToolConfig<ThriveAudienceUsersParams, Thriv
     name: 'Thrive Add Audience Members',
     description: 'Add members to a Thrive audience by email, ref, or id.',
     version: '1.0.0',
+    effect: 'write',
     oauth: THRIVE_CREDENTIAL_OAUTH,
 
     params: {

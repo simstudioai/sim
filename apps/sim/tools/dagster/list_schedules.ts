@@ -60,6 +60,7 @@ export const listSchedulesTool: ToolConfig<
   name: 'Dagster List Schedules',
   description: 'List all schedules in a Dagster repository, optionally filtered by status.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

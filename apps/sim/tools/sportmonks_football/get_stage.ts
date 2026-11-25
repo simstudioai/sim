@@ -30,6 +30,7 @@ export const sportmonksGetStageTool: ToolConfig<
   name: 'Get Stage by ID',
   description: 'Retrieve a single football stage by its ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

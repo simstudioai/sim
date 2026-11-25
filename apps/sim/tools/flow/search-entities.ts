@@ -24,6 +24,7 @@ export const flowSearchEntitiesTool: ToolConfig<
   description:
     'Search live Flow entities by name, supported field values, or exact Flow/Human ID. Returns at most 100 compact matches; fetch entities for full values. Text results may be unavailable while the provider index warms.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

@@ -14,6 +14,7 @@ export const listEventTypeAvailableTimesTool: ToolConfig<
   name: 'Calendly List Event Type Available Times',
   description: 'Retrieve bookable time slots for an event type within a date range',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

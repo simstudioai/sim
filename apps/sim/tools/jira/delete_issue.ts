@@ -10,6 +10,7 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
   name: 'Jira Delete Issue',
   description: 'Delete a Jira issue',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

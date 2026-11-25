@@ -17,6 +17,7 @@ export const clickupGetCommentsTool: ToolConfig<
   description:
     'Retrieve comments on a ClickUp task, newest first (25 per page; paginate with start and startId)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -14,6 +14,7 @@ export const squareGetOrderTool: ToolConfig<GetOrderParams, OrderResponse> = {
   name: 'Square Get Order',
   description: 'Retrieve a single order by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

@@ -46,6 +46,7 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
   description:
     'Ask a Databricks Genie space a question in natural language and wait for the answer. Starts a new conversation, or continues an existing one when a conversation ID is given. Returns the text answer, the SQL Genie generated, and the query result rows.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

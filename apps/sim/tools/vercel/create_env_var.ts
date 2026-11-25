@@ -11,6 +11,7 @@ export const vercelCreateEnvVarTool: ToolConfig<
   name: 'Vercel Create Environment Variable',
   description: 'Create an environment variable for a Vercel project',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

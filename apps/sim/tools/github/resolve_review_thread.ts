@@ -26,6 +26,7 @@ export const resolveReviewThreadTool: ToolConfig<
   name: 'GitHub Resolve Review Thread',
   description: 'Mark a pull request review thread as resolved.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {

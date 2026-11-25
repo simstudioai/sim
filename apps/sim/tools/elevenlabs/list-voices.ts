@@ -14,6 +14,7 @@ export const elevenLabsListVoicesTool: ToolConfig<
   name: 'ElevenLabs List Voices',
   description: 'List the voices available in your ElevenLabs account',
   version: '1.0.0',
+  effect: 'read',
   oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {

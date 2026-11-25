@@ -17,6 +17,7 @@ export const cbinsightsGetExitProbabilityHistoryTool: InternalToolConfig<
   description:
     "Retrieve an organization's historical two-year IPO and M&A exit probabilities, each alongside the mean for comparable companies.",
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

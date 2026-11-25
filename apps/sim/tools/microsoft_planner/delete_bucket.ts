@@ -17,6 +17,7 @@ export const deleteBucketTool: ToolConfig<
   name: 'Delete Microsoft Planner Bucket',
   description: 'Delete a bucket from Microsoft Planner',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

@@ -33,6 +33,7 @@ export const updateCampaignSettingsTool: ToolConfig<
   name: 'Smartlead Update Campaign Settings',
   description: 'Updates tracking, stop-on-activity, and sending settings for a Smartlead campaign.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

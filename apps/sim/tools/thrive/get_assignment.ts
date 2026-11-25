@@ -10,6 +10,7 @@ export const getAssignmentTool: ToolConfig<ThriveGetAssignmentParams, ThriveAssi
   name: 'Thrive Get Assignment',
   description: 'Get a single compliance assignment in Thrive by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

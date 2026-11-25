@@ -12,6 +12,7 @@ export const uploadMediaTool: InternalToolConfig<
   name: 'WordPress Upload Media',
   description: 'Upload a media file (image, video, document) to WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

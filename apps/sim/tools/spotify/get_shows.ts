@@ -24,6 +24,7 @@ export const spotifyGetShowsTool: ToolConfig<SpotifyGetShowsParams, SpotifyGetSh
   name: 'Spotify Get Multiple Shows',
   description: 'Get details for multiple podcast shows.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

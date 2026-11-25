@@ -23,6 +23,7 @@ export const helpScoutUpdateCustomerTool: ToolConfig<
   description:
     'Update profile fields on a Help Scout customer and add an email address or phone number. Only the fields you provide are changed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

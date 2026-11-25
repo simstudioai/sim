@@ -23,6 +23,7 @@ export const contextDevIdentifyTransactionTool: ToolConfig<
   description:
     'Identify the brand behind a raw bank/card transaction descriptor and return its brand data.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevIdentifyTransactionParams>(),
 

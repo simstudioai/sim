@@ -22,6 +22,7 @@ export const railwayDeleteServiceTool: ToolConfig<
   name: 'Railway Delete Service',
   description: 'Delete a Railway service and all of its deployments',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

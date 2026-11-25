@@ -14,6 +14,7 @@ export const removePermissionTool: InternalToolConfig<
   name: 'Lambda Remove Permission',
   description: "Remove a statement from a function's resource-based policy",
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

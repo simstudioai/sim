@@ -6,6 +6,7 @@ export const deleteTool: InternalToolConfig<MongoDBDeleteParams, MongoDBResponse
   name: 'MongoDB Delete',
   description: 'Delete documents from MongoDB collection',
   version: '1.0',
+  effect: 'write',
 
   params: {
     host: {

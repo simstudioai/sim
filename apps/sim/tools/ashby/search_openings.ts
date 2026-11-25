@@ -20,6 +20,7 @@ export const searchOpeningsTool: ToolConfig<Params, Response> = {
   name: 'Ashby Search Openings',
   description: 'Searches Ashby headcount openings by human-readable identifier.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

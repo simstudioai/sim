@@ -27,6 +27,7 @@ export const setPublishSettingsTool: ToolConfig<
   name: 'Google Forms: Set Publish Settings',
   description: 'Update the publish settings of a form (publish/unpublish, accept responses)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

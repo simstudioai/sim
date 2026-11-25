@@ -12,6 +12,7 @@ export const rb2bLinkedinToBestPersonalEmailTool: ToolConfig<
   description:
     'Return the personal email with the most recent known network activity for a LinkedIn profile.',
   version: '1.0.0',
+  effect: 'read',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

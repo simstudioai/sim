@@ -10,6 +10,7 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
   name: 'incident.io Workflows Show',
   description: 'Get details of a specific workflow in incident.io.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

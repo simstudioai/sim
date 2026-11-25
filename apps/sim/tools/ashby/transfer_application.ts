@@ -25,6 +25,7 @@ export const transferApplicationTool: ToolConfig<Params, Response> = {
   name: 'Ashby Transfer Application',
   description: 'Transfers an application to another job, interview plan, and stage.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

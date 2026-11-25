@@ -22,6 +22,7 @@ export const stripePayInvoiceTool: ToolConfig<
   name: 'Stripe Pay Invoice',
   description: 'Pay an invoice',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

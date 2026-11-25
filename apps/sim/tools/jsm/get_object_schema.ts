@@ -9,6 +9,7 @@ export const jsmGetObjectSchemaTool: InternalToolConfig<
   name: 'JSM Get Asset Schema',
   description: 'Get a single Assets (Insight/CMDB) object schema by ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -28,6 +28,7 @@ export const personIdentifyTool: ToolConfig<PdlPersonIdentifyParams, PdlPersonId
   description:
     'Return up to 20 candidate person matches with confidence scores. Useful when you want to see all plausible matches rather than the single best one. Reference: https://docs.peopledatalabs.com/docs/identify-api-quickstart',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,

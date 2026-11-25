@@ -18,6 +18,7 @@ export const deleteContentRangeTool: ToolConfig<
   description:
     'Delete all content between a start and end character index in a Google Docs document. The endIndex is exclusive and must be greater than the startIndex.',
   version: '1.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'google-docs',

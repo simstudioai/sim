@@ -35,6 +35,7 @@ export const flintGetTaskTool: ToolConfig<FlintGetTaskParams, FlintGetTaskRespon
   name: 'Flint Get Task',
   description: 'Get the status and results of a background Flint agent task.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLINT_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const hubspotUpdateTicketTool: ToolConfig<
   name: 'Update Ticket in HubSpot',
   description: 'Update an existing ticket in HubSpot by ID',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

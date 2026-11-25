@@ -11,6 +11,7 @@ export const updateAccessKeyTool: InternalToolConfig<
   description:
     'Activate or deactivate an IAM access key — deactivate an old key and verify nothing breaks before deleting it',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

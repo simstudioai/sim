@@ -410,6 +410,13 @@ const v2HostedApiKeySchema = z
     'API-key hosting on this deployment: `always`, `conditional` for some parameter combinations, or `none` when Sim does not supply a key. Supply your own key only if the tool requires one. Self-hosted deployments report `none` for every tool.'
   )
 
+/** A tool's declared effect, shared by every catalog that names one. */
+export const v2ToolEffectSchema = z
+  .enum(['read', 'write'])
+  .describe(
+    'What running the tool does outside Sim: `read` changes nothing (no create, update, delete, send, charge, or trigger), so a dry run executes it; `write` is anything else, including an effect that depends on the input.'
+  )
+
 const v2ToolOAuthSchema = z.object({
   required: z.boolean().describe('Whether the tool cannot run without an OAuth credential.'),
   provider: z.string().describe('OAuth service the credential must authenticate.'),
@@ -423,6 +430,7 @@ export const v2ToolSummarySchema = z
     name: z.string().describe('Display name.'),
     description: z.string().describe('What the tool does.'),
     version: z.string().optional().describe('Tool version.'),
+    effect: v2ToolEffectSchema,
     hostedApiKey: v2HostedApiKeySchema,
     oauth: v2ToolOAuthSchema.optional().describe('OAuth requirement, when the tool has one.'),
   })
@@ -563,6 +571,7 @@ const v2OperationInputSchema = z
 const v2BlockOperationSchema = z.object({
   toolId: z.string().optional().describe('Built-in tool that performs this operation.'),
   toolName: z.string().optional().describe('Display name of that tool.'),
+  effect: v2ToolEffectSchema.optional().describe("That tool's effect."),
   description: z.string().optional().describe('What the operation does.'),
   inputs: z
     .record(z.string(), v2OperationInputSchema)

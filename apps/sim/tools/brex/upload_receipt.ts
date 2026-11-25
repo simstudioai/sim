@@ -10,6 +10,7 @@ export const brexUploadReceiptTool: InternalToolConfig<
   name: 'Brex Upload Receipt',
   description: 'Upload a receipt file and attach it to a specific Brex card expense',
   version: '1.0.0',
+  effect: 'write',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

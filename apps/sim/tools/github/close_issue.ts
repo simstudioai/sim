@@ -9,6 +9,7 @@ export const closeIssueTool: ToolConfig<CloseIssueParams, IssueResponse> = {
   name: 'GitHub Close Issue',
   description: 'Close an issue in a GitHub repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -123,6 +124,7 @@ export const closeIssueV2Tool: ToolConfig<CloseIssueParams, any> = {
   name: closeIssueTool.name,
   description: closeIssueTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: closeIssueTool.params,
   request: closeIssueTool.request,

@@ -8,6 +8,7 @@ export const ripplingDeleteCustomObjectTool: ToolConfig<RipplingDeleteCustomObje
   name: 'Rippling Delete Custom Object',
   description: 'Delete a custom object',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

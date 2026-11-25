@@ -9,6 +9,7 @@ export const generateTool: ToolConfig<GammaGenerateParams, GammaGenerateResponse
   description:
     'Generate a new Gamma presentation, document, webpage, or social post from text input.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GAMMA_CREDENTIAL_OAUTH,
 
   params: {

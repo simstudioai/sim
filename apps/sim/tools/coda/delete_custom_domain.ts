@@ -20,6 +20,7 @@ export const codaDeleteCustomDomainTool: ToolConfig<
   name: 'Coda Delete Custom Domain',
   description: 'Remove a custom domain from a published Coda doc',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

@@ -18,6 +18,7 @@ export const listAttachmentsTool: ToolConfig<
   name: 'List ServiceNow Attachments',
   description: 'List the attachments on a ServiceNow record',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

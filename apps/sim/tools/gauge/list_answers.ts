@@ -20,6 +20,7 @@ export const gaugeListAnswersTool: ToolConfig<GaugeListAnswersParams, GaugeListA
   description:
     'List one page of collected AI answers using date, model, prompt, and brand filters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

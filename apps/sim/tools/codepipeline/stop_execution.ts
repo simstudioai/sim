@@ -14,6 +14,7 @@ export const stopExecutionTool: InternalToolConfig<
   description:
     'Stop a CodePipeline pipeline execution, either finishing in-progress actions or abandoning them',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

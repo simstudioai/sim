@@ -15,6 +15,7 @@ export const launchDarklyToggleFlagTool: ToolConfig<
   name: 'LaunchDarkly Toggle Flag',
   description: 'Toggle a feature flag on or off in a specific LaunchDarkly environment.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

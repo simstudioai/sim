@@ -13,6 +13,7 @@ export const similarwebWebsiteOverviewTool: ToolConfig<
   name: 'SimilarWeb Website Overview',
   description: 'Get website traffic, rankings, engagement, and traffic sources.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {

@@ -11,6 +11,7 @@ export const attioGetTaskTool: ToolConfig<AttioGetTaskParams, AttioGetTaskRespon
   name: 'Attio Get Task',
   description: 'Get a single task by ID from Attio',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

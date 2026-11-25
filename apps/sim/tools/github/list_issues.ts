@@ -15,6 +15,7 @@ export const listIssuesTool: ToolConfig<ListIssuesParams, IssuesListResponse> = 
   description:
     'List issues in a GitHub repository. Note: This includes pull requests as PRs are considered issues in GitHub',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -184,6 +185,7 @@ export const listIssuesV2Tool: ToolConfig<ListIssuesParams, any> = {
   name: listIssuesTool.name,
   description: listIssuesTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listIssuesTool.params,
   request: listIssuesTool.request,

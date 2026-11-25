@@ -14,6 +14,7 @@ export const storageCreateSignedUrlTool: ToolConfig<
   name: 'Supabase Storage Create Signed URL',
   description: 'Create a temporary signed URL for a file in a Supabase storage bucket',
   version: '1.0.0',
+  effect: 'read',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

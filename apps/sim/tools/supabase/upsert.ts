@@ -9,6 +9,7 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
   name: 'Supabase Upsert',
   description: 'Insert or update data in a Supabase table (upsert operation)',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

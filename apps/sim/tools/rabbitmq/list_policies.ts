@@ -22,6 +22,7 @@ export const rabbitmqListPoliciesTool: ToolConfig<
   description:
     'List the policies in a virtual host. Policies are how dead-lettering, TTLs, and length limits get applied to matching queues and exchanges.',
   version: '1.0.0',
+  effect: 'read',
 
   params: { ...RABBITMQ_CONNECTION_PARAMS },
 

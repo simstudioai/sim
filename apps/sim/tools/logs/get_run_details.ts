@@ -12,6 +12,7 @@ export const logsGetRunDetailsTool: InternalToolConfig<
   description:
     'Fetch details for a single workflow run by its run ID, including the full trace spans.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     runId: {

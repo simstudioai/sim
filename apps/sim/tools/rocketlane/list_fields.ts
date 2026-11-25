@@ -21,6 +21,7 @@ export const rocketlaneListFieldsTool: ToolConfig<
   description:
     'List fields in your Rocketlane account, with optional filters, sorting, and pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const updateSettingsObjectTool: ToolConfig<
   description:
     'Update an existing settings object. Pass the update token from Get Settings Object to fail rather than overwrite a concurrent change.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

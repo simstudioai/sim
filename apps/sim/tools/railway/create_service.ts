@@ -24,6 +24,7 @@ export const railwayCreateServiceTool: ToolConfig<
   name: 'Railway Create Service',
   description: 'Create a Railway service from a GitHub repo or Docker image',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

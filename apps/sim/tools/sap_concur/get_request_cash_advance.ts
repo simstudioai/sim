@@ -15,6 +15,7 @@ export const getRequestCashAdvanceTool: InternalToolConfig<
   description:
     'Get a single cash advance assigned to a travel request (GET /travelrequest/v4/cashadvances/{cashAdvanceUuid}). This endpoint exists for feature parity only and will be deprecated in the future — SAP recommends relying on the list of cash advances link available in the Request payload response instead.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

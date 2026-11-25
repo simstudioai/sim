@@ -26,6 +26,7 @@ export const checkrListSubscriptionsTool: ToolConfig<
   description:
     'List recurring check subscriptions, optionally filtered by candidate, status, or creation date.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

@@ -7,6 +7,7 @@ export const googleMapsGeocodeTool: ToolConfig<GoogleMapsGeocodeParams, GoogleMa
     name: 'Google Maps Geocode',
     description: 'Convert an address into geographic coordinates (latitude and longitude)',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       apiKey: {

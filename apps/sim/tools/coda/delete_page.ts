@@ -18,6 +18,7 @@ export const codaDeletePageTool: ToolConfig<CodaPageParams, CodaPageMutationResp
   name: 'Coda Delete Page',
   description: 'Delete a page from a Coda doc. Applied asynchronously.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

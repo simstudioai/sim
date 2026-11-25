@@ -11,6 +11,7 @@ export const relatedTermsTool: ToolConfig<AhrefsRelatedTermsParams, AhrefsRelate
   description:
     'Get keyword ideas related to a seed keyword: terms the same top-ranking pages also rank for ("also rank for") or also discuss ("also talk about"), with volume, difficulty, and CPC.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {

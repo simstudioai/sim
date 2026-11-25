@@ -29,6 +29,7 @@ export const semrushBacklinksCompetitorsTool: ToolConfig<
   description:
     'List domains with a backlink profile similar to the target, ranked by shared referring domains.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

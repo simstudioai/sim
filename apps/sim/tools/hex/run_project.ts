@@ -11,6 +11,7 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
   description:
     'Execute a published Hex project. Optionally pass input parameters and control caching behavior.',
   version: '1.0.0',
+  effect: 'write',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

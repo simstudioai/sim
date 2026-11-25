@@ -11,6 +11,7 @@ export const attioDeleteRecordTool: ToolConfig<AttioDeleteRecordParams, AttioDel
     name: 'Attio Delete Record',
     description: 'Delete a record from Attio',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

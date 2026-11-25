@@ -16,6 +16,7 @@ export const createLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBison
   name: 'Email Bison Create Lead',
   description: 'Creates a single lead in Email Bison.',
   version: '1.0.0',
+  effect: 'write',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

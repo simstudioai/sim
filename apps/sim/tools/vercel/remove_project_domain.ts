@@ -14,6 +14,7 @@ export const vercelRemoveProjectDomainTool: ToolConfig<
   name: 'Vercel Remove Project Domain',
   description: 'Remove a domain from a Vercel project',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

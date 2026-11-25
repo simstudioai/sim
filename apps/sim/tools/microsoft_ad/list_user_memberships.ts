@@ -20,6 +20,7 @@ export const listUserMembershipsTool: ToolConfig<
   description:
     'List the groups, directory roles, and administrative units a user is a member of in Azure AD (Microsoft Entra ID)',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

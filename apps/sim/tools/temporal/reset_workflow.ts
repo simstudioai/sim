@@ -21,6 +21,7 @@ export const resetWorkflowTool: ToolConfig<
   description:
     'Reset a Temporal workflow execution to a past workflow task, terminating the current run and replaying from the reset point in a new run.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

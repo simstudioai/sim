@@ -13,6 +13,7 @@ export const checkDataSourceHealthTool: InternalToolConfig<
   name: 'Grafana Check Data Source Health',
   description: 'Test connectivity to a data source by its UID',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

@@ -33,6 +33,7 @@ export const bitbucketGetMergeTaskStatusTool: ToolConfig<
   name: 'Bitbucket Get Merge Task Status',
   description: 'Poll the status of an asynchronous pull request merge task',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pullrequest'] },
   params: {
     ...BITBUCKET_PULL_REQUEST_PARAMS,

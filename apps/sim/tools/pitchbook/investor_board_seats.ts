@@ -12,6 +12,7 @@ export const pitchbookInvestorBoardSeatsTool: ToolConfig<
   description:
     'Retrieve the board seats an investor holds and previously held across its portfolio',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

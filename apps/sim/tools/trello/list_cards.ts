@@ -15,6 +15,7 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
   name: 'Trello List Cards',
   description: 'List cards from a Trello board or list',
   version: '1.0.0',
+  effect: 'read',
   oauth: {
     required: true,
     provider: 'trello',

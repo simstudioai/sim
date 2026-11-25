@@ -12,6 +12,7 @@ export const shopifyListLocationsTool: ToolConfig<
   description:
     'List inventory locations from your Shopify store. Use this to find location IDs needed for inventory operations.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

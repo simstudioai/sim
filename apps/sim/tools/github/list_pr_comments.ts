@@ -10,6 +10,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
   name: 'GitHub PR Review Comments Lister',
   description: 'List all review comments on a GitHub pull request',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -165,6 +166,7 @@ export const listPRCommentsV2Tool: ToolConfig<ListPRCommentsParams, any> = {
   name: listPRCommentsTool.name,
   description: listPRCommentsTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listPRCommentsTool.params,
   request: listPRCommentsTool.request,

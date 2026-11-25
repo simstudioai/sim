@@ -12,6 +12,7 @@ export const pitchbookLimitedPartnerActualAllocationsTool: ToolConfig<
   description:
     'Retrieve a limited partner’s reported asset allocation across cash, equities, fixed income, private equity, real estate, and alternatives',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

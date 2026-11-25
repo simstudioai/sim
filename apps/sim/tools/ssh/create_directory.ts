@@ -6,6 +6,7 @@ export const createDirectoryTool: InternalToolConfig<SSHCreateDirectoryParams, S
   name: 'SSH Create Directory',
   description: 'Create a directory on the remote SSH server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

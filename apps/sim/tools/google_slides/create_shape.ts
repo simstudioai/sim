@@ -184,6 +184,7 @@ export const createShapeTool: ToolConfig<CreateShapeParams, CreateShapeResponse>
   description:
     'Create a shape (rectangle, ellipse, text box, arrow, etc.) on a slide in a Google Slides presentation',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

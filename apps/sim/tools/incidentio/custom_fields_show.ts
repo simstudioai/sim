@@ -8,6 +8,7 @@ export const customFieldsShowTool: ToolConfig<CustomFieldsShowParams, CustomFiel
   name: 'incident.io Custom Fields Show',
   description: 'Get detailed information about a specific custom field from incident.io.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

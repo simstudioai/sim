@@ -16,6 +16,7 @@ export const codaUnpublishDocTool: ToolConfig<CodaDocParams, CodaDocIdResponse> 
   name: 'Coda Unpublish Doc',
   description: 'Unpublish a Coda doc',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

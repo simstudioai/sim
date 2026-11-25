@@ -9,6 +9,7 @@ export const ripplingUpdateCustomSettingTool: ToolConfig<RipplingUpdateCustomSet
   name: 'Rippling Update Custom Setting',
   description: 'Update a custom setting',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

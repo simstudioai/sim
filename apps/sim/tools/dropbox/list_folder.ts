@@ -7,6 +7,7 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
     name: 'Dropbox List Folder',
     description: 'List the contents of a folder in Dropbox',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

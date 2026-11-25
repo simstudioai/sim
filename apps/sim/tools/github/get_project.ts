@@ -20,6 +20,7 @@ export const getProjectTool: ToolConfig<GetProjectParams, ProjectResponse> = {
   description:
     'Get detailed information about a specific GitHub Project V2 by its number. Returns project details including ID, title, description, URL, and status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -181,6 +182,7 @@ export const getProjectV2Tool: ToolConfig<GetProjectParams, any> = {
   name: getProjectTool.name,
   description: getProjectTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getProjectTool.params,
   request: getProjectTool.request,

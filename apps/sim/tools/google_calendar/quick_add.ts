@@ -21,6 +21,7 @@ export const quickAddTool: ToolConfig<
   name: 'Google Calendar Quick Add',
   description: 'Create events from natural language text',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -209,6 +210,7 @@ export const quickAddV2Tool: ToolConfig<
   name: 'Google Calendar Quick Add',
   description: 'Create events from natural language text.',
   version: '2.0.0',
+  effect: 'write',
   oauth: quickAddTool.oauth,
   params: quickAddTool.params,
   request: quickAddTool.request,

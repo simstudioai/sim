@@ -18,6 +18,7 @@ export const clickupRemoveCustomFieldValueTool: ToolConfig<
   description:
     'Remove the value of a custom field from a ClickUp task (does not delete the field itself)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

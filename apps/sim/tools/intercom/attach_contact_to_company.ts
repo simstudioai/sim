@@ -64,6 +64,7 @@ export const intercomAttachContactToCompanyV2Tool: ToolConfig<
   name: 'Attach Contact to Company in Intercom',
   description: 'Attach a contact to a company in Intercom',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

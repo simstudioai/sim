@@ -13,6 +13,7 @@ export const updateStackTool: InternalToolConfig<
   name: 'CloudFormation Update Stack',
   description: 'Update an existing CloudFormation stack with a new or previous template',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

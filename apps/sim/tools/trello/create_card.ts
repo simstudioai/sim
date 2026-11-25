@@ -14,6 +14,7 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
   name: 'Trello Create Card',
   description: 'Create a new card in a Trello list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

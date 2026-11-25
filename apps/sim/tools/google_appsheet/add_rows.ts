@@ -18,6 +18,7 @@ export const googleAppsheetAddRowsTool: ToolConfig<
   description:
     'Add new rows to an AppSheet table. The key column value must be provided explicitly, or omitted when its Initial value expression generates it automatically (e.g. UNIQUEID()).',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

@@ -14,6 +14,7 @@ export const clickupGetFoldersTool: ToolConfig<ClickUpGetFoldersParams, ClickUpF
     name: 'ClickUp Get Folders',
     description: 'List the folders in a ClickUp space',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

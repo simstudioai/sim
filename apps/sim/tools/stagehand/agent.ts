@@ -7,6 +7,7 @@ export const agentTool: InternalToolConfig<StagehandAgentParams, StagehandAgentR
   name: 'Stagehand Agent',
   description: 'Run an autonomous web agent to complete tasks and extract structured data',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     startUrl: {

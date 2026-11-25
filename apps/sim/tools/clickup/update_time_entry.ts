@@ -18,6 +18,7 @@ export const clickupUpdateTimeEntryTool: ToolConfig<
   description:
     'Update a time entry in a ClickUp workspace — description, start/end times, task, or billable state',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

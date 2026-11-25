@@ -12,6 +12,7 @@ export const gitlabInviteMemberTool: ToolConfig<
   name: 'GitLab Invite Member',
   description: 'Invite a person to a GitLab project or group by email address',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

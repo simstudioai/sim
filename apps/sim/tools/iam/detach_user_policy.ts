@@ -10,6 +10,7 @@ export const detachUserPolicyTool: InternalToolConfig<
   name: 'IAM Detach User Policy',
   description: 'Remove a managed policy from an IAM user',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

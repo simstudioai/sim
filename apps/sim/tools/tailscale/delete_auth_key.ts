@@ -15,6 +15,7 @@ export const tailscaleDeleteAuthKeyTool: ToolConfig<
   name: 'Tailscale Delete Auth Key',
   description: 'Revoke an auth key, API access token, or trust credential',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

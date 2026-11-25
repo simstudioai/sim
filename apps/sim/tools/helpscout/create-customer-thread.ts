@@ -25,6 +25,7 @@ export const helpScoutCreateCustomerThreadTool: ToolConfig<
   description:
     'Add a message from the customer to an existing Help Scout conversation, for example one received on another channel. This reopens the conversation.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

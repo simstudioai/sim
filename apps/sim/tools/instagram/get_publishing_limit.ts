@@ -44,6 +44,7 @@ export const instagramGetPublishingLimitTool: ToolConfig<
   name: 'Instagram Get Publishing Limit',
   description: 'Check the content publishing rate limit usage for the account',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

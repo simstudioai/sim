@@ -8,6 +8,7 @@ export const slackUpdateViewTool: ToolConfig<SlackUpdateViewParams, SlackUpdateV
   description:
     'Update an existing modal view in Slack. Identify the view by view_id or external_id, and provide the updated view payload.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

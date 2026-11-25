@@ -7,6 +7,7 @@ export const slackLookupUserByEmailTool = createSlackWebApiTool({
   id: 'slack_lookup_user_by_email',
   name: 'Slack Find User by Email',
   description: 'Find a Slack user by their email address.',
+  effect: 'read',
   endpoint: 'users.lookupByEmail',
   method: 'GET',
   oauth: {

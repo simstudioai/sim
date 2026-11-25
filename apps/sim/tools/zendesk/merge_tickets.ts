@@ -36,6 +36,7 @@ export const zendeskMergeTicketsTool: ToolConfig<
   name: 'Merge Tickets in Zendesk',
   description: 'Merge multiple tickets into a target ticket',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

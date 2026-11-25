@@ -12,6 +12,7 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
   name: 'Read Notion Database',
   description: 'Read database information and structure from Notion',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -131,6 +132,7 @@ export const notionReadDatabaseV2Tool: ToolConfig<
   name: 'Read Notion Database',
   description: 'Read database information and structure from Notion',
   version: '2.0.0',
+  effect: 'read',
   oauth: notionReadDatabaseTool.oauth,
   params: notionReadDatabaseTool.params,
   request: notionReadDatabaseTool.request,

@@ -10,6 +10,7 @@ export const profoundPromptAnswersTool: ToolConfig<
   name: 'Profound Prompt Answers',
   description: 'Get raw prompt answers data for a category in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

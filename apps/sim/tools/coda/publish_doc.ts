@@ -20,6 +20,7 @@ export const codaPublishDocTool: ToolConfig<CodaPublishDocParams, CodaRequestIdR
   description:
     'Publish a Coda doc or update its publishing settings: URL slug, discoverability, categories, and interaction mode. The doc owner needs a Coda maker profile.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

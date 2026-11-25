@@ -15,6 +15,7 @@ export const tailscaleSetDnsNameserversTool: ToolConfig<
   name: 'Tailscale Set DNS Nameservers',
   description: 'Replace the global DNS nameservers for the tailnet',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

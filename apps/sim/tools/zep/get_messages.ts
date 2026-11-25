@@ -9,6 +9,7 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
   name: 'Get Messages',
   description: 'Retrieve messages from a thread',
   version: '1.0.0',
+  effect: 'read',
   oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {

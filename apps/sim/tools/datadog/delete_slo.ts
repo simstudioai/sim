@@ -14,6 +14,7 @@ export const deleteSloTool: ToolConfig<DeleteSloParams, DeleteSloResponse> = {
   description:
     'Permanently delete a service level objective. Datadog returns a conflict when the SLO is still referenced by a dashboard.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

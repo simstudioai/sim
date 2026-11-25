@@ -14,6 +14,7 @@ export const realtimeActiveUsersTool: ToolConfig<
   name: 'Amplitude Real-time Active Users',
   description: 'Get real-time active user counts at 5-minute granularity for the last 2 days.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {

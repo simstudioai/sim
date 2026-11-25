@@ -20,6 +20,7 @@ export const unmuteSecurityProblemTool: ToolConfig<
   name: 'Dynatrace Unmute Security Problem',
   description: 'Unmute a single Dynatrace vulnerability, returning it to the active triage queue.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

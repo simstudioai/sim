@@ -20,6 +20,7 @@ export const linqUpdateWebhookSubscriptionTool: ToolConfig<
   name: 'Update Webhook Subscription',
   description: 'Update a webhook subscription (target URL, events, phone filter, or active state)',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

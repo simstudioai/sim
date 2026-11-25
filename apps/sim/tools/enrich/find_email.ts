@@ -7,6 +7,7 @@ export const findEmailTool: ToolConfig<EnrichFindEmailParams, EnrichFindEmailRes
   name: 'Enrich Find Email',
   description: "Find a person's work email address using their full name and company domain.",
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

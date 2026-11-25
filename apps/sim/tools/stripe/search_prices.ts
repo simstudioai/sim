@@ -8,6 +8,7 @@ export const stripeSearchPricesTool: ToolConfig<SearchPricesParams, PriceListRes
   name: 'Stripe Search Prices',
   description: 'Search for prices using query syntax',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

@@ -10,6 +10,7 @@ export const vantaGetVendorTool: InternalToolConfig<VantaGetVendorParams, VantaG
     description:
       'Get a Vanta vendor by ID, including risk levels, contract details, and authentication info',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

@@ -14,6 +14,7 @@ export const squareListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
   name: 'Square List Customers',
   description: 'List customer profiles in the Square customer directory',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

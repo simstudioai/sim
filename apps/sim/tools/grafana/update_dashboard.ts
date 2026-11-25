@@ -8,6 +8,7 @@ export const updateDashboardTool: InternalToolConfig<GrafanaUpdateDashboardParam
   description:
     'Update an existing dashboard. Fetches the current dashboard and merges your changes.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

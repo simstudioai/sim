@@ -21,6 +21,7 @@ export const helpScoutGetSavedReplyTool: ToolConfig<
   name: 'Help Scout Get Saved Reply',
   description: 'Get the full text of a Help Scout saved reply for email and chat.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

@@ -8,6 +8,7 @@ export const getCallTool: ToolConfig<GongGetCallParams, GongGetCallResponse> = {
   name: 'Gong Get Call',
   description: 'Retrieve detailed data for a specific call from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

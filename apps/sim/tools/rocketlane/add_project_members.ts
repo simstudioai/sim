@@ -18,6 +18,7 @@ export const rocketlaneAddProjectMembersTool: ToolConfig<
   name: 'Rocketlane Add Project Members',
   description: 'Add team members and customer stakeholders to a Rocketlane project',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

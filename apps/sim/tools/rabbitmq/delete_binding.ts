@@ -20,6 +20,7 @@ export const rabbitmqDeleteBindingTool: ToolConfig<
   description:
     'Remove a binding so an exchange stops routing its matching messages to that destination.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

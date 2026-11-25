@@ -15,6 +15,7 @@ export const trelloListMembersTool: ToolConfig<TrelloListMembersParams, TrelloLi
     name: 'Trello List Members',
     description: 'List members of a Trello board',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

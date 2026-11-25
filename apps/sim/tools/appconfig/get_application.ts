@@ -13,6 +13,7 @@ export const getApplicationTool: InternalToolConfig<
   name: 'AppConfig Get Application',
   description: 'Get details about a single AWS AppConfig application',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

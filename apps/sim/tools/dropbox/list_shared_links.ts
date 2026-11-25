@@ -12,6 +12,7 @@ export const dropboxListSharedLinksTool: ToolConfig<
   name: 'Dropbox List Shared Links',
   description: 'List shared links for a path, or for the entire account if no path is given',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

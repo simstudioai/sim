@@ -18,6 +18,7 @@ export const clickupSetCustomFieldValueTool: ToolConfig<
   description:
     'Set the value of a custom field on a ClickUp task (the value shape depends on the field type)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

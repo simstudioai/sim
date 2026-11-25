@@ -14,6 +14,7 @@ export const clickupStopTimerTool: ToolConfig<ClickUpStopTimerParams, ClickUpTim
   name: 'ClickUp Stop Timer',
   description: "Stop the authenticated user's currently running timer in a ClickUp workspace",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -14,6 +14,7 @@ export const linearUpdateAttachmentTool: ToolConfig<
   name: 'Linear Update Attachment',
   description: 'Update an attachment metadata in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

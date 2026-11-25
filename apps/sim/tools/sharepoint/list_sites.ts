@@ -16,6 +16,7 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
   name: 'List SharePoint Sites',
   description: 'List details of all SharePoint sites',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

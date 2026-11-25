@@ -10,6 +10,7 @@ export const jsmGetRequestTypesTool: InternalToolConfig<
   name: 'JSM Get Request Types',
   description: 'Get request types for a service desk in Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

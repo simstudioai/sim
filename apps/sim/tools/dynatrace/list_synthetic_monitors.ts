@@ -22,6 +22,7 @@ export const listSyntheticMonitorsTool: ToolConfig<
   description:
     'List synthetic monitors and their IDs. Use it to find the monitor IDs to feed into an on-demand execution.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

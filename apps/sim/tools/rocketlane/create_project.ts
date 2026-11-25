@@ -19,6 +19,7 @@ export const rocketlaneCreateProjectTool: ToolConfig<
   description:
     'Create a new Rocketlane project with a customer, owner, dates, team members, templates, financials, and custom fields',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

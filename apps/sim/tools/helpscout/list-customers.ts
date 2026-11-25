@@ -28,6 +28,7 @@ export const helpScoutListCustomersTool: ToolConfig<
   description:
     'List and search Help Scout customers by inbox, name, modification date, or search query (for example by email). Returns 50 customers per page.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

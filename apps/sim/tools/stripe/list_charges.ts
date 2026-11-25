@@ -8,6 +8,7 @@ export const stripeListChargesTool: ToolConfig<ListChargesParams, ChargeListResp
   name: 'Stripe List Charges',
   description: 'List all charges',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

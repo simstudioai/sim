@@ -10,6 +10,7 @@ export const addUserToGroupTool: InternalToolConfig<
   name: 'IAM Add User to Group',
   description: 'Add an IAM user to a group',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

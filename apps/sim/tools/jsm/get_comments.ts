@@ -8,6 +8,7 @@ export const jsmGetCommentsTool: InternalToolConfig<JsmGetCommentsParams, JsmGet
     name: 'JSM Get Comments',
     description: 'Get comments for a service request in Jira Service Management',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

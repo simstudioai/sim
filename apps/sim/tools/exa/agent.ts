@@ -20,6 +20,7 @@ export const agentTool: ToolConfig<ExaAgentParams, ExaAgentResponse> = {
   description:
     'Run a deep research task with Exa Agent. Handles multi-step list building, enrichment, and research, returning a written answer with field-level citations and optional structured output.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

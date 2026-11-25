@@ -25,6 +25,7 @@ export const bitbucketGetPipelineTool: ToolConfig<
   name: 'Bitbucket Get Pipeline',
   description: 'Get a pipeline by UUID',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pipeline'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

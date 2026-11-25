@@ -15,6 +15,7 @@ export const greenhouseHireApplicationV2Tool: ToolConfig<
   description:
     'Marks an application hired and closes its opening; provide opening_id when the job has multiple open openings.',
   version: '2.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

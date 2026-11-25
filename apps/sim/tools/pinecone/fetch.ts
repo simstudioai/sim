@@ -26,6 +26,7 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
   name: 'Pinecone Fetch',
   description: 'Fetch vectors by ID from a Pinecone index',
   version: '1.0',
+  effect: 'read',
 
   params: {
     indexHost: {

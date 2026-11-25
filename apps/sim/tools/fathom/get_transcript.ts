@@ -8,6 +8,7 @@ export const getTranscriptTool: ToolConfig<FathomGetTranscriptParams, FathomGetT
     name: 'Fathom Get Transcript',
     description: 'Get the full transcript for a specific meeting recording.',
     version: '1.0.0',
+    effect: 'read',
     oauth: FATHOM_CREDENTIAL_OAUTH,
 
     params: {

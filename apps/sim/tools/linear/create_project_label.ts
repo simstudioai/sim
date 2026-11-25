@@ -14,6 +14,7 @@ export const linearCreateProjectLabelTool: ToolConfig<
   name: 'Linear Create Project Label',
   description: 'Create a new project label in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

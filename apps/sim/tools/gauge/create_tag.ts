@@ -9,6 +9,7 @@ export const gaugeCreateTagTool: ToolConfig<GaugeCreateTagParams, GaugeCreateTag
   name: 'Gauge Create Tag',
   description: 'Create an organization-wide prompt tag.',
   version: '1.0.0',
+  effect: 'write',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

@@ -6,6 +6,7 @@ export const gmailDraftTool: InternalToolConfig<GmailSendParams, GmailToolRespon
   name: 'Gmail Draft',
   description: 'Draft emails using Gmail',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -157,8 +158,8 @@ export const gmailDraftV2Tool: InternalToolConfig<GmailSendParams, GmailDraftV2R
   name: 'Gmail Draft',
   description: 'Draft emails using Gmail.',
   version: '2.0.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'to', label: 'To', target: true },

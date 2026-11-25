@@ -13,6 +13,7 @@ export const getSuppressedDestinationTool: InternalToolConfig<
   name: 'SES Get Suppressed Destination',
   description: 'Retrieve details for a specific email address on the SES suppression list',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

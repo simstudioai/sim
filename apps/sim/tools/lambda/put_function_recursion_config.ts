@@ -13,6 +13,7 @@ export const putFunctionRecursionConfigTool: InternalToolConfig<
   name: 'Lambda Set Recursion Config',
   description: 'Set whether Lambda stops a function that invokes itself recursively',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

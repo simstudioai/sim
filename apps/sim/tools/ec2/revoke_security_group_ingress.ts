@@ -15,6 +15,7 @@ export const revokeSecurityGroupIngressTool: InternalToolConfig<
   description:
     'Remove inbound rules from a security group by rule ID or by matching protocol, ports, and source',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

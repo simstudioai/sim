@@ -12,6 +12,7 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
   name: 'Twilio Voice Make Call',
   description: 'Make an outbound phone call using Twilio Voice API.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TWILIO_CREDENTIAL_OAUTH,
 
   params: {

@@ -8,6 +8,7 @@ export const updateMattersTool: ToolConfig<GoogleVaultUpdateMatterParams> = {
   name: 'Vault Update Matter',
   description: 'Update the name and/or description of a matter',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

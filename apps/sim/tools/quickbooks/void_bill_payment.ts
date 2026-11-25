@@ -31,6 +31,7 @@ export const quickbooksVoidBillPaymentTool: ToolConfig<
   name: 'QuickBooks Void Bill Payment',
   description: 'Void a bill payment after explicit confirmation',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

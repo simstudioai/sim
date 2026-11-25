@@ -9,6 +9,7 @@ export const netsuiteGetServerTimeTool: InternalToolConfig<NetSuiteSystemParams,
     name: 'NetSuite Get Server Time',
     description: 'Retrieve the current UTC time from the NetSuite server.',
     version: '1.0.0',
+    effect: 'read',
     oauth: NETSUITE_OAUTH,
     params: {
       ...netsuiteAuthParamFields,

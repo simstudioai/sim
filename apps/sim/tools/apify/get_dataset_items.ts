@@ -7,6 +7,7 @@ export const apifyGetDatasetItemsTool: ToolConfig<GetDatasetItemsParams, GetData
   name: 'APIFY Get Dataset Items',
   description: 'Retrieve items stored in an APIFY dataset',
   version: '1.0.0',
+  effect: 'read',
   oauth: APIFY_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const grainListViewsTool: ToolConfig<GrainListViewsParams, GrainListViews
   name: 'Grain List Views',
   description: 'List available Grain views for webhook subscriptions',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

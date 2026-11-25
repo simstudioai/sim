@@ -14,6 +14,7 @@ export const apolloOpportunitySearchTool: ToolConfig<
   name: 'Apollo Search Opportunities',
   description: "Search and list all deals/opportunities in your team's Apollo account",
   version: '1.0.0',
+  effect: 'read',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

@@ -24,6 +24,7 @@ export const otterListChannelMembersTool: ToolConfig<
   name: 'Otter List Channel Members',
   description: 'List the members of an Otter channel, in alphabetical order.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {

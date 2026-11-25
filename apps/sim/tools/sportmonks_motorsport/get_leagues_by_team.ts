@@ -37,6 +37,7 @@ export const sportmonksMotorsportGetLeaguesByTeamTool: ToolConfig<
   description:
     'Retrieve all current and historical motorsport leagues for a team by team ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

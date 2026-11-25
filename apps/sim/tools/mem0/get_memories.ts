@@ -24,6 +24,7 @@ export const mem0GetMemoriesTool: ToolConfig<Mem0GetMemoriesParams> = {
   name: 'Get Memories',
   description: 'Retrieve memories from Mem0 by ID or filter criteria',
   version: '1.0.0',
+  effect: 'read',
   oauth: MEM0_CREDENTIAL_OAUTH,
 
   params: {

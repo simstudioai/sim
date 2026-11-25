@@ -14,6 +14,7 @@ export const linearCreateWorkflowStateTool: ToolConfig<
   name: 'Linear Create Workflow State',
   description: 'Create a new workflow state (status) in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

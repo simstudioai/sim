@@ -11,6 +11,7 @@ export const deletePageTool: ToolConfig<WordPressDeletePageParams, WordPressDele
   name: 'WordPress Delete Page',
   description: 'Delete a page from WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

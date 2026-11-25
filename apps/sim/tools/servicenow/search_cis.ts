@@ -22,6 +22,7 @@ export const searchCisTool: ToolConfig<ServiceNowSearchCisParams, ServiceNowReco
   description:
     'Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci table, which returns CIs of every class; pass a CI class to scope the search to a subclass such as cmdb_ci_linux_server.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

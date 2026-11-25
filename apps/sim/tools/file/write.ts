@@ -17,6 +17,7 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
   description:
     'Create a new workspace file, either from text content or from an existing file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv") unless overwrite is enabled.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     fileName: {

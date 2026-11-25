@@ -38,6 +38,7 @@ export const mailchimpAddOrUpdateMemberTool: ToolConfig<
   name: 'Add or Update Member in Mailchimp Audience',
   description: 'Add a new member or update an existing member in a Mailchimp audience (upsert)',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

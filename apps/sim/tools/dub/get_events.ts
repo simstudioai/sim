@@ -8,6 +8,7 @@ export const getEventsTool: ToolConfig<DubGetEventsParams, DubGetEventsResponse>
   description:
     'Retrieve a paginated stream of individual click, lead, and sale events for links, with filtering by link, time range, and location.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {

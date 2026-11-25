@@ -21,6 +21,7 @@ export const pitchbookServiceProviderSearchTool: ToolConfig<
   description:
     'Search PitchBook for service providers by type, location, and the deals they have worked on',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -13,6 +13,7 @@ export const getPreparedStatementTool: InternalToolConfig<
   name: 'Athena Get Prepared Statement',
   description: 'Get the SQL and metadata of a prepared statement in an Athena workgroup',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

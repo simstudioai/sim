@@ -6,6 +6,7 @@ export const grainCreateHookTool: ToolConfig<GrainCreateHookParams, GrainCreateH
   name: 'Grain Create Webhook',
   description: 'Create a webhook to receive recording events',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

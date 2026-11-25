@@ -44,6 +44,7 @@ export const zendeskCreateTicketTool: ToolConfig<
   name: 'Create Ticket in Zendesk',
   description: 'Create a new ticket in Zendesk with support for custom fields',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

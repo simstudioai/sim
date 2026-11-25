@@ -16,6 +16,7 @@ export const suspendWarehouseTool: ToolConfig<
 > = {
   id: 'snowflake_suspend_warehouse',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Suspend Warehouse',
   description: 'Suspend a Snowflake virtual warehouse.',

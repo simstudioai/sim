@@ -8,6 +8,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
   description:
     'Retrieve the contents of webpages using Exa AI. Returns the title, text content, and optional summaries for each URL.',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     urls: {

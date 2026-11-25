@@ -17,6 +17,7 @@ export const listApplicationHistoryTool: ToolConfig<Params, Response> = {
   name: 'Ashby List Application History',
   description: 'Lists the full stage history and allowed actions for an application.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

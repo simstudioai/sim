@@ -14,6 +14,7 @@ export const getPipelineTool: InternalToolConfig<
   description:
     'Get the structure of a CodePipeline pipeline, including its stages, actions, and variables',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

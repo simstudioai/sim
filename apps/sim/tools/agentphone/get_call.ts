@@ -12,6 +12,7 @@ export const agentphoneGetCallTool: ToolConfig<AgentPhoneGetCallParams, AgentPho
   name: 'Get Call',
   description: 'Fetch a call and its full transcript',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

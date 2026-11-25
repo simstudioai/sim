@@ -12,6 +12,7 @@ export const rampGetReimbursementTool: ToolConfig<
   name: 'Ramp Get Reimbursement',
   description: 'Fetch a reimbursement in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

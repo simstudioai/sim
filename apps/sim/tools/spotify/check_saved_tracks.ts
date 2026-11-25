@@ -17,6 +17,7 @@ export const spotifyCheckSavedTracksTool: ToolConfig<
   name: 'Spotify Check Saved Tracks',
   description: "Check if one or more tracks are saved in the user's library.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

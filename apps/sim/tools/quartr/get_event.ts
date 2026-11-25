@@ -15,6 +15,7 @@ export const quartrGetEventTool: ToolConfig<QuartrGetEventParams, QuartrGetEvent
   name: 'Quartr Get Event',
   description: 'Retrieve a single corporate event from Quartr by its event ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

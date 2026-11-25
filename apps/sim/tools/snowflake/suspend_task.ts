@@ -13,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const suspendTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeStatementResponse> = {
   id: 'snowflake_suspend_task',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Suspend Task',
   description: 'Suspend a Snowflake task so its schedule stops triggering runs.',

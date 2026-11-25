@@ -15,6 +15,7 @@ export const deleteTableRowTool: ToolConfig<ExcelRowParams, ExcelDeleteResponse>
   name: 'Microsoft Excel Delete Table Row',
   description: 'Delete Table Row in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: { ...EXCEL_WORKBOOK_PARAMS, tableName: EXCEL_TABLE_PARAM, index: EXCEL_INDEX_PARAM },

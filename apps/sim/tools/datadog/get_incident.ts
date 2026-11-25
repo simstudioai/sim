@@ -15,6 +15,7 @@ export const getIncidentTool: ToolConfig<GetIncidentParams, GetIncidentResponse>
   description:
     'Get the details of a single incident by ID. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

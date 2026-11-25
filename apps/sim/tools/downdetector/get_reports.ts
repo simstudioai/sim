@@ -22,6 +22,7 @@ export const getReportsTool: ToolConfig<
   description:
     'Get the number of outage reports over time for one or more company slugs, bucketed by interval. Useful for plotting report trends or detecting spikes. Defaults to the last 24 hours.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     slugs: {

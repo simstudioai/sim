@@ -23,6 +23,7 @@ export const salesforceListReportsTool: ToolConfig<
   name: 'List Reports from Salesforce',
   description: 'Get a list of up to 200 recently viewed reports for the current user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

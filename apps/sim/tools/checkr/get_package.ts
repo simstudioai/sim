@@ -19,6 +19,7 @@ export const checkrGetPackageTool: ToolConfig<CheckrPackageIdParams, CheckrPacka
   name: 'Checkr Get Package',
   description: 'Retrieve a package by ID, including its slug, price, and screenings.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

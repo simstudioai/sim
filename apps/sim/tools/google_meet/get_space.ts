@@ -16,6 +16,7 @@ export const getSpaceTool: ToolConfig<GoogleMeetGetSpaceParams, GoogleMeetGetSpa
   name: 'Google Meet Get Space',
   description: 'Get details of a Google Meet meeting space by name or meeting code',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -9,6 +9,7 @@ export const tailscaleGetAclTool: ToolConfig<TailscaleGetAclParams, TailscaleGet
   name: 'Tailscale Get ACL',
   description: 'Get the tailnet policy file',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     details: {

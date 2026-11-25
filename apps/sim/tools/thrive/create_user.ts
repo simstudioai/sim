@@ -14,6 +14,7 @@ export const createUserTool: ToolConfig<ThriveCreateUserParams, ThriveUserRespon
   name: 'Thrive Create User',
   description: 'Create a new user in Thrive.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

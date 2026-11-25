@@ -20,6 +20,7 @@ export const oracleFusionFinancialsListPayablesInvoiceLinesTool: InternalToolCon
   name: 'Oracle Fusion Financials List Payables Invoice Lines',
   description: 'List one page of lines for an Oracle Fusion Payables invoice.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     invoiceUniqId: oracleFusionInvoiceParamField,

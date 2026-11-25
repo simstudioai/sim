@@ -29,6 +29,7 @@ export const deleteIssueReactionTool: ToolConfig<
   name: 'GitHub Delete Issue Reaction',
   description: 'Remove a reaction from an issue',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -110,6 +111,7 @@ export const deleteIssueReactionV2Tool: ToolConfig<DeleteIssueReactionParams, an
   name: deleteIssueReactionTool.name,
   description: deleteIssueReactionTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteIssueReactionTool.params,
   request: deleteIssueReactionTool.request,

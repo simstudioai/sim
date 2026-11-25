@@ -24,6 +24,7 @@ export const railwayUpsertVariableTool: ToolConfig<
   name: 'Railway Upsert Variable',
   description: 'Create or update a Railway environment variable',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

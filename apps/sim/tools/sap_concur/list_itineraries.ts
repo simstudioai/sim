@@ -16,6 +16,7 @@ export const listItinerariesTool: InternalToolConfig<ListItinerariesParams, SapC
   name: 'SAP Concur List Trips',
   description: 'List travel trips/itineraries (GET /api/travel/trip/v1.1).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

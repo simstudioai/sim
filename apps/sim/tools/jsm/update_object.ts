@@ -11,6 +11,7 @@ export const jsmUpdateObjectTool: InternalToolConfig<
   description:
     'Update an existing Assets (Insight/CMDB) object. Provide the attributes to change using their objectTypeAttributeId values.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

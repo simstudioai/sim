@@ -12,6 +12,7 @@ export const slackSetConversationPurposeTool: ToolConfig<
   name: 'Slack Set Conversation Purpose',
   description: 'Set the purpose (description) for a Slack channel (max 250 characters).',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

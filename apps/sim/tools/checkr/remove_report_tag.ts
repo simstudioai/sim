@@ -23,6 +23,7 @@ export const checkrRemoveReportTagTool: ToolConfig<
   name: 'Checkr Remove Report Tag',
   description: 'Remove a tag from a report.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

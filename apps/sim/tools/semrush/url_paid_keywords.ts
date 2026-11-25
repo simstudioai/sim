@@ -22,6 +22,7 @@ export const semrushUrlPaidKeywordsTool: ToolConfig<
   description:
     'List the keywords a single URL is advertised on in Google Ads, with the ad copy used.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

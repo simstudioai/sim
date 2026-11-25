@@ -15,6 +15,7 @@ export const escalationsCreateTool: ToolConfig<
   description:
     'Page users or an escalation path (create an escalation) in incident.io. Provide either escalation_path_id or user_ids, not both. To create a reusable escalation policy, use Create Escalation Path instead.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

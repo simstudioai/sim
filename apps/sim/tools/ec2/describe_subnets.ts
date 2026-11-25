@@ -16,6 +16,7 @@ export const describeSubnetsTool: InternalToolConfig<
   name: 'EC2 Describe Subnets',
   description: 'List subnets with their CIDR, Availability Zone, and free IP count',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

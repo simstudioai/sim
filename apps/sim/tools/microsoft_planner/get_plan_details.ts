@@ -17,6 +17,7 @@ export const getPlanDetailsTool: ToolConfig<
   name: 'Get Microsoft Planner Plan Details',
   description: 'Get detailed information about a plan including category descriptions and sharing',
   version: '1.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

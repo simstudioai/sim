@@ -8,6 +8,7 @@ export const domainRatingTool: ToolConfig<AhrefsDomainRatingParams, AhrefsDomain
   description:
     "Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website's backlink profile on a scale from 0 to 100.",
   version: '1.0.0',
+  effect: 'read',
   oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {

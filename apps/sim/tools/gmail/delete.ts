@@ -6,6 +6,7 @@ export const gmailDeleteTool: InternalToolConfig<GmailMarkReadParams, GmailToolR
   name: 'Gmail Delete',
   description: 'Delete a Gmail message (move to trash)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -85,6 +86,7 @@ export const gmailDeleteV2Tool: InternalToolConfig<GmailMarkReadParams, GmailMod
   name: 'Gmail Delete',
   description: 'Delete a Gmail message (move to trash).',
   version: '2.0.0',
+  effect: 'write',
   oauth: gmailDeleteTool.oauth,
   params: gmailDeleteTool.params,
   operation: gmailDeleteTool.operation,

@@ -10,6 +10,7 @@ export const hireEmployeeTool: InternalToolConfig<
   description:
     'Hire a pre-hire into an employee position. Converts an applicant into an active employee record with position, start date, and manager assignment.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     tenantUrl: {

@@ -10,6 +10,7 @@ export const tagResourceTool: InternalToolConfig<
   name: 'Lambda Tag Resource',
   description: 'Add tags to a Lambda function',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

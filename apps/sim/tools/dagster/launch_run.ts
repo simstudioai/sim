@@ -100,6 +100,7 @@ export const launchRunTool: ToolConfig<DagsterLaunchRunParams, DagsterLaunchRunR
   name: 'Dagster Launch Run',
   description: 'Launch a job run on a Dagster instance.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

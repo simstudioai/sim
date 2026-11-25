@@ -11,6 +11,7 @@ export const linqCheckImessageTool: ToolConfig<
   name: 'Check iMessage Capability',
   description: 'Check whether an address (phone number or email) supports iMessage',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

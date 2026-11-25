@@ -12,6 +12,7 @@ export const aggregateByPeriodTool: ToolConfig<
   description:
     'Retrieve aggregated user activity grouped into time periods (day, week, month, quarter, year) by date range from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

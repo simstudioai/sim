@@ -21,6 +21,7 @@ export const codaGetDocAnalyticsSummaryTool: ToolConfig<
   name: 'Coda Get Doc Analytics Summary',
   description: 'Get the total number of sessions across the Coda docs the user can access',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

@@ -24,6 +24,7 @@ export const updateProjectTool: ToolConfig<UpdateProjectParams, ProjectResponse>
   description:
     'Update an existing GitHub Project V2. Can update title, description, visibility (public), or status (closed). Requires the project Node ID.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -216,6 +217,7 @@ export const updateProjectV2Tool: ToolConfig = {
   name: updateProjectTool.name,
   description: updateProjectTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: updateProjectTool.params,
   request: updateProjectTool.request,
   oauth: updateProjectTool.oauth,

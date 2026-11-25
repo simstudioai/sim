@@ -8,6 +8,7 @@ export const mcpListOperationsTool: InternalToolConfig<
   id: 'mcp_list_operations',
   name: 'List MCP operations',
   version: '1.0.0',
+  effect: 'read',
   description:
     'Discover authorized MCP names, descriptions, input schemas and declared output schemas without running operations.',
   params: {

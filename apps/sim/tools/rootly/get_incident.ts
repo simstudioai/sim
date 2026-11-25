@@ -10,6 +10,7 @@ export const rootlyGetIncidentTool: ToolConfig<RootlyGetIncidentParams, RootlyGe
     name: 'Rootly Get Incident',
     description: 'Retrieve a single incident by ID from Rootly.',
     version: '1.0.0',
+    effect: 'read',
     oauth: ROOTLY_CREDENTIAL_OAUTH,
 
     params: {

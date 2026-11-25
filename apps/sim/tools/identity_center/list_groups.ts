@@ -13,6 +13,7 @@ export const listGroupsTool: InternalToolConfig<
   name: 'Identity Center List Groups',
   description: 'List all groups in the Identity Store',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

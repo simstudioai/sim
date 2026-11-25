@@ -29,6 +29,7 @@ export const bitbucketListPullRequestCommentsTool: ToolConfig<
   name: 'Bitbucket List Pull Request Comments',
   description: 'List global, inline, and reply comments on a pull request',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pullrequest'] },
   params: {
     ...BITBUCKET_PULL_REQUEST_PARAMS,

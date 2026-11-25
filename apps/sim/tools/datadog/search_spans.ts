@@ -13,6 +13,7 @@ export const searchSpansTool: ToolConfig<SearchSpansParams, SearchSpansResponse>
   name: 'Datadog Search Spans',
   description: 'Search indexed APM spans using the span query syntax, with cursor pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

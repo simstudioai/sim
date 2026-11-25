@@ -7,6 +7,7 @@ export const elevenLabsTtsTool: InternalToolConfig<ElevenLabsTtsParams, ElevenLa
   name: 'ElevenLabs TTS',
   description: 'Convert text to speech using ElevenLabs voices',
   version: '1.0.0',
+  effect: 'read',
   oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {

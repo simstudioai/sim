@@ -10,6 +10,7 @@ export const xGetRetweetedByTool: ToolConfig<XGetRetweetedByParams, XUserListRes
   name: 'X Get Retweeted By',
   description: 'Get the list of users who retweeted a specific tweet',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

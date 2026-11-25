@@ -9,6 +9,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
     name: 'Rootly Create Alert',
     description: 'Create a new alert in Rootly for on-call notification and routing.',
     version: '1.0.0',
+    effect: 'write',
     oauth: ROOTLY_CREDENTIAL_OAUTH,
 
     params: {

@@ -11,6 +11,7 @@ export const listIdentitiesTool: InternalToolConfig<
   description:
     'List all verified email identities (email addresses and domains) in your SES account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

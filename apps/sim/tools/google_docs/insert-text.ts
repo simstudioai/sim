@@ -13,6 +13,7 @@ export const insertTextTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertTe
   description:
     'Insert text at a specific index in a Google Docs document. When no index is provided, text is appended to the end of the document. Text is inserted literally; Markdown is not interpreted.',
   version: '1.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'google-docs',

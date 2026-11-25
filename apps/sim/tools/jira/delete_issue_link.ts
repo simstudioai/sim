@@ -13,6 +13,7 @@ export const jiraDeleteIssueLinkTool: ToolConfig<
   name: 'Jira Delete Issue Link',
   description: 'Delete a link between two Jira issues',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -36,6 +36,7 @@ export const sportmonksCoreSearchRegionsTool: ToolConfig<
   name: 'Search Regions',
   description: 'Search for regions by name from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

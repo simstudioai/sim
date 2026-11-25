@@ -8,6 +8,7 @@ export const mailgunGetDomainTool: ToolConfig<GetDomainParams, GetDomainResult> 
   name: 'Mailgun Get Domain',
   description: 'Get details of a specific domain',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {

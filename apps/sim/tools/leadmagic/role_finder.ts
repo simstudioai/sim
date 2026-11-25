@@ -11,6 +11,7 @@ export const roleFinderTool: ToolConfig<LeadMagicRoleFinderParams, LeadMagicRole
   description:
     'Find the person holding a specific job role at a company. Charges 2 credits when a matching person is found; free when no result.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: leadmagicHosting<LeadMagicRoleFinderParams>((_params, output) => {
     // 2 credits when a person is found, 0 otherwise.

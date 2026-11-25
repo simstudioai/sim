@@ -9,6 +9,7 @@ export const agiloftDeleteRecordTool: InternalToolConfig<
   name: 'Agiloft Delete Record',
   description: 'Delete a record from an Agiloft table.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     instanceUrl: {

@@ -35,6 +35,7 @@ export const createVideoTool: ToolConfig<CreateVideoParams, CreateVideoResponse>
   name: 'Embed Video in Google Slides',
   description: 'Embed a YouTube or Google Drive video on a slide.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

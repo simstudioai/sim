@@ -8,6 +8,7 @@ export const slackOpenViewTool: ToolConfig<SlackOpenViewParams, SlackOpenViewRes
   description:
     'Open a modal view in Slack using a trigger_id from an interaction payload. Used to display forms, confirmations, and other interactive modals.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -7,6 +7,7 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
   description:
     'Send structured JSON data to a Clay table webhook and return its response and HTTP metadata.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     webhookURL: {

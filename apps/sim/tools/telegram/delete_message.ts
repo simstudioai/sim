@@ -15,6 +15,7 @@ export const telegramDeleteMessageTool: ToolConfig<
   description:
     'Delete messages in Telegram channels or chats through the Telegram Bot API. Requires the message ID of the message to delete.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

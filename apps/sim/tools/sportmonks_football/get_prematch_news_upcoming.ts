@@ -34,6 +34,7 @@ export const sportmonksGetPrematchNewsUpcomingTool: ToolConfig<
   name: 'Get Pre-Match News for Upcoming Fixtures',
   description: 'Retrieve all pre-match news articles for upcoming fixtures from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

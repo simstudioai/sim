@@ -20,6 +20,7 @@ export const deleteAccessGroupTool: ToolConfig<
   name: 'Cloudflare Delete Access Group',
   description: 'Deletes an Access group.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

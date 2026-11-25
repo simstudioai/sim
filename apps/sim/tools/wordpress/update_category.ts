@@ -14,6 +14,7 @@ export const updateCategoryTool: ToolConfig<
   name: 'WordPress Update Category',
   description: 'Update an existing category in WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

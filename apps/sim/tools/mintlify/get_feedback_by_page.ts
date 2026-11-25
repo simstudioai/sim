@@ -37,6 +37,7 @@ export const mintlifyGetFeedbackByPageTool: ToolConfig<
   description:
     'Export Mintlify feedback counts aggregated by documentation page path, broken down into thumbs up, thumbs down, and code snippet feedback.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     projectId: {

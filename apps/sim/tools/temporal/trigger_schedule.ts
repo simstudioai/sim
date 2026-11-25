@@ -19,6 +19,7 @@ export const triggerScheduleTool: ToolConfig<
   name: 'Temporal Trigger Schedule',
   description: 'Trigger an immediate action of a Temporal schedule, outside its normal spec.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

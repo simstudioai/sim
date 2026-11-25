@@ -21,6 +21,7 @@ export const getSyntheticBatchTool: ToolConfig<
   description:
     'Get the status and failures of an on-demand synthetic batch execution. Poll it after triggering to gate a deploy on the result.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

@@ -35,6 +35,7 @@ export const listPersonsTool: ToolConfig<PostHogListPersonsParams, PostHogListPe
   description:
     'List persons (users) in PostHog. Returns user profiles with their properties and distinct IDs.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

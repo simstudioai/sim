@@ -18,6 +18,7 @@ export const oracleFusionFinancialsCreateExpenseReportTool: InternalToolConfig<
   name: 'Oracle Fusion Financials Create Expense Report',
   description: 'Create an Oracle Fusion expense report.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     orgId: {

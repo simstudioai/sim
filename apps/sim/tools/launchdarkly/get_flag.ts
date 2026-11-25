@@ -15,6 +15,7 @@ export const launchDarklyGetFlagTool: ToolConfig<
   name: 'LaunchDarkly Get Flag',
   description: 'Get a single feature flag by key from a LaunchDarkly project.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

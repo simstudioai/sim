@@ -8,6 +8,7 @@ export const vercelGetAliasTool: ToolConfig<VercelGetAliasParams, VercelGetAlias
   name: 'Vercel Get Alias',
   description: 'Get details about a specific alias by ID or hostname',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

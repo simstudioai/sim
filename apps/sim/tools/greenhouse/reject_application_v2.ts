@@ -16,6 +16,7 @@ export const greenhouseRejectApplicationV2Tool: ToolConfig<
   description:
     'Rejects an application; optionally sends or schedules the configured rejection email.',
   version: '2.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

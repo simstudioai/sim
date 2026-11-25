@@ -13,6 +13,7 @@ export const instagramDeleteCommentTool: ToolConfig<
   name: 'Instagram Delete Comment',
   description: 'Delete a comment on Instagram media',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

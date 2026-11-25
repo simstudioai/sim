@@ -41,6 +41,7 @@ export const getInfoTool: ToolConfig<RedditGetInfoParams, RedditGetInfoResponse>
   description:
     'Fetch information about one or more Reddit things (posts, comments, or subreddits) by their fullnames',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

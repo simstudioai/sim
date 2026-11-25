@@ -18,6 +18,7 @@ export const oracleFusionFinancialsUpdateReceivablesInvoiceTool: InternalToolCon
   name: 'Oracle Fusion Financials Update Receivables Invoice',
   description: 'Update Oracle Fusion receivables invoice.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     receivablesInvoiceId: {

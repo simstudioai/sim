@@ -55,6 +55,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
   name: 'Twilio Voice List Calls',
   description: 'Retrieve a list of calls made to and from an account.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TWILIO_CREDENTIAL_OAUTH,
 
   params: {

@@ -41,6 +41,7 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
   name: 'Zoho Desk Update Ticket',
   description: 'Update fields on an existing Zoho Desk ticket.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'zoho-desk' },
 

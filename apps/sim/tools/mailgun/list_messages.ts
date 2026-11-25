@@ -8,6 +8,7 @@ export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessage
   name: 'Mailgun List Messages',
   description: 'List events (logs) for messages sent through Mailgun',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {

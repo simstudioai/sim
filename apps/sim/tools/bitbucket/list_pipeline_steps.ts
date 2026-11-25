@@ -29,6 +29,7 @@ export const bitbucketListPipelineStepsTool: ToolConfig<
   name: 'Bitbucket List Pipeline Steps',
   description: 'List the steps in a pipeline',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pipeline'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

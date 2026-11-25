@@ -8,6 +8,7 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
   name: 'Infisical Get Secret',
   description: 'Retrieve a single secret by name from a project environment.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INFISICAL_CREDENTIAL_OAUTH,
 
   params: {

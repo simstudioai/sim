@@ -58,6 +58,7 @@ export const mintlifyGetUpdateStatusTool: ToolConfig<
   description:
     'Get the status of a Mintlify deployment update from its status ID, including logs, commit details, and screenshots.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     statusId: {

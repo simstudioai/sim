@@ -19,6 +19,7 @@ export const rocketlaneUpdateProjectTool: ToolConfig<
   description:
     'Update a Rocketlane project by ID, including name, dates, visibility, owner, status, and custom fields',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

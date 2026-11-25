@@ -19,6 +19,7 @@ export const codaGetFolderTool: ToolConfig<CodaFolderParams, CodaFolderResponse>
   name: 'Coda Get Folder',
   description: 'Get details about a Coda folder',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

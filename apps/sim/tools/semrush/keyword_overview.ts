@@ -16,6 +16,7 @@ export const semrushKeywordOverviewTool: ToolConfig<
   name: 'Semrush Keyword Overview',
   description: 'Get search volume, CPC, competition, difficulty, and intent for a single keyword.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

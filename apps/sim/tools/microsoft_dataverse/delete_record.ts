@@ -19,6 +19,7 @@ export const dataverseDeleteRecordTool: ToolConfig<
   name: 'Delete Microsoft Dataverse Record',
   description: 'Delete a record from a Microsoft Dataverse table by its ID.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

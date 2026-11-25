@@ -11,6 +11,7 @@ export const rootlyListServicesTool: ToolConfig<
   name: 'Rootly List Services',
   description: 'List services from Rootly with optional search filtering.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

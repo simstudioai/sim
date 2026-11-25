@@ -32,6 +32,7 @@ export const createCommentReactionTool: ToolConfig<
   name: 'GitHub Create Comment Reaction',
   description: 'Add a reaction to an issue comment',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -122,6 +123,7 @@ export const createCommentReactionV2Tool: ToolConfig<CreateCommentReactionParams
   name: createCommentReactionTool.name,
   description: createCommentReactionTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createCommentReactionTool.params,
   request: createCommentReactionTool.request,

@@ -10,6 +10,7 @@ export const linearArchiveIssueTool: ToolConfig<
   name: 'Linear Archive Issue',
   description: 'Archive an issue in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

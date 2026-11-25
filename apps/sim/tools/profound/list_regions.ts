@@ -10,6 +10,7 @@ export const profoundListRegionsTool: ToolConfig<
   name: 'Profound List Regions',
   description: 'List all organization regions in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

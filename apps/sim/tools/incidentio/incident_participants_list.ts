@@ -35,6 +35,7 @@ export const incidentParticipantsListTool: ToolConfig<
   description:
     'List the participants of an incident in incident.io, split into those actively helping and those just observing',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

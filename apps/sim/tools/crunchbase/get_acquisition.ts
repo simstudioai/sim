@@ -18,6 +18,7 @@ export const crunchbaseGetAcquisitionTool: ToolConfig<
   description:
     'Look up a single Crunchbase acquisition by permalink or UUID, returning the requested fields and related cards.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 

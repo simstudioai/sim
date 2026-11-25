@@ -22,6 +22,7 @@ export const closeProblemTool: ToolConfig<
   name: 'Dynatrace Close Problem',
   description: 'Close a Dynatrace problem and record the closing comment.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

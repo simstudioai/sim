@@ -13,6 +13,7 @@ export const linearDeleteIssueRelationTool: ToolConfig<
   name: 'Linear Delete Issue Relation',
   description: 'Remove a relation between two issues in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

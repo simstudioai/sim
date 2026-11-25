@@ -13,6 +13,7 @@ export const replaceTextTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReplace
   description:
     'Replace all occurrences of a search string with new text across a Google Docs document.',
   version: '1.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'google-docs',

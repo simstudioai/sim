@@ -8,6 +8,7 @@ export const stripeDeleteInvoiceTool: ToolConfig<DeleteInvoiceParams, InvoiceDel
   name: 'Stripe Delete Invoice',
   description: 'Permanently delete a draft invoice',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

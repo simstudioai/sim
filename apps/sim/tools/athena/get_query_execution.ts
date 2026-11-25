@@ -13,6 +13,7 @@ export const getQueryExecutionTool: InternalToolConfig<
   name: 'Athena Get Query Execution',
   description: 'Get the status and details of an Athena query execution',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

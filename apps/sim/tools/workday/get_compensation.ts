@@ -12,6 +12,7 @@ export const getCompensationTool: InternalToolConfig<
   name: 'Get Workday Compensation',
   description: 'Retrieve compensation plan details for a specific worker.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tenantUrl: {

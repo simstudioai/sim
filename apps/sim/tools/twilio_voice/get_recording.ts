@@ -10,6 +10,7 @@ export const getRecordingTool: InternalToolConfig<
   name: 'Twilio Voice Get Recording',
   description: 'Retrieve call recording information and transcription (if enabled via TwiML).',
   version: '1.0.0',
+  effect: 'read',
   oauth: TWILIO_CREDENTIAL_OAUTH,
 
   params: {

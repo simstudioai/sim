@@ -13,6 +13,7 @@ export const listListItemsTool: InternalToolConfig<ListListItemsParams, SapConcu
   description:
     'List the top-level items (children) for a custom list (GET /list/v4/lists/{listId}/children).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

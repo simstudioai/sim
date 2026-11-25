@@ -13,6 +13,7 @@ export const agentphoneCreateNumberTool: ToolConfig<
   name: 'Create Phone Number',
   description: 'Provision a new SMS- and voice-enabled phone number',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

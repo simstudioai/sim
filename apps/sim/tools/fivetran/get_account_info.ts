@@ -18,6 +18,7 @@ export const fivetranGetAccountInfoTool: ToolConfig<
   name: 'Fivetran Get Account Info',
   description: 'Get the Fivetran account and the user or system key that the API key belongs to.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

@@ -13,6 +13,7 @@ export const deleteConfigurationProfileTool: InternalToolConfig<
   name: 'AppConfig Delete Configuration Profile',
   description: 'Delete an AWS AppConfig configuration profile',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -12,6 +12,7 @@ export const mondayGetBoardTool: ToolConfig<MondayGetBoardParams, MondayGetBoard
   name: 'Monday Get Board',
   description: 'Get a specific Monday.com board with its groups and columns',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -7,6 +7,7 @@ export const createShareLinkTool: ToolConfig<OneDriveToolParams, OneDriveShareLi
   name: 'Create OneDrive Sharing Link',
   description: 'Create a view or edit sharing link for a OneDrive file or folder',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

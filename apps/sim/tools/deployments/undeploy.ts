@@ -13,6 +13,7 @@ export const deploymentsUndeployTool: InternalToolConfig<
   description:
     'Take a deployed workflow offline. API execution stops and schedules, webhooks, and other deployment side effects are removed. Requires admin permission on the workflow’s workspace.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     workflowId: {

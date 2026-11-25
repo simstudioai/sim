@@ -37,6 +37,7 @@ export const bufferCreateIdeaTool: ToolConfig<BufferCreateIdeaParams, BufferIdea
   name: 'Buffer Create Idea',
   description: 'Save a content idea to a Buffer organization for later drafting and scheduling',
   version: '1.0.0',
+  effect: 'write',
   oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {

@@ -36,6 +36,7 @@ export const sportmonksGetLeaguesByDateTool: ToolConfig<
   name: 'Get Leagues by Date',
   description: 'Retrieve all leagues with fixtures on a given date (YYYY-MM-DD) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

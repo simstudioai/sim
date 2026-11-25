@@ -16,6 +16,7 @@ export const trelloSearchTool: ToolConfig<TrelloSearchParams, TrelloSearchRespon
   name: 'Trello Search',
   description: 'Search Trello cards and boards by keyword',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

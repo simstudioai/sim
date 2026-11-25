@@ -15,6 +15,7 @@ export const agentphoneGetConversationMessagesTool: ToolConfig<
   name: 'Get Conversation Messages',
   description: 'Get paginated messages for a conversation',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

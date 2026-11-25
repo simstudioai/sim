@@ -11,6 +11,7 @@ export const netsuiteBatchUpdateRecordsTool: InternalToolConfig<
   name: 'NetSuite Batch Update Records',
   description: 'Submit an asynchronous batch that updates up to 100 records of one type.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

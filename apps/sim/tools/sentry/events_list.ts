@@ -10,6 +10,7 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
   description:
     'List events from a Sentry project. Can be filtered by issue ID, query, or time period. Returns event details including context, tags, and user information.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {

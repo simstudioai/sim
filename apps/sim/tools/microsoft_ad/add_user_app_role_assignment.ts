@@ -40,6 +40,7 @@ export const addUserAppRoleAssignmentTool: InternalToolConfig<
   description:
     'Grant a user an application role on a service principal, giving them access to that application',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

@@ -8,6 +8,7 @@ export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrder
   name: 'Shopify Get Order',
   description: 'Get a single order by ID from your Shopify store',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

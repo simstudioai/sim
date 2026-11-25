@@ -13,6 +13,7 @@ export const linearRemoveLabelFromIssueTool: ToolConfig<
   name: 'Linear Remove Label from Issue',
   description: 'Remove a label from an issue in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

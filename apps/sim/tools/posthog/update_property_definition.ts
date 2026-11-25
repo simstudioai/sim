@@ -45,6 +45,7 @@ export const updatePropertyDefinitionTool: ToolConfig<
   description:
     'Update a property definition in PostHog. Can modify description, tags, property type, and verification status to maintain clean property schemas.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'posthog-errors',
 
   params: {

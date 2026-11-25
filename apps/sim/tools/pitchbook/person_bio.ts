@@ -9,6 +9,7 @@ export const pitchbookPersonBioTool: ToolConfig<PitchbookProfileParams, Pitchboo
   description:
     'Retrieve the profile of a person: name, biography, LinkedIn, primary employer, position, and office',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

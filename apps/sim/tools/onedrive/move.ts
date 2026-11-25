@@ -15,6 +15,7 @@ export const moveTool: ToolConfig<OneDriveToolParams, OneDriveMoveResponse> = {
   name: 'Move or Rename OneDrive File',
   description: 'Move a file or folder to a new parent folder, rename it, or both',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

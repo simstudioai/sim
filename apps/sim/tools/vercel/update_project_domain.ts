@@ -14,6 +14,7 @@ export const vercelUpdateProjectDomainTool: ToolConfig<
   name: 'Vercel Update Project Domain',
   description: "Update a project domain's configuration on Vercel",
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

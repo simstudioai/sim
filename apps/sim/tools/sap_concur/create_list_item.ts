@@ -7,6 +7,7 @@ export const createListItemTool: InternalToolConfig<CreateListItemParams, SapCon
   name: 'SAP Concur Create List Item',
   description: 'Create a list item (POST /list/v4/items).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

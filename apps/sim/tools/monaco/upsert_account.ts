@@ -23,6 +23,7 @@ export const monacoUpsertAccountTool: ToolConfig<
   description:
     'Create a Monaco account or update the one whose domain exactly matches the domain lookup. Pass an account ID instead to update that account by ID, or only a name to create an account without a domain where the workspace allows it. Creating an account enriches it with firmographic data and can take several seconds.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

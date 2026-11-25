@@ -12,6 +12,7 @@ export const getItemFileTool: InternalToolConfig<
   name: '1Password Get Item File',
   description: 'Download the content of a file attached to an item',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     connectionMode: {

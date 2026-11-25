@@ -17,6 +17,7 @@ export const trelloAddChecklistTool: ToolConfig<
   name: 'Trello Add Checklist',
   description: 'Add a checklist to a Trello card',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

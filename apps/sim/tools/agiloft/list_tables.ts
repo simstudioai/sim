@@ -10,6 +10,7 @@ export const agiloftListTablesTool: InternalToolConfig<
   description:
     'List the tables and fields in an Agiloft knowledge base, to discover the logical names other operations need.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     instanceUrl: {

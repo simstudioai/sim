@@ -13,6 +13,7 @@ export const stopDeploymentTool: InternalToolConfig<
   name: 'AppConfig Stop Deployment',
   description: 'Stop an in-progress AWS AppConfig deployment',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -11,6 +11,7 @@ export const listTagsTool: ToolConfig<WordPressListTagsParams, WordPressListTags
   name: 'WordPress List Tags',
   description: 'List tags from WordPress.com',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

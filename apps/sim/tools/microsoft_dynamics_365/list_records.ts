@@ -92,6 +92,7 @@ export const microsoftDynamics365ListRecordsTool: ToolConfig<
   description:
     'Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filtering, column selection, ordering, and one bounded page at a time.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

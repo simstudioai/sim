@@ -31,6 +31,7 @@ export const replaceAllTextTool: ToolConfig<ReplaceAllTextParams, ReplaceAllText
   name: 'Replace All Text in Google Slides',
   description: 'Find and replace all occurrences of text throughout a Google Slides presentation',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -17,6 +17,7 @@ export const pipedriveGetActivitiesTool: ToolConfig<
   name: 'Get Activities from Pipedrive',
   description: 'Retrieve activities (tasks) from Pipedrive with optional filters',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

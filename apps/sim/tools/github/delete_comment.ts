@@ -8,6 +8,7 @@ export const deleteCommentTool: ToolConfig<DeleteCommentParams, DeleteCommentRes
   name: 'GitHub Comment Deleter',
   description: 'Delete a comment on a GitHub issue or pull request',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -85,6 +86,7 @@ export const deleteCommentV2Tool: ToolConfig<DeleteCommentParams, any> = {
   name: deleteCommentTool.name,
   description: deleteCommentTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteCommentTool.params,
   request: deleteCommentTool.request,

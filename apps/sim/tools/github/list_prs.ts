@@ -9,6 +9,7 @@ export const listPRsTool: ToolConfig<ListPRsParams, PRListResponse> = {
   name: 'GitHub List Pull Requests',
   description: 'List pull requests in a GitHub repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -163,6 +164,7 @@ export const listPRsV2Tool: ToolConfig<ListPRsParams, any> = {
   name: listPRsTool.name,
   description: listPRsTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listPRsTool.params,
   request: listPRsTool.request,

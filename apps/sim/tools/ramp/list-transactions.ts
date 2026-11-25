@@ -17,6 +17,7 @@ export const rampListTransactionsTool: ToolConfig<
   name: 'Ramp List Transactions',
   description: 'List transactions in one page in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

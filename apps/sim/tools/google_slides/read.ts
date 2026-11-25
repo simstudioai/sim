@@ -12,6 +12,7 @@ export const readTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesReadRespon
   name: 'Read Google Slides Presentation',
   description: 'Read content from a Google Slides presentation',
   version: '1.0',
+  effect: 'read',
 
   oauth: {
     required: true,

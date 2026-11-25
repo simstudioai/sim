@@ -8,6 +8,7 @@ export const outlookReplyAllTool: ToolConfig<OutlookReplyParams, OutlookReplyRes
   name: 'Outlook Reply All',
   description: 'Reply to all recipients of an Outlook message with a comment',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

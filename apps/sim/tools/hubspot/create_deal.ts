@@ -12,6 +12,7 @@ export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotC
     description:
       'Create a new deal in HubSpot with the given properties (e.g., dealname, amount, dealstage)',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

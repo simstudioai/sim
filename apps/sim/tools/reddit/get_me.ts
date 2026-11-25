@@ -7,6 +7,7 @@ export const getMeTool: ToolConfig<RedditGetMeParams, RedditUserResponse> = {
   name: 'Get Reddit User Identity',
   description: 'Get information about the authenticated Reddit user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

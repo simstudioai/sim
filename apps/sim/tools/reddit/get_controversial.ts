@@ -8,6 +8,7 @@ export const getControversialTool: ToolConfig<RedditControversialParams, RedditP
   name: 'Get Reddit Controversial Posts',
   description: 'Fetch controversial posts from a subreddit',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -15,6 +15,7 @@ export const gitlabListMergeRequestsTool: ToolConfig<
   name: 'GitLab List Merge Requests',
   description: 'List merge requests in a GitLab project',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

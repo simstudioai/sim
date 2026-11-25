@@ -15,6 +15,7 @@ export const createQuickExpenseTool: InternalToolConfig<
   description:
     'Create a quick expense (POST /quickexpense/v4/users/{userId}/context/{contextType}/quickexpenses). TRAVELER is the only supported context type.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

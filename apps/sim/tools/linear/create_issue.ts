@@ -9,6 +9,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
     name: 'Linear Issue Writer',
     description: 'Create a new issue in Linear',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

@@ -13,6 +13,7 @@ export const jupyterListKernelspecsTool: InternalToolConfig<
   name: 'Jupyter List Kernel Specs',
   description: 'List available kernel specs (languages/runtimes) on a Jupyter server',
   version: '1.0.0',
+  effect: 'read',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

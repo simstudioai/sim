@@ -15,6 +15,7 @@ export const rootlyDeleteActionItemTool: ToolConfig<
   name: 'Rootly Delete Action Item',
   description: 'Delete a Rootly incident action item.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

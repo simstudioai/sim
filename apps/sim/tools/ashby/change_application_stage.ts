@@ -35,6 +35,7 @@ export const changeApplicationStageTool: ToolConfig<
   description:
     'Moves an application to a different interview stage. Requires an archive reason when moving to an Archived stage.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

@@ -10,6 +10,7 @@ export const linqLeaveChatTool: ToolConfig<LinqChatActionParams, LinqQueuedResul
   description:
     'Leave an iMessage group chat (4+ active participants; not supported for direct chats)',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

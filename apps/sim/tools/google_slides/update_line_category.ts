@@ -29,6 +29,7 @@ export const updateLineCategoryTool: ToolConfig<
   name: 'Update Line Category in Google Slides',
   description: "Change a connector line's category (STRAIGHT, BENT, or CURVED).",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

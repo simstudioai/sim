@@ -10,6 +10,7 @@ export const xGetBlockingTool: ToolConfig<XGetBlockingParams, XUserListResponse>
   name: 'X Get Blocking',
   description: 'Get the list of users blocked by the authenticated user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

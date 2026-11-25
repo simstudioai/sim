@@ -36,8 +36,8 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
   name: 'Create Google Docs Document',
   description: 'Create a new Google Docs document',
   version: '1.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'folderSelector', label: 'Folder', target: true },

@@ -9,6 +9,7 @@ export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUp
     name: 'Linear Update Issue',
     description: 'Update an existing issue in Linear',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

@@ -11,6 +11,7 @@ export const linqGetContactCardTool: ToolConfig<
   name: 'Get Contact Card',
   description: 'Retrieve contact cards, optionally filtered by phone number',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

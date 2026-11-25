@@ -7,6 +7,7 @@ export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
   name: 'X Write',
   description: 'Post new tweets, reply to tweets, or create polls on X (Twitter)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

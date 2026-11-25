@@ -14,6 +14,7 @@ export const squareUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
   name: 'Square Update Customer',
   description: 'Update fields on an existing customer profile',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

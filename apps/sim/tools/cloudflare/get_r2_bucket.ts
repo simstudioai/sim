@@ -21,6 +21,7 @@ export const getR2BucketTool: ToolConfig<CloudflareGetR2BucketParams, Cloudflare
     description:
       'Reads the metadata of a single R2 object storage bucket. Requires an API token with Account Workers R2 Storage Read.',
     version: '1.0.0',
+    effect: 'read',
     oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
     params: {

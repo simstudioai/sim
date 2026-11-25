@@ -6,6 +6,7 @@ export const lumaVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   name: 'Luma Dream Machine Video',
   description: 'Generate videos using Luma Ray models',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     provider: {

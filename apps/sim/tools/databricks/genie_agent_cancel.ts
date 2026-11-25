@@ -23,6 +23,7 @@ export const genieAgentCancelTool: ToolConfig<
   description:
     'Cancel an in-flight Genie agent response using the response ID returned by the agent stream.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...GENIE_SPACE_PARAMS,

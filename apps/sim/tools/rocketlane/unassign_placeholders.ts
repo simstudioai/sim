@@ -20,6 +20,7 @@ export const rocketlaneUnassignPlaceholdersTool: ToolConfig<
   name: 'Rocketlane Unassign Placeholders',
   description: 'Unassign a placeholder from its user in a Rocketlane project',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

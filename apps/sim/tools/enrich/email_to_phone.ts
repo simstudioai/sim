@@ -7,6 +7,7 @@ export const emailToPhoneTool: ToolConfig<EnrichEmailToPhoneParams, EnrichEmailT
   name: 'Enrich Email to Phone',
   description: 'Find a phone number associated with an email address.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

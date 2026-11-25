@@ -11,6 +11,7 @@ export const attioGetCommentTool: ToolConfig<AttioGetCommentParams, AttioGetComm
   name: 'Attio Get Comment',
   description: 'Get a single comment by ID from Attio',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

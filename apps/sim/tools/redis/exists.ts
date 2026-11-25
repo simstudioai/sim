@@ -6,6 +6,7 @@ export const redisExistsTool: InternalToolConfig<RedisExistsParams, RedisExistsR
   name: 'Redis EXISTS',
   description: 'Check if a key exists in Redis.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

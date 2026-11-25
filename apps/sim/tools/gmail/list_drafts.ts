@@ -26,6 +26,7 @@ export const gmailListDraftsV2Tool: ToolConfig<GmailListDraftsParams, GmailListD
   name: 'Gmail List Drafts',
   description: 'List all drafts in a Gmail account',
   version: '2.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -12,6 +12,7 @@ export const getProductTool: InternalToolConfig<GetProductParams, SapS4HanaRespo
   description:
     'Retrieve a single product (material) by Product key from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

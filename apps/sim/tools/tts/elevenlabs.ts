@@ -9,6 +9,7 @@ export const elevenLabsTtsUnifiedTool: InternalToolConfig<
   name: 'ElevenLabs TTS',
   description: 'Convert text to speech using ElevenLabs voices',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     text: {

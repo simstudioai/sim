@@ -21,6 +21,7 @@ export const codaUpdateRowTool: ToolConfig<CodaUpdateRowParams, CodaRowMutationR
   name: 'Coda Update Row',
   description: 'Update cell values in a row of a Coda table. Applied asynchronously.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

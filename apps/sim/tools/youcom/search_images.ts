@@ -19,6 +19,7 @@ export const youComSearchImagesTool: ToolConfig<
   description:
     'Find image URLs for a query with You.com. Beta, and limited to You.com early-access API keys.',
   version: '1.0.0',
+  effect: 'read',
   oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {

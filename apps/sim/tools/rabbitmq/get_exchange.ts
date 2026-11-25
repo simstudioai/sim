@@ -18,6 +18,7 @@ export const rabbitmqGetExchangeTool: ToolConfig<
   name: 'RabbitMQ Get Exchange',
   description: 'Read a single RabbitMQ exchange and the settings it was declared with.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

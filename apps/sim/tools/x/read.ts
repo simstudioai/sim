@@ -11,6 +11,7 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
   name: 'X Read',
   description: 'Read tweet details, including replies and conversation context',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

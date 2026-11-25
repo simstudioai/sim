@@ -10,6 +10,7 @@ export const getCallerIdentityTool: InternalToolConfig<
   name: 'STS Get Caller Identity',
   description: 'Get details about the IAM user or role whose credentials are used to call the API',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

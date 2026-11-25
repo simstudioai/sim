@@ -9,6 +9,7 @@ export const gaugeUpdateTagTool: ToolConfig<GaugeUpdateTagParams, GaugeUpdateTag
   name: 'Gauge Update Tag',
   description: 'Change the name or color of a prompt tag.',
   version: '1.0.0',
+  effect: 'write',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

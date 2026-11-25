@@ -6,6 +6,7 @@ export const listDirectoryTool: InternalToolConfig<SSHListDirectoryParams, SSHRe
   name: 'SSH List Directory',
   description: 'List files and directories in a remote directory',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

@@ -25,6 +25,7 @@ export const monacoListAudienceContactsTool: ToolConfig<
   name: 'Monaco List Audience Contacts',
   description: 'List the contacts in a Monaco audience, one page at a time.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -19,6 +19,7 @@ export const crunchbaseSearchAcquisitionsTool: ToolConfig<
   description:
     'Search Crunchbase acquisitions with filter predicates on announced date, price, acquisition type, and the companies involved.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 

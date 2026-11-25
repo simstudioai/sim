@@ -21,6 +21,7 @@ export const personaCreateAccountTool: ToolConfig<
   description:
     'Create an account that represents an individual in Persona. Accounts consolidate inquiries, verifications, and reports for the same person.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

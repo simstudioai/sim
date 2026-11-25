@@ -10,6 +10,7 @@ export const createTemplateTool: InternalToolConfig<
   name: 'SES Create Template',
   description: 'Create a new SES email template for use with templated email sending',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

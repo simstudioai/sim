@@ -6,6 +6,7 @@ export const getDriveInfoTool: ToolConfig<OneDriveToolParams, OneDriveGetDriveIn
   name: 'Get OneDrive Info',
   description: 'Get information about the OneDrive drive, including storage quota',
   version: '1.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -7,6 +7,7 @@ export const updateTool: InternalToolConfig<PostgresUpdateParams, PostgresUpdate
   name: 'PostgreSQL Update',
   description: 'Update data in PostgreSQL database',
   version: '1.0',
+  effect: 'write',
   oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {

@@ -19,6 +19,7 @@ export const cancelTaskRunTool: ToolConfig<
 > = {
   id: 'snowflake_cancel_task_run',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Cancel Task Query',
   description:

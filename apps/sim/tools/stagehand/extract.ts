@@ -6,6 +6,7 @@ export const extractTool: InternalToolConfig<StagehandExtractParams, StagehandEx
   name: 'Stagehand Extract',
   description: 'Extract structured data from a webpage using Stagehand',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

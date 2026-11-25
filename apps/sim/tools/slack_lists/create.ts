@@ -15,6 +15,7 @@ export const slackListsCreateTool: ToolConfig<SlackListsCreateParams, SlackLists
   name: 'Slack Lists Create List',
   description: 'Create a Slack List with an optional column schema. Requires a paid Slack plan.',
   version: '1.0.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'slack',

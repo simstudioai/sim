@@ -10,6 +10,7 @@ export const xGetUserTimelineTool: ToolConfig<XGetUserTimelineParams, XTweetList
   name: 'X Get User Timeline',
   description: 'Get the reverse chronological home timeline for the authenticated user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -21,6 +21,7 @@ export const dataverseGetRecordTool: ToolConfig<
   description:
     'Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $select and $expand OData query options.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

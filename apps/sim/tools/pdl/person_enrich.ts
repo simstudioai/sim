@@ -13,6 +13,7 @@ export const personEnrichTool: ToolConfig<PdlPersonEnrichParams, PdlPersonEnrich
   description:
     'Enrich a single person profile using People Data Labs. Match by email, phone, LinkedIn URL, or name + company/location. Returns work history, contact details, location, and skills.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,

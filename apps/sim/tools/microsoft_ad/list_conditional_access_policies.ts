@@ -16,6 +16,7 @@ export const listConditionalAccessPoliciesTool: ToolConfig<
   description:
     'List the conditional access policies configured in the tenant, including their state and the conditions and controls they enforce. Read-only.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

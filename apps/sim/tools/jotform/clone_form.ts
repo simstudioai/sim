@@ -14,6 +14,7 @@ export const cloneFormTool: ToolConfig<JotformCloneFormParams, JotformFormRespon
   name: 'Jotform Clone Form',
   description: 'Clone an existing Jotform form and return the copy.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

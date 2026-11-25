@@ -18,6 +18,7 @@ export const affinityListNotesTool: ToolConfig<
   name: 'Affinity List Notes',
   description: 'Page through every note the caller can see. Replies are excluded.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

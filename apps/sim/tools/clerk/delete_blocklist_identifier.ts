@@ -19,6 +19,7 @@ export const clerkDeleteBlocklistIdentifierTool: ToolConfig<
   name: 'Delete Blocklist Identifier from Clerk',
   description: 'Remove an identifier from your Clerk instance blocklist',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

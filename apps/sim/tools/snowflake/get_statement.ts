@@ -40,6 +40,7 @@ export const getStatementTool: ToolConfig<SnowflakeGetStatementParams, Snowflake
     description:
       'Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors.',
     version: '1.0.0',
+    effect: 'read',
     oauth: SNOWFLAKE_OAUTH,
     params: {
       ...snowflakeAuthParamFields,

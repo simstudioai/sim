@@ -27,6 +27,7 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
   name: 'Google Calendar Create Event',
   description: 'Create a new event in Google Calendar',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -246,6 +247,7 @@ export const createV2Tool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendar
     name: 'Google Calendar Create Event',
     description: 'Create a new event in Google Calendar.',
     version: '2.0.0',
+    effect: 'write',
     oauth: createTool.oauth,
     params: createTool.params,
     request: createTool.request,

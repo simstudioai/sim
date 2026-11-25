@@ -25,6 +25,7 @@ export const outlookListAttachmentsTool: ToolConfig<
   name: 'Outlook List Attachments',
   description: 'List the attachments on an Outlook message (metadata only, without contents)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

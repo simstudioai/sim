@@ -7,6 +7,7 @@ export const killQueryTool: InternalToolConfig<ClickHouseKillQueryParams, ClickH
     name: 'ClickHouse Kill Query',
     description: 'Kill a running query by its query ID',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       host: {

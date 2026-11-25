@@ -14,6 +14,7 @@ export const listRoutingFormSubmissionsTool: ToolConfig<
   name: 'Calendly List Routing Form Submissions',
   description: 'Retrieve the submissions of a routing form, including answers and routing result',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

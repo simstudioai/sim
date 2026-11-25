@@ -25,6 +25,7 @@ export const affinityListEntityListsTool: ToolConfig<
   name: 'Affinity List Entity Lists',
   description: 'List every list a company or person appears on that the caller can view.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

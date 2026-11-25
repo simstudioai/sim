@@ -10,6 +10,7 @@ export const uploadFileTool: InternalToolConfig<
   name: 'Upload File to SharePoint',
   description: 'Upload files to a SharePoint document library',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

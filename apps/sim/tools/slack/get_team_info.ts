@@ -7,6 +7,7 @@ export const slackGetTeamInfoTool = createSlackWebApiTool({
   id: 'slack_get_team_info',
   name: 'Slack Get Workspace Info',
   description: 'Read a Slack workspace’s name, domain, icon, and available organization details.',
+  effect: 'read',
   endpoint: 'team.info',
   method: 'GET',
   oauth: {

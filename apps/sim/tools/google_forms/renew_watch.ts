@@ -14,6 +14,7 @@ export const renewWatchTool: ToolConfig<
   name: 'Google Forms: Renew Watch',
   description: 'Renew a notification watch for another 7 days',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

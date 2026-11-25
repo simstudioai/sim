@@ -13,6 +13,7 @@ export const deleteEmailIdentityTool: InternalToolConfig<
   name: 'SES Delete Email Identity',
   description: 'Delete a verified SES email address or domain identity',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

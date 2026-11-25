@@ -15,6 +15,7 @@ export const rootlyListActionItemsTool: ToolConfig<
   name: 'Rootly List Action Items',
   description: 'List action items for an incident in Rootly.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

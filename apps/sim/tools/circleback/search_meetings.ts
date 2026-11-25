@@ -25,6 +25,7 @@ export const searchMeetingsTool: ToolConfig<
   description:
     'Searches Circleback meetings by name and content, with optional filters for specific meetings, tags, and people.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

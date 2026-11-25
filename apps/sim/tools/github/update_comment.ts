@@ -10,6 +10,7 @@ export const updateCommentTool: ToolConfig<UpdateCommentParams, IssueCommentResp
   name: 'GitHub Comment Updater',
   description: 'Update an existing comment on a GitHub issue or pull request',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -112,6 +113,7 @@ export const updateCommentV2Tool: ToolConfig = {
   name: updateCommentTool.name,
   description: updateCommentTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: updateCommentTool.params,
   request: updateCommentTool.request,
   oauth: updateCommentTool.oauth,

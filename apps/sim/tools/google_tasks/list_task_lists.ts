@@ -13,6 +13,7 @@ export const listTaskListsTool: ToolConfig<
   name: 'Google Tasks List Task Lists',
   description: 'Retrieve all task lists for the authenticated user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

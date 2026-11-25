@@ -9,6 +9,7 @@ export const listMaterialStockTool: InternalToolConfig<ListMaterialStockParams, 
     description:
       'List material stock quantities from SAP S/4HANA Cloud (API_MATERIAL_STOCK_SRV, A_MatlStkInAcctMod). The entity uses an 11-field composite key (Material, Plant, StorageLocation, Batch, Supplier, Customer, WBSElementInternalID, SDDocument, SDDocumentItem, InventorySpecialStockType, InventoryStockType) — query with $filter on these fields instead of a direct key lookup.',
     version: '1.0.0',
+    effect: 'read',
     params: {
       subdomain: {
         type: 'string',

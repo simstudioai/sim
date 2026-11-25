@@ -13,6 +13,7 @@ export const describeLogStreamsTool: InternalToolConfig<
   name: 'CloudWatch Describe Log Streams',
   description: 'List log streams within a CloudWatch log group',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

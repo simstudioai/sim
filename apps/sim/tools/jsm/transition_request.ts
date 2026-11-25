@@ -9,6 +9,7 @@ export const jsmTransitionRequestTool: InternalToolConfig<
   name: 'JSM Transition Request',
   description: 'Transition a service request to a new status in Jira Service Management',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

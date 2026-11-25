@@ -8,6 +8,7 @@ export const getPolicyTool: InternalToolConfig<IAMGetPolicyParams, IAMGetPolicyR
   description:
     'Get details about a managed IAM policy, including its description — the field ListPolicies never returns',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

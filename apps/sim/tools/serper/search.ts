@@ -161,6 +161,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   description:
     'Search Google through the Serper.dev API for web, news, places, images, videos, shopping, scholar, or patent results. Returns the ranked results for the chosen search type.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

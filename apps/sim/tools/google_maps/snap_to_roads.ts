@@ -12,6 +12,7 @@ export const googleMapsSnapToRoadsTool: ToolConfig<
   name: 'Google Maps Snap to Roads',
   description: 'Snap GPS coordinates to the nearest road segment',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

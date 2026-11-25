@@ -14,6 +14,7 @@ export const rampListBillsTool: ToolConfig<RampListBillsParams, RampListBillsRes
   name: 'Ramp List Bills',
   description: 'List bills in one page in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

@@ -56,6 +56,7 @@ export const createFeatureFlagTool: ToolConfig<
   name: 'PostHog Create Feature Flag',
   description: 'Create a new feature flag in PostHog',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'posthog-errors',
 
   params: {

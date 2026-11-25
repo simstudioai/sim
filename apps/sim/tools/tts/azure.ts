@@ -6,6 +6,7 @@ export const azureTtsTool: InternalToolConfig<AzureTtsParams, TtsBlockResponse> 
   name: 'Azure TTS',
   description: 'Convert text to speech using Azure Cognitive Services',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     text: {

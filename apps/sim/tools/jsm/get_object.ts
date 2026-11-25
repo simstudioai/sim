@@ -7,6 +7,7 @@ export const jsmGetObjectTool: InternalToolConfig<JsmGetObjectParams, JsmGetObje
   name: 'JSM Get Asset Object',
   description: 'Get a single Assets (Insight/CMDB) object by ID, including its attribute values',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

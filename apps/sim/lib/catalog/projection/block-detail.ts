@@ -61,6 +61,7 @@ export type CatalogBlockOutput = Pick<
 export interface CatalogBlockOperation {
   toolId?: string
   toolName?: string
+  effect?: CatalogToolDetail['effect']
   description?: string
   /** Tool params plus operation-scoped block inputs, minus anything the block supplies itself. */
   inputs: Record<string, CatalogInputDefinition | CatalogToolDetail['params'][string]>
@@ -491,6 +492,8 @@ export function projectBlockDetail(
             id: toolId,
             name: toolId,
             description: '',
+            // An id with no registered tool declares no effect, which counts as a write.
+            effect: 'write',
             hostedApiKey: 'none',
             params: {},
             outputs: {},
@@ -516,7 +519,9 @@ export function projectBlockDetail(
       outputs: tool?.outputs ?? {},
       inputSchema: operationFields[operationId] ?? [],
       ...(toolId !== undefined ? { toolId } : {}),
-      ...(tool ? { toolName: tool.name, description: describeTool(tool) } : {}),
+      ...(tool
+        ? { toolName: tool.name, effect: tool.effect, description: describeTool(tool) }
+        : {}),
     }
   }
 

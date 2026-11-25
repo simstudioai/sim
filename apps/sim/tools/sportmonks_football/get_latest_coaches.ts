@@ -34,6 +34,7 @@ export const sportmonksGetLatestCoachesTool: ToolConfig<
   name: 'Get Last Updated Coaches',
   description: 'Retrieve all coaches that have received updates in the past two hours',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

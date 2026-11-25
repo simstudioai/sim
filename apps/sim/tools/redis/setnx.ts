@@ -6,6 +6,7 @@ export const redisSetnxTool: InternalToolConfig<RedisSetnxParams, RedisSetnxResp
   name: 'Redis SETNX',
   description: 'Set the value of a key in Redis only if the key does not already exist.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

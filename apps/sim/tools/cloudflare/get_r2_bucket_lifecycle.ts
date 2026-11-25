@@ -22,6 +22,7 @@ export const getR2BucketLifecycleTool: ToolConfig<
   name: 'Cloudflare Get R2 Bucket Lifecycle',
   description: 'Get object lifecycle rules for a bucket.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

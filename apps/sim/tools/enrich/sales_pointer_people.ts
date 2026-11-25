@@ -14,6 +14,7 @@ export const salesPointerPeopleTool: ToolConfig<
   description:
     'Advanced people search with complex filters for location, company size, seniority, experience, and more.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

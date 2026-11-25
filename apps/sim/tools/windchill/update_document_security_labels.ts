@@ -17,6 +17,7 @@ export const windchillUpdateDocumentSecurityLabelsTool: InternalToolConfig<
   name: 'Windchill Update Document Security Labels',
   description: 'Update installed security-label attributes for one or more documents',
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

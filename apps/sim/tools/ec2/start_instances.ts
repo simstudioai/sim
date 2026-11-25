@@ -11,6 +11,7 @@ export const startInstancesTool: InternalToolConfig<
   name: 'EC2 Start Instances',
   description: 'Start one or more stopped EC2 instances',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

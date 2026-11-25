@@ -34,6 +34,7 @@ export const confluenceCreatePageTool: InternalToolConfig<
   name: 'Confluence Create Page',
   description: 'Create a new page in a Confluence space.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

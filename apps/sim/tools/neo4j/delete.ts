@@ -7,6 +7,7 @@ export const deleteTool: InternalToolConfig<Neo4jDeleteParams, Neo4jResponse> = 
   description:
     'Execute DELETE or DETACH DELETE statements to remove nodes and relationships from Neo4j',
   version: '1.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -9,6 +9,7 @@ export const ripplingListTeamsTool: ToolConfig<RipplingListTeamsParams> = {
   name: 'Rippling List Teams',
   description: 'List all teams',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -24,6 +24,7 @@ export const railwayDeleteVariableTool: ToolConfig<
   name: 'Railway Delete Variable',
   description: 'Delete a Railway environment variable',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

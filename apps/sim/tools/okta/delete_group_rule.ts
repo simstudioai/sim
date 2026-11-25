@@ -17,6 +17,7 @@ export const oktaDeleteGroupRuleTool: ToolConfig<
   description:
     'Permanently delete a group rule. Destructive and irreversible. Optionally also removes the users that this rule had assigned from those groups, which revokes any access those groups grant.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

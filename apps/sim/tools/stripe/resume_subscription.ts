@@ -22,6 +22,7 @@ export const stripeResumeSubscriptionTool: ToolConfig<
   name: 'Stripe Resume Subscription',
   description: 'Resume a paused subscription',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

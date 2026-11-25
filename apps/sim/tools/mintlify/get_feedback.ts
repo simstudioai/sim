@@ -42,6 +42,7 @@ export const mintlifyGetFeedbackTool: ToolConfig<
   description:
     'Export paginated user feedback from a Mintlify documentation project, with optional date-range, source, and status filters.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     projectId: {

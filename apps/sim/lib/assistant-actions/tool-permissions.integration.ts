@@ -831,8 +831,9 @@ describe('organization Assistant tool permissions', () => {
       input: { ...input, revision: 0, change: { kind: 'group', effect: 'read', policy: 'allow' } },
     })
     const saved = await loadAssistantToolPermissions({ ...input, userId: ownerId })
-    const operation = getToolMetadata('gmail_list_labels_v2')?.assistant
-    if (!operation) throw new Error('Fixture operation is unavailable')
+    const tool = getToolMetadata('gmail_list_labels_v2')
+    if (!tool?.assistant) throw new Error('Fixture operation is unavailable')
+    const operation = { effect: tool.effect, version: tool.assistant.version }
     expect(resolveAssistantToolPolicy(saved, 'gmail_list_labels_v2', operation)).toBe('allow')
     expect(
       resolveAssistantToolPolicy(saved, 'gmail_list_labels_v2', {

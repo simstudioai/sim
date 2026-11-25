@@ -13,6 +13,7 @@ export const createChangeSetTool: InternalToolConfig<
   name: 'CloudFormation Create Change Set',
   description: 'Preview the changes a stack create or update would make before applying them',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

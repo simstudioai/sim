@@ -22,6 +22,7 @@ export const checkrListContinuousChecksTool: ToolConfig<
   name: 'Checkr List Continuous Checks',
   description: 'List the continuous checks a candidate is enrolled in.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

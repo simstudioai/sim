@@ -19,6 +19,7 @@ export const affinityGetUserTool: ToolConfig<
   description:
     'Read one internal user. A user and their person record share the same numeric ID, so a person ID works here.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

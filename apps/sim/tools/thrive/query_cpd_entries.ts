@@ -20,6 +20,7 @@ export const queryCpdEntriesTool: ToolConfig<
   name: 'Thrive Query CPD Entries',
   description: 'Query CPD log entries in Thrive and return results with pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

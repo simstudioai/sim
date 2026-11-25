@@ -6,6 +6,7 @@ export const writeFileContentTool: InternalToolConfig<SSHWriteFileContentParams,
   name: 'SSH Write File Content',
   description: 'Write or append content to a remote file',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

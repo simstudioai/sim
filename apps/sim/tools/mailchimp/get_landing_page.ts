@@ -25,6 +25,7 @@ export const mailchimpGetLandingPageTool: ToolConfig<
   name: 'Get Landing Page from Mailchimp',
   description: 'Retrieve details of a specific landing page from Mailchimp',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

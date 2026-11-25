@@ -236,6 +236,9 @@ interface CatalogOperationOutputs {
   nullable?: string[]
 }
 
+/** Whether running a tool changes anything outside Sim (`apps/sim/tools/types.ts` `ToolEffect`). */
+type CatalogEffect = 'read' | 'write'
+
 /** Which param shapes a block's outputs at run time. */
 export interface CatalogDynamicOutputs {
   /**
@@ -276,6 +279,14 @@ export interface CatalogBlock {
    * operation picks the tool. An operation missing here returns every block output.
    */
   operationOutputs?: Record<string, CatalogOperationOutputs>
+  /**
+   * What running the block does outside Sim, from its tools' declared effect: `read` (changes
+   * nothing, so a dry run executes it) only when every tool it can run is `read`, else `write`.
+   * Absent for a block that runs no registered tool (triggers, model-only blocks, annotations).
+   */
+  effect?: CatalogEffect
+  /** Per operation id, the effect of the tool the operation runs, where it differs from `effect`. */
+  operationEffects?: Record<string, CatalogEffect>
   /**
    * Present when outputs derive from a param at run time. Compile and codegen read output paths
    * from that param's value; where it cannot be read statically, any path is allowed and

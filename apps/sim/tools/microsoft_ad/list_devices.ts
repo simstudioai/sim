@@ -21,6 +21,7 @@ export const listDevicesTool: ToolConfig<
   name: 'List Microsoft Entra ID Devices',
   description: 'List the devices registered in Microsoft Entra ID',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

@@ -42,6 +42,7 @@ export const enrowVerifyEmailTool: ToolConfig<EnrowVerifyEmailParams, EnrowVerif
   description:
     'Verify the deliverability of an email address using the Enrow async verifier. Submits a verification request and polls until the result is ready. Costs 0.25 credits per verification. (https://docs.enrow.io/api-reference/email-verifier/verify-single)',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: enrowHosting<EnrowVerifyEmailParams>((_params, output) => {
     // 0.25 credits per completed verification. Bill only when the job resolved

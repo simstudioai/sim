@@ -20,6 +20,7 @@ export const rocketlaneListPlaceholdersTool: ToolConfig<
   name: 'Rocketlane List Placeholders',
   description: 'List the placeholders of a Rocketlane project',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

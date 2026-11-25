@@ -49,6 +49,7 @@ export const listRecordingPlaylistsTool: ToolConfig<
   description:
     'List session recording playlists in a PostHog project. Playlists allow you to organize and curate session recordings.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

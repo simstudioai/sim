@@ -45,6 +45,7 @@ export const searchReposTool: ToolConfig<SearchReposParams, SearchReposResponse>
   description:
     'Search for repositories across GitHub. Use qualifiers like language:python, stars:>1000, topic:react, user:owner, org:name',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -186,6 +187,7 @@ export const searchReposV2Tool: ToolConfig<SearchReposParams, any> = {
   name: searchReposTool.name,
   description: searchReposTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: searchReposTool.params,
   request: searchReposTool.request,

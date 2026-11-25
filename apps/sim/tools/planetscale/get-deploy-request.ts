@@ -23,6 +23,7 @@ export const planetScaleGetDeployRequestTool: ToolConfig<
   name: 'PlanetScale Get Deploy Request',
   description: 'Get a deploy request (Vitess only)',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

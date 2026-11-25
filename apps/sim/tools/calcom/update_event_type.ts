@@ -13,6 +13,7 @@ export const updateEventTypeTool: ToolConfig<
   name: 'Cal.com Update Event Type',
   description: 'Update an existing event type in Cal.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

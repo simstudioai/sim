@@ -15,6 +15,7 @@ export const rootlyCreateStatusPageEventTool: ToolConfig<
   name: 'Rootly Create Status Page Event',
   description: 'Post a public status page update for a Rootly incident.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

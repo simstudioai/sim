@@ -27,6 +27,7 @@ export const squareRefundPaymentTool: ToolConfig<
   name: 'Square Refund Payment',
   description: 'Refund all or part of a completed payment',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

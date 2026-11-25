@@ -9,8 +9,8 @@ export const jiraCreateSprintTool: InternalToolConfig<
   name: 'Jira Create Sprint',
   description: 'Create a future sprint on a Jira Software board',
   version: '1.0.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'domain', label: 'Jira site', target: true },

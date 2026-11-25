@@ -8,6 +8,7 @@ export const closeMattersTool: ToolConfig<GoogleVaultMatterActionParams> = {
   name: 'Vault Close Matter',
   description: 'Close a matter',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

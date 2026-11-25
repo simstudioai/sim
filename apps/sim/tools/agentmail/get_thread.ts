@@ -8,6 +8,7 @@ export const agentmailGetThreadTool: ToolConfig<GetThreadParams, GetThreadResult
   name: 'Get Thread',
   description: 'Get details of a specific email thread including messages in AgentMail',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

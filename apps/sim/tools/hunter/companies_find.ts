@@ -7,6 +7,7 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
   name: 'Hunter Companies Find',
   description: 'Enriches company data using domain name.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: HUNTER_API_KEY_PREFIX,

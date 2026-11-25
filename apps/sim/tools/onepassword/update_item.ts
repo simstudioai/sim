@@ -13,6 +13,7 @@ export const updateItemTool: InternalToolConfig<
   name: '1Password Update Item',
   description: 'Update an existing item using JSON Patch operations (RFC6902)',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     connectionMode: {

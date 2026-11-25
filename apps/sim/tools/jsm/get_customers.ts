@@ -10,6 +10,7 @@ export const jsmGetCustomersTool: InternalToolConfig<
   name: 'JSM Get Customers',
   description: 'Get customers for a service desk in Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

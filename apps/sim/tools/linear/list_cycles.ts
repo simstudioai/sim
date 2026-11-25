@@ -8,6 +8,7 @@ export const linearListCyclesTool: ToolConfig<LinearListCyclesParams, LinearList
   name: 'Linear List Cycles',
   description: 'List cycles (sprints/iterations) in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

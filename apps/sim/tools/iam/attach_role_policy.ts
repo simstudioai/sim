@@ -10,6 +10,7 @@ export const attachRolePolicyTool: InternalToolConfig<
   name: 'IAM Attach Role Policy',
   description: 'Attach a managed policy to an IAM role',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

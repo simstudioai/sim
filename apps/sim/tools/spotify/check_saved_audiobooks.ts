@@ -18,6 +18,7 @@ export const spotifyCheckSavedAudiobooksTool: ToolConfig<
   name: 'Spotify Check Saved Audiobooks',
   description: 'Check if audiobooks are saved in library.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

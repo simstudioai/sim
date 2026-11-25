@@ -9,6 +9,7 @@ export const xManageFollowTool: ToolConfig<XManageFollowParams, XManageFollowRes
   name: 'X Manage Follow',
   description: 'Follow or unfollow a user on X',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

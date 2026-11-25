@@ -15,6 +15,7 @@ export const identifyUserTool: ToolConfig<
   description:
     'Set user properties in Amplitude using the Identify API. Supports $set, $setOnce, $add, $append, $unset operations.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AMPLITUDE_INGESTION_CREDENTIAL_OAUTH,
 
   params: {

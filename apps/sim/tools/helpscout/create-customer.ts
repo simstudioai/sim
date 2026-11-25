@@ -23,6 +23,7 @@ export const helpScoutCreateCustomerTool: ToolConfig<
   name: 'Help Scout Create Customer',
   description: 'Create a Help Scout customer with a profile, email address, and phone number.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

@@ -7,6 +7,7 @@ export const boxUploadFileTool: InternalToolConfig<BoxUploadFileParams, BoxUploa
   name: 'Box Upload File',
   description: 'Upload a file to a Box folder',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

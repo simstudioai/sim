@@ -7,6 +7,7 @@ export const slackShareCanvasTool = createSlackWebApiTool({
   name: 'Slack Share Canvas',
   description:
     'Change access for users or regular channels on a standalone canvas. For sharing, first send the canvas link in Slack to the target. Channel resource canvases cannot be changed this way.',
+  effect: 'write',
   endpoint: 'canvases.access.set',
   method: 'POST',
   oauth: { required: true, provider: 'slack', requiredScopes: ['canvases:write'] },

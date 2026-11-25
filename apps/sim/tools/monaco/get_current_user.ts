@@ -17,6 +17,7 @@ export const monacoGetCurrentUserTool: ToolConfig<
   name: 'Monaco Get Current User',
   description: 'Get the Monaco user and organization the API key belongs to.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -48,6 +48,7 @@ export const listPropertyDefinitionsTool: ToolConfig<
   description:
     'List all property definitions in a PostHog project. Property definitions represent tracked properties with metadata like descriptions, tags, types, and usage statistics.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

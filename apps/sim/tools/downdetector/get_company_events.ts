@@ -39,6 +39,7 @@ export const getCompanyEventsTool: ToolConfig<
   description:
     'Get the published events (such as detected outages) for a Downdetector company, including the measured vs expected report volume for each event.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     companyId: {

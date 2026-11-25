@@ -6,6 +6,7 @@ export const smsSendTool: InternalToolConfig<SMSSendParams, SMSSendResult> = {
   name: 'Send SMS',
   description: 'Send an SMS message using the internal SMS service powered by Twilio',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     to: {

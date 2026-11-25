@@ -34,6 +34,7 @@ export const getDashboardTool: ToolConfig<PostHogGetDashboardParams, PostHogGetD
     description:
       'Get a specific dashboard by ID from PostHog. Returns detailed dashboard configuration, tiles, and metadata.',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: 'posthog-errors',
 
     params: {

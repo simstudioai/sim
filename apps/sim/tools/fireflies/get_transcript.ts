@@ -14,6 +14,7 @@ export const firefliesGetTranscriptTool: ToolConfig<
   description:
     'Get a single transcript with full details including summary, action items, and analytics',
   version: '1.0.0',
+  effect: 'read',
   oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {

@@ -10,6 +10,7 @@ export const manageengineSdpGetChangeTool: ToolConfig<SdpGetChangeParams, SdpRes
   name: 'ManageEngine SDP Get Change',
   description: 'Retrieve a single ManageEngine ServiceDesk Plus Cloud change by ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

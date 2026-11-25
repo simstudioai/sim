@@ -13,6 +13,7 @@ export const instagramSetCommentsEnabledTool: ToolConfig<
   name: 'Instagram Set Comments Enabled',
   description: 'Enable or disable comments on an Instagram media object',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

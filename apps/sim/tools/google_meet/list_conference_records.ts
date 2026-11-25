@@ -14,6 +14,7 @@ export const listConferenceRecordsTool: ToolConfig<
   name: 'Google Meet List Conference Records',
   description: 'List conference records for meetings you organized',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

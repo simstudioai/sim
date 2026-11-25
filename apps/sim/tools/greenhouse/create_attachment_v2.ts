@@ -20,6 +20,7 @@ export const greenhouseCreateAttachmentV2Tool: ToolConfig<
   description:
     'Attaches a file to an application. A new resume or cover letter reclassifies the previous attachment of that type as other.',
   version: '2.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

@@ -12,6 +12,7 @@ export const hubspotUpdateDealTool: ToolConfig<HubSpotUpdateDealParams, HubSpotU
     name: 'Update Deal in HubSpot',
     description: 'Update an existing deal in HubSpot by ID',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

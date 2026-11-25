@@ -22,6 +22,7 @@ export const checkrGetVerificationTool: ToolConfig<
   name: 'Checkr Get Verification',
   description: 'Retrieve a verification by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

@@ -12,6 +12,7 @@ export const spotifyAddTracksToPlaylistTool: ToolConfig<
   name: 'Spotify Add Tracks to Playlist',
   description: 'Add one or more tracks to a Spotify playlist.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

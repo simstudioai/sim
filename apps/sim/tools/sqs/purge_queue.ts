@@ -7,6 +7,7 @@ export const purgeQueueTool: InternalToolConfig<SqsPurgeQueueParams, SqsMessageR
   name: 'SQS Purge Queue',
   description: 'Delete every message in an Amazon SQS queue while keeping the queue itself',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

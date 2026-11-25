@@ -21,6 +21,7 @@ export const shopifyGetFulfillmentTool: ToolConfig<
   name: 'Shopify Get Fulfillment',
   description: 'Read shipment tracking and one page of fulfilled line items',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'shopify', authoritativeParams: ['domain', 'idToken'] },
   params: {
     accessToken: {

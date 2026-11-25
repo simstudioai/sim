@@ -13,6 +13,7 @@ export const rb2bHemToMaidTool: ToolConfig<Rb2bIdentifierParams, Rb2bMaidRespons
   description:
     'Return up to five mobile advertising identifiers (MAIDs) associated with an email address or MD5-hashed email.',
   version: '1.0.0',
+  effect: 'read',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

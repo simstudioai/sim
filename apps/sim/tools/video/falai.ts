@@ -9,6 +9,7 @@ export const falaiVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   description:
     'Generate a video from a text prompt, and optionally a start frame image, with a model in the Fal.ai video catalog',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     provider: {

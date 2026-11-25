@@ -10,6 +10,7 @@ export const resendGetBroadcastTool: ToolConfig<GetBroadcastParams, GetBroadcast
   name: 'Get Broadcast',
   description: 'Retrieve details of a broadcast by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

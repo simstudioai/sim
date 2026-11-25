@@ -14,6 +14,7 @@ export const deleteDnsRecordTool: ToolConfig<
   name: 'Cloudflare Delete DNS Record',
   description: 'Deletes a DNS record from a zone.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

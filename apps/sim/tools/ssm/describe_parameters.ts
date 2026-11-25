@@ -10,6 +10,7 @@ export const describeParametersTool: InternalToolConfig<
   name: 'SSM Describe Parameters',
   description: 'List Parameter Store parameter metadata without reading any values',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

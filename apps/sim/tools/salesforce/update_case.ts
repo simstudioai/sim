@@ -14,6 +14,7 @@ export const salesforceUpdateCaseTool: ToolConfig<
   name: 'Update Case in Salesforce',
   description: 'Update an existing case',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

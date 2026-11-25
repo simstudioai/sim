@@ -19,6 +19,7 @@ export const updateZoneSettingTool: ToolConfig<
   description:
     'Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const deleteRecordTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDele
   name: 'Delete ServiceNow Record',
   description: 'Delete a record from a ServiceNow table',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

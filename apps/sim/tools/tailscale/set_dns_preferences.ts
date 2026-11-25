@@ -15,6 +15,7 @@ export const tailscaleSetDnsPreferencesTool: ToolConfig<
   name: 'Tailscale Set DNS Preferences',
   description: 'Enable or disable MagicDNS for the tailnet',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

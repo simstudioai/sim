@@ -3,7 +3,7 @@ import type { HostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { resolveToolId } from '@/tools/tool-ids'
-import type { OutputProperty, ToolConfig } from '@/tools/types'
+import type { OutputProperty, ToolConfig, ToolEffect } from '@/tools/types'
 
 /**
  * Surface-neutral projection of a built-in tool.
@@ -69,6 +69,7 @@ export interface CatalogToolSummary {
   name: string
   description: string
   version?: string
+  effect: ToolEffect
   hostedApiKey: HostedApiKeySupport
   oauth?: CatalogToolOAuth
 }
@@ -108,6 +109,7 @@ export function projectToolSummary(
     id: toolId,
     name: metadata.name ?? toolId,
     description: metadata.description ?? '',
+    effect: metadata.effect,
     hostedApiKey: deployment.hostedKeys ? (metadata.hostedApiKey ?? 'none') : 'none',
   }
   if (metadata.version !== undefined) summary.version = metadata.version

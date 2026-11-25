@@ -29,6 +29,7 @@ export const mailchimpRemoveSegmentMemberTool: ToolConfig<
   name: 'Remove Member from Segment in Mailchimp',
   description: 'Remove a member from a specific segment in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

@@ -11,6 +11,7 @@ export const manageengineSdpGetSolutionTool: ToolConfig<SdpGetSolutionParams, Sd
   description:
     'Retrieve a single ManageEngine ServiceDesk Plus Cloud knowledge base solution by ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

@@ -9,6 +9,7 @@ export const gitlabGetProjectTool: ToolConfig<GitLabGetProjectParams, GitLabGetP
   name: 'GitLab Get Project',
   description: 'Get details of a specific GitLab project',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

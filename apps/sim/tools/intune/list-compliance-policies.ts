@@ -21,6 +21,7 @@ export const intuneListCompliancePoliciesTool: ToolConfig<
   name: 'Microsoft Intune List Compliance Policies',
   description: 'Read one page of compliance policies from Microsoft Intune',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

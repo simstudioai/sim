@@ -153,7 +153,7 @@ export function AssistantActionReviewProvider({
           message.contentBlocks?.flatMap(({ toolCall }) =>
             toolCall &&
             getToolMetadata(toolCall.name)?.assistant &&
-            (getToolMetadata(toolCall.name)?.assistant?.effect === 'write' ||
+            (getToolMetadata(toolCall.name)?.effect === 'write' ||
               toolCall.status === ToolCallStatus.awaiting_approval)
               ? [toolCall.id]
               : []
@@ -177,8 +177,7 @@ export function AssistantActionReviewProvider({
       for (const { toolCall } of message.contentBlocks ?? []) {
         if (!toolCall || !getToolMetadata(toolCall.name)?.assistant) continue
         turn.representedIds.add(toolCall.id)
-        if (getToolMetadata(toolCall.name)?.assistant?.effect === 'write')
-          turn.writeIds.add(toolCall.id)
+        if (getToolMetadata(toolCall.name)?.effect === 'write') turn.writeIds.add(toolCall.id)
         if (toolCall.status === ToolCallStatus.awaiting_approval) turn.hasApprovalRows = true
       }
       turns.set(messageStreamId, turn)

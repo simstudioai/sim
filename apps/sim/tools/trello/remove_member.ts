@@ -12,6 +12,7 @@ export const trelloRemoveMemberTool: ToolConfig<
   name: 'Trello Remove Member',
   description: 'Unassign a member from a Trello card',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

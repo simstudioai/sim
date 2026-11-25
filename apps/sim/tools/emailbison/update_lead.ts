@@ -18,6 +18,7 @@ export const updateLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBison
   description:
     'Updates an existing Email Bison lead. Fields omitted from a PUT update may be cleared by Email Bison.',
   version: '1.0.0',
+  effect: 'write',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

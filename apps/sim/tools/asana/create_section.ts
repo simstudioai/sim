@@ -9,6 +9,7 @@ export const asanaCreateSectionTool: InternalToolConfig<
   name: 'Asana Create Section',
   description: 'Create a new section in an Asana project',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

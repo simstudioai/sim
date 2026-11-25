@@ -10,6 +10,7 @@ export const attioCreateNoteTool: ToolConfig<AttioCreateNoteParams, AttioCreateN
   name: 'Attio Create Note',
   description: 'Create a note on a record in Attio',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

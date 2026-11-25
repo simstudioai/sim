@@ -19,6 +19,7 @@ export const revenuecatRefundGoogleSubscriptionTool: ToolConfig<
   description:
     'Refund a specific store transaction by its store transaction identifier and revoke access (subscription or non-subscription, last 365 days)',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

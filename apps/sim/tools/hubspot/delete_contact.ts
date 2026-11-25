@@ -16,6 +16,7 @@ export const hubspotDeleteContactTool: ToolConfig<
   name: 'Delete Contact from HubSpot',
   description: 'Archive a contact in HubSpot by ID (moves it to the recycling bin)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

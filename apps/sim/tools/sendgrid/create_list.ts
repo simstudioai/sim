@@ -8,6 +8,7 @@ export const sendGridCreateListTool: ToolConfig<CreateListParams, ListResult> = 
   name: 'SendGrid Create List',
   description: 'Create a new contact list in SendGrid',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

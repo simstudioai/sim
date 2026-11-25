@@ -14,6 +14,7 @@ export const sendReactionTool: ToolConfig<WhatsAppSendReactionParams, WhatsAppSe
   description:
     'React to a WhatsApp message with an emoji. Send an empty emoji to remove an existing reaction.',
   version: '1.0.0',
+  effect: 'write',
   oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {

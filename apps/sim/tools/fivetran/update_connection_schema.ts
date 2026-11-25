@@ -28,6 +28,7 @@ export const fivetranUpdateConnectionSchemaTool: ToolConfig<
   description:
     'Enable or disable syncing of one schema in a Fivetran connection, optionally changing several of its tables at once.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

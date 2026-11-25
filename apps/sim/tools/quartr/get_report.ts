@@ -17,6 +17,7 @@ export const quartrGetReportTool: ToolConfig<QuartrGetReportParams, QuartrGetDoc
     description:
       'Retrieve a filing or report (10-K, 10-Q, earnings release, etc.) from Quartr by its document ID and download the PDF file.',
     version: '1.0.0',
+    effect: 'read',
     oauth: QUARTR_CREDENTIAL_OAUTH,
 
     params: {

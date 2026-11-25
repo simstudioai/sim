@@ -14,6 +14,7 @@ export const launchDarklyDeleteFlagTool: ToolConfig<
   name: 'LaunchDarkly Delete Flag',
   description: 'Delete a feature flag from a LaunchDarkly project.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const listUserLicensesTool: ToolConfig<
   name: 'List Microsoft Entra ID User Licenses',
   description: 'List the subscription licenses assigned to a user in Microsoft Entra ID',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

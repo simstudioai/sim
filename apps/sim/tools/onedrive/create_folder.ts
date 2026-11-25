@@ -8,6 +8,7 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
   name: 'Create Folder in OneDrive',
   description: 'Create a new folder in OneDrive',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

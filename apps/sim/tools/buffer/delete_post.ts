@@ -28,6 +28,7 @@ export const bufferDeletePostTool: ToolConfig<BufferDeletePostParams, BufferDele
   name: 'Buffer Delete Post',
   description: 'Delete a Buffer post by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {

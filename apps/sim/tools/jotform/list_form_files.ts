@@ -16,6 +16,7 @@ export const listFormFilesTool: ToolConfig<JotformGetFormFilesParams, JotformGet
     description:
       'List every file uploaded through a form, with its download URL, size, type, and the submission it came from.',
     version: '1.0.0',
+    effect: 'read',
     oauth: JOTFORM_CREDENTIAL_OAUTH,
 
     params: {

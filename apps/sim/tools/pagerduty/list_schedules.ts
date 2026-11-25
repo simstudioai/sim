@@ -14,6 +14,7 @@ export const listSchedulesTool: ToolConfig<
   name: 'PagerDuty List Schedules',
   description: 'List on-call schedules from PagerDuty with an optional name filter.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const getDataSourceTool: ToolConfig<
   name: 'Grafana Get Data Source',
   description: 'Get a data source by its ID or UID',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

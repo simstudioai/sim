@@ -12,6 +12,7 @@ export const stripeListPaymentIntentsTool: ToolConfig<
   name: 'Stripe List Payment Intents',
   description: 'List all Payment Intents',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

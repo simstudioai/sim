@@ -14,6 +14,7 @@ export const listWebhooksTool: ToolConfig<
   name: 'Calendly List Webhooks',
   description: 'Retrieve a list of webhook subscriptions for an organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

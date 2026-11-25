@@ -6,6 +6,7 @@ export const slackDeleteFileTool = createSlackWebApiTool({
   id: 'slack_delete_file',
   name: 'Slack Delete File',
   description: 'Permanently delete a Slack file the authenticated identity is allowed to delete.',
+  effect: 'write',
   endpoint: 'files.delete',
   method: 'POST',
   oauth: { required: true, provider: 'slack', requiredScopes: ['files:write'] },

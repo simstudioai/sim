@@ -24,6 +24,7 @@ export const helpScoutUpdateConversationStatusTool: ToolConfig<
   description:
     'Change the status of a Help Scout conversation to active, open, pending, closed, or spam.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

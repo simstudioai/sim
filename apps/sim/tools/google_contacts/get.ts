@@ -16,6 +16,7 @@ export const getTool: ToolConfig<GoogleContactsGetParams, GoogleContactsGetRespo
   name: 'Google Contacts Get',
   description: 'Get a specific contact from Google Contacts',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

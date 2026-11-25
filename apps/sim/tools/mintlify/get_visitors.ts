@@ -20,6 +20,7 @@ export const mintlifyGetVisitorsTool: ToolConfig<
   description:
     'Export Mintlify per-path and site-wide approximate distinct visitor counts for a date range, split by human and AI bot traffic.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     projectId: {

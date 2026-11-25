@@ -24,6 +24,7 @@ export const codaListFormulasTool: ToolConfig<CodaListDocItemsParams, CodaListFo
   name: 'Coda List Formulas',
   description: 'List the named formulas in a Coda doc',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

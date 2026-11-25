@@ -30,6 +30,7 @@ export const sportmonksGetTotwTool: ToolConfig<SportmonksGetTotwParams, Sportmon
     name: 'Get All Team of the Week',
     description: 'Retrieve all available Team of the Week (TOTW) entries from Sportmonks',
     version: '1.0.0',
+    effect: 'read',
     oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
     params: {

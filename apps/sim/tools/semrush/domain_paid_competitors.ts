@@ -21,6 +21,7 @@ export const semrushDomainPaidCompetitorsTool: ToolConfig<
   name: 'Semrush Paid Competitors',
   description: 'List the domains competing with a target domain in Google paid search results.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

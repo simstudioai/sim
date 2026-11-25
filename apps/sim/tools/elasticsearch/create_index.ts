@@ -14,6 +14,7 @@ export const createIndexTool: ToolConfig<
   name: 'Elasticsearch Create Index',
   description: 'Create a new index with optional settings and mappings.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     deploymentType: {

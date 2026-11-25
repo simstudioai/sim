@@ -10,6 +10,7 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
   description:
     'Send a text message to one recipient using the Twilio API. Call once per recipient to reach several numbers.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TWILIO_CREDENTIAL_OAUTH,
 
   params: {

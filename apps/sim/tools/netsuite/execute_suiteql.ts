@@ -11,6 +11,7 @@ export const netsuiteExecuteSuiteQLTool: InternalToolConfig<
   name: 'NetSuite Execute SuiteQL',
   description: 'Execute one page of a SuiteQL query through SuiteTalk REST web services.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

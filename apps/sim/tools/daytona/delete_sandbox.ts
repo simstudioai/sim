@@ -19,6 +19,7 @@ export const daytonaDeleteSandboxTool: ToolConfig<
   name: 'Daytona Delete Sandbox',
   description: 'Delete a Daytona sandbox',
   version: '1.0.0',
+  effect: 'write',
   oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {

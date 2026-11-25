@@ -8,6 +8,7 @@ export const tableDeleteRowTool: InternalToolConfig<TableRowDeleteParams, TableD
   name: 'Delete Row',
   description: 'Delete a row from a table',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     tableId: TABLE_ID_PARAM,

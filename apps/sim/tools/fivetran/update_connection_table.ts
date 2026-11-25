@@ -28,6 +28,7 @@ export const fivetranUpdateConnectionTableTool: ToolConfig<
   description:
     'Enable or disable syncing of one table in a Fivetran connection, and optionally change its sync mode.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

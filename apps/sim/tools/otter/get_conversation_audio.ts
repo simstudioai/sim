@@ -22,6 +22,7 @@ export const otterGetConversationAudioTool: ToolConfig<
   name: 'Otter Get Conversation Audio',
   description: 'Get the MP3 audio download link for an Otter conversation.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {

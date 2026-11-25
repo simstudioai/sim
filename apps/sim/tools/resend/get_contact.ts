@@ -10,6 +10,7 @@ export const resendGetContactTool: ToolConfig<GetContactParams, GetContactResult
   name: 'Get Contact',
   description: 'Retrieve details of a contact by ID or email',
   version: '1.0.0',
+  effect: 'read',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

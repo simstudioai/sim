@@ -12,6 +12,7 @@ export const updateUserTool: InternalToolConfig<UpdateUserParams, SapConcurRespo
   name: 'SAP Concur Update User',
   description: 'Patch a user identity (PATCH /profile/identity/v4.1/Users/{id}).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

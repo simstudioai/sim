@@ -11,6 +11,7 @@ export const jsmGetFormTemplatesTool: InternalToolConfig<
   description:
     'List forms (ProForma/JSM Forms) in a Jira project to discover form IDs for request types',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

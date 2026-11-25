@@ -38,6 +38,7 @@ export const getCompanyTool: ToolConfig<
   description:
     'Get details for a Downdetector company by id, including its current status, 24h report statistics, baseline, and available problem indicators.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     companyId: {

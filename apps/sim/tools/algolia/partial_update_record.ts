@@ -13,6 +13,7 @@ export const partialUpdateRecordTool: ToolConfig<
   name: 'Algolia Partial Update Record',
   description: 'Partially update a record in an Algolia index without replacing it entirely',
   version: '1.0',
+  effect: 'write',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

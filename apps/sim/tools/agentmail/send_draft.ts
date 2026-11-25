@@ -8,6 +8,7 @@ export const agentmailSendDraftTool: ToolConfig<SendDraftParams, SendDraftResult
   name: 'Send Draft',
   description: 'Send an existing email draft in AgentMail',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

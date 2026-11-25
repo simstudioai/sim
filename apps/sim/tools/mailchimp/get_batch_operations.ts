@@ -26,6 +26,7 @@ export const mailchimpGetBatchOperationsTool: ToolConfig<
   name: 'Get Batch Operations from Mailchimp',
   description: 'Retrieve a list of batch operations from Mailchimp',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

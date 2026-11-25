@@ -12,6 +12,7 @@ export const createTableTool: InternalToolConfig<
   name: 'ClickHouse Create Table',
   description: 'Create a new MergeTree-family table in ClickHouse',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

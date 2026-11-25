@@ -7,6 +7,7 @@ export const grainDeleteHookTool: ToolConfig<GrainDeleteHookParams, GrainDeleteH
   name: 'Grain Delete Webhook',
   description: 'Delete a webhook by ID',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

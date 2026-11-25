@@ -22,6 +22,7 @@ export const verifyEmailTool: ToolConfig<
   name: 'NeverBounce Verify Email',
   description: 'Verify the deliverability of an email address. Uses one verification credit.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: neverbounceHosting<NeverBounceVerifyEmailParams>(() => {
     // Each verification consumes one NeverBounce credit.

@@ -10,6 +10,7 @@ export const removeUserFromGroupTool: InternalToolConfig<
   name: 'IAM Remove User from Group',
   description: 'Remove an IAM user from a group',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

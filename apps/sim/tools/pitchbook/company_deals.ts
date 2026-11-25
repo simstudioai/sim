@@ -9,6 +9,7 @@ export const pitchbookCompanyDealsTool: ToolConfig<PitchbookProfileParams, Pitch
   description:
     'Retrieve every deal a company has been involved in, in chronological order with its deal type',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

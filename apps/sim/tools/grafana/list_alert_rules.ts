@@ -15,6 +15,7 @@ export const listAlertRulesTool: ToolConfig<
   name: 'Grafana List Alert Rules',
   description: 'List all alert rules in the Grafana instance',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

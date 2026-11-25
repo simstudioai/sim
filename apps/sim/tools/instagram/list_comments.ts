@@ -21,6 +21,7 @@ export const instagramListCommentsTool: ToolConfig<
   name: 'Instagram List Comments',
   description: 'List comments on an Instagram media object',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

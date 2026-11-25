@@ -22,6 +22,7 @@ export const tiktokGetPostStatusTool: ToolConfig<
   description:
     'Check the status of a video draft upload. Use the publishId returned from Upload Video Draft to track progress.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

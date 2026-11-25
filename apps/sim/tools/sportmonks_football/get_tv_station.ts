@@ -30,6 +30,7 @@ export const sportmonksGetTvStationTool: ToolConfig<
   name: 'Get TV Station by ID',
   description: 'Retrieve a single TV station by its ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

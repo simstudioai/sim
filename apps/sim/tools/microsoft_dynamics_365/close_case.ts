@@ -23,6 +23,7 @@ export const microsoftDynamics365CloseCaseTool: ToolConfig<
   name: 'Close Microsoft Dynamics 365 Case',
   description: 'Resolve and close a Dynamics 365 Customer Service case.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

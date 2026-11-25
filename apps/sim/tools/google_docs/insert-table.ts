@@ -13,6 +13,7 @@ export const insertTableTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertT
   description:
     'Insert an empty table with the given number of rows and columns into a Google Docs document. When no index is provided, the table is appended to the end of the document.',
   version: '1.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'google-docs',

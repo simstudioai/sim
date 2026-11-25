@@ -16,6 +16,7 @@ export const getCpdRequirementTool: ToolConfig<
   name: 'Thrive Get CPD Requirement',
   description: 'Get a single CPD requirement summary in Thrive by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

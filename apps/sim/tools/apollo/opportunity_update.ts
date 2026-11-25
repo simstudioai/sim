@@ -14,6 +14,7 @@ export const apolloOpportunityUpdateTool: ToolConfig<
   name: 'Apollo Update Opportunity',
   description: 'Update an existing deal/opportunity in your Apollo database',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

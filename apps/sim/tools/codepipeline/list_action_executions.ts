@@ -14,6 +14,7 @@ export const listActionExecutionsTool: InternalToolConfig<
   description:
     'List action-level execution history for a CodePipeline pipeline, including per-action status, timing, and error details',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

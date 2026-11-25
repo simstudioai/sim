@@ -7,6 +7,7 @@ export const airtableListBasesTool: ToolConfig<AirtableListBasesParams, Airtable
     name: 'Airtable List Bases',
     description: 'List all bases the authenticated user has access to',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

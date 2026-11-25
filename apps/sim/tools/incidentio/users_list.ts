@@ -12,6 +12,7 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
   description:
     'List all users in your Incident.io workspace. Returns user details including id, name, email, and role.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

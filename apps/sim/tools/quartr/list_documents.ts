@@ -23,6 +23,7 @@ export const quartrListDocumentsTool: ToolConfig<
   description:
     'List documents of all kinds (reports, slide decks, and transcripts) from Quartr, filterable by company, event, document type, document group, and date range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
   name: 'List Azure AD Users',
   description: 'List users in Azure AD (Microsoft Entra ID)',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

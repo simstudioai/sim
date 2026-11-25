@@ -16,6 +16,7 @@ export const clerkUnlockUserTool: ToolConfig<ClerkUnlockUserParams, ClerkUnlockU
   name: 'Unlock User in Clerk',
   description: 'Unlock a previously locked user account',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

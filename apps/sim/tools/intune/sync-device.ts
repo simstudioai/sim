@@ -12,6 +12,7 @@ export const intuneSyncDeviceTool: ToolConfig<IntuneSyncDeviceParams, IntuneSync
   name: 'Microsoft Intune Sync Device',
   description: 'Request a device check-in to receive pending Intune policies and actions',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

@@ -17,6 +17,7 @@ export const codaGetAclSettingsTool: ToolConfig<CodaDocParams, CodaAclSettingsRe
   name: 'Coda Get Sharing Settings',
   description: 'Get the sharing settings of a Coda doc',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

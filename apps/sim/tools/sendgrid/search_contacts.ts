@@ -8,6 +8,7 @@ export const sendGridSearchContactsTool: ToolConfig<SearchContactsParams, Contac
   name: 'SendGrid Search Contacts',
   description: 'Search for contacts in SendGrid using a query',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

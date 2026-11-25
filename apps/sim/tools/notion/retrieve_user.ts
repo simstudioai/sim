@@ -21,6 +21,7 @@ export const notionRetrieveUserTool: ToolConfig<
   name: 'Notion Retrieve User',
   description: 'Retrieve a single Notion user by their UUID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -94,6 +95,7 @@ export const notionRetrieveUserV2Tool: ToolConfig<
   name: 'Notion Retrieve User',
   description: 'Retrieve a single Notion user by their UUID',
   version: '2.0.0',
+  effect: 'read',
   oauth: notionRetrieveUserTool.oauth,
   params: notionRetrieveUserTool.params,
   request: notionRetrieveUserTool.request,

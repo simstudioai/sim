@@ -19,6 +19,7 @@ export const checkrGetReportTagsTool: ToolConfig<CheckrReportIdParams, CheckrRep
   name: 'Checkr Get Report Tags',
   description: 'List the tags on a report.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

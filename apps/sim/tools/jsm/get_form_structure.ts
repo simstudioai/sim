@@ -10,6 +10,7 @@ export const jsmGetFormStructureTool: InternalToolConfig<
   description:
     'Get the full structure of a ProForma/JSM form including all questions, field types, choices, layout, and conditions',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

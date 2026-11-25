@@ -44,6 +44,7 @@ export const airtableGetBaseSchemaTool: ToolConfig<
   name: 'Airtable Get Base Schema',
   description: 'Get the schema of all tables, fields, and views in an Airtable base',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -14,6 +14,7 @@ export const revenuecatUpdateSubscriberAttributesTool: ToolConfig<
   description:
     'Update custom subscriber attributes (e.g., $email, $displayName, or custom key-value pairs)',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

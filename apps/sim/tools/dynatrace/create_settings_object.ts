@@ -21,6 +21,7 @@ export const createSettingsObjectTool: ToolConfig<
   description:
     'Create a settings object — a maintenance window, alerting profile, management zone, or any other schema-backed configuration.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

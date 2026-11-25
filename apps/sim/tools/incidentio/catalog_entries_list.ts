@@ -18,6 +18,7 @@ export const catalogEntriesListTool: ToolConfig<
   description:
     'List the entries of a catalog type in incident.io — for example every service, team, or customer recorded in the catalog',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

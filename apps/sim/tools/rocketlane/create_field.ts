@@ -19,6 +19,7 @@ export const rocketlaneCreateFieldTool: ToolConfig<
   description:
     'Create a custom field in your Rocketlane account, with options for SINGLE_CHOICE and MULTIPLE_CHOICE field types',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const listEnrolmentsTool: ToolConfig<
   name: 'Thrive List Enrolments',
   description: 'List enrolments for a compliance assignment in Thrive.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

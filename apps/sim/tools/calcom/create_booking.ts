@@ -13,6 +13,7 @@ export const createBookingTool: ToolConfig<CalcomCreateBookingParams, CalcomCrea
     name: 'Cal.com Create Booking',
     description: 'Create a new booking on Cal.com',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

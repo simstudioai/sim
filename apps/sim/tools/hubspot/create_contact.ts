@@ -17,6 +17,7 @@ export const hubspotCreateContactTool: ToolConfig<
   description:
     'Create a new contact in HubSpot. Requires at least one of: email, firstname, or lastname',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -28,6 +28,7 @@ export const fivetranUpdateSchemaConfigTool: ToolConfig<
   description:
     'Update how a Fivetran connection handles new schemas, tables, and columns, and enable or disable schemas and tables in one call.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

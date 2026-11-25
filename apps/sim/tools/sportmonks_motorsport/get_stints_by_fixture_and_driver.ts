@@ -31,6 +31,7 @@ export const sportmonksMotorsportGetStintsByFixtureAndDriverTool: ToolConfig<
   name: 'Get Stints by Fixture and Driver',
   description: 'Retrieve all tyre stints for a motorsport fixture and driver from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

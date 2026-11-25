@@ -9,6 +9,7 @@ export const gitlabGetGroupTool: ToolConfig<GitLabGetGroupParams, GitLabGetGroup
   name: 'GitLab Get Group',
   description: 'Get details of a specific GitLab group',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

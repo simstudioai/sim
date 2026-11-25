@@ -9,6 +9,7 @@ export const ripplingListUsersTool: ToolConfig<RipplingListUsersParams> = {
   name: 'Rippling List Users',
   description: 'List all users with optional pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

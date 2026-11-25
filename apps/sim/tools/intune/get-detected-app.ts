@@ -18,6 +18,7 @@ export const intuneGetDetectedAppTool: ToolConfig<
   name: 'Microsoft Intune Get Detected App',
   description: 'Read detected app details from Microsoft Intune',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

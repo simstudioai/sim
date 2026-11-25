@@ -16,6 +16,7 @@ export const createWebhookTool: ToolConfig<JotformCreateWebhookParams, JotformWe
   description:
     'Register a webhook on a form so every new submission is posted to the given URL. Returns the full webhook list for the form.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

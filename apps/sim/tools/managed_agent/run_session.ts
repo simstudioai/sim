@@ -24,6 +24,7 @@ export const managedAgentRunSessionTool: InternalToolConfig<
   description:
     'Open a Claude Platform Managed Agent session and return the assistant response as text.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

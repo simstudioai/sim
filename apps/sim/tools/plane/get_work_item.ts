@@ -21,6 +21,7 @@ export const planeGetWorkItemTool: ToolConfig<PlaneGetWorkItemParams, PlaneGetWo
   name: 'Plane Get a work item',
   description: 'Get a work item in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

@@ -14,6 +14,7 @@ export const monacoCreateTagTool: ToolConfig<MonacoCreateTagParams, MonacoCreate
   name: 'Monaco Create Tag',
   description: 'Create a Monaco tag for contacts, accounts, or opportunities.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

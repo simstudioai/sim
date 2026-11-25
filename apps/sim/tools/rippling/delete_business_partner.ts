@@ -8,6 +8,7 @@ export const ripplingDeleteBusinessPartnerTool: ToolConfig<RipplingDeleteBusines
   name: 'Rippling Delete Business Partner',
   description: 'Delete a business partner',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -18,6 +18,7 @@ export const getMessagesTool: ToolConfig<RedditGetMessagesParams, RedditMessages
   name: 'Get Reddit Messages',
   description: 'Retrieve private messages from your Reddit inbox',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -21,6 +21,7 @@ export const triggerDevListRunsTool: ToolConfig<
   description:
     'List Trigger.dev runs in the environment of the API key, with optional filters for status, task, version, tags, schedule, and creation time.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

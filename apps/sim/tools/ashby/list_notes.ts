@@ -33,6 +33,7 @@ export const listNotesTool: ToolConfig<AshbyListNotesParams, AshbyListNotesRespo
   name: 'Ashby List Notes',
   description: 'Lists all notes on a candidate with pagination support.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

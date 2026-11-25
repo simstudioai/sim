@@ -18,6 +18,7 @@ export const clickupGetWorkspacesTool: ToolConfig<
   name: 'ClickUp Get Workspaces',
   description: 'List the ClickUp workspaces (teams) available to the connected account',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

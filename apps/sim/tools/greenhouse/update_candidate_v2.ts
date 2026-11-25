@@ -28,6 +28,7 @@ export const greenhouseUpdateCandidateV2Tool: ToolConfig<
   description:
     'Updates selected candidate fields. Read the current candidate first: supplied arrays replace the entire existing collection. Send the complete desired array, or [] to remove all entries.',
   version: '2.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

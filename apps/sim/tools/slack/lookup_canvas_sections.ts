@@ -25,6 +25,7 @@ export const slackLookupCanvasSectionsTool: ToolConfig<
   name: 'Slack Lookup Canvas Sections',
   description: 'Find Slack canvas section IDs matching criteria for later edits',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

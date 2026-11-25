@@ -11,6 +11,7 @@ export const discordUnpinMessageTool: ToolConfig<
   name: 'Discord Unpin Message',
   description: 'Unpin a message in a Discord channel',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

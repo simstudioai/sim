@@ -7,6 +7,7 @@ export const slackListBookmarksTool = createSlackWebApiTool({
   id: 'slack_list_bookmarks',
   name: 'Slack List Bookmarks',
   description: 'Read the bookmarks in a Slack channel.',
+  effect: 'read',
   endpoint: 'bookmarks.list',
   method: 'POST',
   oauth: {

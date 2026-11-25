@@ -9,6 +9,7 @@ export const getGuestsTool: ToolConfig<LumaGetGuestsParams, LumaGetGuestsRespons
   description:
     'Retrieve the guest list for a Luma event with optional filtering by approval status, sorting, and pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const elevenLabsSpeechToSpeechTool: InternalToolConfig<
   name: 'ElevenLabs Speech to Speech',
   description: 'Convert audio into a chosen ElevenLabs voice while preserving content and emotion',
   version: '1.0.0',
+  effect: 'read',
   oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {

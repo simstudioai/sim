@@ -8,6 +8,7 @@ export const boxUpdateFileTool: ToolConfig<BoxUpdateFileParams, BoxFileInfoRespo
   name: 'Box Update File',
   description: 'Update file info in Box (rename, move, change description, add tags)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

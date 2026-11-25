@@ -37,6 +37,7 @@ export const confluenceGetSpaceTool: InternalToolConfig<
   name: 'Confluence Get Space',
   description: 'Get details about a specific Confluence space.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

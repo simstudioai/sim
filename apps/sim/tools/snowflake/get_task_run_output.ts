@@ -19,6 +19,7 @@ export const getTaskRunOutputTool: ToolConfig<
 > = {
   id: 'snowflake_get_task_run_output',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Get Task Run Output',
   description:

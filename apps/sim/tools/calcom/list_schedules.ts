@@ -8,6 +8,7 @@ export const listSchedulesTool: ToolConfig<CalcomListSchedulesParams, CalcomList
     name: 'Cal.com List Schedules',
     description: 'List all availability schedules from Cal.com',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

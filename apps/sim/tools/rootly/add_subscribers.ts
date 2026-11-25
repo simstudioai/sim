@@ -12,6 +12,7 @@ export const rootlyAddSubscribersTool: ToolConfig<
   name: 'Rootly Add Subscribers',
   description: 'Subscribe users to a Rootly incident so they receive updates.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

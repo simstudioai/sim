@@ -10,6 +10,7 @@ export const listDatabasesTool: InternalToolConfig<
   name: 'Athena List Databases',
   description: 'List the databases available in an Athena data catalog',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

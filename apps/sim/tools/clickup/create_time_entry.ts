@@ -17,6 +17,7 @@ export const clickupCreateTimeEntryTool: ToolConfig<
   name: 'ClickUp Create Time Entry',
   description: 'Create a manual time entry in a ClickUp workspace, optionally linked to a task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

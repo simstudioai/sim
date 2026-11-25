@@ -6,6 +6,7 @@ export const googleTtsTool: InternalToolConfig<GoogleTtsParams, TtsBlockResponse
   name: 'Google Cloud TTS',
   description: 'Convert text to speech using Google Cloud Text-to-Speech',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     text: {

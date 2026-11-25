@@ -34,6 +34,7 @@ export const sportmonksGetAllRivalsTool: ToolConfig<
   name: 'Get All Rivals',
   description: 'Retrieve all teams with their rivals information from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -7,6 +7,7 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
   name: 'Notion Content Appender',
   description: 'Append content to a Notion page',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -95,6 +96,7 @@ export const notionWriteV2Tool: ToolConfig<NotionWriteParams, NotionWriteV2Respo
   name: 'Notion Content Appender',
   description: 'Append content to a Notion page',
   version: '2.0.0',
+  effect: 'write',
   oauth: notionWriteTool.oauth,
   params: notionWriteTool.params,
   request: notionWriteTool.request,

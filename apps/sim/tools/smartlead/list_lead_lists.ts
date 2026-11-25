@@ -22,6 +22,7 @@ export const listLeadListsTool: ToolConfig<ListLeadListsParams, SmartleadLeadLis
   name: 'Smartlead List Lead Lists',
   description: 'Retrieves the lead lists on the Smartlead account with their lead counts.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

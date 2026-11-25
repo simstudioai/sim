@@ -15,7 +15,7 @@ import { sameResourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { isManagedCredentialGroupBindingLive } from '@/lib/credential-groups/credentials'
 import { acquireAdvisoryXactLock, withLockTimeout } from '@/lib/db/advisory-locks'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import type { AssistantOperationMetadata } from '@/tools/types'
+import type { ToolEffect } from '@/tools/types'
 
 /** One serialization point for settings changes and admission, including accounts with no saved preference. */
 export async function lockAssistantToolPermissions(
@@ -107,7 +107,7 @@ export async function loadAssistantToolPermissions(
 export function resolveAssistantToolPolicy(
   permissions: AssistantToolPermissions,
   toolId: string,
-  operation: AssistantOperationMetadata
+  operation: { effect: ToolEffect; version: number }
 ) {
   const override = permissions.overrides[toolId]
   if (override) {

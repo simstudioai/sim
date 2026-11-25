@@ -18,6 +18,7 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
   name: 'Update Google Sheets',
   description: 'Update data in a Google Sheets spreadsheet',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -194,6 +195,7 @@ export const updateV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Up
   name: 'Update Google Sheets V2',
   description: 'Update data in a specific sheet in a Google Sheets spreadsheet',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

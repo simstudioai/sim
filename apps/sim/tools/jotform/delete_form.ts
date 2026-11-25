@@ -14,6 +14,7 @@ export const deleteFormTool: ToolConfig<JotformDeleteFormParams, JotformDeleteFo
   name: 'Jotform Delete Form',
   description: 'Delete a Jotform form. The API returns the form with status DELETED.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

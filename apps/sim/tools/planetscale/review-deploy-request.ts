@@ -25,6 +25,7 @@ export const planetScaleReviewDeployRequestTool: ToolConfig<
   name: 'PlanetScale Review Deploy Request',
   description: 'Review a deploy request (Vitess only)',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

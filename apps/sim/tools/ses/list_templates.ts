@@ -10,6 +10,7 @@ export const listTemplatesTool: InternalToolConfig<
   name: 'SES List Templates',
   description: 'List all SES email templates in your account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

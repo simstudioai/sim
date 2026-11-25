@@ -6,6 +6,7 @@ export const knowledgeListDocumentsTool: InternalToolConfig<any, KnowledgeListDo
   name: 'Knowledge List Documents',
   description: 'List documents in a knowledge base with optional filtering, search, and pagination',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     knowledgeBaseId: {

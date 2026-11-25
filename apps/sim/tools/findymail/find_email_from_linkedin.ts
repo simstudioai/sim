@@ -15,6 +15,7 @@ export const findEmailFromLinkedInTool: ToolConfig<
   description:
     "Find someone's email from a LinkedIn profile URL or username. Uses one finder credit when a verified email is found.",
   version: '1.0.0',
+  effect: 'read',
 
   hosting: findymailHosting<FindymailFindEmailFromLinkedInParams>((_params, output) => {
     const contact = output.contact as { email?: string } | null

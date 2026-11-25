@@ -7,6 +7,7 @@ export const editTool: ToolConfig<RedditEditParams, RedditWriteResponse> = {
   name: 'Edit Reddit Post/Comment',
   description: 'Edit the text of your own Reddit post or comment',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

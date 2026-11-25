@@ -13,6 +13,7 @@ export const replaceItemTool: InternalToolConfig<
   name: '1Password Replace Item',
   description: 'Replace an entire item with new data (full update)',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     connectionMode: {

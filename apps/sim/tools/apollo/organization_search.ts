@@ -14,6 +14,7 @@ export const apolloOrganizationSearchTool: ToolConfig<
   name: 'Apollo Organization Search',
   description: "Search Apollo's database for companies using filters",
   version: '1.0.0',
+  effect: 'read',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

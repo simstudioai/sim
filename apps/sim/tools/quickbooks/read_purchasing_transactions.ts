@@ -25,6 +25,7 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
   name: 'QuickBooks Read Purchasing Transactions',
   description: 'List or read one purchase order, bill, bill payment, vendor credit, or purchase',
   version: '1.0.0',
+  effect: 'read',
   params: {
     accessToken: {
       type: 'string',

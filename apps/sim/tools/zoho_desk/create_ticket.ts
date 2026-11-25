@@ -21,6 +21,7 @@ export const zohoDeskCreateTicketTool: ToolConfig<
   name: 'Zoho Desk Create Ticket',
   description: 'Create Ticket in Zoho Desk.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

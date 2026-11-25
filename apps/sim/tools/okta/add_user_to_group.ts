@@ -16,6 +16,7 @@ export const oktaAddUserToGroupTool: ToolConfig<
   name: 'Add User to Group in Okta',
   description: 'Add a user to a group in your Okta organization',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

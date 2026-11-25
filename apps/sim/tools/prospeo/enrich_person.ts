@@ -13,6 +13,7 @@ export const enrichPersonTool: ToolConfig<ProspeoEnrichPersonParams, ProspeoEnri
     name: 'Prospeo Enrich Person',
     description: 'Enrich a person with complete B2B profile data, email address and mobile.',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
     hosting: prospeoHosting<ProspeoEnrichPersonParams>((_params, output) => {

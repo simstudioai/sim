@@ -53,6 +53,7 @@ export const updateTableBorderPropertiesTool: ToolConfig<
   description:
     'Update border color, weight, and dash style for a position (e.g. ALL, INNER, OUTER) in a table range.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

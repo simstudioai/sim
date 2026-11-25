@@ -11,6 +11,7 @@ export const resendListContactsTool: ToolConfig<ListContactsParams, ListContacts
   name: 'List Contacts',
   description: 'List all contacts in Resend',
   version: '1.0.0',
+  effect: 'read',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

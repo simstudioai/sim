@@ -11,6 +11,7 @@ export const issueCashAdvanceTool: InternalToolConfig<IssueCashAdvanceParams, Sa
   name: 'SAP Concur Issue Cash Advance',
   description: 'Issue a cash advance (POST /cashadvance/v4.1/cashadvances/{cashAdvanceId}/issue).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

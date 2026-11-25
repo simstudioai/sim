@@ -6,6 +6,7 @@ export const getSystemInfoTool: InternalToolConfig<SSHGetSystemInfoParams, SSHRe
   name: 'SSH Get System Info',
   description: 'Retrieve system information from the remote SSH server',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

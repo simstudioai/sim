@@ -17,6 +17,7 @@ export const crowdstrikeGetIndicatorDetailsTool: InternalToolConfig<
   description:
     'Get custom CrowdStrike Falcon indicator of compromise (IOC) records for one or more IOC IDs (GET /iocs/entities/indicators/v1). Requires the "IOC Management: Read" API scope.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

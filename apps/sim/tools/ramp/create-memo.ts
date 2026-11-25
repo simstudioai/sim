@@ -9,6 +9,7 @@ export const rampCreateMemoTool: ToolConfig<RampCreateMemoParams, RampCreateMemo
   name: 'Ramp Create Memo',
   description: 'Upload a new memo for a transaction in Ramp',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

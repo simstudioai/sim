@@ -19,6 +19,7 @@ export const linqListWebhookSubscriptionsTool: ToolConfig<
   name: 'List Webhook Subscriptions',
   description: 'List all webhook subscriptions on your account',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

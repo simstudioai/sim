@@ -18,6 +18,7 @@ export const createTagTool: ToolConfig<CirclebackCreateTagParams, CirclebackTagR
   description:
     'Creates a new tag in Circleback. If a tag with the same name already exists, a conflict error is returned.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

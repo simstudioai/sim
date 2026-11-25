@@ -22,6 +22,7 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
   description:
     'Update one or more fields on an existing work item in Azure DevOps. Provide only the fields you want to change.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

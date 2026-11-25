@@ -22,6 +22,7 @@ export const shopifyCreateProductVariantsTool: ToolConfig<
   description:
     'Create product variants with pricing, options, inventory attributes, and metafields',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'shopify', authoritativeParams: ['domain', 'idToken'] },
   params: {
     accessToken: {

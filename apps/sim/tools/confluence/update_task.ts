@@ -38,6 +38,7 @@ export const confluenceUpdateTaskTool: InternalToolConfig<
   name: 'Confluence Update Task',
   description: 'Update the status of a Confluence inline task (complete or incomplete).',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -14,6 +14,7 @@ export const endConferenceTool: ToolConfig<
   name: 'Google Meet End Conference',
   description: 'End the active conference in a Google Meet space',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

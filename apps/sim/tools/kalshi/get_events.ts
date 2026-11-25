@@ -25,6 +25,7 @@ export const kalshiGetEventsTool: ToolConfig<KalshiGetEventsParams, KalshiGetEve
   name: 'Get Events from Kalshi',
   description: 'Retrieve a list of events from Kalshi with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     status: {
@@ -168,6 +169,7 @@ export const kalshiGetEventsV2Tool: ToolConfig<KalshiGetEventsV2Params, KalshiGe
     name: 'Get Events from Kalshi V2',
     description: 'Retrieve a list of events from Kalshi with optional filtering',
     version: '2.0.0',
+    effect: 'read',
 
     params: {
       status: {

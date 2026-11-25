@@ -27,6 +27,7 @@ export const helpScoutListFoldersTool: ToolConfig<
   name: 'Help Scout List Folders',
   description: 'List the folders in a Help Scout inbox with their conversation counts.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

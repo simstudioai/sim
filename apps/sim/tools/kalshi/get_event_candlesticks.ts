@@ -24,6 +24,7 @@ export const kalshiGetEventCandlesticksTool: ToolConfig<
   name: 'Get Event Candlesticks from Kalshi',
   description: 'Retrieve OHLC candlestick data aggregated across all markets in an event',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     seriesTicker: {
@@ -158,6 +159,7 @@ export const kalshiGetEventCandlesticksV2Tool: ToolConfig<
   name: 'Get Event Candlesticks from Kalshi V2',
   description: 'Retrieve OHLC candlestick data aggregated across all markets in an event',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     seriesTicker: {

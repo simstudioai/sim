@@ -23,6 +23,7 @@ export const pauseCampaignTool: ToolConfig<
   name: 'Instantly Pause Campaign',
   description: 'Pauses a running Instantly V2 campaign, stopping further email sends.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

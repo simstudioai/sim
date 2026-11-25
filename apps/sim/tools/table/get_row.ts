@@ -8,6 +8,7 @@ export const tableGetRowTool: InternalToolConfig<TableRowGetParams, TableRowResp
   name: 'Get Row',
   description: 'Get a single row by ID',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tableId: TABLE_ID_PARAM,

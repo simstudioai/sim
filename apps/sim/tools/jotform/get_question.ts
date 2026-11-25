@@ -15,6 +15,7 @@ export const getQuestionTool: ToolConfig<JotformGetQuestionParams, JotformQuesti
   description:
     'Get every property of a single form question, including its validation rules and field-specific settings.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

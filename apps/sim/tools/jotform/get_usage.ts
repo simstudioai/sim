@@ -15,6 +15,7 @@ export const getUsageTool: ToolConfig<JotformGetUsageParams, JotformGetUsageResp
   description:
     'Get this month usage for the account: submissions received, payments, form views, upload space, and API calls made today.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

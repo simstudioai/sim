@@ -20,6 +20,7 @@ export const helpScoutDeleteConversationTool: ToolConfig<
   name: 'Help Scout Delete Conversation',
   description: 'Delete a Help Scout conversation.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

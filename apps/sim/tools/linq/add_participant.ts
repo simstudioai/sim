@@ -9,6 +9,7 @@ export const linqAddParticipantTool: ToolConfig<LinqParticipantParams, LinqQueue
   name: 'Add Participant',
   description: 'Add a participant to a group chat (3+ existing participants)',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

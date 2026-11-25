@@ -8,6 +8,7 @@ export const createSalesOrderTool: InternalToolConfig<CreateSalesOrderParams, Sa
   description:
     'Create a sales order in SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) with deep insert of sales order items via to_Item.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     subdomain: {
       type: 'string',

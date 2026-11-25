@@ -7,6 +7,7 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
   name: 'Hunter Email Count',
   description: 'Returns the total number of email addresses found for a domain or company.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: HUNTER_API_KEY_PREFIX,

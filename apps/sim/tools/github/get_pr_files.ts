@@ -9,6 +9,7 @@ export const getPRFilesTool: ToolConfig<GetPRFilesParams, PRFilesListResponse> =
   name: 'GitHub Get PR Files',
   description: 'Get the list of files changed in a pull request',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -144,10 +145,11 @@ ${files
 
 export const getPRFilesV2Tool: ToolConfig<GetPRFilesParams, any> = {
   id: 'github_get_pr_files_v2',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: getPRFilesTool.name,
   description: getPRFilesTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getPRFilesTool.params,
   request: getPRFilesTool.request,

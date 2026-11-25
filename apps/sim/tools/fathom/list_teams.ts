@@ -7,6 +7,7 @@ export const listTeamsTool: ToolConfig<FathomListTeamsParams, FathomListTeamsRes
   name: 'Fathom List Teams',
   description: 'List teams in your Fathom organization.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FATHOM_CREDENTIAL_OAUTH,
 
   params: {

@@ -16,6 +16,7 @@ export const personaGetAccountTool: ToolConfig<PersonaGetAccountParams, PersonaA
   description:
     'Retrieve a single account by ID, including its reference ID, fields, tags, and status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

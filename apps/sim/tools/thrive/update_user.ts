@@ -15,6 +15,7 @@ export const updateUserTool: ToolConfig<ThriveUpdateUserParams, ThriveUserRespon
   name: 'Thrive Update User',
   description: 'Update an existing user in Thrive by ref. Only the fields provided are changed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

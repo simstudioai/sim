@@ -44,6 +44,7 @@ export const listLocationsTool: ToolConfig<AshbyListLocationsParams, AshbyListLo
   name: 'Ashby List Locations',
   description: 'Lists all locations configured in Ashby.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

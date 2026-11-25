@@ -37,6 +37,7 @@ export const getFeatureFlagTool: ToolConfig<
   name: 'PostHog Get Feature Flag',
   description: 'Get details of a specific feature flag',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

@@ -35,6 +35,7 @@ export const gmailUpdateLabelV2Tool: ToolConfig<GmailUpdateLabelParams, GmailUpd
     description:
       'Update a Gmail label in place (rename or change visibility) without recreating it',
     version: '2.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

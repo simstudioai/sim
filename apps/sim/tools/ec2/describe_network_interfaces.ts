@@ -16,6 +16,7 @@ export const describeNetworkInterfacesTool: InternalToolConfig<
   name: 'EC2 Describe Network Interfaces',
   description: 'List elastic network interfaces with their IPs, attachment, and security groups',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

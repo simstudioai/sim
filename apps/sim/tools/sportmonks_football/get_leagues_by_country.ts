@@ -36,6 +36,7 @@ export const sportmonksGetLeaguesByCountryTool: ToolConfig<
   name: 'Get Leagues by Country',
   description: 'Retrieve all leagues for a country ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

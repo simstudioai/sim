@@ -17,6 +17,7 @@ export const squareSearchCatalogObjectsTool: ToolConfig<
   name: 'Square Search Catalog Objects',
   description: 'Search catalog objects by type and query filters',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

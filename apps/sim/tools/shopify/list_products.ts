@@ -11,6 +11,7 @@ export const shopifyListProductsTool: ToolConfig<
   name: 'Shopify List Products',
   description: 'List products from your Shopify store with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

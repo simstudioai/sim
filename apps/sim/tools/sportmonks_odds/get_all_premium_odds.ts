@@ -35,6 +35,7 @@ export const sportmonksOddsGetAllPremiumOddsTool: ToolConfig<
   description:
     'Retrieve all available premium (historical) pre-match odds from the Sportmonks Odds API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

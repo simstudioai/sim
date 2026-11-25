@@ -24,6 +24,7 @@ export const createReleaseTool: ToolConfig<
   description:
     'Register a release version in LogRocket so uploaded source maps can decode stack traces for it. Fails with a conflict if the version already exists.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

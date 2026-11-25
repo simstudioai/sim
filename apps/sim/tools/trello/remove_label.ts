@@ -10,6 +10,7 @@ export const trelloRemoveLabelTool: ToolConfig<TrelloRemoveLabelParams, TrelloRe
     name: 'Trello Remove Label',
     description: 'Detach a label from a Trello card',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

@@ -6,6 +6,7 @@ export const searchTool: ToolConfig<ObsidianSearchParams, ObsidianSearchResponse
   name: 'Obsidian Search',
   description: 'Search for text across notes in your Obsidian vault',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

@@ -17,6 +17,7 @@ export const clickupUpdateCommentTool: ToolConfig<
   name: 'ClickUp Update Comment',
   description: 'Update the content, assignee, or resolved state of a ClickUp task comment',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

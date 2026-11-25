@@ -22,6 +22,7 @@ export const deleteMeetingTool: ToolConfig<
   description:
     'Deletes a Circleback meeting. Only the owner of the meeting can delete it. Returns the deleted meeting.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

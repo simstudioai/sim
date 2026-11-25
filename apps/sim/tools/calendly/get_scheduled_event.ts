@@ -14,6 +14,7 @@ export const getScheduledEventTool: ToolConfig<
   name: 'Calendly Get Scheduled Event',
   description: 'Get detailed information about a specific scheduled event',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

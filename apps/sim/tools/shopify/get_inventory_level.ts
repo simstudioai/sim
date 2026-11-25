@@ -14,6 +14,7 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
   name: 'Shopify Get Inventory Level',
   description: 'Get inventory level for a product variant at a specific location',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

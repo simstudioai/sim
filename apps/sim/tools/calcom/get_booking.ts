@@ -13,6 +13,7 @@ export const getBookingTool: ToolConfig<CalcomGetBookingParams, CalcomGetBooking
   name: 'Cal.com Get Booking',
   description: 'Get details of a specific booking by its UID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

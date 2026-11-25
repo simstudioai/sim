@@ -14,6 +14,7 @@ export const devinCreateSessionTool: ToolConfig<
   description:
     'Create a new Devin session with a prompt. Devin will autonomously work on the task described in the prompt.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {

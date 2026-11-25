@@ -23,6 +23,7 @@ export const railwayDeployServiceTool: ToolConfig<
   name: 'Railway Deploy Service',
   description: 'Trigger a deployment for a Railway service in an environment',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

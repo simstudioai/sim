@@ -30,6 +30,7 @@ export const sportmonksGetPlayerTool: ToolConfig<
   name: 'Get Player by ID',
   description: 'Retrieve a single football player by their ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

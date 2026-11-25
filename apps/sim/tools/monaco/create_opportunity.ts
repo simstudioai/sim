@@ -24,6 +24,7 @@ export const monacoCreateOpportunityTool: ToolConfig<
   description:
     'Create a Monaco opportunity on an existing account, optionally setting its pipeline, stage, owner, estimated value, close date, tags, and custom fields.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

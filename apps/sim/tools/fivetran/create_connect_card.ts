@@ -26,6 +26,7 @@ export const fivetranCreateConnectCardTool: ToolConfig<
   description:
     'Generate a Connect Card link that lets someone authorize and finish setting up a Fivetran connection in a Fivetran-hosted form.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

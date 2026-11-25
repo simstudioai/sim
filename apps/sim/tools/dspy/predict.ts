@@ -7,6 +7,7 @@ export const predictTool: ToolConfig<DSPyPredictParams, DSPyPredictResponse> = {
   name: 'DSPy Predict',
   description: 'Run a prediction using a self-hosted DSPy program endpoint',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     baseUrl: {

@@ -14,6 +14,7 @@ export const listFunctionUrlConfigsTool: InternalToolConfig<
   name: 'Lambda List Function URLs',
   description: 'List the URL configurations of a function',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

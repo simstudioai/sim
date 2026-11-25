@@ -38,6 +38,7 @@ export const getThumbnailTool: ToolConfig<GetThumbnailParams, GetThumbnailRespon
   name: 'Get Slide Thumbnail',
   description: 'Generate a thumbnail image of a specific slide in a Google Slides presentation',
   version: '1.0',
+  effect: 'read',
 
   oauth: {
     required: true,

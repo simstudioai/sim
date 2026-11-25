@@ -26,6 +26,7 @@ export const monacoEnrollCampaignContactsTool: ToolConfig<
   description:
     'Enroll contacts in a Monaco campaign. This sends real outreach: enrolled contacts are placed on the campaign sequence, which sends real emails and LinkedIn messages. Monaco always creates a new audience with the given name, attaches it to the campaign, and adds the contacts to it. The campaign must be active or paused. Sequences are created asynchronously, so contacts already enrolled are deduplicated later and still count as successes.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

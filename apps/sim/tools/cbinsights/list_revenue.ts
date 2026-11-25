@@ -14,6 +14,7 @@ export const cbinsightsListRevenueTool: InternalToolConfig<
   description:
     'Retrieve reported and estimated revenue by calendar year for up to 100 organizations at once.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

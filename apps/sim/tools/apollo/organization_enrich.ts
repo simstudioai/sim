@@ -14,6 +14,7 @@ export const apolloOrganizationEnrichTool: ToolConfig<
   name: 'Apollo Organization Enrichment',
   description: 'Enrich data for a single organization using Apollo',
   version: '1.0.0',
+  effect: 'read',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

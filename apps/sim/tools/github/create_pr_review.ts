@@ -105,6 +105,7 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
   description:
     'Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A body is required for REQUEST_CHANGES and COMMENT reviews.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -254,6 +255,7 @@ export const createPRReviewV2Tool: ToolConfig<CreatePRReviewParams, CreatePRRevi
   name: createPRReviewTool.name,
   description: createPRReviewTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createPRReviewTool.params,
   request: createPRReviewTool.request,

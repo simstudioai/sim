@@ -15,6 +15,7 @@ export const launchDarklyListFlagsTool: ToolConfig<
   name: 'LaunchDarkly List Flags',
   description: 'List feature flags in a LaunchDarkly project.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

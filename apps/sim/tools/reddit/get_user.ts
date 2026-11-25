@@ -8,6 +8,7 @@ export const getUserTool: ToolConfig<RedditGetUserParams, RedditUserResponse> = 
   name: 'Get Reddit User Profile',
   description: 'Get public profile information about any Reddit user by username',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -9,6 +9,7 @@ export const executeCommandTool: ToolConfig<
   name: 'Obsidian Execute Command',
   description: 'Execute a command in Obsidian (e.g. open daily note, toggle sidebar)',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

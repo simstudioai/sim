@@ -20,6 +20,7 @@ export const clerkGetUserOauthTokenTool: ToolConfig<
   description:
     "Retrieve a user's OAuth access token for a connected external provider (e.g. Google, GitHub, Microsoft) obtained via Clerk SSO",
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

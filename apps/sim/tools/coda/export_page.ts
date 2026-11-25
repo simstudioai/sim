@@ -18,6 +18,7 @@ export const codaExportPageTool: ToolConfig<CodaExportPageParams, CodaExportPage
   description:
     'Start exporting a Coda page as HTML or Markdown. Poll Get Page Export Status with the returned export ID for the download link.',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

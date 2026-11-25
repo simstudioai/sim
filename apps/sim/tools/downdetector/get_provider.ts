@@ -25,6 +25,7 @@ export const getProviderTool: ToolConfig<
   description:
     'Get details for a Downdetector provider (ISP or network operator) by id, such as its name and Downdetector id.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     providerId: {

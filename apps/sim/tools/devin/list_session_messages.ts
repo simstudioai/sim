@@ -13,6 +13,7 @@ export const devinListSessionMessagesTool: ToolConfig<
   description:
     'List the messages exchanged in a Devin session, including messages from both the user and Devin.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {

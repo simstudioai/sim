@@ -10,6 +10,7 @@ export const pitchbookCompanyIndustriesTool: ToolConfig<PitchbookProfileParams, 
     description:
       'Retrieve the industry classification, verticals, keywords, and emerging spaces assigned to a company',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

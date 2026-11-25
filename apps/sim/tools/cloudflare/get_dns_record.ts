@@ -23,6 +23,7 @@ export const getDnsRecordTool: ToolConfig<
   name: 'Cloudflare Get Dns Record',
   description: 'Retrieves details for a specific DNS record in the zone.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {

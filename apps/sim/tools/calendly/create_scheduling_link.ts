@@ -17,6 +17,7 @@ export const createSchedulingLinkTool: ToolConfig<
   name: 'Calendly Create Scheduling Link',
   description: 'Create a single-use scheduling link for an event type',
   version: '1.0.0',
+  effect: 'write',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

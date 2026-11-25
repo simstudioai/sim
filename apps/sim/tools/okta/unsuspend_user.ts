@@ -15,6 +15,7 @@ export const oktaUnsuspendUserTool: ToolConfig<OktaUnsuspendUserParams, OktaUnsu
     description:
       'Unsuspend a previously suspended user in your Okta organization. Returns the user to ACTIVE status.',
     version: '1.0.0',
+    effect: 'write',
     oauth: OKTA_CREDENTIAL_OAUTH,
 
     params: {

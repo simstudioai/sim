@@ -14,6 +14,7 @@ export const getDocumentTool: ToolConfig<
   name: 'Elasticsearch Get Document',
   description: 'Retrieve a document by ID from Elasticsearch.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     deploymentType: {

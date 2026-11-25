@@ -12,6 +12,7 @@ export const getCategoryTool: ToolConfig<WordPressGetCategoryParams, WordPressGe
     name: 'WordPress Get Category',
     description: 'Get a single category from WordPress.com by ID',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

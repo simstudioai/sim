@@ -11,6 +11,7 @@ export const rootlyCreateIncidentTool: ToolConfig<
   name: 'Rootly Create Incident',
   description: 'Create a new incident in Rootly with optional severity, services, and teams.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

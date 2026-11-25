@@ -37,6 +37,7 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
   name: 'ArXiv Get Paper',
   description: 'Get detailed information about a specific ArXiv paper by its ID.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     paperId: {

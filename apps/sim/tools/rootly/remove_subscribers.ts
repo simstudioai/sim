@@ -15,6 +15,7 @@ export const rootlyRemoveSubscribersTool: ToolConfig<
   name: 'Rootly Remove Subscribers',
   description: 'Unsubscribe users from a Rootly incident.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

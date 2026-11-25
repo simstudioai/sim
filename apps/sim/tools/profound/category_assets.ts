@@ -11,6 +11,7 @@ export const profoundCategoryAssetsTool: ToolConfig<
   name: 'Profound Category Assets',
   description: 'List assets (companies/brands) for a specific category in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

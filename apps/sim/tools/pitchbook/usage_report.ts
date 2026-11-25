@@ -9,6 +9,7 @@ export const pitchbookUsageReportTool: ToolConfig<PitchbookUsageWindowParams, Pi
   description:
     'Retrieve how many API calls were made and how many credits they charged, for up to the last 90 days',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

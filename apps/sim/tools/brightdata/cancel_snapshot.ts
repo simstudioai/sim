@@ -15,6 +15,7 @@ export const brightDataCancelSnapshotTool: ToolConfig<
   description:
     'Cancel an active Bright Data scraping job using its snapshot ID. Terminates data collection in progress.',
   version: '1.0.0',
+  effect: 'write',
   oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {

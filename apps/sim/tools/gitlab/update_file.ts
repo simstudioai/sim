@@ -9,6 +9,7 @@ export const gitlabUpdateFileTool: ToolConfig<GitLabUpdateFileParams, GitLabUpda
   name: 'GitLab Update File',
   description: 'Update an existing file in a GitLab project repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

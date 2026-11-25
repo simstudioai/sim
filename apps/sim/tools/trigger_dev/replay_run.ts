@@ -12,6 +12,7 @@ export const triggerDevReplayRunTool: ToolConfig<
   description:
     'Replay a Trigger.dev run, creating a new run with the same payload and options as the original.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

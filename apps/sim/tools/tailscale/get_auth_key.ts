@@ -17,6 +17,7 @@ export const tailscaleGetAuthKeyTool: ToolConfig<
   name: 'Tailscale Get Auth Key',
   description: 'Get a key’s type, owner, scopes, expiry, and device enrollment capabilities',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

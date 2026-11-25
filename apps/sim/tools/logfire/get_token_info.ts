@@ -21,6 +21,7 @@ export const logfireGetTokenInfoTool: ToolConfig<
   description:
     'Resolve which Logfire organization and project a read token belongs to. Useful for confirming a credential targets the expected project before querying it.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LOGFIRE_CREDENTIAL_OAUTH,
 
   params: {

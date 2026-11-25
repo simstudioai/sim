@@ -54,6 +54,7 @@ export const bitbucketGetPullRequestDiffTool: InternalToolConfig<
   name: 'Bitbucket Get Pull Request Diff',
   description: 'Read a bounded UTF-8 unified diff for one pull request file',
   version: '1.0.0',
+  effect: 'read',
   oauth: {
     required: true,
     provider: 'bitbucket',

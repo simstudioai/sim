@@ -10,6 +10,7 @@ export const listPipelineRunsTool: ToolConfig<ListPipelineRunsParams, ListPipeli
   description:
     'List runs for a specific pipeline in an Azure DevOps project. Returns run ID, name, state, result, and timestamps.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

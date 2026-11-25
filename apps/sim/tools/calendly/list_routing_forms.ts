@@ -14,6 +14,7 @@ export const listRoutingFormsTool: ToolConfig<
   name: 'Calendly List Routing Forms',
   description: 'Retrieve the routing forms of an organization, including their questions',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

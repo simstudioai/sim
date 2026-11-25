@@ -35,6 +35,7 @@ export const callProcedureTool: ToolConfig<
 > = {
   id: 'snowflake_call_procedure',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Call Procedure',
   description: 'Call a stored procedure with explicitly typed Snowflake bindings.',

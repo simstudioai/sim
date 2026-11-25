@@ -36,6 +36,7 @@ export const updateMilestoneTool: ToolConfig<UpdateMilestoneParams, UpdateMilest
   name: 'GitHub Update Milestone',
   description: 'Update a milestone in a repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -161,6 +162,7 @@ export const updateMilestoneV2Tool: ToolConfig<UpdateMilestoneParams, any> = {
   name: updateMilestoneTool.name,
   description: updateMilestoneTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: updateMilestoneTool.params,
   request: updateMilestoneTool.request,

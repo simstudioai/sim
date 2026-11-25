@@ -19,6 +19,7 @@ export const flowListProjectsTool: ToolConfig<FlowListProjectsParams, FlowListPr
   description:
     'List projects accessible to the connected Flow user. The API returns up to the requested limit without a continuation cursor.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

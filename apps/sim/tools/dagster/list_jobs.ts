@@ -35,6 +35,7 @@ export const listJobsTool: ToolConfig<DagsterBaseParams, DagsterListJobsResponse
   name: 'Dagster List Jobs',
   description: 'List all jobs across repositories in a Dagster instance.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

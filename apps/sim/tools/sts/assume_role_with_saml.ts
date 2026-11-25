@@ -11,6 +11,7 @@ export const assumeRoleWithSAMLTool: InternalToolConfig<
   description:
     'Assume an IAM role using a SAML 2.0 authentication response from an enterprise identity provider and receive temporary security credentials',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

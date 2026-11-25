@@ -10,6 +10,7 @@ export const slackRemoveReactionTool: InternalToolConfig<
   name: 'Slack Remove Reaction',
   description: 'Remove an emoji reaction from a Slack message',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

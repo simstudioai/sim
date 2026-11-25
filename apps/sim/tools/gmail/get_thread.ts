@@ -46,6 +46,7 @@ export const gmailGetThreadV2Tool: ToolConfig<GmailGetThreadParams, GmailGetThre
   name: 'Gmail Get Thread',
   description: 'Get a specific email thread from Gmail, including all messages in the thread',
   version: '2.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

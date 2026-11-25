@@ -14,6 +14,7 @@ export const simulatePrincipalPolicyTool: InternalToolConfig<
   description:
     'Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

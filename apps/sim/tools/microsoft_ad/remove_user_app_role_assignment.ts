@@ -14,6 +14,7 @@ export const removeUserAppRoleAssignmentTool: ToolConfig<
   description:
     "Revoke an application role assignment from a user, removing their access to that application. Takes the assignment's own ID, not the app role ID.",
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

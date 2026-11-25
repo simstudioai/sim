@@ -12,6 +12,7 @@ export const getTool: ToolConfig<GoogleTasksGetParams, GoogleTasksResponse> = {
   name: 'Google Tasks Get Task',
   description: 'Retrieve a specific task by ID from a Google Tasks list',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -26,6 +26,7 @@ export const spotifyGetArtistsTool: ToolConfig<SpotifyGetArtistsParams, SpotifyG
     name: 'Spotify Get Multiple Artists',
     description: 'Get details for multiple artists by their IDs.',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

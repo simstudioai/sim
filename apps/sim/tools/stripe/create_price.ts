@@ -20,6 +20,7 @@ export const stripeCreatePriceTool: ToolConfig<
   name: 'Stripe Create Price',
   description: 'Create a new price for a product',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

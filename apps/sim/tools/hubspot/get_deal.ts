@@ -11,6 +11,7 @@ export const hubspotGetDealTool: ToolConfig<HubSpotGetDealParams, HubSpotGetDeal
   name: 'Get Deal from HubSpot',
   description: 'Retrieve a single deal by ID from HubSpot',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

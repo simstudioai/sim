@@ -21,6 +21,7 @@ export const getWarehouseTool: ToolConfig<
   name: 'Databricks Get Warehouse',
   description: 'Get the configuration, state, and scaling settings of a SQL warehouse.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

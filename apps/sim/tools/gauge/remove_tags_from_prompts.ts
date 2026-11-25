@@ -21,6 +21,7 @@ export const gaugeRemoveTagsFromPromptsTool: ToolConfig<
   name: 'Gauge Remove Tags From Prompts',
   description: 'Remove a set of tags from the selected tracked prompts.',
   version: '1.0.0',
+  effect: 'write',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

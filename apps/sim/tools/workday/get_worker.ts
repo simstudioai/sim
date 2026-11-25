@@ -7,6 +7,7 @@ export const getWorkerTool: InternalToolConfig<WorkdayGetWorkerParams, WorkdayGe
   description:
     'Retrieve a specific worker profile including personal, employment, and organization data.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tenantUrl: {

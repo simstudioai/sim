@@ -12,6 +12,7 @@ export const pitchbookCompanyMostRecentFinancingTool: ToolConfig<
   description:
     'Retrieve a company’s most recent financing round: date, size, type, and last known valuation',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

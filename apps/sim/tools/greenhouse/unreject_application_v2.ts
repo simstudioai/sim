@@ -15,6 +15,7 @@ export const greenhouseUnrejectApplicationV2Tool: ToolConfig<
   description:
     'Restores a rejected application to its previous stage and clears its rejection reason and notes.',
   version: '2.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

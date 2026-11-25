@@ -17,6 +17,7 @@ export const createCandidateTool: ToolConfig<
   name: 'Ashby Create Candidate',
   description: 'Creates a new candidate record in Ashby.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

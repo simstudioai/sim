@@ -9,6 +9,7 @@ export const listSlosTool: ToolConfig<ListSlosParams, ListSlosResponse> = {
   description:
     'List service level objectives, optionally filtered by IDs, name, tags, or underlying metrics query.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

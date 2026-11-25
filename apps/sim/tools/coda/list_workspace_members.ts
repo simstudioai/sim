@@ -35,6 +35,7 @@ export const codaListWorkspaceMembersTool: ToolConfig<
   description:
     'List the members of a Coda workspace with their roles and doc activity, requesting user first. The workspace must belong to an organization.',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

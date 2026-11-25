@@ -19,6 +19,7 @@ export const personaExpireInquiryTool: ToolConfig<
   description:
     'Expire an in-progress inquiry, invalidating its sessions and one-time links so the individual can no longer continue it.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

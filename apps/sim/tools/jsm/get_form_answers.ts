@@ -9,6 +9,7 @@ export const jsmGetFormAnswersTool: InternalToolConfig<
   name: 'JSM Get Form Answers',
   description: 'Get simplified answers from a form attached to a Jira issue or JSM request',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

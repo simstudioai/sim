@@ -10,6 +10,7 @@ export const attioListNotesTool: ToolConfig<AttioListNotesParams, AttioListNotes
   name: 'Attio List Notes',
   description: 'List notes in Attio, optionally filtered by parent record',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -13,6 +13,7 @@ export const deleteStackTool: InternalToolConfig<
   name: 'CloudFormation Delete Stack',
   description: 'Delete a CloudFormation stack and its resources',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

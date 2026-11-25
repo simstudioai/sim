@@ -19,6 +19,7 @@ export const spotifyUnfollowArtistsTool: ToolConfig<
   name: 'Spotify Unfollow Artists',
   description: 'Unfollow one or more artists.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

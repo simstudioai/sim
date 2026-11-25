@@ -22,6 +22,7 @@ export const affinityGetListEntryFieldTool: ToolConfig<
   name: 'Affinity Get List Entry Field',
   description: 'Read one field value on a list row.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

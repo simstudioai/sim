@@ -58,6 +58,7 @@ export const polymarketGetPositionsTool: ToolConfig<
   name: 'Get Positions from Polymarket',
   description: 'Retrieve user positions from Polymarket',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     user: {

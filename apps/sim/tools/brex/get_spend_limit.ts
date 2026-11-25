@@ -10,6 +10,7 @@ export const brexGetSpendLimitTool: ToolConfig<BrexGetSpendLimitParams, BrexGetS
     name: 'Brex Get Spend Limit',
     description: 'Get a Brex spend limit by its ID',
     version: '1.0.0',
+    effect: 'read',
     oauth: BREX_CREDENTIAL_OAUTH,
 
     params: {

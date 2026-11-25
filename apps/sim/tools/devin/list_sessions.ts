@@ -10,6 +10,7 @@ export const devinListSessionsTool: ToolConfig<DevinListSessionsParams, DevinLis
     name: 'Devin List Sessions',
     description: 'List Devin sessions in the organization. Returns up to 100 sessions by default.',
     version: '1.0.0',
+    effect: 'read',
     oauth: DEVIN_CREDENTIAL_OAUTH,
 
     params: {

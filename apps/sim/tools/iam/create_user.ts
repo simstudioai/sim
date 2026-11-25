@@ -7,6 +7,7 @@ export const createUserTool: InternalToolConfig<IAMCreateUserParams, IAMCreateUs
   name: 'IAM Create User',
   description: 'Create a new IAM user',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

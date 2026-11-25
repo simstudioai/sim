@@ -13,6 +13,7 @@ export const getQueryResultsTool: InternalToolConfig<
   name: 'Athena Get Query Results',
   description: 'Retrieve the results of a completed Athena query execution',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

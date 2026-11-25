@@ -9,6 +9,7 @@ export const lookupEmailTool: ToolConfig<GongLookupEmailParams, GongLookupEmailR
   description:
     'Find all references to an email address in Gong (calls, email messages, meetings, CRM data, engagement).',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

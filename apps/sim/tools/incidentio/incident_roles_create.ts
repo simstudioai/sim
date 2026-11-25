@@ -13,6 +13,7 @@ export const incidentRolesCreateTool: ToolConfig<
   name: 'Create Incident Role',
   description: 'Create a new incident role in incident.io',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

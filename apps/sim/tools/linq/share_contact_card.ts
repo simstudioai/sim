@@ -9,6 +9,7 @@ export const linqShareContactCardTool: ToolConfig<LinqChatActionParams, LinqSucc
   name: 'Share Contact Card',
   description: 'Share your configured contact card (Name and Photo Sharing) with a chat',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

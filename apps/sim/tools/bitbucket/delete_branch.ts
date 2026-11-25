@@ -17,6 +17,7 @@ export const bitbucketDeleteBranchTool: ToolConfig<
   name: 'Bitbucket Delete Branch',
   description: 'Delete a branch from a Bitbucket Cloud repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository:write'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

@@ -19,6 +19,7 @@ export const genieDeleteConversationTool: ToolConfig<
   name: 'Databricks Genie Delete Conversation',
   description: 'Delete a Genie conversation you no longer need.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

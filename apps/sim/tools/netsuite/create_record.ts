@@ -11,6 +11,7 @@ export const netsuiteCreateRecordTool: InternalToolConfig<
   name: 'NetSuite Create Record',
   description: 'Create a NetSuite record using the account-specific record metadata schema.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

@@ -42,6 +42,7 @@ export const updateVideoPropertiesTool: ToolConfig<
   name: 'Update Video Properties in Google Slides',
   description: 'Update video playback options (autoPlay, mute, start/end) and outline.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

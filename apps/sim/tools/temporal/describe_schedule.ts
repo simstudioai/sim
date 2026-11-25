@@ -43,6 +43,7 @@ export const describeScheduleTool: ToolConfig<
   description:
     'Get the configuration and current state of a Temporal schedule, including its spec, recent actions, and upcoming run times.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     serverUrl: {

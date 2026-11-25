@@ -25,6 +25,7 @@ export const affinityBatchUpdateEntityFieldsTool: ToolConfig<
   description:
     'Write up to 100 non-list field values on one company or person in a single request.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

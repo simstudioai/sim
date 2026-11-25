@@ -14,6 +14,7 @@ export const authorizeSecurityGroupIngressTool: InternalToolConfig<
   name: 'EC2 Authorize Security Group Ingress',
   description: 'Add an inbound rule to a security group',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

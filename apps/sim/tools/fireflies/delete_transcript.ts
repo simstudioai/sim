@@ -13,6 +13,7 @@ export const firefliesDeleteTranscriptTool: ToolConfig<
   name: 'Fireflies Delete Transcript',
   description: 'Delete a transcript from Fireflies.ai',
   version: '1.0.0',
+  effect: 'write',
   oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {

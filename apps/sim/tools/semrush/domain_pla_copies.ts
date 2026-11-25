@@ -22,6 +22,7 @@ export const semrushDomainPlaCopiesTool: ToolConfig<
   description:
     'List the unique product listing ads a domain runs, with product title, price, and shop name.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

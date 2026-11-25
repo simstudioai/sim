@@ -17,6 +17,7 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
   description:
     'List tickets from a Zoho Desk organization with optional filters. Returns a list projection: description, resolution, statusType and classification are only available from Get Ticket.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'zoho-desk' },
 

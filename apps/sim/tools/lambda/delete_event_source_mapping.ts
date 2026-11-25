@@ -13,6 +13,7 @@ export const deleteEventSourceMappingTool: InternalToolConfig<
   name: 'Lambda Delete Event Source Mapping',
   description: 'Delete an event source mapping',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const listLibraryFoldersTool: ToolConfig<
   name: 'Gong List Library Folders',
   description: 'Retrieve library folders from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

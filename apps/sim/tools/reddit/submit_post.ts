@@ -8,6 +8,7 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
   name: 'Submit Reddit Post',
   description: 'Submit a new post to a subreddit (text or link)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

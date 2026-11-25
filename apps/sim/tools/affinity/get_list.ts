@@ -18,6 +18,7 @@ export const affinityGetListTool: ToolConfig<
   name: 'Affinity Get List',
   description: 'Read one list — its name, type, owner, and privacy setting.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

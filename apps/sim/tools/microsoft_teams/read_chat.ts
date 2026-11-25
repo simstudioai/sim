@@ -22,6 +22,7 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
   name: 'Read Microsoft Teams Chat',
   description: 'Read content from a Microsoft Teams chat',
   version: '1.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
 
   oauth: {

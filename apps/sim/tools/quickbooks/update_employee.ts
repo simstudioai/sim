@@ -19,6 +19,7 @@ export const quickbooksUpdateEmployeeTool: InternalToolConfig<
   name: 'QuickBooks Update Employee',
   description: 'Read, merge, and full-update a non-payroll employee profile',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

@@ -10,6 +10,7 @@ export const vercelListProjectsTool: ToolConfig<
   name: 'Vercel List Projects',
   description: 'List all projects in a Vercel team or account',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

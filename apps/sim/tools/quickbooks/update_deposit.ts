@@ -25,6 +25,7 @@ export const quickbooksUpdateDepositTool: ToolConfig<
   description:
     'Sparse-update deposit header fields using the current sync token and destination account',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

@@ -43,6 +43,7 @@ export const zendeskGetUsersTool: ToolConfig<ZendeskGetUsersParams, ZendeskGetUs
   name: 'Get Users from Zendesk',
   description: 'Retrieve a list of users from Zendesk with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

@@ -11,6 +11,7 @@ export const loopsCreateContactTool: ToolConfig<
   description:
     'Create a new contact in your Loops audience with an email address and optional properties like name, user group, and mailing list subscriptions.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {

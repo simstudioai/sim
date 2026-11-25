@@ -26,6 +26,7 @@ export const codaSearchPrincipalsTool: ToolConfig<
   description:
     'Search for users and groups a Coda doc can be shared with (up to 20 of each). Returns nothing without a query.',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

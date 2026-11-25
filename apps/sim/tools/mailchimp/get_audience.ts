@@ -25,6 +25,7 @@ export const mailchimpGetAudienceTool: ToolConfig<
   name: 'Get Audience from Mailchimp',
   description: 'Retrieve details of a specific audience (list) from Mailchimp',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

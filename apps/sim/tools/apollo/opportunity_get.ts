@@ -11,6 +11,7 @@ export const apolloOpportunityGetTool: ToolConfig<
   name: 'Apollo Get Opportunity',
   description: 'Retrieve complete details of a specific deal/opportunity by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

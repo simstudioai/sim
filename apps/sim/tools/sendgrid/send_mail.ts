@@ -9,6 +9,7 @@ export const sendGridSendMailTool: InternalToolConfig<SendMailParams, SendMailRe
   name: 'SendGrid Send Mail',
   description: 'Send an email using SendGrid API',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

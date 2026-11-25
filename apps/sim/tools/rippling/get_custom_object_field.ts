@@ -8,6 +8,7 @@ export const ripplingGetCustomObjectFieldTool: ToolConfig<RipplingGetCustomObjec
   name: 'Rippling Get Custom Object Field',
   description: 'Get a specific field of a custom object',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

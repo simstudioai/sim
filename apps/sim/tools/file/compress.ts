@@ -15,6 +15,7 @@ export const fileCompressTool: InternalToolConfig<FileCompressParams, ToolRespon
   description:
     'Compress one or more workspace files into a single .zip archive stored in the workspace, for bundling files to download, transfer, or store. Preserves the workspace folder structure of the selected files.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     fileId: {
@@ -98,6 +99,7 @@ export const fileDecompressTool: InternalToolConfig<FileDecompressParams, ToolRe
   description:
     'Extract the contents of a .zip archive into the workspace, preserving the archive folder structure.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     fileId: {

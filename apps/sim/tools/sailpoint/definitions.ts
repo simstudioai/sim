@@ -75,7 +75,12 @@ import type {
   SailPointSourceItemRef,
 } from '@/tools/sailpoint/types'
 import { SAILPOINT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
-import type { InternalToolConfig, ToolConfig, ToolParameterItemSchema } from '@/tools/types'
+import type {
+  InternalToolConfig,
+  ToolConfig,
+  ToolEffect,
+  ToolParameterItemSchema,
+} from '@/tools/types'
 
 type ToolParams = ToolConfig['params']
 
@@ -200,6 +205,7 @@ interface SailPointDefinition<P extends SailPointCredentials> {
   id: string
   name: string
   description: string
+  effect: ToolEffect
   params: ToolParams
   input: (params: P) => Record<string, unknown>
   outputs: ToolConfig['outputs']
@@ -209,6 +215,7 @@ function defineSailPointTool<P extends SailPointCredentials>({
   id,
   name,
   description,
+  effect,
   params,
   input,
   outputs,
@@ -218,6 +225,7 @@ function defineSailPointTool<P extends SailPointCredentials>({
     name,
     description,
     version: '1.0.0',
+    effect,
     oauth: SAILPOINT_CREDENTIAL_OAUTH,
     params,
     operation: { input: (params) => createSailPointOperationInput(id, params, input(params)) },
@@ -514,6 +522,7 @@ export const sailpointSearchTool = defineSailPointTool<SailPointSearchParams>({
   id: 'sailpoint_search',
   name: 'SailPoint Search',
   description: 'Search current SailPoint indices with every documented search query mode.',
+  effect: 'read',
   params: { ...searchParams(), ...sailpointSearchPaginationParams },
   input: (params) => {
     validatePagination(params.limit, params.offset, SEARCH_LIMIT_MAX)
@@ -531,6 +540,7 @@ export const sailpointSearchCountTool = defineSailPointTool<SailPointSearchCount
   id: 'sailpoint_search_count',
   name: 'SailPoint Search Count',
   description: 'Count documents matching a complete SailPoint search body.',
+  effect: 'read',
   params: searchParams(),
   input: (params) => searchInput(params, true),
   outputs: { total: { type: 'number', description: 'Number of matching documents' } },
@@ -540,6 +550,7 @@ export const sailpointSearchAggregateTool = defineSailPointTool<SailPointSearchA
   id: 'sailpoint_search_aggregate',
   name: 'SailPoint Search Aggregate',
   description: 'Run an Elasticsearch DSL or SailPoint aggregation over current search indices.',
+  effect: 'read',
   params: { ...searchParams(), ...sailpointPaginationParams },
   input: (params) => {
     validatePagination(params.limit, params.offset)
@@ -557,6 +568,7 @@ export const sailpointGetIdentityTool = defineSailPointTool<SailPointGetByIdPara
   id: 'sailpoint_get_identity',
   name: 'SailPoint Get Identity',
   description: 'Get an identity from the current /identities/v1 service by ID.',
+  effect: 'read',
   params: { ...sailpointCredentialParams, id: { ...ID_PARAM, description: 'Identity ID' } },
   input: (params) => getInput(params, 'Identity ID'),
   outputs: createSailPointResourceOutput(
@@ -570,6 +582,7 @@ export const sailpointListIdentitiesTool = defineSailPointTool<SailPointListIden
   id: 'sailpoint_list_identities',
   name: 'SailPoint List Identities',
   description: 'List identities with documented filtering, sorting, and pagination.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     filters: FILTERS_PARAM,
@@ -593,6 +606,7 @@ export const sailpointGetAccountTool = defineSailPointTool<SailPointGetByIdParam
   id: 'sailpoint_get_account',
   name: 'SailPoint Get Account',
   description: 'Get an account from the current /accounts/v1 service by ID.',
+  effect: 'read',
   params: { ...sailpointCredentialParams, id: { ...ID_PARAM, description: 'Account ID' } },
   input: (params) => getInput(params, 'Account ID'),
   outputs: createSailPointResourceOutput(
@@ -606,6 +620,7 @@ export const sailpointListAccountsTool = defineSailPointTool<SailPointListAccoun
   id: 'sailpoint_list_accounts',
   name: 'SailPoint List Accounts',
   description: 'List accounts with documented filtering, sorting, detail, and pagination.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     filters: FILTERS_PARAM,
@@ -627,6 +642,7 @@ export const sailpointGetAccountEntitlementsTool =
     id: 'sailpoint_get_account_entitlements',
     name: 'SailPoint Get Account Entitlements',
     description: 'List entitlements granted to one account.',
+    effect: 'read',
     params: {
       ...sailpointCredentialParams,
       id: { ...ID_PARAM, description: 'Account ID' },
@@ -646,6 +662,7 @@ export const sailpointGetAccountActivityTool = defineSailPointTool<SailPointGetB
   id: 'sailpoint_get_account_activity',
   name: 'SailPoint Get Account Activity',
   description: 'Get an account activity by ID.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     id: { ...ID_PARAM, description: 'Account activity ID' },
@@ -663,6 +680,7 @@ export const sailpointListAccountActivitiesTool =
     id: 'sailpoint_list_account_activities',
     name: 'SailPoint List Account Activities',
     description: 'List provisioning activities with identity, filter, sort, and page controls.',
+    effect: 'read',
     params: {
       ...sailpointCredentialParams,
       requestedFor: {
@@ -707,6 +725,7 @@ export const sailpointGetSourceTool = defineSailPointTool<SailPointGetByIdParams
   id: 'sailpoint_get_source',
   name: 'SailPoint Get Source',
   description: 'Get an identity source by ID.',
+  effect: 'read',
   params: { ...sailpointCredentialParams, id: { ...ID_PARAM, description: 'Source ID' } },
   input: (params) => getInput(params, 'Source ID'),
   outputs: createSailPointResourceOutput(
@@ -721,6 +740,7 @@ export const sailpointListSourcesTool = defineSailPointTool<SailPointListSources
   name: 'SailPoint List Sources',
   description:
     'List identity sources with visibility, filtering, sorting, and pagination controls.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     filters: FILTERS_PARAM,
@@ -746,6 +766,7 @@ export const sailpointGetEntitlementTool = defineSailPointTool<SailPointGetByIdP
   id: 'sailpoint_get_entitlement',
   name: 'SailPoint Get Entitlement',
   description: 'Get an entitlement by ID.',
+  effect: 'read',
   params: { ...sailpointCredentialParams, id: { ...ID_PARAM, description: 'Entitlement ID' } },
   input: (params) => getInput(params, 'Entitlement ID'),
   outputs: createSailPointResourceOutput(
@@ -760,6 +781,7 @@ export const sailpointGetEntitlementRequestConfigTool = defineSailPointTool<Sail
     id: 'sailpoint_get_entitlement_request_config',
     name: 'SailPoint Get Entitlement Request Config',
     description: 'Get grant, revocation, duration, approval, and form settings for an entitlement.',
+    effect: 'read',
     params: {
       ...sailpointCredentialParams,
       id: { ...ID_PARAM, description: 'Entitlement ID' },
@@ -777,6 +799,7 @@ export const sailpointListEntitlementsTool = defineSailPointTool<SailPointListEn
   id: 'sailpoint_list_entitlements',
   name: 'SailPoint List Entitlements',
   description: 'List entitlements with current segmentation, cursor, filter, and page controls.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     segmentedForIdentity: {
@@ -823,6 +846,7 @@ export const sailpointListIdentityEntitlementsTool =
     id: 'sailpoint_list_identity_entitlements',
     name: 'SailPoint List Identity Entitlements',
     description: 'List tagged entitlement references held by one identity.',
+    effect: 'read',
     params: {
       ...sailpointCredentialParams,
       id: { ...ID_PARAM, description: 'Identity ID' },
@@ -842,6 +866,7 @@ export const sailpointGetAccessProfileTool = defineSailPointTool<SailPointGetByI
   id: 'sailpoint_get_access_profile',
   name: 'SailPoint Get Access Profile',
   description: 'Get an access profile by ID.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     id: { ...ID_PARAM, description: 'Access profile ID' },
@@ -858,6 +883,7 @@ export const sailpointListAccessProfilesTool = defineSailPointTool<SailPointSegm
   id: 'sailpoint_list_access_profiles',
   name: 'SailPoint List Access Profiles',
   description: 'List access profiles with current visibility and segmentation controls.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     forSubadmin: FOR_SUBADMIN_PARAM,
@@ -879,6 +905,7 @@ export const sailpointGetAccessProfileEntitlementsTool =
     id: 'sailpoint_get_access_profile_entitlements',
     name: 'SailPoint Get Access Profile Entitlements',
     description: 'List entitlements in one access profile.',
+    effect: 'read',
     params: {
       ...sailpointCredentialParams,
       id: { ...ID_PARAM, description: 'Access profile ID' },
@@ -900,6 +927,7 @@ export const sailpointGetRoleTool = defineSailPointTool<SailPointGetByIdParams>(
   id: 'sailpoint_get_role',
   name: 'SailPoint Get Role',
   description: 'Get a role by ID.',
+  effect: 'read',
   params: { ...sailpointCredentialParams, id: { ...ID_PARAM, description: 'Role ID' } },
   input: (params) => getInput(params, 'Role ID'),
   outputs: createSailPointResourceOutput(
@@ -914,6 +942,7 @@ export const sailpointListRolesTool = defineSailPointTool<SailPointSegmentedList
   name: 'SailPoint List Roles',
   description:
     'List roles with current visibility, segmentation, filtering, and pagination controls.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     forSubadmin: FOR_SUBADMIN_PARAM,
@@ -932,6 +961,7 @@ export const sailpointGetRoleEntitlementsTool =
     id: 'sailpoint_get_role_entitlements',
     name: 'SailPoint Get Role Entitlements',
     description: 'List entitlements in one role using the current non-experimental roles service.',
+    effect: 'read',
     params: {
       ...sailpointCredentialParams,
       id: { ...ID_PARAM, description: 'Role ID' },
@@ -953,6 +983,7 @@ export const sailpointGetCampaignTool = defineSailPointTool<SailPointGetCampaign
   id: 'sailpoint_get_campaign',
   name: 'SailPoint Get Campaign',
   description: 'Get a certification campaign by ID.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     id: { ...ID_PARAM, description: 'Campaign ID' },
@@ -978,6 +1009,7 @@ export const sailpointListCampaignsTool = defineSailPointTool<SailPointListCampa
   id: 'sailpoint_list_campaigns',
   name: 'SailPoint List Campaigns',
   description: 'List certification campaigns with detail, filtering, sorting, and pagination.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     detail: {
@@ -1001,6 +1033,7 @@ export const sailpointGetCertificationTool = defineSailPointTool<SailPointGetByI
   id: 'sailpoint_get_certification',
   name: 'SailPoint Get Certification',
   description: 'Get an identity certification by ID.',
+  effect: 'read',
   params: {
     ...sailpointCredentialParams,
     id: { ...ID_PARAM, description: 'Certification ID' },
@@ -1018,6 +1051,7 @@ export const sailpointListCertificationsTool =
     id: 'sailpoint_list_certifications',
     name: 'SailPoint List Certifications',
     description: 'List identity certifications assigned to a reviewer.',
+    effect: 'read',
     params: {
       ...sailpointCredentialParams,
       reviewerIdentity: {
@@ -1043,6 +1077,7 @@ export const sailpointListCertificationReviewItemsTool =
     id: 'sailpoint_list_certification_review_items',
     name: 'SailPoint List Certification Review Items',
     description: 'List access-review items in one identity certification.',
+    effect: 'read',
     params: {
       ...sailpointCredentialParams,
       id: { ...ID_PARAM, description: 'Certification ID' },
@@ -1120,6 +1155,7 @@ export const sailpointDecideCertificationReviewItemsTool =
     id: 'sailpoint_decide_certification_review_items',
     name: 'SailPoint Decide Certification Review Items',
     description: 'Approve or revoke 1-250 review items in an identity certification.',
+    effect: 'write',
     params: {
       ...sailpointCredentialParams,
       id: { ...ID_PARAM, description: 'Certification ID' },
@@ -1181,6 +1217,7 @@ export const sailpointSignOffCertificationTool = defineSailPointTool<SailPointGe
   id: 'sailpoint_sign_off_certification',
   name: 'SailPoint Sign Off Certification',
   description: 'Sign off a completed identity certification.',
+  effect: 'write',
   params: {
     ...sailpointCredentialParams,
     id: { ...ID_PARAM, description: 'Certification ID' },
@@ -1197,6 +1234,7 @@ export const sailpointGetTaskStatusTool = defineSailPointTool<SailPointGetByIdPa
   id: 'sailpoint_get_task_status',
   name: 'SailPoint Get Task Status',
   description: 'Get the current status of a SailPoint background task by ID.',
+  effect: 'read',
   params: { ...sailpointCredentialParams, id: { ...ID_PARAM, description: 'Task ID' } },
   input: (params) => getInput(params, 'Task ID'),
   outputs: createSailPointResourceOutput(
@@ -1408,6 +1446,7 @@ export const sailpointRequestAccessTool = defineSailPointTool<SailPointRequestAc
   id: 'sailpoint_request_access',
   name: 'SailPoint Request Access',
   description: 'Submit a current human or machine identity access request.',
+  effect: 'write',
   params: {
     ...sailpointCredentialParams,
     requestType: {
@@ -1490,6 +1529,7 @@ export const sailpointGetAccountSelectionsTool = defineSailPointTool<SailPointRe
   name: 'SailPoint Get Account Selections',
   description:
     'Resolve eligible source accounts before submitting a machine or multi-account access request.',
+  effect: 'read',
   params: {
     ...sailpointRequestAccessTool.params,
     requestedItems: {
@@ -1510,6 +1550,7 @@ export const sailpointGetAccessRequestConfigTool = defineSailPointTool<SailPoint
   name: 'SailPoint Get Access Request Config',
   description:
     'Get tenant access-request, request-on-behalf-of, and machine-identity configuration.',
+  effect: 'read',
   params: sailpointCredentialParams,
   input: () => ({}),
   outputs: createSailPointResourceOutput(
@@ -1524,6 +1565,7 @@ export const sailpointCancelAccessRequestTool =
     id: 'sailpoint_cancel_access_request',
     name: 'SailPoint Cancel Access Request',
     description: 'Cancel an access request that has not passed approval.',
+    effect: 'write',
     params: {
       ...sailpointCredentialParams,
       accountActivityId: {
@@ -1551,6 +1593,7 @@ export const sailpointGetAccessRequestStatusTool =
     id: 'sailpoint_get_access_request_status',
     name: 'SailPoint Get Access Request Status',
     description: 'List requested-item status records for access requests.',
+    effect: 'read',
     params: {
       ...sailpointCredentialParams,
       requestedFor: {
@@ -1610,6 +1653,7 @@ export const sailpointListPendingAccessRequestApprovalsTool =
     id: 'sailpoint_list_pending_access_request_approvals',
     name: 'SailPoint List Pending Access Request Approvals',
     description: 'List pending access-request approvals visible to the caller.',
+    effect: 'read',
     params: {
       ...sailpointCredentialParams,
       ownerId: {
@@ -1634,6 +1678,7 @@ export const sailpointApproveAccessRequestTool =
     id: 'sailpoint_approve_access_request',
     name: 'SailPoint Approve Access Request',
     description: 'Approve one pending access-request approval.',
+    effect: 'write',
     params: {
       ...sailpointCredentialParams,
       approvalId: {
@@ -1660,6 +1705,7 @@ export const sailpointRejectAccessRequestTool = defineSailPointTool<SailPointRej
   id: 'sailpoint_reject_access_request',
   name: 'SailPoint Reject Access Request',
   description: 'Reject one pending access-request approval with a reviewer comment.',
+  effect: 'write',
   params: {
     ...sailpointCredentialParams,
     approvalId: {
@@ -1686,6 +1732,7 @@ export const sailpointLoadAccountsTool = defineSailPointTool<SailPointLoadAccoun
   id: 'sailpoint_load_accounts',
   name: 'SailPoint Load Accounts',
   description: 'Start account aggregation for a source, optionally using a CSV file.',
+  effect: 'write',
   params: {
     ...sailpointCredentialParams,
     sourceId: {
@@ -1726,6 +1773,7 @@ export const sailpointLoadEntitlementsTool = defineSailPointTool<SailPointLoadEn
   id: 'sailpoint_load_entitlements',
   name: 'SailPoint Load Entitlements',
   description: 'Start entitlement aggregation for a source, optionally using a CSV file.',
+  effect: 'write',
   params: {
     ...sailpointCredentialParams,
     sourceId: {

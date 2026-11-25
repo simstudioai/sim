@@ -17,6 +17,7 @@ export const getEntityTool: ToolConfig<DynatraceGetEntityParams, DynatraceGetEnt
   description:
     'Get the properties, tags, management zones, and relationships of a single monitored entity.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

@@ -16,6 +16,7 @@ export const rocketlaneGetSpaceTool: ToolConfig<RocketlaneGetSpaceParams, Rocket
     name: 'Rocketlane Get Space',
     description: 'Retrieve a Rocketlane space by its ID',
     version: '1.0.0',
+    effect: 'read',
     oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
     params: {

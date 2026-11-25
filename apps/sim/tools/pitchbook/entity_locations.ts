@@ -8,6 +8,7 @@ export const pitchbookEntityLocationsTool: ToolConfig<PitchbookProfileParams, Pi
   name: 'PitchBook Entity Locations',
   description: 'Retrieve the headquarters and every alternate office on record for an entity',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

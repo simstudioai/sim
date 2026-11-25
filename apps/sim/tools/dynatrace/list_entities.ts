@@ -27,6 +27,7 @@ export const listEntitiesTool: ToolConfig<
   description:
     'List monitored entities — hosts, services, applications, Kubernetes workloads — matching an entity selector.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

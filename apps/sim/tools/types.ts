@@ -226,9 +226,16 @@ export interface ToolParameterItemSchema {
   readonly anyOf?: readonly ToolParameterItemSchema[]
 }
 
+/**
+ * What running a tool does outside Sim. `read` causes no externally visible change (no create,
+ * update, delete, send, charge, or trigger), so it is safe to run in a dry run; `write` is
+ * everything else, including a tool whose effect depends on its params. Public catalog metadata,
+ * audited by `check:tool-effects`.
+ */
+export type ToolEffect = 'read' | 'write'
+
 /** Serializable policy and review contract for an operation available to Assistant. */
 export interface AssistantOperationMetadata {
-  effect: 'read' | 'write'
   version: number
   reviewFields?: readonly {
     name: string
@@ -245,6 +252,7 @@ export interface ToolConfig<P = any, R = any> {
   name: string
   description: string
   version: string
+  effect: ToolEffect
 
   // Parameter schema - what this tool accepts
   params: Record<

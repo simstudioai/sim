@@ -32,6 +32,7 @@ export const getInsightTool: ToolConfig<PostHogGetInsightParams, PostHogGetInsig
   description:
     'Get a specific insight by ID from PostHog. Returns detailed insight configuration and metadata.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

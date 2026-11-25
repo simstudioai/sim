@@ -19,6 +19,7 @@ export const ingestEventTool: ToolConfig<DynatraceIngestEventParams, DynatraceIn
     description:
       'Push an event into Dynatrace — a deployment marker, custom annotation, or custom alert — attached to the entities matched by an entity selector.',
     version: '1.0.0',
+    effect: 'write',
     oauth: DYNATRACE_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

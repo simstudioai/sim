@@ -9,6 +9,7 @@ export const dropboxGetMetadataTool: ToolConfig<
   name: 'Dropbox Get Metadata',
   description: 'Get metadata for a file or folder in Dropbox',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

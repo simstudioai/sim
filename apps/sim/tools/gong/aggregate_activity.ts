@@ -11,6 +11,7 @@ export const aggregateActivityTool: ToolConfig<
   name: 'Gong Aggregate Activity',
   description: 'Retrieve aggregated activity statistics for users by date range from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

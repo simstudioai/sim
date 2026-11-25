@@ -12,6 +12,7 @@ export const pitchbookInvestorPreferencesTool: ToolConfig<
   description:
     'Retrieve what an investor targets: check size, deal size, valuation, revenue, geography, industry, and deal type preferences',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -10,6 +10,7 @@ export const addAliasTool: ToolConfig<GoogleGroupsAddAliasParams, GoogleGroupsAd
   name: 'Google Groups Add Alias',
   description: 'Add an email alias to a Google Group',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

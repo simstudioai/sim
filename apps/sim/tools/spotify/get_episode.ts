@@ -26,6 +26,7 @@ export const spotifyGetEpisodeTool: ToolConfig<SpotifyGetEpisodeParams, SpotifyG
     name: 'Spotify Get Episode',
     description: 'Get details for a podcast episode.',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

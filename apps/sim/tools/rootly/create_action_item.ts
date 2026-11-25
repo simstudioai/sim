@@ -15,6 +15,7 @@ export const rootlyCreateActionItemTool: ToolConfig<
   name: 'Rootly Create Action Item',
   description: 'Create a new action item for an incident in Rootly.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

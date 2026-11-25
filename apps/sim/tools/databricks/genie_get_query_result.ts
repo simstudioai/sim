@@ -23,6 +23,7 @@ export const genieGetQueryResultTool: ToolConfig<
   description:
     'Get the rows returned by the SQL query Genie generated for a message. Available once the message is EXECUTING_QUERY or COMPLETED.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: GENIE_QUERY_ATTACHMENT_PARAMS,

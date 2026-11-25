@@ -20,6 +20,7 @@ export const fivetranGetGroupTool: ToolConfig<FivetranGroupParams, FivetranGetGr
   name: 'Fivetran Get Group',
   description: 'Get a Fivetran group by ID.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

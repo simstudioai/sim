@@ -16,6 +16,7 @@ export const listReportsToApproveTool: InternalToolConfig<
   description:
     'List expense reports awaiting approval (GET /expensereports/v4/users/{userId}/context/MANAGER/reportsToApprove).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

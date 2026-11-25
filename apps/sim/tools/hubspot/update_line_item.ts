@@ -17,6 +17,7 @@ export const hubspotUpdateLineItemTool: ToolConfig<
   name: 'Update Line Item in HubSpot',
   description: 'Update an existing line item in HubSpot by ID',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

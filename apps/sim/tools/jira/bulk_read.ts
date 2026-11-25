@@ -10,6 +10,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
   name: 'Jira Bulk Read',
   description: 'Retrieve multiple Jira issues from a project in bulk',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

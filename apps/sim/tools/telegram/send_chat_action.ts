@@ -13,6 +13,7 @@ export const telegramSendChatActionTool: ToolConfig<
   description:
     'Show a status action such as a typing indicator in a Telegram chat through the Telegram Bot API.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

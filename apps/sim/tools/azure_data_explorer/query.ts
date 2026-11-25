@@ -35,6 +35,7 @@ export const azureDataExplorerQueryTool: InternalToolConfig<
   description:
     'Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table (plus any further tables a batch or fork produces).',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

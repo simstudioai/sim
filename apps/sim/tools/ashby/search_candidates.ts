@@ -21,6 +21,7 @@ export const searchCandidatesTool: ToolConfig<
   description:
     'Searches for candidates by name and/or email with AND logic. Results are limited to 100 matches. Use candidate.list for full pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

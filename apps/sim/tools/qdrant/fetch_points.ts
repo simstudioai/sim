@@ -9,6 +9,7 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
   name: 'Qdrant Fetch Points',
   description: 'Fetch points by ID from a Qdrant collection',
   version: '1.0',
+  effect: 'read',
   oauth: QDRANT_CREDENTIAL_OAUTH,
 
   params: {

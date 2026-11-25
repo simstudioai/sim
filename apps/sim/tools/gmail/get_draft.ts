@@ -39,6 +39,7 @@ export const gmailGetDraftV2Tool: ToolConfig<GmailGetDraftParams, GmailGetDraftR
   name: 'Gmail Get Draft',
   description: 'Get a specific draft from Gmail by its ID',
   version: '2.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

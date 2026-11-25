@@ -13,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const listTablesTool: ToolConfig<SnowflakeListTablesParams, SnowflakeStatementResponse> = {
   id: 'snowflake_list_tables',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Tables',
   description: 'List the tables in a Snowflake schema.',

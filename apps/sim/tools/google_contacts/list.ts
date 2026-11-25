@@ -15,6 +15,7 @@ export const listTool: ToolConfig<GoogleContactsListParams, GoogleContactsListRe
   name: 'Google Contacts List',
   description: 'List contacts from Google Contacts',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -11,6 +11,7 @@ export const getFolderContentTool: ToolConfig<
   name: 'Gong Get Folder Content',
   description: 'Retrieve the list of calls in a specific library folder from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

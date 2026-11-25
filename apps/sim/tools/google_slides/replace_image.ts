@@ -27,6 +27,7 @@ export const replaceImageTool: ToolConfig<ReplaceImageParams, ReplaceImageRespon
   description:
     "Replace the source of an existing image with a new image URL, preserving the image's position, size, and properties.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

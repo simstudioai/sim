@@ -12,6 +12,7 @@ export const deleteChatMessageTool: InternalToolConfig<
   name: 'Delete Microsoft Teams Chat Message',
   description: 'Soft delete a message in a Microsoft Teams chat',
   version: '1.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

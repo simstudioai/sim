@@ -10,6 +10,7 @@ export const xGetQuoteTweetsTool: ToolConfig<XGetQuoteTweetsParams, XTweetListRe
   name: 'X Get Quote Tweets',
   description: 'Get tweets that quote a specific tweet',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

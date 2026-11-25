@@ -10,6 +10,7 @@ export const resendDeleteContactTool: ToolConfig<DeleteContactParams, DeleteCont
   name: 'Delete Contact',
   description: 'Delete a contact from Resend by ID or email',
   version: '1.0.0',
+  effect: 'write',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

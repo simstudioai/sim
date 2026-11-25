@@ -20,6 +20,7 @@ export const genieSendFeedbackTool: ToolConfig<
   description:
     "Rate a Genie answer as positive or negative, with an optional comment. Space authors use this feedback to improve the space's instructions.",
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

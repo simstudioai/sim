@@ -10,6 +10,7 @@ export const firefliesListUsersTool: ToolConfig<
   name: 'Fireflies List Users',
   description: 'List all users within your Fireflies.ai team',
   version: '1.0.0',
+  effect: 'read',
   oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {

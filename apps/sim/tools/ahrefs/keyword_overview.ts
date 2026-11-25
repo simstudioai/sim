@@ -17,6 +17,7 @@ export const keywordOverviewTool: ToolConfig<
   description:
     'Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {

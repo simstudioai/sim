@@ -24,6 +24,7 @@ export const confluenceDeleteCommentTool: InternalToolConfig<
   name: 'Confluence Delete Comment',
   description: 'Delete a comment from a Confluence page.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

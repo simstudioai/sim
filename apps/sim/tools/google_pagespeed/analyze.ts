@@ -11,6 +11,7 @@ export const analyzeTool: ToolConfig<GooglePagespeedAnalyzeParams, GooglePagespe
     description:
       'Analyze a webpage for performance, accessibility, SEO, and best practices using Google PageSpeed Insights.',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       apiKey: {

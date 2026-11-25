@@ -17,6 +17,7 @@ export const brexListCashStatementsTool: ToolConfig<
   name: 'Brex List Cash Statements',
   description: 'List finalized statements for a Brex cash account',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
   description:
     'Get the execution timeline for an Azure DevOps build — every stage, job, and task with its result and log ID. Use this to identify which steps failed before fetching their logs with Get Build Log.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

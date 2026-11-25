@@ -21,11 +21,12 @@ import type { ToolConfig } from '@/tools/types'
 
 export const codaListRowsTool: ToolConfig<CodaListRowsParams, CodaListRowsResponse> = {
   id: 'coda_list_rows',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Coda List Rows',
   description:
     'List rows in a Coda table or view, optionally filtered by a column value, sorted, or limited to rows changed since a sync token',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

@@ -27,6 +27,7 @@ export const getApplicationTool: ToolConfig<
   name: 'Ashby Get Application',
   description: 'Retrieves full details about a single application by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

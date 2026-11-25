@@ -10,6 +10,7 @@ export const listReportsTool: ToolConfig<JotformListReportsParams, JotformListRe
   description:
     'List every report on the account, across all forms, with the shareable URL for each Excel, CSV, grid, table, calendar, RSS, or visual report.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

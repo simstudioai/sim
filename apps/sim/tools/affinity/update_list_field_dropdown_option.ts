@@ -24,6 +24,7 @@ export const affinityUpdateListFieldDropdownOptionTool: ToolConfig<
   description:
     "Change a dropdown option on a list field. Every field is optional — supply only what should change, and only fields the option's kind actually has.",
   version: '1.0.0',
+  effect: 'write',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

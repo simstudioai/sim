@@ -11,6 +11,7 @@ export const gitlabGetPipelineTool: ToolConfig<GitLabGetPipelineParams, GitLabGe
     name: 'GitLab Get Pipeline',
     description: 'Get details of a specific GitLab pipeline',
     version: '1.0.0',
+    effect: 'read',
     oauth: GITLAB_CREDENTIAL_OAUTH,
 
     params: {

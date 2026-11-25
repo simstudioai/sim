@@ -13,6 +13,7 @@ export const googleBigQueryDeleteDatasetTool: ToolConfig<
   name: 'BigQuery Delete Dataset',
   description: 'Delete a dataset from a Google BigQuery project',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

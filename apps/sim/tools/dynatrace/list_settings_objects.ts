@@ -27,6 +27,7 @@ export const listSettingsObjectsTool: ToolConfig<
   description:
     'List settings objects — the configuration behind maintenance windows, alerting profiles, management zones, and anomaly detection.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

@@ -15,6 +15,7 @@ export const checkrGetReportEtaTool: ToolConfig<CheckrReportIdParams, CheckrGetR
     name: 'Checkr Get Report ETA',
     description: 'Retrieve the estimated completion date for a report.',
     version: '1.0.0',
+    effect: 'read',
     oauth: CHECKR_CREDENTIAL_OAUTH,
     errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

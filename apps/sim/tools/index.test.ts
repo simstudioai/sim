@@ -352,6 +352,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Gmail Read',
     description: 'Read Gmail messages',
     version: '1.0.0',
+    effect: 'read',
     oauth: {
       required: true,
       provider: 'google-email',
@@ -365,6 +366,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Gmail Send',
     description: 'Send Gmail messages',
     version: '1.0.0',
+    effect: 'write',
     oauth: {
       required: true,
       provider: 'google-email',
@@ -378,6 +380,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Test Single File Tool',
     description: 'Accepts a single file parameter',
     version: '1.0.0',
+    effect: 'write',
     params: {
       attachment: { type: 'file', required: true },
     },
@@ -392,6 +395,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Test Env Reference Tool',
     description: 'Accepts a user-only API key and an llm-writable note',
     version: '1.0.0',
+    effect: 'write',
     params: {
       apiKey: { type: 'string', required: true, visibility: 'user-only' },
       note: { type: 'string', required: false, visibility: 'user-or-llm' },
@@ -412,6 +416,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Test File Array Tool',
     description: 'Accepts an array of file parameters',
     version: '1.0.0',
+    effect: 'write',
     params: {
       attachments: { type: 'file[]', required: true },
     },
@@ -428,6 +433,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Google Drive List',
     description: 'List Google Drive files',
     version: '1.0.0',
+    effect: 'write',
     params: {},
     operation: { input: () => ({}) },
   } satisfies InternalToolConfig,
@@ -436,6 +442,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Serper Search',
     description: 'Search via Serper',
     version: '1.0.0',
+    effect: 'write',
     params: {},
     operation: { input: () => ({}) },
   } satisfies InternalToolConfig,
@@ -444,6 +451,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Add Notion Database Row',
     description: 'Add a new row to a Notion database with specified properties',
     version: '1.0.0',
+    effect: 'write',
     params: {},
     request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
   },
@@ -1396,6 +1404,7 @@ describe('executeTool Function', () => {
       name: 'Test Registered Operation Failure',
       description: 'Returns a typed operation failure',
       version: '1.0.0',
+      effect: 'write',
       params: {},
       operation: { input: createInternalToolOperationInput },
     } satisfies InternalToolConfig<Record<string, unknown>>
@@ -1439,6 +1448,7 @@ describe('executeTool Function', () => {
       name: 'Test Actorless Registered Operation',
       description: 'Executes with schedule authority',
       version: '1.0.0',
+      effect: 'write',
       params: {},
       operation: { input: createInternalToolOperationInput },
     } satisfies InternalToolConfig<Record<string, unknown>>
@@ -7773,6 +7783,7 @@ describe('Hosted Key Injection', () => {
       name: 'BYOK fixture',
       description: 'Credential failure fixture',
       version: '1.0.0',
+      effect: 'write',
       params: {},
       request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
       hosting: {
@@ -7822,6 +7833,7 @@ describe('Hosted Key Injection', () => {
       name: 'Hosted fixture',
       description: 'Hosted key or saved credential',
       version: '1.0.0',
+      effect: 'write',
       oauth: tokenCredentialOAuth('coda', { apiKey: 'accessToken' }),
       params: { apiKey: { type: 'string', required: false, visibility: 'user-only' } },
       request: {
@@ -7884,6 +7896,7 @@ describe('Hosted Key Injection', () => {
       name: 'Zero-estimate fal fixture',
       description: 'Hosted fal charge whose estimate is zero',
       version: '1.0.0',
+      effect: 'write',
       params: {},
       request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
       hosting: {
@@ -7945,6 +7958,7 @@ describe('Hosted Key Injection', () => {
         name: 'Paid-only fixture',
         description: 'Hosted key reserved for paying payers',
         version: '1.0.0',
+        effect: 'write',
         params: {},
         request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
         hosting: {

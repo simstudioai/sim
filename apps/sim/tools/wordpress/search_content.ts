@@ -14,6 +14,7 @@ export const searchContentTool: ToolConfig<
   name: 'WordPress Search Content',
   description: 'Search across all content types in WordPress.com (posts, pages, media)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

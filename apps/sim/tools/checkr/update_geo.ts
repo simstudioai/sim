@@ -20,6 +20,7 @@ export const checkrUpdateGeoTool: ToolConfig<CheckrUpdateGeoParams, CheckrGeoRes
   name: 'Checkr Update Geo',
   description: 'Add a city to a geo. A geo’s city can only be set once.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

@@ -34,6 +34,7 @@ export const sportmonksGetTvStationsTool: ToolConfig<
   name: 'Get TV Stations',
   description: 'Retrieve all TV stations available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

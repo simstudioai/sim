@@ -13,6 +13,7 @@ export const listConfigurationProfilesTool: InternalToolConfig<
   name: 'AppConfig List Configuration Profiles',
   description: 'List configuration profiles for an AWS AppConfig application',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

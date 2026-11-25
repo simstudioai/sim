@@ -17,6 +17,7 @@ export const salesforceDeleteOpportunityTool: ToolConfig<
   name: 'Delete Opportunity from Salesforce',
   description: 'Delete an opportunity',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

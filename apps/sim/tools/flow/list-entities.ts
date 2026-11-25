@@ -20,6 +20,7 @@ export const flowListEntitiesTool: ToolConfig<FlowListEntitiesParams, FlowListEn
   description:
     'Read one page of live Flow entities. Continue with nextPageStart while moreAvailable is true, including after an empty page.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

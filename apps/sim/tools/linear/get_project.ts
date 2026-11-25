@@ -8,6 +8,7 @@ export const linearGetProjectTool: ToolConfig<LinearGetProjectParams, LinearGetP
   name: 'Linear Get Project',
   description: 'Get a single project by ID from Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

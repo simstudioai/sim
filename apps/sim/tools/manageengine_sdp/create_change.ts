@@ -16,6 +16,7 @@ export const manageengineSdpCreateChangeTool: ToolConfig<SdpChangeWriteParams, S
   description:
     'Create a change record in ManageEngine ServiceDesk Plus Cloud with a title, stage, status and schedule.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

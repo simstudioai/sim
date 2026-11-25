@@ -23,6 +23,7 @@ export const monacoUpdateContactTool: ToolConfig<
   name: 'Monaco Update Contact',
   description: 'Update fields on an existing Monaco contact by ID. Only the fields sent change.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -9,6 +9,7 @@ export const rampGetMemoTool: ToolConfig<RampGetMemoParams, RampGetMemoResponse>
   name: 'Ramp Get Memo',
   description: 'Fetch a transaction memo in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

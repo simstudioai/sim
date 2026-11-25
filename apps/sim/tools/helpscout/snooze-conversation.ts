@@ -46,6 +46,7 @@ export const helpScoutSnoozeConversationTool: ToolConfig<
   description:
     'Snooze a Help Scout conversation until a future time, optionally waking it when the customer replies. A new snooze replaces the previous one.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

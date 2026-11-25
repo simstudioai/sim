@@ -12,6 +12,7 @@ export const pitchbookServiceProviderUpdatesTool: ToolConfig<
   description:
     'Check which service provider datasets changed in a window, so a sync only refetches what moved',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

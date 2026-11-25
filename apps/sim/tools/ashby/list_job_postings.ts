@@ -49,6 +49,7 @@ export const listJobPostingsTool: ToolConfig<
   name: 'Ashby List Job Postings',
   description: 'Lists all job postings in Ashby.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

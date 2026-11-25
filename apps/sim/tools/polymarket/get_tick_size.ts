@@ -20,6 +20,7 @@ export const polymarketGetTickSizeTool: ToolConfig<
   name: 'Get Tick Size from Polymarket',
   description: 'Retrieve the minimum tick size for a specific token',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tokenId: {

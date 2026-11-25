@@ -17,6 +17,7 @@ export const dataverseUploadFileTool: InternalToolConfig<
   description:
     'Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MiB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
 

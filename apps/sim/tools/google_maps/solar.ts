@@ -6,6 +6,7 @@ export const googleMapsSolarTool: ToolConfig<GoogleMapsSolarParams, GoogleMapsSo
   name: 'Google Maps Solar',
   description: 'Get solar potential and panel insights for the building nearest a location',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

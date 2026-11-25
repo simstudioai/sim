@@ -10,6 +10,7 @@ export const manageengineSdpGetRequestTool: ToolConfig<SdpGetRequestParams, SdpR
   name: 'ManageEngine SDP Get Request',
   description: 'Retrieve a single ManageEngine ServiceDesk Plus Cloud request by ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

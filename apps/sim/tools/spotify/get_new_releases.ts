@@ -13,6 +13,7 @@ export const spotifyGetNewReleasesTool: ToolConfig<
   name: 'Spotify Get New Releases',
   description: 'Get a list of new album releases featured in Spotify.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -18,6 +18,7 @@ export const flowListBranchesTool: ToolConfig<FlowListBranchesParams, FlowListBr
   name: 'Flow List Branches',
   description: 'List the Flow project branches and their review and protection state.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

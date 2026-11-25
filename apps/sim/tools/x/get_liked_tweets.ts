@@ -10,6 +10,7 @@ export const xGetLikedTweetsTool: ToolConfig<XGetLikedTweetsParams, XTweetListRe
   name: 'X Get Liked Tweets',
   description: 'Get tweets liked by a specific user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

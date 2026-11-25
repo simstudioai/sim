@@ -14,6 +14,7 @@ export const greenhouseGetCandidateTool: ToolConfig<
   description:
     'Retrieves a specific candidate by ID with full details including contact info, education, and employment history',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

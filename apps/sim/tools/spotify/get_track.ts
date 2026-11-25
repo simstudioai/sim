@@ -10,6 +10,7 @@ export const spotifyGetTrackTool: ToolConfig<SpotifyGetTrackParams, SpotifyGetTr
   name: 'Spotify Get Track',
   description: 'Get detailed information about a specific track on Spotify by its ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

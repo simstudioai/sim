@@ -6,6 +6,7 @@ export const executeScriptTool: InternalToolConfig<SSHExecuteScriptParams, SSHRe
   name: 'SSH Execute Script',
   description: 'Upload and execute a multi-line script on a remote SSH server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

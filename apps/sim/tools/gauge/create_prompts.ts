@@ -91,6 +91,7 @@ export const gaugeCreatePromptsTool: ToolConfig<
   name: 'Gauge Create Prompts',
   description: 'Add a batch of tracked questions or preview the import without creating prompts.',
   version: '1.0.0',
+  effect: 'write',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

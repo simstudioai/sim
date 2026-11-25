@@ -7,6 +7,7 @@ export const assumeRoleTool: InternalToolConfig<STSAssumeRoleParams, STSAssumeRo
   name: 'STS Assume Role',
   description: 'Assume an IAM role and receive temporary security credentials',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -7,6 +7,7 @@ export const airtableUpsertRecordsTool: ToolConfig<AirtableUpsertParams, Airtabl
   description:
     'Update existing records or create new ones in an Airtable table, matching on the specified merge fields',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

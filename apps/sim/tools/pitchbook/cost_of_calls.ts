@@ -9,6 +9,7 @@ export const pitchbookCostOfCallsTool: ToolConfig<PitchbookCostOfCallsParams, Pi
   description:
     'Retrieve the credit cost of every API endpoint under a given pricing model, for first-time and refresh calls',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

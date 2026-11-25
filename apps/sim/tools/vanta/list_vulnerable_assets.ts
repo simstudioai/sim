@@ -18,6 +18,7 @@ export const vantaListVulnerableAssetsTool: InternalToolConfig<
   description:
     'List the assets associated with vulnerabilities in a Vanta account (servers, repositories, workstations, and more)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

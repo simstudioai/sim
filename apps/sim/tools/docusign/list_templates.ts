@@ -14,6 +14,7 @@ export const docusignListTemplatesTool: InternalToolConfig<
   name: 'List DocuSign Templates',
   description: 'List available templates in your DocuSign account',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

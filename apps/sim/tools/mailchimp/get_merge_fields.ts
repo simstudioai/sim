@@ -28,6 +28,7 @@ export const mailchimpGetMergeFieldsTool: ToolConfig<
   name: 'Get Merge Fields from Mailchimp Audience',
   description: 'Retrieve a list of merge fields from a Mailchimp audience',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

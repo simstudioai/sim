@@ -12,6 +12,7 @@ export const getCustomerTool: InternalToolConfig<GetCustomerParams, SapS4HanaRes
   description:
     'Retrieve a single customer by Customer key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

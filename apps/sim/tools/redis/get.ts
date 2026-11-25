@@ -6,6 +6,7 @@ export const redisGetTool: InternalToolConfig<RedisGetParams, RedisGetResponse> 
   name: 'Redis Get',
   description: 'Get the value of a key from Redis.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

@@ -29,6 +29,7 @@ export const salesforceCreateCustomFieldTool: ToolConfig<
   name: 'Create Custom Field in Salesforce',
   description: 'Create a custom field on a Salesforce object (e.g., Account) using the Tooling API',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

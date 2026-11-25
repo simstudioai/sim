@@ -8,6 +8,7 @@ export const agentmailUpdateDraftTool: ToolConfig<UpdateDraftParams, UpdateDraft
   name: 'Update Draft',
   description: 'Update an existing email draft in AgentMail',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

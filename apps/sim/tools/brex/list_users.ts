@@ -14,6 +14,7 @@ export const brexListUsersTool: ToolConfig<BrexListUsersParams, BrexListUsersRes
   name: 'Brex List Users',
   description: 'List users in the Brex account, optionally filtered by email',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

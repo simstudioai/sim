@@ -9,6 +9,7 @@ export const xGetUsageTool: ToolConfig<XGetUsageParams, XGetUsageResponse> = {
   name: 'X Get Usage',
   description: 'Get the API usage data for your X project',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

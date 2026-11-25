@@ -8,6 +8,7 @@ export const linearDeleteIssueTool: ToolConfig<LinearDeleteIssueParams, LinearDe
     name: 'Linear Delete Issue',
     description: 'Delete (trash) an issue in Linear',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

@@ -7,6 +7,7 @@ export const vercelGetUserTool: ToolConfig<VercelGetUserParams, VercelGetUserRes
   name: 'Vercel Get User',
   description: 'Get information about the authenticated Vercel user',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

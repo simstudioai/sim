@@ -6,6 +6,7 @@ export const redisExpireTool: InternalToolConfig<RedisExpireParams, RedisExpireR
   name: 'Redis EXPIRE',
   description: 'Set an expiration time (in seconds) on a key in Redis.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

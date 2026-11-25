@@ -11,6 +11,7 @@ export const attioGetWebhookTool: ToolConfig<AttioGetWebhookParams, AttioGetWebh
   name: 'Attio Get Webhook',
   description: 'Get a single webhook by ID from Attio',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

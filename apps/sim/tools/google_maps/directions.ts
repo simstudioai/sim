@@ -12,6 +12,7 @@ export const googleMapsDirectionsTool: ToolConfig<
   name: 'Google Maps Directions',
   description: 'Get directions and route information between two locations',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

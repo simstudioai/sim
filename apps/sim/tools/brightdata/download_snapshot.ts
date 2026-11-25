@@ -15,6 +15,7 @@ export const brightDataDownloadSnapshotTool: ToolConfig<
   description:
     'Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have ready status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {

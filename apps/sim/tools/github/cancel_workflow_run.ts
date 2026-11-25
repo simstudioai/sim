@@ -10,6 +10,7 @@ export const cancelWorkflowRunTool: ToolConfig<CancelWorkflowRunParams, CancelWo
     description:
       'Cancel a workflow run. Returns 202 Accepted if cancellation is initiated, or 409 Conflict if the run cannot be cancelled (already completed).',
     version: '1.0.0',
+    effect: 'write',
     oauth: GITHUB_CREDENTIAL_OAUTH,
 
     params: {
@@ -131,6 +132,7 @@ export const cancelWorkflowRunV2Tool: ToolConfig = {
   name: cancelWorkflowRunTool.name,
   description: cancelWorkflowRunTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: cancelWorkflowRunTool.params,
   request: cancelWorkflowRunTool.request,
   oauth: cancelWorkflowRunTool.oauth,

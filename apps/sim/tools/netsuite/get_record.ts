@@ -9,6 +9,7 @@ export const netsuiteGetRecordTool: InternalToolConfig<NetSuiteGetRecordParams, 
     name: 'NetSuite Get Record',
     description: 'Retrieve one NetSuite record by internal or external ID.',
     version: '1.0.0',
+    effect: 'read',
     oauth: NETSUITE_OAUTH,
     params: {
       ...netsuiteAuthParamFields,

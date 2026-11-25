@@ -10,6 +10,7 @@ export const updateMemberTool: ToolConfig<GoogleGroupsUpdateMemberParams, Google
   name: 'Google Groups Update Member',
   description: "Update a member's role in a Google Group (promote or demote)",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

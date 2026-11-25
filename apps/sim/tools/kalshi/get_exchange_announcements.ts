@@ -22,6 +22,7 @@ export const kalshiGetExchangeAnnouncementsTool: ToolConfig<
   name: 'Get Exchange Announcements from Kalshi',
   description: 'Retrieve exchange-wide announcements from Kalshi',
   version: '1.0.0',
+  effect: 'read',
 
   params: {},
 
@@ -83,6 +84,7 @@ export const kalshiGetExchangeAnnouncementsV2Tool: ToolConfig<
   name: 'Get Exchange Announcements from Kalshi V2',
   description: 'Retrieve exchange-wide announcements from Kalshi',
   version: '2.0.0',
+  effect: 'read',
 
   params: {},
 

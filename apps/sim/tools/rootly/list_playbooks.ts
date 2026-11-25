@@ -11,6 +11,7 @@ export const rootlyListPlaybooksTool: ToolConfig<
   name: 'Rootly List Playbooks',
   description: 'List playbooks from Rootly with pagination support.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const emailToPersonLiteTool: ToolConfig<
   description:
     'Retrieve basic LinkedIn profile information from an email address. A lighter version with essential data only.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

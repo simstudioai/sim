@@ -7,6 +7,7 @@ export const untagQueueTool: InternalToolConfig<SqsUntagQueueParams, SqsMessageR
   name: 'SQS Untag Queue',
   description: 'Remove cost-allocation tags from an Amazon SQS queue',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -21,6 +21,7 @@ export const updateSecuritySignalAssigneeTool: ToolConfig<
   description:
     'Assign a Cloud SIEM security signal to a Datadog user by UUID. Requires the `security_monitoring_signals_write` permission.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

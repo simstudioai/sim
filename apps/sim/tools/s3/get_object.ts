@@ -16,6 +16,7 @@ export const s3GetObjectTool: ToolConfig = {
   name: 'S3 Get Object',
   description: 'Retrieve an object from an AWS S3 bucket',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

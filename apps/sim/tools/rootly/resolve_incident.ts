@@ -15,6 +15,7 @@ export const rootlyResolveIncidentTool: ToolConfig<
   name: 'Rootly Resolve Incident',
   description: 'Transition a Rootly incident to the resolved state.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const createCommentTool: ToolConfig<
   name: 'WordPress Create Comment',
   description: 'Create a new comment on a WordPress.com post',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

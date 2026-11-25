@@ -34,6 +34,7 @@ export const confluenceListPageVersionsTool: InternalToolConfig<
   name: 'Confluence List Page Versions',
   description: 'List all versions (revision history) of a Confluence page.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

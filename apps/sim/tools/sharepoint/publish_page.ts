@@ -7,6 +7,7 @@ export const publishPageTool: ToolConfig<SharepointToolParams, SharepointPublish
   name: 'Publish SharePoint Page',
   description: 'Publish the latest version of a SharePoint page, making it available to all users',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

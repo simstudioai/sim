@@ -82,6 +82,7 @@ export const {serviceName}{Action}Tool: ToolConfig<
   name: '{Service} {Action}',         // Human readable
   description: 'Brief description',   // One sentence
   version: '1.0.0',
+  effect: 'write',                    // 'read' only if it changes nothing outside Sim (see Declaring the effect)
 
   // Required whenever the tool takes a saved credential — browser OAuth or service account
   oauth: {
@@ -164,6 +165,7 @@ export const {serviceName}{Action}Tool: InternalToolConfig<
   name: '{Service} {Action}',
   description: 'Brief description',
   version: '1.0.0',
+  effect: 'read',
   params: {
     // Same canonical metadata as an external tool.
   },
@@ -182,6 +184,28 @@ The registered handler accepts `InternalToolOperationCall`, validates `request.i
 trusted `request.context` for authority, forwards `request.signal`, and returns the same bounded
 `Response` contract expected by the tool executor. It has no URL, method, request headers, fetch
 fallback, or caller-controlled `_context` authority.
+
+## Declaring the effect
+
+Every tool declares `effect: 'read' | 'write'` (required by `ToolConfig`; `bun run check:tool-effects`
+fails a registered tool without one). It is public catalog metadata: dry runs execute `read` tools
+for real and stub `write` ones, Assistant applies its read or write policy by it, and `sim blocks get`
+and `sim workflows source params` show it to agents. Labelling a write `read` is the one unsafe
+mistake, so classify from the provider's documented semantics, never the name alone:
+
+- `read`: no externally visible change, so no create, update, delete, send, charge, or trigger.
+  GET/HEAD reads, and POST endpoints the docs define as search, query, list, get, lookup, enrich, or
+  verify; LLM, embedding, transcription, TTS, and media-generation calls that persist nothing;
+  queries the server enforces as read-only.
+- `write`: everything else, including an effect that depends on the params (a `method` param, a
+  function-valued `request.method`, raw SQL or Cypher the server does not restrict to reads, a
+  generic RPC or command), a GET whose `transformResponse` or `postProcess` then writes, a read
+  that consumes or acknowledges (a queue receive, mark-as-read), and anything that saves to the
+  workspace. When unsure, `write`.
+- PUT/PATCH/DELETE are `write`. A static GET/HEAD labelled `write`, or PUT/PATCH/DELETE labelled
+  `read`, fails the audit unless the `effect` line carries `// tool-effect: <reason>` on one of the
+  two lines above it; use it only for a genuine exception such as a GET that writes in `postProcess`.
+- A factory that builds tools from definitions takes `effect` per definition and passes it through.
 
 ## Critical Rules for Parameters
 
@@ -606,6 +630,8 @@ If creating V2 tools (API-aligned outputs), use `_v2` suffix:
 ## Checklist Before Finishing
 
 - [ ] All tool IDs use snake_case
+- [ ] Every tool declares `effect`, classified by the rules in Declaring the effect, and
+      `bun run check:tool-effects` passes
 - [ ] Chose exactly one boundary: registered `InternalToolConfig.operation` or absolute external
       HTTP(S) `ToolConfig.request`
 - [ ] No tool request points to `/api/...`, constructs a URL back to Sim, or declares

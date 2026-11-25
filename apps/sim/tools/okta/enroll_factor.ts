@@ -18,6 +18,7 @@ export const oktaEnrollFactorTool: ToolConfig<OktaEnrollFactorParams, OktaEnroll
   description:
     'Enroll an MFA factor for a user. The profile fields required depend on the factor type: a phone number for sms and call, an email address for email, and a question and answer for question. Factors that enroll from the user device, such as webauthn and push, need no profile fields.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

@@ -20,6 +20,7 @@ export const checkrGetReportTool: ToolConfig<CheckrReportIdParams, CheckrReportR
   description:
     'Retrieve a report by ID, including its status, result, adjudication, and the IDs of each screening it ran.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

@@ -8,6 +8,7 @@ export const agentmailListMessagesTool: ToolConfig<ListMessagesParams, ListMessa
   name: 'List Messages',
   description: 'List messages in an inbox in AgentMail',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

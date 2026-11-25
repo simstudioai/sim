@@ -13,6 +13,7 @@ export const discordExecuteWebhookTool: ToolConfig<
   name: 'Discord Execute Webhook',
   description: 'Execute a Discord webhook to send a message',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     webhookId: {

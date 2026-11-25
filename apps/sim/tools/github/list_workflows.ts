@@ -10,6 +10,7 @@ export const listWorkflowsTool: ToolConfig<ListWorkflowsParams, ListWorkflowsRes
   description:
     'List all workflows in a GitHub repository. Returns workflow details including ID, name, path, state, and badge URL.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -147,6 +148,7 @@ export const listWorkflowsV2Tool: ToolConfig<ListWorkflowsParams, any> = {
   name: listWorkflowsTool.name,
   description: listWorkflowsTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listWorkflowsTool.params,
   request: listWorkflowsTool.request,

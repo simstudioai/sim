@@ -32,6 +32,7 @@ export const quickbooksVoidSalesReceiptTool: ToolConfig<
   name: 'QuickBooks Void Sales Receipt',
   description: 'Void a sales receipt after explicit confirmation',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

@@ -12,6 +12,7 @@ export const vantaGetControlTool: InternalToolConfig<
   description:
     'Get a Vanta security control by ID, including its status and evidence pass/fail counts',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

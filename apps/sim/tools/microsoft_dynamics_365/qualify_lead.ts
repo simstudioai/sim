@@ -25,6 +25,7 @@ export const microsoftDynamics365QualifyLeadTool: ToolConfig<
   description:
     'Qualify a Dynamics 365 Sales lead and optionally create linked account, contact, and opportunity records.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

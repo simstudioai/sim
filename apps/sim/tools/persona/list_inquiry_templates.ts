@@ -23,6 +23,7 @@ export const personaListInquiryTemplatesTool: ToolConfig<
   description:
     'List the inquiry templates in your Persona organization, to discover template IDs for creating inquiries. Results are cursor-paginated.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const googleBigQueryInsertRowsTool: ToolConfig<
   name: 'BigQuery Insert Rows',
   description: 'Insert rows into a Google BigQuery table using streaming insert',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

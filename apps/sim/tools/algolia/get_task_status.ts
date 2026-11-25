@@ -13,6 +13,7 @@ export const getTaskStatusTool: ToolConfig<
   name: 'Algolia Get Task Status',
   description: 'Check whether an Algolia indexing task has finished publishing',
   version: '1.0',
+  effect: 'read',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

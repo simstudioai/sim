@@ -10,6 +10,7 @@ export const xGetMeTool: ToolConfig<XGetMeParams, XGetMeResponse> = {
   name: 'X Get Me',
   description: "Get the authenticated user's profile information",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

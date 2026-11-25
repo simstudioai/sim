@@ -40,6 +40,7 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
     description:
       'Create a new cohort in PostHog. Requires cohort name and filter or query configuration.',
     version: '1.0.0',
+    effect: 'write',
     errorExtractor: 'posthog-errors',
 
     params: {

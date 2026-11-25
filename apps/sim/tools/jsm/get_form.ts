@@ -6,6 +6,7 @@ export const jsmGetFormTool: InternalToolConfig<JsmGetFormParams, JsmGetFormResp
   name: 'JSM Get Form',
   description: 'Get a single form with full design, state, and answers from a Jira issue',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

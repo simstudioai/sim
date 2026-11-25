@@ -28,6 +28,7 @@ export const resolveIncidentTool: ToolConfig<
   description:
     'Move a ServiceNow incident to Resolved (state 6) with a resolution code and resolution notes.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

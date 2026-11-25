@@ -13,6 +13,7 @@ export const linkedInToPersonalEmailTool: ToolConfig<
   name: 'Enrich LinkedIn to Personal Email',
   description: 'Find personal email address from a LinkedIn profile URL.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

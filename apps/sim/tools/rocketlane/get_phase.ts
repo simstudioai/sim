@@ -16,6 +16,7 @@ export const rocketlaneGetPhaseTool: ToolConfig<RocketlaneGetPhaseParams, Rocket
     name: 'Rocketlane Get Phase',
     description: 'Retrieve a single Rocketlane phase by ID',
     version: '1.0.0',
+    effect: 'read',
     oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
     params: {

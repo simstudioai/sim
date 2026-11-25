@@ -13,6 +13,7 @@ export const getConfigurationProfileTool: InternalToolConfig<
   name: 'AppConfig Get Configuration Profile',
   description: 'Get details about a single AWS AppConfig configuration profile',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

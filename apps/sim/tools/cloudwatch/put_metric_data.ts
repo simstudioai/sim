@@ -13,6 +13,7 @@ export const putMetricDataTool: InternalToolConfig<
   name: 'CloudWatch Publish Metric',
   description: 'Publish a custom metric data point to CloudWatch',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

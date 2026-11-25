@@ -7,6 +7,7 @@ export const countRowsTool: InternalToolConfig<ClickHouseCountRowsParams, ClickH
     name: 'ClickHouse Count Rows',
     description: 'Count rows in a ClickHouse table, optionally filtered',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       host: {

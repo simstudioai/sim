@@ -8,6 +8,7 @@ export const linearGetCycleTool: ToolConfig<LinearGetCycleParams, LinearGetCycle
   name: 'Linear Get Cycle',
   description: 'Get a single cycle by ID from Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

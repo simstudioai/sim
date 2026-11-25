@@ -27,6 +27,7 @@ export const helpScoutCreateReplyTool: ToolConfig<
   name: 'Help Scout Reply to Conversation',
   description: 'Send a reply to the customer on a Help Scout conversation, or save it as a draft.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

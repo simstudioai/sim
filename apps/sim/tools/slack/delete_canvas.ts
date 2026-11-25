@@ -7,6 +7,7 @@ export const slackDeleteCanvasTool: ToolConfig<SlackDeleteCanvasParams, SlackDel
     name: 'Slack Delete Canvas',
     description: 'Delete a Slack canvas by its canvas ID',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

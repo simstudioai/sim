@@ -19,6 +19,7 @@ export const instagramGetMediaTool: ToolConfig<InstagramGetMediaParams, Instagra
     name: 'Instagram Get Media',
     description: 'Get details for a specific Instagram media object',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

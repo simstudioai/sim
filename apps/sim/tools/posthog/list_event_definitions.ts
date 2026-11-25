@@ -44,6 +44,7 @@ export const listEventDefinitionsTool: ToolConfig<
   description:
     'List all event definitions in a PostHog project. Event definitions represent tracked events with metadata like descriptions, tags, and usage statistics.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

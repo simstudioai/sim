@@ -36,6 +36,7 @@ export const sportmonksGetProbabilitiesByFixtureTool: ToolConfig<
   name: 'Get Predictions by Fixture',
   description: 'Retrieve prediction probabilities for a fixture by fixture ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

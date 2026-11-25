@@ -15,6 +15,7 @@ export const intuneRetireDeviceTool: ToolConfig<
   name: 'Microsoft Intune Retire Device',
   description: 'Retire a device after explicit confirmation, removing company data and management',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

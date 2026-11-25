@@ -14,6 +14,7 @@ export const sendCustomVerificationEmailTool: InternalToolConfig<
   description:
     'Send a branded custom verification email to an address using a custom verification email template',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

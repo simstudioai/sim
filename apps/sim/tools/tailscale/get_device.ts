@@ -17,6 +17,7 @@ export const tailscaleGetDeviceTool: ToolConfig<
   name: 'Tailscale Get Device',
   description: 'Get details of a specific device',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

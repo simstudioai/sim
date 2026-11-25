@@ -18,6 +18,7 @@ export const sendblueSendTypingIndicatorTool: ToolConfig<
   name: 'Sendblue Send Typing Indicator',
   description: 'Display a typing indicator to a recipient (not supported in group chats).',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...sendblueBaseParamFields,

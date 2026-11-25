@@ -25,6 +25,7 @@ export const getLeadMessageHistoryTool: ToolConfig<
   description:
     'Retrieves the sent-and-received message history for a lead in a Smartlead campaign.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

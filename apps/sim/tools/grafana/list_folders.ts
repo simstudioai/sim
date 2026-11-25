@@ -7,6 +7,7 @@ export const listFoldersTool: ToolConfig<GrafanaListFoldersParams, GrafanaListFo
   name: 'Grafana List Folders',
   description: 'List all folders in Grafana',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

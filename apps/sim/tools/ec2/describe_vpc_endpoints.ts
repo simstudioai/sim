@@ -16,6 +16,7 @@ export const describeVpcEndpointsTool: InternalToolConfig<
   name: 'EC2 Describe VPC Endpoints',
   description: 'List VPC endpoints with their service, type, state, and network placement',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

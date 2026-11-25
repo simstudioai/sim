@@ -23,6 +23,7 @@ export const bitbucketApprovePullRequestTool: ToolConfig<
   name: 'Bitbucket Approve Pull Request',
   description: 'Approve a pull request as the authenticated account',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pullrequest:write'] },
   params: { ...BITBUCKET_PULL_REQUEST_PARAMS },
   request: {

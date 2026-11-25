@@ -23,6 +23,7 @@ export const polymarketGetEventTool: ToolConfig<
   name: 'Get Event from Polymarket',
   description: 'Retrieve details of a specific event by ID or slug',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     eventId: {

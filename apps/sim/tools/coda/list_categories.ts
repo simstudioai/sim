@@ -14,6 +14,7 @@ export const codaListCategoriesTool: ToolConfig<CodaAuthParams, CodaListCategori
   name: 'Coda List Doc Categories',
   description: 'List the categories that can be applied to a published Coda doc',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

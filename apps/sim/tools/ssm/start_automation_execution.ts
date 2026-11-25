@@ -13,6 +13,7 @@ export const startAutomationExecutionTool: InternalToolConfig<
   name: 'SSM Start Automation Execution',
   description: 'Start an AWS Systems Manager Automation runbook execution',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

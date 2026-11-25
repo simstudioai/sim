@@ -29,6 +29,7 @@ export const mergeTableCellsTool: ToolConfig<MergeTableCellsParams, MergeTableCe
   description:
     'Merge a rectangular range of table cells into a single cell. The range starts at (rowIndex, columnIndex) and covers rowSpan × columnSpan cells.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

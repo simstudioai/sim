@@ -21,6 +21,7 @@ export const stripeCaptureChargeTool: ToolConfig<
   name: 'Stripe Capture Charge',
   description: 'Capture an uncaptured charge',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

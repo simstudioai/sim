@@ -8,6 +8,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
   name: 'Datadog List Monitors',
   description: 'List all monitors in Datadog with optional filtering by name, tags, or state.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

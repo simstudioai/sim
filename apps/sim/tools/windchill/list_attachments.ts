@@ -15,6 +15,7 @@ export const windchillListAttachmentsTool: ToolConfig<WindchillParams, Windchill
   name: 'Windchill List Attachments',
   description: 'List attachment metadata for a document',
   version: '1.0.0',
+  effect: 'read',
   params: {
     baseUrl: {
       type: 'string',

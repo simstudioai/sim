@@ -11,6 +11,7 @@ export const linqUpdateContactCardTool: ToolConfig<
   name: 'Update Contact Card',
   description: 'Partially update an existing active contact card for a phone number',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

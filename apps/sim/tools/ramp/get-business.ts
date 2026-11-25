@@ -8,6 +8,7 @@ export const rampGetBusinessTool: ToolConfig<RampGetBusinessParams, RampGetBusin
   name: 'Ramp Get Business',
   description: 'Fetch the company information in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

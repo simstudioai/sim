@@ -24,6 +24,7 @@ export const resendCreateBroadcastTool: ToolConfig<CreateBroadcastParams, Create
   name: 'Create Broadcast',
   description: 'Create a broadcast email for a segment (or legacy audience) in Resend',
   version: '1.0.0',
+  effect: 'write',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

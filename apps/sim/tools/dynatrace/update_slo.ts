@@ -15,6 +15,7 @@ export const updateSloTool: ToolConfig<DynatraceUpdateSloParams, DynatraceUpdate
   description:
     'Update an existing service-level objective. Every field is replaced, so send the complete definition.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

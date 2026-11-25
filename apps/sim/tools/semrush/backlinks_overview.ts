@@ -32,6 +32,7 @@ export const semrushBacklinksOverviewTool: ToolConfig<
   description:
     'Get the Authority Score and backlink profile totals for a domain, subdomain, or URL.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

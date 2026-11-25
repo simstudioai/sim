@@ -9,6 +9,7 @@ export const clearRecordsTool: ToolConfig<AlgoliaClearRecordsParams, AlgoliaClea
     description:
       'Clear all records from an Algolia index while keeping settings, synonyms, and rules',
     version: '1.0',
+    effect: 'write',
     oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
     params: {

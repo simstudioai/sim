@@ -31,6 +31,7 @@ export const insertTextTool: ToolConfig<InsertTextParams, InsertTextResponse> = 
   description:
     'Insert text into a shape or table cell in a Google Slides presentation. Use this to add text to text boxes, shapes, or table cells.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

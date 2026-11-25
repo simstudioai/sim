@@ -19,6 +19,7 @@ export const greenhouseGetUserV2Tool: ToolConfig<
   name: 'Greenhouse Get User',
   description: 'Retrieves one user by ID using the v3 list endpoint.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

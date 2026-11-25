@@ -15,6 +15,7 @@ export const catalogTypesListTool: ToolConfig<
   description:
     'List all catalog types in incident.io, including those synced from external resources. Use this to find the catalog type ID needed to list entries.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

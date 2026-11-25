@@ -12,6 +12,7 @@ export const wizaProspectSearchTool: ToolConfig<
   name: 'Wiza Prospect Search',
   description: "Search Wiza's database of prospects using person, company, and financial filters",
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.WIZA_ERRORS,
 
   hosting: wizaHosting<WizaProspectSearchParams>(() => {

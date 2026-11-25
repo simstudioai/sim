@@ -20,6 +20,7 @@ export const clickupGetTimeEntriesTool: ToolConfig<
   description:
     'List time entries in a ClickUp workspace within a date range (defaults to the last 30 days for the authenticated user)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -8,6 +8,7 @@ export const sendEventTool: ToolConfig<AmplitudeSendEventParams, AmplitudeSendEv
   name: 'Amplitude Send Event',
   description: 'Track an event in Amplitude using the HTTP V2 API.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AMPLITUDE_INGESTION_CREDENTIAL_OAUTH,
 
   params: {

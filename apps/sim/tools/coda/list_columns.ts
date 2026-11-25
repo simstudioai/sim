@@ -20,11 +20,12 @@ import type { ToolConfig } from '@/tools/types'
 
 export const codaListColumnsTool: ToolConfig<CodaListColumnsParams, CodaListColumnsResponse> = {
   id: 'coda_list_columns',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Coda List Columns',
   description:
     'List the columns of a Coda table with their IDs, formats, and formulas. Use column IDs when reading and writing rows.',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

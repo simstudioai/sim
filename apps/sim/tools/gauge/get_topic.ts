@@ -9,6 +9,7 @@ export const gaugeGetTopicTool: ToolConfig<GaugeGetTopicParams, GaugeGetTopicRes
   name: 'Gauge Get Topic',
   description: 'Read a topic and its tracked-prompt count.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

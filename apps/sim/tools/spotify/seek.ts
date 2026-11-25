@@ -17,6 +17,7 @@ export const spotifySeekTool: ToolConfig<SpotifySeekParams, SpotifySeekResponse>
   name: 'Spotify Seek',
   description: 'Seek to a position in the currently playing track.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

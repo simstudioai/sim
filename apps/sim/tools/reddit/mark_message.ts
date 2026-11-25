@@ -22,6 +22,7 @@ export const markReadTool: ToolConfig<RedditMarkReadParams, RedditMarkMessageRes
   name: 'Mark Reddit Messages Read',
   description: 'Mark one or more private messages as read',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -106,6 +107,7 @@ export const markAllReadTool: ToolConfig<RedditMarkAllReadParams, RedditMarkMess
   name: 'Mark All Reddit Messages Read',
   description: 'Mark all private messages in the inbox as read',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

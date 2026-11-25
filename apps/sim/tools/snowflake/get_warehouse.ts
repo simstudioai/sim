@@ -13,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const getWarehouseTool: ToolConfig<SnowflakeWarehouseParams, SnowflakeStatementResponse> = {
   id: 'snowflake_get_warehouse',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Get Warehouse',
   description: 'Get the full details for a Snowflake virtual warehouse.',

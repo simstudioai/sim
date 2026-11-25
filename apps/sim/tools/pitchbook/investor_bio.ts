@@ -9,6 +9,7 @@ export const pitchbookInvestorBioTool: ToolConfig<PitchbookProfileParams, Pitchb
   description:
     'Retrieve the core profile of an investor: names, description, HQ, type, AUM, dry powder, and headcount',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

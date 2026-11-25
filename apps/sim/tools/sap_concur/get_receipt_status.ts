@@ -11,6 +11,7 @@ export const getReceiptStatusTool: InternalToolConfig<GetReceiptStatusParams, Sa
   name: 'SAP Concur Get Receipt Status',
   description: 'Get receipt processing status (GET /receipts/v4/status/{receiptId}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

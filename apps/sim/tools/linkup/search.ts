@@ -16,6 +16,7 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
   name: 'Linkup Search',
   description: 'Search the web for information using Linkup',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     q: {

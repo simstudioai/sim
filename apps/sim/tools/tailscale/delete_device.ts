@@ -12,6 +12,7 @@ export const tailscaleDeleteDeviceTool: ToolConfig<
   name: 'Tailscale Delete Device',
   description: 'Remove a device from the tailnet',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -10,6 +10,7 @@ export const clearV2Tool: ToolConfig<GoogleSheetsV2ClearParams, GoogleSheetsV2Cl
   name: 'Clear Google Sheets Range V2',
   description: 'Clear values from a specific range in a Google Sheets spreadsheet',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

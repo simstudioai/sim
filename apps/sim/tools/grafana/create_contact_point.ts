@@ -13,6 +13,7 @@ export const createContactPointTool: ToolConfig<
   name: 'Grafana Create Contact Point',
   description: 'Create a notification contact point (e.g., Slack, email, PagerDuty)',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

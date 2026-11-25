@@ -26,6 +26,7 @@ export const fivetranSyncConnectionTool: ToolConfig<
   description:
     'Start an incremental sync of a Fivetran connection now, without changing its schedule.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

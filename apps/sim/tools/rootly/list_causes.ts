@@ -8,6 +8,7 @@ export const rootlyListCausesTool: ToolConfig<RootlyListCausesParams, RootlyList
   name: 'Rootly List Causes',
   description: 'List causes from Rootly with optional search filtering.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

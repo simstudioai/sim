@@ -31,6 +31,7 @@ export const evaluateFlagsTool: ToolConfig<
   description:
     'Evaluate feature flags for a specific user or group. This is a public endpoint that uses the project API key.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     region: {

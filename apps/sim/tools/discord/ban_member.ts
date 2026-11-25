@@ -8,6 +8,7 @@ export const discordBanMemberTool: ToolConfig<DiscordBanMemberParams, DiscordBan
   name: 'Discord Ban Member',
   description: 'Ban a member from a Discord server',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

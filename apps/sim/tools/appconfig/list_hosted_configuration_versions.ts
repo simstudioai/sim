@@ -13,6 +13,7 @@ export const listHostedConfigurationVersionsTool: InternalToolConfig<
   name: 'AppConfig List Hosted Configuration Versions',
   description: 'List hosted configuration versions for an AWS AppConfig configuration profile',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

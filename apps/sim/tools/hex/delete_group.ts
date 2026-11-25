@@ -9,6 +9,7 @@ export const deleteGroupTool: ToolConfig<HexDeleteGroupParams, HexDeleteGroupRes
   name: 'Hex Delete Group',
   description: 'Delete a group from the Hex workspace.',
   version: '1.0.0',
+  effect: 'write',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

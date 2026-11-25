@@ -7,6 +7,7 @@ export const slackGetPermalinkTool: ToolConfig<SlackGetPermalinkParams, SlackGet
     name: 'Slack Get Permalink',
     description: 'Get a stable permalink URL to a specific Slack message.',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

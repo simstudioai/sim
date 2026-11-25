@@ -22,6 +22,7 @@ export const createCampaignTool: ToolConfig<
   name: 'Instantly Create Campaign',
   description: 'Creates an Instantly V2 campaign using the documented campaign schedule schema.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

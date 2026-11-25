@@ -30,6 +30,7 @@ export const sportmonksGetExtendedTeamSquadTool: ToolConfig<
   name: 'Get Extended Team Squad',
   description: 'Retrieve all squad entries for a team (based on current seasons) by team ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

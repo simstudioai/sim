@@ -13,6 +13,7 @@ export const createSecretTool: InternalToolConfig<
   name: 'Secrets Manager Create Secret',
   description: 'Create a new secret in AWS Secrets Manager',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

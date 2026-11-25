@@ -18,6 +18,7 @@ export const ingestLogsTool: ToolConfig<DynatraceIngestLogsParams, DynatraceInge
   description:
     'Push log events into Dynatrace. Accepts a single log event object or an array of them.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

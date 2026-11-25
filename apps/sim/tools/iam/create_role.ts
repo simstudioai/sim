@@ -7,6 +7,7 @@ export const createRoleTool: InternalToolConfig<IAMCreateRoleParams, IAMCreateRo
   name: 'IAM Create Role',
   description: 'Create a new IAM role with a trust policy',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const veoVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   name: 'Google Gemini Video',
   description: 'Generate videos using Google Gemini Omni with native audio generation',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     provider: {

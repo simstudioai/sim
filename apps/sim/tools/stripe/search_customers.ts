@@ -8,6 +8,7 @@ export const stripeSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
   name: 'Stripe Search Customers',
   description: 'Search for customers using query syntax',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

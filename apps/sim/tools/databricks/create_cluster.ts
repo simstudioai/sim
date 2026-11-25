@@ -22,6 +22,7 @@ export const createClusterTool: ToolConfig<
   description:
     'Create a compute cluster with runtime, sizing, policy, and cloud-specific settings.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

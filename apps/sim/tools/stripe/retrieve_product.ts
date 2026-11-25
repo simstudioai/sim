@@ -8,6 +8,7 @@ export const stripeRetrieveProductTool: ToolConfig<RetrieveProductParams, Produc
   name: 'Stripe Retrieve Product',
   description: 'Retrieve an existing product by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

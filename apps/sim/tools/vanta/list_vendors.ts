@@ -15,6 +15,7 @@ export const vantaListVendorsTool: InternalToolConfig<
   description:
     'List the vendors tracked in a Vanta account with risk levels, contract dates, and security review schedules',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

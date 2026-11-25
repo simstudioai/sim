@@ -14,6 +14,7 @@ export const severitiesListTool: ToolConfig<
   description:
     'List all severity levels configured in your Incident.io workspace. Returns severity details including id, name, description, and rank.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

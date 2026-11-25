@@ -20,6 +20,7 @@ export const spotifyReplacePlaylistItemsTool: ToolConfig<
   name: 'Spotify Replace Playlist Items',
   description: 'Replace all items in a playlist with new tracks.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -18,6 +18,7 @@ export const azureDataExplorerListTablesTool: InternalToolConfig<
   description:
     'List the tables in an Azure Data Explorer database, with their folder and docstring.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

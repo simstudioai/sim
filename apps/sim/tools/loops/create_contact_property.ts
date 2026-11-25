@@ -14,6 +14,7 @@ export const loopsCreateContactPropertyTool: ToolConfig<
   description:
     'Create a new custom contact property in your Loops account. The property name must be in camelCase format.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {

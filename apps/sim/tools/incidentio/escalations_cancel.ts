@@ -14,6 +14,7 @@ export const escalationsCancelTool: ToolConfig<
   description:
     'Cancel an escalation in incident.io. Notifications stop, and the escalation will not advance to further levels or repeat.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

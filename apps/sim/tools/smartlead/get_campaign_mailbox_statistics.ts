@@ -25,6 +25,7 @@ export const getCampaignMailboxStatisticsTool: ToolConfig<
   description:
     'Retrieves per-mailbox sending statistics for a Smartlead campaign, for spotting which sending accounts are underperforming.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

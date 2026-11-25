@@ -17,6 +17,7 @@ export const fileManageSharingTool: InternalToolConfig<FileManageSharingParams, 
   description:
     'Enable or disable the public share link for a workspace file, and set its access mode (public, password, email, or SSO). Idempotent: the public link stays stable across changes.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     fileId: {

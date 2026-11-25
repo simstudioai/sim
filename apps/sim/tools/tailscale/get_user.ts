@@ -14,6 +14,7 @@ export const tailscaleGetUserTool: ToolConfig<TailscaleUserParams, TailscaleGetU
   name: 'Tailscale Get User',
   description: 'Get details of a specific user',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

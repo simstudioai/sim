@@ -8,6 +8,7 @@ export const discordGetMemberTool: ToolConfig<DiscordGetMemberParams, DiscordGet
   name: 'Discord Get Member',
   description: 'Get information about a member in a Discord server',
   version: '1.0.0',
+  effect: 'read',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

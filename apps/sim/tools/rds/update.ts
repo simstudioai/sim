@@ -7,6 +7,7 @@ export const updateTool: InternalToolConfig<RdsUpdateParams, RdsUpdateResponse> 
   name: 'RDS Update',
   description: 'Update data in an Amazon RDS table using the Data API',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

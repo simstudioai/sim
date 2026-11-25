@@ -17,6 +17,7 @@ export const mintlifyGetViewsTool: ToolConfig<MintlifyGetViewsParams, MintlifyGe
   description:
     'Export Mintlify per-path and site-wide content view counts for a date range, split by human and AI bot traffic.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     projectId: {

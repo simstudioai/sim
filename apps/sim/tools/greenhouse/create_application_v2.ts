@@ -21,6 +21,7 @@ export const greenhouseCreateApplicationV2Tool: ToolConfig<
   name: 'Greenhouse Create Application',
   description: 'Creates a job application or prospect application for an existing candidate.',
   version: '2.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

@@ -14,6 +14,7 @@ export const affinityListUsersTool: ToolConfig<
   description:
     'Page through the internal users in the organization. Email addresses and roles are returned only to callers with the "Manage Users" permission.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

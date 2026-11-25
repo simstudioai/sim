@@ -20,6 +20,7 @@ export const checkrCompleteReportTool: ToolConfig<CheckrReportIdParams, CheckrRe
   description:
     'Complete a report now, canceling any pending or suspended screenings. Canceled screenings record a cancellation reason.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

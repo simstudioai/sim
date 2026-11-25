@@ -12,6 +12,7 @@ export const alertsShowTool: ToolConfig<IncidentioAlertsShowParams, IncidentioAl
     name: 'Show Alert',
     description: 'Get a single alert by ID from incident.io',
     version: '1.0.0',
+    effect: 'read',
     oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
     params: {

@@ -17,6 +17,7 @@ export const rampListVirtualCardsTool: ToolConfig<
   name: 'Ramp List Virtual Cards',
   description: 'List virtual cards in one page in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

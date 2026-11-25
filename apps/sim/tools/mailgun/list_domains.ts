@@ -8,6 +8,7 @@ export const mailgunListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRe
   name: 'Mailgun List Domains',
   description: 'List all domains for your Mailgun account',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {

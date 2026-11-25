@@ -13,6 +13,7 @@ export const listPipelinesTool: InternalToolConfig<
   name: 'CodePipeline List Pipelines',
   description: 'List all CodePipeline pipelines in an AWS account and region',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

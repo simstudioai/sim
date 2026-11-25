@@ -16,6 +16,7 @@ export const telegramSendLocationTool: ToolConfig<
   name: 'Telegram Send Location',
   description: 'Send a point on the map to a Telegram chat through the Telegram Bot API.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

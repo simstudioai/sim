@@ -19,6 +19,7 @@ export const uptimeRobotUpdateMaintenanceWindowTool: ToolConfig<
   name: 'UptimeRobot Update Maintenance Window',
   description: 'Update an existing maintenance window. Only the provided fields are changed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

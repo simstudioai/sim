@@ -10,6 +10,7 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
   description:
     'List releases for a Sentry organization or project. Returns release details including version, commits, deploy information, and associated projects.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {

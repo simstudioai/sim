@@ -25,6 +25,7 @@ export const duplicateCampaignTool: ToolConfig<
   description:
     'Copies a Smartlead campaign, including its sequences and settings. The copy is named "<original> - copy" and starts in DRAFTED status.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

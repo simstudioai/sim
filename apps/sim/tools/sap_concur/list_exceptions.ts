@@ -13,6 +13,7 @@ export const listExceptionsTool: InternalToolConfig<ListExceptionsParams, SapCon
   description:
     'List exceptions on a report (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/exceptions).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

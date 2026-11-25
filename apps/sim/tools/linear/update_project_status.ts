@@ -14,6 +14,7 @@ export const linearUpdateProjectStatusTool: ToolConfig<
   name: 'Linear Update Project Status',
   description: 'Update a project status in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -42,6 +42,7 @@ export const zendeskUpdateUserTool: ToolConfig<ZendeskUpdateUserParams, ZendeskU
     name: 'Update User in Zendesk',
     description: 'Update an existing user in Zendesk',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: ZENDESK_CREDENTIAL_OAUTH,
 

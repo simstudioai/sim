@@ -7,6 +7,7 @@ export const mergeTool: InternalToolConfig<Neo4jMergeParams, Neo4jResponse> = {
   description:
     'Execute MERGE statements to find or create nodes and relationships in Neo4j (upsert operation)',
   version: '1.0',
+  effect: 'write',
 
   params: {
     host: {

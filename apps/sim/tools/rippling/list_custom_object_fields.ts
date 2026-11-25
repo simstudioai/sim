@@ -11,6 +11,7 @@ export const ripplingListCustomObjectFieldsTool: ToolConfig<RipplingListCustomOb
     name: 'Rippling List Custom Object Fields',
     description: 'List all fields for a custom object',
     version: '1.0.0',
+    effect: 'read',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

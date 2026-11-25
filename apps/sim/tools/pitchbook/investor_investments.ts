@@ -12,6 +12,7 @@ export const pitchbookInvestorInvestmentsTool: ToolConfig<
   description:
     'Retrieve every investment an investor has made, active and exited, with the deals that opened and closed each position',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

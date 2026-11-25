@@ -10,6 +10,7 @@ export const brexUpdateExpenseTool: ToolConfig<BrexUpdateExpenseParams, BrexUpda
     name: 'Brex Update Expense',
     description: 'Update the memo of a Brex card expense',
     version: '1.0.0',
+    effect: 'write',
     oauth: BREX_CREDENTIAL_OAUTH,
 
     params: {

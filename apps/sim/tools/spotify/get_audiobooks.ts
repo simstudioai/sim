@@ -27,6 +27,7 @@ export const spotifyGetAudiobooksTool: ToolConfig<
   name: 'Spotify Get Multiple Audiobooks',
   description: 'Get details for multiple audiobooks.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

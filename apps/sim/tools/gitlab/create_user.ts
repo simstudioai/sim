@@ -10,6 +10,7 @@ export const gitlabCreateUserTool: ToolConfig<GitLabCreateUserParams, GitLabUser
   description:
     'Create a new GitLab user. Requires an administrator token with admin_mode on the instance.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

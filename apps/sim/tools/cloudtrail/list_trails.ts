@@ -14,6 +14,7 @@ export const listTrailsTool: InternalToolConfig<
   description:
     'List the ARN, name, and home Region of every CloudTrail trail visible to the account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

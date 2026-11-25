@@ -17,6 +17,7 @@ export const addTagsTool: ToolConfig<DynatraceAddTagsParams, DynatraceAddTagsRes
   description:
     'Add custom tags to every monitored entity an entity selector matches. Tags drive selectors, management zones, and alerting.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

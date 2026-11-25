@@ -18,6 +18,7 @@ export const brexGetExpenseTool: ToolConfig<BrexGetExpenseParams, BrexGetExpense
   name: 'Brex Get Expense',
   description: 'Get a single Brex expense by its ID, including merchant, user, and receipt details',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

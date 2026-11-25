@@ -25,6 +25,7 @@ export const microsoftDynamics365GetRecordTool: ToolConfig<
   description:
     'Retrieve one supported standard Microsoft Dynamics 365 CRM record by its ID. Supports $select and $expand OData query options.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

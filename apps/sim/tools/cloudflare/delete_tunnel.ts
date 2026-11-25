@@ -23,6 +23,7 @@ export const deleteTunnelTool: ToolConfig<
   description:
     'Permanently deletes a Cloudflare Tunnel from an account. The tunnel must have no active connections.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

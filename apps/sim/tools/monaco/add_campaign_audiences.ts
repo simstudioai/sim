@@ -24,6 +24,7 @@ export const monacoAddCampaignAudiencesTool: ToolConfig<
   description:
     'Attach audiences to a Monaco campaign, keeping its existing ones, and return the refreshed campaign. This sends real outreach: every contact in the attached audiences is enrolled asynchronously and the campaign sequence sends them real emails and LinkedIn messages. Audiences already attached are ignored, so retries are safe.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

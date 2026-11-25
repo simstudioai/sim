@@ -24,6 +24,7 @@ export const microsoftDynamics365UpdateRecordTool: ToolConfig<
   description:
     'Update an existing supported standard Microsoft Dynamics 365 CRM record. Only send the columns you want to change.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

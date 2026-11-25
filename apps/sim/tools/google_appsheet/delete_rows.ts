@@ -18,6 +18,7 @@ export const googleAppsheetDeleteRowsTool: ToolConfig<
   description:
     'Delete rows from an AppSheet table. Each row only needs to include the key column name and value.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

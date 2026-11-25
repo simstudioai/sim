@@ -14,6 +14,7 @@ export const createAccountAssignmentTool: InternalToolConfig<
   description:
     'Grant a user or group access to an AWS account via a permission set (temporary elevated access)',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

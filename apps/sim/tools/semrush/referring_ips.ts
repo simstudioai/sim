@@ -29,6 +29,7 @@ export const semrushReferringIpsTool: ToolConfig<
   description:
     'List the IP addresses linking to a target, with the domain and backlink counts behind each one.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

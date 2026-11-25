@@ -16,6 +16,7 @@ export const bufferGetChannelTool: ToolConfig<BufferGetChannelParams, BufferChan
   description:
     'Get one connected channel, including its posting schedule, limits and network settings',
   version: '1.0.0',
+  effect: 'read',
   oauth: BUFFER_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

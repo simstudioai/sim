@@ -15,6 +15,7 @@ export const followUpsCreateTool: ToolConfig<
   name: 'Create Follow-up',
   description: 'Create a new follow-up on an incident in incident.io',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

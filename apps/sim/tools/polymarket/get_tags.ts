@@ -17,6 +17,7 @@ export const polymarketGetTagsTool: ToolConfig<PolymarketGetTagsParams, Polymark
     name: 'Get Tags from Polymarket',
     description: 'Retrieve available tags for filtering markets from Polymarket',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       limit: {

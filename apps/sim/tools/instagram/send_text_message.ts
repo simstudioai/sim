@@ -20,6 +20,7 @@ export const instagramSendTextMessageTool: ToolConfig<
   description:
     'Send a text Direct message. The recipient must have messaged the account first (24h window).',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

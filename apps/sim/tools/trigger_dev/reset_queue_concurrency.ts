@@ -17,6 +17,7 @@ export const triggerDevResetQueueConcurrencyTool: ToolConfig<
   description:
     'Reset the concurrency limit of a Trigger.dev queue back to its base value, removing any override.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

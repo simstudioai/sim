@@ -20,6 +20,7 @@ export const greenhouseListAttachmentsV2Tool: ToolConfig<
   name: 'Greenhouse List Attachments',
   description: 'Lists one page of attachments with cursor pagination and documented filters.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

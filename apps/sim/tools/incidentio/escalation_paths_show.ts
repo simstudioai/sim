@@ -15,6 +15,7 @@ export const escalationPathsShowTool: ToolConfig<
   name: 'Show Escalation Path',
   description: 'Get details of a specific escalation path in incident.io',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

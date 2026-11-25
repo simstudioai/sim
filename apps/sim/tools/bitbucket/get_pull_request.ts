@@ -24,6 +24,7 @@ export const bitbucketGetPullRequestTool: ToolConfig<
   name: 'Bitbucket Get Pull Request',
   description: 'Get a pull request by repository-scoped ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pullrequest'] },
   params: { ...BITBUCKET_PULL_REQUEST_PARAMS },
   request: {

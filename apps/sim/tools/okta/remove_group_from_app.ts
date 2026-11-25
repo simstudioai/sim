@@ -20,6 +20,7 @@ export const oktaRemoveGroupFromAppTool: ToolConfig<
   description:
     'Unassign a group from an Okta application. Destructive: every member who had access only through this group loses access to the app.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

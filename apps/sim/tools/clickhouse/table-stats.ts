@@ -9,6 +9,7 @@ export const tableStatsTool: InternalToolConfig<
   name: 'ClickHouse Table Stats',
   description: 'Get row counts and on-disk size for tables in the connected database',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

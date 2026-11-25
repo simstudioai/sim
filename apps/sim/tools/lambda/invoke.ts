@@ -9,6 +9,7 @@ export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResp
   description:
     'Invoke a Lambda function synchronously for its response payload, asynchronously to queue execution, or as a dry run to check permissions.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

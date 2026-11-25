@@ -13,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const getTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeStatementResponse> = {
   id: 'snowflake_get_task',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Get Task',
   description: 'Describe a Snowflake task.',

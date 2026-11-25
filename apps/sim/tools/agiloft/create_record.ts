@@ -9,6 +9,7 @@ export const agiloftCreateRecordTool: InternalToolConfig<
   name: 'Agiloft Create Record',
   description: 'Create a new record in an Agiloft table.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     instanceUrl: {

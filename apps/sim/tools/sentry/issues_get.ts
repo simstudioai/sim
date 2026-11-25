@@ -10,6 +10,7 @@ export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueRespon
   description:
     'Retrieve detailed information about a specific Sentry issue by its ID. Returns complete issue details including metadata, tags, and statistics.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {

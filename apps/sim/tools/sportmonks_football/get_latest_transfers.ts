@@ -34,6 +34,7 @@ export const sportmonksGetLatestTransfersTool: ToolConfig<
   name: 'Get Latest Transfers',
   description: 'Retrieve the latest transfers available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

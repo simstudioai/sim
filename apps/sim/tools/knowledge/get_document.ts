@@ -7,6 +7,7 @@ export const knowledgeGetDocumentTool: InternalToolConfig<any, KnowledgeGetDocum
   description:
     'Get full details of a single document including tags, connector metadata, and processing status',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     knowledgeBaseId: {

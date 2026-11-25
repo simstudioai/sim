@@ -15,6 +15,7 @@ export const escalationsShowTool: ToolConfig<
   description:
     'Get an escalation (a page sent to people) in incident.io. For an escalation policy, use Show Escalation Path.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

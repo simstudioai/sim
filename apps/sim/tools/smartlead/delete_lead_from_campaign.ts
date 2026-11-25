@@ -21,6 +21,7 @@ export const deleteLeadFromCampaignTool: ToolConfig<
   description:
     'Removes a lead from a Smartlead campaign. The lead record itself remains on the account.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

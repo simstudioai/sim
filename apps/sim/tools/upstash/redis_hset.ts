@@ -8,6 +8,7 @@ export const upstashRedisHSetTool: ToolConfig<UpstashRedisHSetParams, UpstashRed
   name: 'Upstash Redis HSET',
   description: 'Set a field in a hash stored at a key in Upstash Redis.',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

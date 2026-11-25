@@ -15,6 +15,7 @@ export const tailscaleAuthorizeDeviceTool: ToolConfig<
   name: 'Tailscale Authorize Device',
   description: 'Authorize or deauthorize a device on the tailnet',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -7,6 +7,7 @@ export const getDocumentTool: InternalToolConfig<SsmGetDocumentParams, SsmGetDoc
   name: 'SSM Get Document',
   description: 'Read the content of an SSM document or Automation runbook',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

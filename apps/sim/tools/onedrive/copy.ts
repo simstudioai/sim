@@ -15,6 +15,7 @@ export const copyTool: ToolConfig<OneDriveToolParams, OneDriveCopyResponse> = {
   name: 'Copy OneDrive File',
   description: 'Copy a file or folder to another location within OneDrive',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,

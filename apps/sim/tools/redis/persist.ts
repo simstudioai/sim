@@ -6,6 +6,7 @@ export const redisPersistTool: InternalToolConfig<RedisPersistParams, RedisPersi
   name: 'Redis PERSIST',
   description: 'Remove the expiration from a key in Redis, making it persist indefinitely.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

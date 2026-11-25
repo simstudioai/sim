@@ -56,6 +56,7 @@ export const formatRangeTool: ToolConfig<
   name: 'Format Microsoft Excel Range',
   description: 'Apply fill color and/or font formatting to a range in a Microsoft Excel worksheet',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

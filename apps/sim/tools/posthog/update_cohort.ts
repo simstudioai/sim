@@ -42,6 +42,7 @@ export const updateCohortTool: ToolConfig<PostHogUpdateCohortParams, PostHogUpda
     description:
       'Update an existing cohort in PostHog. Can modify name, description, filters, query, static membership, and deleted status.',
     version: '1.0.0',
+    effect: 'write',
     errorExtractor: 'posthog-errors',
 
     params: {

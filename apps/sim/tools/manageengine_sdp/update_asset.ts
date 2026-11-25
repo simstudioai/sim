@@ -17,6 +17,7 @@ export const manageengineSdpUpdateAssetTool: ToolConfig<SdpUpdateAssetParams, Sd
   description:
     'Update a ManageEngine ServiceDesk Plus Cloud asset: reassign it, change its state, or correct its inventory details.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

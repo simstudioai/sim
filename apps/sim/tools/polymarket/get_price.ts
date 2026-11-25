@@ -21,6 +21,7 @@ export const polymarketGetPriceTool: ToolConfig<
   name: 'Get Price from Polymarket',
   description: 'Retrieve the market price for a specific token and side',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tokenId: {

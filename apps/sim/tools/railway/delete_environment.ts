@@ -22,6 +22,7 @@ export const railwayDeleteEnvironmentTool: ToolConfig<
   name: 'Railway Delete Environment',
   description: 'Delete a Railway project environment',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

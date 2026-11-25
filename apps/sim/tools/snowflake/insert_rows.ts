@@ -27,6 +27,7 @@ function parseRows(value: unknown): Array<Record<string, unknown>> {
 export const insertRowsTool: ToolConfig<SnowflakeInsertRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_insert_rows',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Insert Rows',
   description: 'Insert structured JSON rows using bound values.',

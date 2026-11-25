@@ -42,6 +42,7 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
   name: 'Write to Microsoft Excel',
   description: 'Write data to a Microsoft Excel spreadsheet',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
@@ -221,9 +222,9 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
   name: 'Write to Microsoft Excel V2',
   description: 'Write data to a specific sheet in a Microsoft Excel spreadsheet',
   version: '2.0.0',
+  effect: 'write',
 
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'spreadsheetId', label: 'Workbook', target: true },

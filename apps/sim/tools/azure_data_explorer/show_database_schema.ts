@@ -19,6 +19,7 @@ export const azureDataExplorerShowDatabaseSchemaTool: InternalToolConfig<
   description:
     'Read the full schema of an Azure Data Explorer database as a flat list of every table and column, so an agent can discover the data model in one call.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

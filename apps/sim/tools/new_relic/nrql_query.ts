@@ -24,6 +24,7 @@ export const newRelicNrqlQueryTool: ToolConfig<NewRelicNrqlQueryParams, NewRelic
     name: 'New Relic NRQL Query',
     description: 'Run a NRQL query against a New Relic account using NerdGraph.',
     version: '1.0.0',
+    effect: 'read',
     oauth: NEW_RELIC_CREDENTIAL_OAUTH,
 
     params: {

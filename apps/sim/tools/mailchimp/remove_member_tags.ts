@@ -30,6 +30,7 @@ export const mailchimpRemoveMemberTagsTool: ToolConfig<
   name: 'Remove Tags from Member in Mailchimp',
   description: 'Remove tags from a member in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

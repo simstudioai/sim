@@ -13,6 +13,7 @@ export const jiraTransitionIssueTool: ToolConfig<
   name: 'Jira Transition Issue',
   description: 'Move a Jira issue between workflow statuses (e.g., To Do -> In Progress)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

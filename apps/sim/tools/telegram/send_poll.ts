@@ -35,6 +35,7 @@ export const telegramSendPollTool: ToolConfig<TelegramSendPollParams, TelegramSe
     name: 'Telegram Send Poll',
     description: 'Send a native poll to a Telegram chat through the Telegram Bot API.',
     version: '1.0.0',
+    effect: 'write',
     oauth: TELEGRAM_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

@@ -6,6 +6,7 @@ export const deleteTool: InternalToolConfig<ClickHouseDeleteParams, ClickHouseDe
   name: 'ClickHouse Delete',
   description: 'Delete rows from a ClickHouse table via an ALTER TABLE ... DELETE mutation',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -12,6 +12,7 @@ export const attioCreateRecordTool: ToolConfig<AttioCreateRecordParams, AttioCre
     name: 'Attio Create Record',
     description: 'Create a new record in Attio for a given object type',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

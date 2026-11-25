@@ -8,6 +8,7 @@ export const ripplingUpdateObjectCategoryTool: ToolConfig<RipplingUpdateObjectCa
   name: 'Rippling Update ObjectCategory',
   description: 'Update an object category',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

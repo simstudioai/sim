@@ -20,6 +20,7 @@ export const spotifyRemoveSavedTracksTool: ToolConfig<
   name: 'Spotify Remove Saved Tracks',
   description: "Remove tracks from the user's library.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

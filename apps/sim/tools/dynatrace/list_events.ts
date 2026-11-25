@@ -26,6 +26,7 @@ export const listEventsTool: ToolConfig<DynatraceListEventsParams, DynatraceList
   description:
     'List events — deployments, availability changes, alerts, custom annotations — in a Dynatrace environment.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

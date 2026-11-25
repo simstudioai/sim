@@ -14,6 +14,7 @@ export const listDirectoryRolesTool: ToolConfig<
   description:
     'List the administrator roles that are activated in the tenant, such as Global Administrator and User Administrator. Roles that have never been activated are not returned.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

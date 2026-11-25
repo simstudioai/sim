@@ -16,6 +16,7 @@ export const hubspotDeleteCompanyTool: ToolConfig<
   name: 'Delete Company from HubSpot',
   description: 'Archive a company in HubSpot by ID (moves it to the recycling bin)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

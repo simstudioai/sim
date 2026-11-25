@@ -14,6 +14,7 @@ export const loopsCheckContactSuppressionTool: ToolConfig<
   description:
     'Check whether a Loops contact is on the suppression list (bounced, complained, or unsubscribed) by email address or userId.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const checkAssignmentDeletionStatusTool: InternalToolConfig<
   name: 'Identity Center Check Assignment Deletion Status',
   description: 'Check the deprovisioning status of an account assignment deletion request',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -7,6 +7,7 @@ export const ripplingCreateWorkLocationTool: ToolConfig<RipplingCreateWorkLocati
   name: 'Rippling Create Work Location',
   description: 'Create a new work location',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

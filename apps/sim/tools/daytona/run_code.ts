@@ -9,6 +9,7 @@ export const daytonaRunCodeTool: ToolConfig<DaytonaRunCodeParams, DaytonaRunCode
   name: 'Daytona Run Code',
   description: 'Run Python, JavaScript, or TypeScript code inside a Daytona sandbox',
   version: '1.0.0',
+  effect: 'write',
   oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {

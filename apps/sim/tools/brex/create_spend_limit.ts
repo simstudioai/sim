@@ -39,6 +39,7 @@ export const brexCreateSpendLimitTool: ToolConfig<
   name: 'Brex Create Spend Limit',
   description: 'Create a new spend limit (hard-authorization card program) in the Brex account',
   version: '1.0.0',
+  effect: 'write',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

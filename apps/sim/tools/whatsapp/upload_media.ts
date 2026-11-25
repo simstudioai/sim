@@ -11,6 +11,7 @@ export const uploadMediaTool: InternalToolConfig<
   description:
     'Upload a file to WhatsApp and get a media ID for sending. Uploaded media is retained for 30 days and can back many sends.',
   version: '1.0.0',
+  effect: 'write',
   oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {

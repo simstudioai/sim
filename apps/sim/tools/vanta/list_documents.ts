@@ -15,6 +15,7 @@ export const vantaListDocumentsTool: InternalToolConfig<
   description:
     'List the evidence documents in a Vanta account, optionally filtered by framework or document status',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

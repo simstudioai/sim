@@ -18,6 +18,7 @@ export const triggerDevListSchedulesTool: ToolConfig<
   name: 'Trigger.dev List Schedules',
   description: 'List Trigger.dev schedules in the project, with page-based pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

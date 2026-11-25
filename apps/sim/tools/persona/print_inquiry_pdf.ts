@@ -19,6 +19,7 @@ export const personaPrintInquiryPdfTool: ToolConfig<
   description:
     'Download a PDF summary of an inquiry, including its collected information and verification results.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

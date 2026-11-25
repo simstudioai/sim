@@ -7,6 +7,7 @@ export const scanTool: InternalToolConfig<DynamoDBScanParams, DynamoDBScanRespon
   name: 'DynamoDB Scan',
   description: 'Scan all items in a DynamoDB table',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

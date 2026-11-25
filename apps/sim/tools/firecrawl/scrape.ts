@@ -16,6 +16,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   description:
     'Convert web pages to Markdown or HTML, including SEO metadata, Open Graph tags, and page information.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

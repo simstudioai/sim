@@ -23,6 +23,7 @@ export const manageengineSdpListRequestNotesTool: ToolConfig<
   name: 'ManageEngine SDP List Request Notes',
   description: 'List the notes on a ManageEngine ServiceDesk Plus Cloud request.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

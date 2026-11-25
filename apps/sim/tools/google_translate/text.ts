@@ -7,6 +7,7 @@ export const googleTranslateTool: ToolConfig<GoogleTranslateParams, GoogleTransl
   description:
     'Translate text between languages using the Google Cloud Translation API. Supports auto-detection of the source language.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

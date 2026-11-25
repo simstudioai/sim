@@ -12,6 +12,7 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
   name: 'Qdrant Upsert Points',
   description: 'Insert or update points in a Qdrant collection',
   version: '1.0',
+  effect: 'write',
   oauth: QDRANT_CREDENTIAL_OAUTH,
 
   params: {

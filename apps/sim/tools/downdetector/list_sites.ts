@@ -20,6 +20,7 @@ export const listSitesTool: ToolConfig<DowndetectorListSitesParams, Downdetector
     description:
       'List all available Downdetector sites (regional status-page domains). Each site groups the companies monitored for a given country/region.',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       apiKey: {

@@ -11,6 +11,7 @@ export const youtubeVideoDetailsTool: ToolConfig<
   description:
     'Get detailed information about a specific YouTube video including statistics, content details, live streaming info, and metadata.',
   version: '1.2.0',
+  effect: 'read',
   oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     videoId: {

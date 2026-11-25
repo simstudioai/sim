@@ -13,6 +13,7 @@ export const createAnnotationTool: ToolConfig<
   name: 'Grafana Create Annotation',
   description: 'Create an annotation on a dashboard or as a global annotation',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

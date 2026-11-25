@@ -8,6 +8,7 @@ export const listSavedQueriesTool: ToolConfig<GoogleVaultListSavedQueriesParams>
   name: 'Vault List Saved Queries',
   description: 'List saved queries in a matter, or get a specific one if savedQueryId is provided',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

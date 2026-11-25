@@ -26,6 +26,7 @@ export const kalshiGetSeriesListTool: ToolConfig<
   name: 'Get Series List from Kalshi',
   description: 'Retrieve a list of market series from Kalshi with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     category: {
@@ -129,6 +130,7 @@ export const kalshiGetSeriesListV2Tool: ToolConfig<
   name: 'Get Series List from Kalshi V2',
   description: 'Retrieve a list of market series from Kalshi with optional filtering',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     category: {

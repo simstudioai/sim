@@ -17,6 +17,7 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
   name: 'Webhook Request',
   description: 'Send a webhook request with automatic headers and optional HMAC signing',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

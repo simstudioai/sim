@@ -14,6 +14,7 @@ export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokList
   description:
     "Get a list of the authenticated user's TikTok videos with cover images, titles, and metadata. Supports pagination.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

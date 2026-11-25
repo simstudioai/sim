@@ -37,6 +37,7 @@ export const spotifyGetQueueTool: ToolConfig<SpotifyGetQueueParams, SpotifyGetQu
   name: 'Spotify Get Queue',
   description: "Get the user's playback queue.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

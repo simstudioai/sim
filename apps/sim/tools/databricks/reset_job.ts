@@ -14,6 +14,7 @@ export const resetJobTool: ToolConfig<DatabricksResetJobParams, DatabricksSucces
   name: 'Databricks Reset Job',
   description: 'Replace all settings of a Databricks job.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

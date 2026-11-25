@@ -15,6 +15,7 @@ export const uploadReceiptImageTool: InternalToolConfig<
   description:
     'Upload an image-only receipt (POST /receipts/v4/users/{userId}/image-only-receipts).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

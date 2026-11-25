@@ -22,6 +22,7 @@ export const listLabelResourcesTool: ToolConfig<
   description:
     'List the assets assigned to a label — forms, workflows, sheets, and apps — with their status and titles.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

@@ -26,6 +26,7 @@ export const checkrListPackagesTool: ToolConfig<
   description:
     'List the background check packages on the account, with their slugs, prices, and included screenings.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

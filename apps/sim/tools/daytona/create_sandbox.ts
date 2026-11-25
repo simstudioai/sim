@@ -19,6 +19,7 @@ export const daytonaCreateSandboxTool: ToolConfig<
   name: 'Daytona Create Sandbox',
   description: 'Create a new Daytona sandbox for running AI-generated code in isolation',
   version: '1.0.0',
+  effect: 'write',
   oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {

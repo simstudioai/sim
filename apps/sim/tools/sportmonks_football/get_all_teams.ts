@@ -34,6 +34,7 @@ export const sportmonksGetAllTeamsTool: ToolConfig<
   name: 'Get All Teams',
   description: 'Retrieve all football teams available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

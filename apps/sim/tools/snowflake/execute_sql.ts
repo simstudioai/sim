@@ -37,6 +37,7 @@ function isAsync(value: unknown): boolean {
 export const executeSqlTool: ToolConfig<SnowflakeExecuteSqlParams, SnowflakeStatementResponse> = {
   id: 'snowflake_execute_sql',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Execute SQL',
   description: 'Execute one parameterized SQL statement through the Snowflake SQL API.',

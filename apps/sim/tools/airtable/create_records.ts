@@ -6,6 +6,7 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
   name: 'Airtable Create Records',
   description: 'Write new records to an Airtable table',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -10,6 +10,7 @@ export const getProjectTool: ToolConfig<HexGetProjectParams, HexGetProjectRespon
   name: 'Hex Get Project',
   description: 'Get metadata and details for a specific Hex project by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

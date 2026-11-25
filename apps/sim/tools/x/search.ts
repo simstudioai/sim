@@ -10,6 +10,7 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   name: 'X Search',
   description: 'Search for tweets using keywords, hashtags, or advanced queries',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

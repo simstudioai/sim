@@ -46,6 +46,7 @@ export const getPageTool: ToolConfig<GetPageParams, GetPageResponse> = {
   description:
     'Get detailed information about a specific slide/page in a Google Slides presentation',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

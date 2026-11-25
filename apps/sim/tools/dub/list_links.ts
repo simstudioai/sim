@@ -8,6 +8,7 @@ export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse>
   description:
     'Retrieve a paginated list of short links for the authenticated workspace. Supports filtering by domain, search query, tags, and sorting.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {

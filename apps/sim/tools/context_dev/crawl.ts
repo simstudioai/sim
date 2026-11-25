@@ -16,6 +16,7 @@ export const contextDevCrawlTool: ToolConfig<ContextDevCrawlParams, ContextDevCr
   name: 'Context.dev Crawl',
   description: 'Crawl an entire website and return each discovered page as clean markdown.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevCrawlParams>(),
 

@@ -13,6 +13,7 @@ export const getMetricStatisticsTool: InternalToolConfig<
   name: 'CloudWatch Get Metric Statistics',
   description: 'Get statistics for a CloudWatch metric over a time range',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

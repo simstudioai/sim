@@ -21,6 +21,7 @@ export const semrushSubdomainOverviewHistoryTool: ToolConfig<
   name: 'Semrush Subdomain Overview History',
   description: 'Get the historical trend of a subdomain’s organic and paid search totals.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

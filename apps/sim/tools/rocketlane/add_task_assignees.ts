@@ -19,6 +19,7 @@ export const rocketlaneAddTaskAssigneesTool: ToolConfig<
   name: 'Rocketlane Add Task Assignees',
   description: 'Add members as assignees to a Rocketlane task',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

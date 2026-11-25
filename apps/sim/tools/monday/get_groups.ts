@@ -12,6 +12,7 @@ export const mondayGetGroupsTool: ToolConfig<MondayGetGroupsParams, MondayGetGro
   name: 'Monday Get Groups',
   description: 'Get the groups on a Monday.com board',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

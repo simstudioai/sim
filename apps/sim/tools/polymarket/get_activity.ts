@@ -41,6 +41,7 @@ export const polymarketGetActivityTool: ToolConfig<
   description:
     'Retrieve on-chain activity for a user including trades, splits, merges, redemptions, rewards, and conversions',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     user: {

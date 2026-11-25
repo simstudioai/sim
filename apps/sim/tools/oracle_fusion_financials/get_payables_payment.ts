@@ -19,6 +19,7 @@ export const oracleFusionFinancialsGetPayablesPaymentTool: InternalToolConfig<
   name: 'Oracle Fusion Financials Get Payables Payment',
   description: 'Get one Oracle Fusion Payables payment by its CheckId.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     checkId: oracleFusionCheckIdParamField,

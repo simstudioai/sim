@@ -29,6 +29,7 @@ export const fivetranCreateConnectionTool: ToolConfig<
   description:
     'Create a Fivetran connection in a group. The config object holds the connector-specific settings and the destination naming: schema for most connectors, schema_prefix for databases, or schema and table for file connectors.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

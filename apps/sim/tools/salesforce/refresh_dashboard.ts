@@ -21,6 +21,7 @@ export const salesforceRefreshDashboardTool: ToolConfig<
   name: 'Refresh Dashboard in Salesforce',
   description: 'Refresh a dashboard to get the latest data',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

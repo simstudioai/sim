@@ -9,6 +9,7 @@ export const upstashRedisTtlTool: ToolConfig<UpstashRedisTtlParams, UpstashRedis
   description:
     'Get the remaining time to live of a key in Upstash Redis. Returns -1 if the key has no expiration, -2 if the key does not exist.',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

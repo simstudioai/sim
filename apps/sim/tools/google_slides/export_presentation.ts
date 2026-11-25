@@ -27,6 +27,7 @@ export const exportPresentationTool: InternalToolConfig<
   description:
     'Export a presentation to PDF, PPTX, ODP, TXT, PNG, JPEG, or SVG via the Drive export endpoint. Stores the exported file as an execution file when execution context is available.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'google-drive' },
 

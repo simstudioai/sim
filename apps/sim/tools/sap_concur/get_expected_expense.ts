@@ -14,6 +14,7 @@ export const getExpectedExpenseTool: InternalToolConfig<
   name: 'SAP Concur Get Expected Expense',
   description: 'Get an expected expense (GET /travelrequest/v4/expenses/{expenseUuid}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

@@ -7,6 +7,7 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
   name: 'Write Wealthbox Note',
   description: 'Create or update a Wealthbox note',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

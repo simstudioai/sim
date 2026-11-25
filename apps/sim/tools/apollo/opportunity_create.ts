@@ -14,6 +14,7 @@ export const apolloOpportunityCreateTool: ToolConfig<
   name: 'Apollo Create Opportunity',
   description: 'Create a new deal for an account in your Apollo database (master key required)',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

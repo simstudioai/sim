@@ -265,6 +265,8 @@ export function createToolConfig(
     name: customTool.title,
     description: customTool.schema.function?.description || '',
     version: '1.0.0',
+    // Custom tool code can call anything, so it never counts as a read.
+    effect: 'write',
     params,
 
     operation: {

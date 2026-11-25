@@ -17,6 +17,7 @@ export const rabbitmqDeleteQueueTool: ToolConfig<
   description:
     'Delete a RabbitMQ queue and every message still in it. Can be guarded so the delete only happens when the queue is unused or empty.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

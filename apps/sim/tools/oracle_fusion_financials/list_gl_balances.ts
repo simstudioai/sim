@@ -20,6 +20,7 @@ export const oracleFusionFinancialsListGlBalancesTool: InternalToolConfig<
   name: 'Oracle Fusion Financials List GL Balances',
   description: 'List one bounded page of Oracle Fusion gl balances.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     ...oracleFusionFinancialsListParamFields,

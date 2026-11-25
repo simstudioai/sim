@@ -8,6 +8,7 @@ export const createFolderTool: ToolConfig<GrafanaCreateFolderParams, GrafanaCrea
     name: 'Grafana Create Folder',
     description: 'Create a new folder in Grafana',
     version: '1.0.0',
+    effect: 'write',
     oauth: GRAFANA_CREDENTIAL_OAUTH,
 
     params: {

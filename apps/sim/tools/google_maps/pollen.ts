@@ -31,6 +31,7 @@ export const googleMapsPollenTool: ToolConfig<GoogleMapsPollenParams, GoogleMaps
   name: 'Google Maps Pollen',
   description: 'Get a daily pollen forecast (grass, tree, weed) for a location',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

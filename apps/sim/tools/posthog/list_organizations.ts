@@ -43,6 +43,7 @@ export const listOrganizationsTool: ToolConfig<
   description:
     'List all organizations the user has access to. Returns organization details including name, slug, membership level, and available product features.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

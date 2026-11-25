@@ -7,6 +7,7 @@ export const ripplingCreateDepartmentTool: ToolConfig<RipplingCreateDepartmentPa
   name: 'Rippling Create Department',
   description: 'Create a new department',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

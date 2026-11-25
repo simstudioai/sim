@@ -11,6 +11,7 @@ export const listListsTool: InternalToolConfig<ListListsParams, SapConcurRespons
   name: 'SAP Concur List Lists',
   description: 'List custom lists (GET /list/v4/lists).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

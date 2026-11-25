@@ -18,6 +18,7 @@ export const kalshiGetExchangeScheduleTool: ToolConfig<
   name: 'Get Exchange Schedule from Kalshi',
   description: 'Retrieve the Kalshi exchange trading schedule and maintenance windows',
   version: '1.0.0',
+  effect: 'read',
 
   params: {},
 
@@ -76,6 +77,7 @@ export const kalshiGetExchangeScheduleV2Tool: ToolConfig<
   name: 'Get Exchange Schedule from Kalshi V2',
   description: 'Retrieve the Kalshi exchange trading schedule and maintenance windows',
   version: '2.0.0',
+  effect: 'read',
 
   params: {},
 

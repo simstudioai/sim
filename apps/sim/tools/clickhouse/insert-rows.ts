@@ -9,6 +9,7 @@ export const insertRowsTool: InternalToolConfig<
   name: 'ClickHouse Insert Rows',
   description: 'Insert multiple rows into a ClickHouse table',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

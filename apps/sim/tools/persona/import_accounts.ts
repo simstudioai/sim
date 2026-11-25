@@ -15,6 +15,7 @@ export const personaImportAccountsTool: InternalToolConfig<
   description:
     'Bulk-import accounts into Persona from a CSV file. Returns an importer whose status can be polled until processing completes.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

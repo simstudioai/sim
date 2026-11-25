@@ -12,6 +12,7 @@ export const rb2bIpToCompanyTool: ToolConfig<Rb2bIpToCompanyParams, Rb2bIpToComp
   name: 'RB2B IP to Company',
   description: 'Identify the company domains associated with an IP address, ranked by confidence.',
   version: '1.0.0',
+  effect: 'read',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

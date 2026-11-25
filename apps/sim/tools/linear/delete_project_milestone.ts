@@ -13,6 +13,7 @@ export const linearDeleteProjectMilestoneTool: ToolConfig<
   name: 'Linear Delete Project Milestone',
   description: 'Delete a project milestone in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

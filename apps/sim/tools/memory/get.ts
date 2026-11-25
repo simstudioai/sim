@@ -6,6 +6,7 @@ export const memoryGetTool: InternalToolConfig<MemoryIdentifierParams, MemoryRes
   name: 'Get Memory',
   description: 'Retrieve memory by conversationId. Returns matching memories.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     conversationId: {

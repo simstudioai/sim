@@ -135,6 +135,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
   description:
     'Start an APIFY Actor run and poll it within the same workflow step until completion or the polling deadline',
   version: '1.0.0',
+  effect: 'write',
   oauth: APIFY_CREDENTIAL_OAUTH,
 
   params: {

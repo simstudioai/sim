@@ -27,6 +27,7 @@ export const listSecurityProblemsTool: ToolConfig<
   description:
     'List vulnerabilities detected by Dynatrace Application Security, filtered by risk level, status, CVE, or technology.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

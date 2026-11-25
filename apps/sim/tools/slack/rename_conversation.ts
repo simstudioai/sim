@@ -13,6 +13,7 @@ export const slackRenameConversationTool: ToolConfig<
   name: 'Slack Rename Conversation',
   description: 'Rename an existing Slack channel.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

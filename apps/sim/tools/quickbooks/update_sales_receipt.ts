@@ -24,6 +24,7 @@ export const quickbooksUpdateSalesReceiptTool: ToolConfig<
   name: 'QuickBooks Update Sales Receipt',
   description: 'Sparse-update a sales receipt using its current sync token',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

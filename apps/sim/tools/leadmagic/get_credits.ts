@@ -10,6 +10,7 @@ export const getCreditsTool: ToolConfig<LeadMagicGetCreditsParams, LeadMagicGetC
   description:
     'Retrieve the current credit balance for the authenticated LeadMagic account. This endpoint is free and consumes no credits.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

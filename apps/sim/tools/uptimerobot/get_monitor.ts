@@ -18,6 +18,7 @@ export const uptimeRobotGetMonitorTool: ToolConfig<
   name: 'UptimeRobot Get Monitor',
   description: 'Get the details of a single UptimeRobot monitor by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

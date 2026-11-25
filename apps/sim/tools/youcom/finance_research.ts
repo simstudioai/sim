@@ -23,6 +23,7 @@ export const youComFinanceResearchTool: ToolConfig<
   description:
     'Research a financial question across earnings reports, SEC filings, analyst coverage, and market news, and get a cited answer.',
   version: '1.0.0',
+  effect: 'read',
   oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {

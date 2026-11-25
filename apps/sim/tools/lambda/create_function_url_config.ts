@@ -14,6 +14,7 @@ export const createFunctionUrlConfigTool: InternalToolConfig<
   name: 'Lambda Create Function URL',
   description: 'Create a dedicated HTTPS endpoint for a function',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

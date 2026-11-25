@@ -15,6 +15,7 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
   description:
     'Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.',
   version: '1.0.0',
+  effect: 'write',
 
   toolEnrichment: {
     dependsOn: 'tableId',

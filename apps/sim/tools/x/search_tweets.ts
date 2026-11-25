@@ -24,6 +24,7 @@ export const xSearchTweetsTool: ToolConfig<XSearchTweetsParams, XSearchTweetsRes
   name: 'X Search Tweets',
   description: 'Search for recent tweets using keywords, hashtags, or advanced query operators',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

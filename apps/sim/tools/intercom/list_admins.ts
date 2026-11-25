@@ -62,6 +62,7 @@ export const intercomListAdminsV2Tool: ToolConfig<
   name: 'List Admins from Intercom',
   description: 'Fetch a list of all admins for the workspace',
   version: '2.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

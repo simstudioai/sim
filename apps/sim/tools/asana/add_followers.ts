@@ -9,6 +9,7 @@ export const asanaAddFollowersTool: InternalToolConfig<
   name: 'Asana Add Followers',
   description: 'Add one or more followers to an Asana task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

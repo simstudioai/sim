@@ -14,6 +14,7 @@ export const deleteTravelRequestTool: InternalToolConfig<
   name: 'SAP Concur Delete Travel Request',
   description: 'Delete a travel request (DELETE /travelrequest/v4/requests/{requestUuid}).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

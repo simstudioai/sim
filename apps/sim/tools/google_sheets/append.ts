@@ -18,6 +18,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
   name: 'Append to Google Sheets',
   description: 'Append data to the end of a Google Sheets spreadsheet',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -241,6 +242,7 @@ export const appendV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Ap
   name: 'Append to Google Sheets V2',
   description: 'Append data to the end of a specific sheet in a Google Sheets spreadsheet',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

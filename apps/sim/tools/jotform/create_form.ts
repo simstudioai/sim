@@ -16,6 +16,7 @@ export const createFormTool: ToolConfig<JotformCreateFormParams, JotformFormResp
   description:
     'Create a new Jotform form from a list of questions, plus optional form properties and notification emails.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

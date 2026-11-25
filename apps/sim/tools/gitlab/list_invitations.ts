@@ -15,6 +15,7 @@ export const gitlabListInvitationsTool: ToolConfig<
   name: 'GitLab List Invitations',
   description: 'List pending email invitations for a GitLab project or group',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

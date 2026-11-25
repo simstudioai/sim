@@ -10,6 +10,7 @@ export const deleteAssignmentTool: ToolConfig<ThriveDeleteAssignmentParams, Thri
     name: 'Thrive Delete Assignment',
     description: 'Delete a compliance assignment in Thrive.',
     version: '1.0.0',
+    effect: 'write',
     oauth: THRIVE_CREDENTIAL_OAUTH,
 
     params: {

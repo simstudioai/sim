@@ -31,6 +31,7 @@ export const bitbucketListRepositoriesTool: ToolConfig<
   name: 'Bitbucket List Repositories',
   description: 'List repositories in a Bitbucket Cloud workspace',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository'] },
   params: {
     workspaceSlug: {

@@ -8,6 +8,7 @@ export const outlookForwardTool: ToolConfig<OutlookForwardParams, OutlookForward
   name: 'Outlook Forward',
   description: 'Forward an existing Outlook message to specified recipients',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

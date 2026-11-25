@@ -18,6 +18,7 @@ export const oracleFusionFinancialsGetExpenseReportTool: InternalToolConfig<
   name: 'Oracle Fusion Financials Get Expense Report',
   description: 'Get an Oracle Fusion expense report.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     expenseReportUniqId: {

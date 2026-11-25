@@ -11,6 +11,7 @@ export const linearArchiveLabelTool: ToolConfig<
   description:
     'Archive (retire) a label in Linear. A retired label can no longer be newly assigned but stays on issues that already use it.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

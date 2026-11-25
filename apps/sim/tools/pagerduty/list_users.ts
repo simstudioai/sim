@@ -8,6 +8,7 @@ export const listUsersTool: ToolConfig<PagerDutyListUsersParams, PagerDutyListUs
   name: 'PagerDuty List Users',
   description: 'List users from PagerDuty with an optional name/email filter.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

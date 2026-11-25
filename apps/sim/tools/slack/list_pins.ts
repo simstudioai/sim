@@ -7,6 +7,7 @@ export const slackListPinsTool = createSlackWebApiTool({
   id: 'slack_list_pins',
   name: 'Slack List Pins',
   description: 'Read the pinned messages and files in a Slack conversation.',
+  effect: 'read',
   endpoint: 'pins.list',
   method: 'GET',
   oauth: {

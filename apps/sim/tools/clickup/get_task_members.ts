@@ -16,6 +16,7 @@ export const clickupGetTaskMembersTool: ToolConfig<
   name: 'ClickUp Get Task Members',
   description: 'List the workspace members who have explicit access to a ClickUp task',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

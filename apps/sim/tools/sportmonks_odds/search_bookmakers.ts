@@ -36,6 +36,7 @@ export const sportmonksOddsSearchBookmakersTool: ToolConfig<
   name: 'Search Bookmakers',
   description: 'Search for bookmakers by name from the Sportmonks Odds API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

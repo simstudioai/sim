@@ -13,6 +13,7 @@ export const greenhouseListOfficesTool: ToolConfig<
   name: 'Greenhouse List Offices',
   description: 'Lists all offices configured in Greenhouse',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

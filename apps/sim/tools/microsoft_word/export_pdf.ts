@@ -14,6 +14,7 @@ export const exportPdfTool: InternalToolConfig<
   description:
     'Convert a Microsoft Word (.docx) document to PDF using Microsoft Graph and return it as a file.',
   version: '1.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

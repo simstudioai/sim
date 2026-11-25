@@ -7,6 +7,7 @@ export const latexGetPackageTool: ToolConfig<LatexGetPackageParams, LatexGetPack
   description:
     'Get details about a specific TeX Live package available to the LaTeX compiler, including whether it is installed, its description, license, and related packages.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     name: {

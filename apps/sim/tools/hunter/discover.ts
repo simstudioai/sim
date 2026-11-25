@@ -7,6 +7,7 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
   name: 'Hunter Discover',
   description: 'Returns companies matching a set of criteria using Hunter.io AI-powered search.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: HUNTER_API_KEY_PREFIX,

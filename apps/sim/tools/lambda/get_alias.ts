@@ -7,6 +7,7 @@ export const getAliasTool: InternalToolConfig<LambdaGetAliasParams, LambdaGetAli
   name: 'Lambda Get Alias',
   description: 'Get details about a Lambda function alias',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

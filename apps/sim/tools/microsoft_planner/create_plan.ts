@@ -17,6 +17,7 @@ export const createPlanTool: ToolConfig<
   name: 'Create Microsoft Planner Plan',
   description: 'Create a new Microsoft Planner plan owned by a Microsoft 365 group',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

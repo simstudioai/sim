@@ -38,6 +38,7 @@ export const getGistTool: ToolConfig<GetGistParams, GetGistResponse> = {
   name: 'GitHub Get Gist',
   description: 'Get a gist by ID including its file contents',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -151,6 +152,7 @@ export const getGistV2Tool: ToolConfig<GetGistParams, any> = {
   name: getGistTool.name,
   description: getGistTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getGistTool.params,
   request: getGistTool.request,

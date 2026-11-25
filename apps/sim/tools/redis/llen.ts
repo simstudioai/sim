@@ -6,6 +6,7 @@ export const redisLLenTool: InternalToolConfig<RedisLLenParams, RedisLLenRespons
   name: 'Redis LLEN',
   description: 'Get the length of a list stored at a key in Redis.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

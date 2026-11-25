@@ -49,6 +49,7 @@ export const listAgentsTool: ToolConfig<ListAgentsParams, ListAgentsResponse> = 
   name: 'Cursor List Agents',
   description: 'List all cloud agents for the authenticated user with optional pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...listAgentsBase,
@@ -103,6 +104,7 @@ export const listAgentsV2Tool: ToolConfig<ListAgentsParams, ListAgentsV2Response
   description:
     'List all cloud agents for the authenticated user with optional pagination. Returns API-aligned fields only.',
   version: '2.0.0',
+  effect: 'read',
   oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()

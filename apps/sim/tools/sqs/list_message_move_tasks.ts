@@ -13,6 +13,7 @@ export const listMessageMoveTasksTool: InternalToolConfig<
   name: 'SQS List Message Move Tasks',
   description: 'List the most recent message move tasks for an Amazon SQS source queue',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

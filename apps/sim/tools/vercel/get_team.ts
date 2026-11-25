@@ -8,6 +8,7 @@ export const vercelGetTeamTool: ToolConfig<VercelGetTeamParams, VercelGetTeamRes
   name: 'Vercel Get Team',
   description: 'Get information about a specific Vercel team',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

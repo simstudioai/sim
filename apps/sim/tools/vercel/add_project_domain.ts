@@ -14,6 +14,7 @@ export const vercelAddProjectDomainTool: ToolConfig<
   name: 'Vercel Add Project Domain',
   description: 'Add a domain to a Vercel project',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

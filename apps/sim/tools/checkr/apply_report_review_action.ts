@@ -23,6 +23,7 @@ export const checkrApplyReportReviewActionTool: ToolConfig<
   description:
     'Continue or skip the remaining screenings on a report that is paused awaiting a review action.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

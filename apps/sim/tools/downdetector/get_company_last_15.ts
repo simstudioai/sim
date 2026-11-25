@@ -19,6 +19,7 @@ export const getCompanyLast15Tool: ToolConfig<
   description:
     'Get the number of outage reports for a Downdetector company over the last 15 minutes.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     companyId: {

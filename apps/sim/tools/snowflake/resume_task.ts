@@ -13,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const resumeTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeStatementResponse> = {
   id: 'snowflake_resume_task',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Resume Task',
   description: 'Resume a suspended Snowflake task so its schedule runs again.',

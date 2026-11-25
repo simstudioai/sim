@@ -9,6 +9,7 @@ export const asanaSearchTasksTool: InternalToolConfig<
   name: 'Asana Search Tasks',
   description: 'Search for tasks in an Asana workspace',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

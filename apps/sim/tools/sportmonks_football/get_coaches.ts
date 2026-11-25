@@ -34,6 +34,7 @@ export const sportmonksGetCoachesTool: ToolConfig<
   name: 'Get Coaches',
   description: 'Retrieve all football coaches available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

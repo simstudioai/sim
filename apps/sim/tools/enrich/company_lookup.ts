@@ -9,6 +9,7 @@ export const companyLookupTool: ToolConfig<EnrichCompanyLookupParams, EnrichComp
     description:
       'Look up company information by name or domain, including funding, location, and social profiles.',
     version: '1.0.0',
+    effect: 'read',
     oauth: ENRICH_CREDENTIAL_OAUTH,
 
     params: {

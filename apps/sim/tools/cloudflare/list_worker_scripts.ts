@@ -23,6 +23,7 @@ export const listWorkerScriptsTool: ToolConfig<
   description:
     'Lists the Workers scripts deployed in an account. Requires an API token with Account Workers Scripts Read.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

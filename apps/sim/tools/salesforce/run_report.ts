@@ -22,6 +22,7 @@ export const salesforceRunReportTool: ToolConfig<
   name: 'Run Report in Salesforce',
   description: 'Execute a report and retrieve the results',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

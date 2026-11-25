@@ -9,6 +9,7 @@ export const pitchbookDealMultiplesTool: ToolConfig<PitchbookProfileParams, Pitc
   description:
     'Retrieve the valuation multiples for a deal against revenue, EBITDA, EBIT, cash flow, and net income',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

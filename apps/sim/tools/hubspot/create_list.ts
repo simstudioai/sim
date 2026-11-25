@@ -12,6 +12,7 @@ export const hubspotCreateListTool: ToolConfig<HubSpotCreateListParams, HubSpotC
     description:
       'Create a new list in HubSpot. Specify the object type and processing type (MANUAL or DYNAMIC)',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

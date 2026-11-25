@@ -9,6 +9,7 @@ export const asanaCreateTaskTool: InternalToolConfig<
   name: 'Asana Create Task',
   description: 'Create a new task in Asana',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

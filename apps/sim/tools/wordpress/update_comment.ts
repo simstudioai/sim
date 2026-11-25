@@ -14,6 +14,7 @@ export const updateCommentTool: ToolConfig<
   name: 'WordPress Update Comment',
   description: 'Update a comment in WordPress.com (content or status)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

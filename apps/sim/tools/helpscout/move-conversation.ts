@@ -22,6 +22,7 @@ export const helpScoutMoveConversationTool: ToolConfig<
   name: 'Help Scout Move Conversation',
   description: 'Move a Help Scout conversation to another inbox.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

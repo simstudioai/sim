@@ -15,6 +15,7 @@ export const getWorksheetTool: ToolConfig<ExcelWorksheetParams, ExcelWorksheetRe
   name: 'Microsoft Excel Get Worksheet',
   description: 'Get Worksheet in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: { ...EXCEL_WORKBOOK_PARAMS, sheetName: EXCEL_SHEET_PARAM },

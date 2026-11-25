@@ -11,6 +11,7 @@ export const createPageTool: ToolConfig<WordPressCreatePageParams, WordPressCrea
   name: 'WordPress Create Page',
   description: 'Create a new page in WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

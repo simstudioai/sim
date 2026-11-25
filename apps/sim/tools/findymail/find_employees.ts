@@ -15,6 +15,7 @@ export const findEmployeesTool: ToolConfig<
   description:
     'Find employees at a company by website and target job titles. Uses 1 credit per found contact. Does not return email addresses.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: findymailHosting<FindymailFindEmployeesParams>((_params, output) => {
     // No employees array means no contacts found — no charge.

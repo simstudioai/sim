@@ -30,6 +30,7 @@ export const listFiredAlertsTool: ToolConfig<
   description:
     'List the saved searches with currently triggered (unexpired) Splunk alerts and how many times each has fired.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {

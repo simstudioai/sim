@@ -36,6 +36,7 @@ export const jiraGetAttachmentsTool: ToolConfig<
   name: 'Jira Get Attachments',
   description: 'Get all attachments from a Jira issue',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -10,6 +10,7 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
   name: 'Jira Add Watcher',
   description: 'Add a watcher to a Jira issue to receive notifications about updates',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

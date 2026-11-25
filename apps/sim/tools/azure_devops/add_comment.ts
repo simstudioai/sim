@@ -13,6 +13,7 @@ export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = 
   name: 'Azure DevOps Add Comment',
   description: 'Add a comment to a work item in Azure DevOps.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

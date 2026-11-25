@@ -8,6 +8,7 @@ export const searchTool: ToolConfig<GreptileSearchParams, GreptileSearchResponse
   description:
     'Retired: Greptile removed the POST /v2/search endpoint (it returns 404) with no documented replacement, so this call fails. Kept so saved workflows still load.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

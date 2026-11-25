@@ -22,6 +22,7 @@ export const zoominfoSearchIntentTool: InternalToolConfig<
   name: 'ZoomInfo Search Intent',
   description: 'Search for companies showing intent signals on specific topics.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {

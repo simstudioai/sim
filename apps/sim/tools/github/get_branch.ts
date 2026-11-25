@@ -10,6 +10,7 @@ export const getBranchTool: ToolConfig<GetBranchParams, BranchResponse> = {
   description:
     'Get detailed information about a specific branch in a GitHub repository, including commit details and protection status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -100,6 +101,7 @@ export const getBranchV2Tool: ToolConfig<GetBranchParams, any> = {
   name: getBranchTool.name,
   description: getBranchTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getBranchTool.params,
   request: getBranchTool.request,

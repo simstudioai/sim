@@ -15,6 +15,7 @@ export const listTagsTool: ToolConfig<EmailBisonBaseParams, EmailBisonListTagsRe
   name: 'Email Bison List Tags',
   description: 'Retrieves all Email Bison tags for the authenticated workspace.',
   version: '1.0.0',
+  effect: 'read',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

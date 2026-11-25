@@ -20,6 +20,7 @@ export const clickupGetSpaceTagsTool: ToolConfig<
   name: 'ClickUp Get Space Tags',
   description: 'List the task tags available in a ClickUp space',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

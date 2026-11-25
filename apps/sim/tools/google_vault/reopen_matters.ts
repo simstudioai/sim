@@ -8,6 +8,7 @@ export const reopenMattersTool: ToolConfig<GoogleVaultMatterActionParams> = {
   name: 'Vault Reopen Matter',
   description: 'Reopen a closed matter',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

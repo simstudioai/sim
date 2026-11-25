@@ -8,6 +8,7 @@ export const mailgunAddListMemberTool: ToolConfig<AddListMemberParams, AddListMe
   name: 'Mailgun Add List Member',
   description: 'Add a member to a mailing list',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {

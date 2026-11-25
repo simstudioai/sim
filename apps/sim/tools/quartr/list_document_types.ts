@@ -18,6 +18,7 @@ export const quartrListDocumentTypesTool: ToolConfig<
   description:
     'List the document types available in Quartr (e.g., 10-Q quarterly reports), useful for filtering documents by type ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

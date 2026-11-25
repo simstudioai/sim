@@ -13,6 +13,7 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
   description:
     'Finds the most likely email address for a person given their name and company domain.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: HUNTER_API_KEY_PREFIX,

@@ -25,6 +25,7 @@ export const mailchimpCreateBatchOperationTool: ToolConfig<
   name: 'Create Batch Operation in Mailchimp',
   description: 'Create a new batch operation in Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

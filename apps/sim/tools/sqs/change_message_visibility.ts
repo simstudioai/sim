@@ -10,6 +10,7 @@ export const changeMessageVisibilityTool: InternalToolConfig<
   name: 'SQS Change Message Visibility',
   description: 'Change how long a received Amazon SQS message stays hidden from other consumers',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

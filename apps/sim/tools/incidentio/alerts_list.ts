@@ -16,6 +16,7 @@ export const alertsListTool: ToolConfig<IncidentioAlertsListParams, IncidentioAl
     description:
       'List alerts in incident.io, optionally filtered by status, source, or created date',
     version: '1.0.0',
+    effect: 'read',
     oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
     params: {

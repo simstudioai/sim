@@ -21,6 +21,7 @@ export const polymarketGetLastTradePriceTool: ToolConfig<
   name: 'Get Last Trade Price from Polymarket',
   description: 'Retrieve the last trade price for a specific token',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tokenId: {

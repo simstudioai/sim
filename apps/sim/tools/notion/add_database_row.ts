@@ -21,6 +21,7 @@ export const notionAddDatabaseRowTool: ToolConfig<
   name: 'Add Notion Database Row',
   description: 'Add a new row to a Notion database with specified properties',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

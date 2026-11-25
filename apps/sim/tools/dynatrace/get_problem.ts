@@ -27,6 +27,7 @@ export const getProblemTool: ToolConfig<DynatraceGetProblemParams, DynatraceGetP
   description:
     'Get the full details of a single Dynatrace problem, including root cause, affected entities, and optionally its evidence and impact analysis.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

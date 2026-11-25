@@ -31,6 +31,7 @@ export const replaceAllShapesWithImageTool: ToolConfig<
   description:
     "Find every shape whose text matches the given token (e.g. {{cover-image}}) and replace it with an image, preserving the shape's position and bounds.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

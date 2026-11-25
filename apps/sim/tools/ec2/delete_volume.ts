@@ -9,6 +9,7 @@ export const deleteVolumeTool: InternalToolConfig<Ec2DeleteVolumeParams, Ec2Dele
     name: 'EC2 Delete Volume',
     description: 'Permanently delete an EBS volume that is not attached to an instance',
     version: '1.0.0',
+    effect: 'write',
     oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {

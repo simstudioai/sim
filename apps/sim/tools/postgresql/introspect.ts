@@ -12,6 +12,7 @@ export const introspectTool: InternalToolConfig<
   description:
     'Introspect PostgreSQL database schema to retrieve table structures, columns, and relationships',
   version: '1.0',
+  effect: 'read',
   oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {

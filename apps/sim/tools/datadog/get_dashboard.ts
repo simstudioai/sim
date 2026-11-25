@@ -13,6 +13,7 @@ export const getDashboardTool: ToolConfig<GetDashboardParams, GetDashboardRespon
   name: 'Datadog Get Dashboard',
   description: 'Get the full definition of a dashboard, including its widgets.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

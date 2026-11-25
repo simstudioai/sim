@@ -13,6 +13,7 @@ export const clickupGetTaskTool: ToolConfig<ClickUpGetTaskParams, ClickUpTaskRes
   name: 'ClickUp Get Task',
   description: 'Retrieve a task from ClickUp by ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -13,6 +13,7 @@ export const listCommandInvocationsTool: InternalToolConfig<
   name: 'SSM List Command Invocations',
   description: 'List the per-node invocations of Run Command executions',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

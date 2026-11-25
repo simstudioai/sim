@@ -19,6 +19,7 @@ export const personaApproveInquiryTool: ToolConfig<
   description:
     'Approve an identity verification inquiry. Approving prevents further progress on the inquiry and triggers any associated workflows and webhooks.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

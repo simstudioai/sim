@@ -14,6 +14,7 @@ export const deleteFunctionEventInvokeConfigTool: InternalToolConfig<
   name: 'Lambda Delete Async Invoke Config',
   description: 'Remove the asynchronous invocation configuration of a function',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

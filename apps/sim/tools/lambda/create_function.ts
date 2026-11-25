@@ -12,6 +12,7 @@ export const createFunctionTool: InternalToolConfig<
   description:
     'Create a Lambda function from a deployment package in Amazon S3 or a container image',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

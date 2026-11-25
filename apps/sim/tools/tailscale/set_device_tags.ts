@@ -15,6 +15,7 @@ export const tailscaleSetDeviceTagsTool: ToolConfig<
   name: 'Tailscale Set Device Tags',
   description: 'Replace the tags assigned to a device',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

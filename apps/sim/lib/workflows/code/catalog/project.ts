@@ -26,6 +26,7 @@ import {
   isMetadataOnlyBlockType,
   isSentinelBlockType,
 } from '@/executor/constants'
+import { getToolMetadata } from '@/tools/metadata'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { getSubBlockValueShape } from '@/tools/param-shape'
 import type { TriggerConfig } from '@/triggers/types'
@@ -488,6 +489,31 @@ function projectOperationOutputs(
   return Object.keys(projected).length > 0 ? projected : undefined
 }
 
+/**
+ * The block's effect from its registered tools' declared effects, and, when the operation picks the
+ * tool, each operation whose tool differs from it. Ids that are not registered tools (the model
+ * providers an Agent calls) do not count.
+ */
+function projectEffects(
+  block: BlockConfig,
+  operations: readonly string[],
+  selector: CatalogBlock['tools']['selector']
+): Pick<CatalogBlock, 'effect' | 'operationEffects'> {
+  const effects = block.tools.access.flatMap((toolId) => getToolMetadata(toolId)?.effect ?? [])
+  if (effects.length === 0) return {}
+  const effect = effects.every((entry) => entry === 'read') ? 'read' : 'write'
+  const selectTool = block.tools.config?.tool
+  if (effect === 'read' || selector !== 'operation' || !selectTool) return { effect }
+  const operationEffects: NonNullable<CatalogBlock['operationEffects']> = {}
+  for (const operation of operations) {
+    const probe = probeThunk(selectTool, { operation })
+    if (!probe.ok || typeof probe.result !== 'string') continue
+    const operationEffect = getToolMetadata(probe.result)?.effect
+    if (operationEffect && operationEffect !== effect) operationEffects[operation] = operationEffect
+  }
+  return Object.keys(operationEffects).length > 0 ? { effect, operationEffects } : { effect }
+}
+
 function projectTools(block: BlockConfig, operations: readonly string[]): CatalogBlock['tools'] {
   const access = [...block.tools.access]
   const selectTool = block.tools.config?.tool
@@ -620,6 +646,7 @@ export function projectBlock(block: BlockConfig): CatalogBlock {
     )
     if (operationOutputs) projected.operationOutputs = operationOutputs
   }
+  Object.assign(projected, projectEffects(block, operations, projected.tools.selector))
   if (Object.keys(lifecycle).length > 0) projected.lifecycle = lifecycle
   if (block.hideFromToolbar) projected.addable = false
   assign(projected, 'triggerAllowed', block.triggerAllowed)

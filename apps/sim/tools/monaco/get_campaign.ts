@@ -19,6 +19,7 @@ export const monacoGetCampaignTool: ToolConfig<
   description:
     'Get one Monaco campaign by ID, including its attached audiences, sender distribution, rules of engagement, and autopilot settings.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

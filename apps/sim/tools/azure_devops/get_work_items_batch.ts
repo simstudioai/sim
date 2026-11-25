@@ -21,6 +21,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
     description:
       'Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. "123,456,789"). Requests with more than 200 IDs are automatically split into chunks.',
     version: '1.0.0',
+    effect: 'read',
     oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
     params: {

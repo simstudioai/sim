@@ -26,6 +26,7 @@ export const updateWorkflowTool: ToolConfig<
   description:
     'Invoke an update handler on a running Temporal workflow and wait for its result. Unlike a signal, an update is validated by the workflow and returns a response.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

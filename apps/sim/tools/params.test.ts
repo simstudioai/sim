@@ -20,6 +20,7 @@ const mockToolConfig = {
   name: 'Test Tool',
   description: 'A test tool for parameter handling',
   version: '1.0.0',
+  effect: 'write' as const,
   params: {
     apiKey: {
       type: 'string',
@@ -72,6 +73,7 @@ beforeEach(() => {
         name: 'Workflow Executor',
         description: '',
         version: '1.0.0',
+        effect: 'write' as const,
         params: {},
       }
     }
@@ -196,6 +198,7 @@ describe('Tool Parameters Utils', () => {
       const untypedTool = {
         ...mockToolConfig,
         id: 'untyped_tool',
+        effect: 'write' as const,
         params: {
           orgIds: {
             type: 'json',
@@ -436,6 +439,7 @@ describe('Tool Parameters Utils', () => {
       const oauthTool = {
         ...mockToolConfig,
         id: 'oauth_schema_tool',
+        effect: 'write' as const,
         oauth: {
           required: true,
           provider: 'google-email',
@@ -681,6 +685,7 @@ describe('Tool Parameters Utils', () => {
       name: 'Workflow Executor',
       description: 'Execute another workflow',
       version: '1.0.0',
+      effect: 'write' as const,
       params: {
         workflowId: {
           type: 'string',

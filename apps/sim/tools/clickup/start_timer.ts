@@ -15,6 +15,7 @@ export const clickupStartTimerTool: ToolConfig<ClickUpStartTimerParams, ClickUpT
     name: 'ClickUp Start Timer',
     description: 'Start a timer for the authenticated user in a ClickUp workspace',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

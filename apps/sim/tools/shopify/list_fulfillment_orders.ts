@@ -26,6 +26,7 @@ export const shopifyListFulfillmentOrdersTool: ToolConfig<
   description:
     'Find fulfillment order IDs and remaining items for an order at merchant-managed locations',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'shopify', authoritativeParams: ['domain', 'idToken'] },
   params: {
     accessToken: {

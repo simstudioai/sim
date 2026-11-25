@@ -11,6 +11,7 @@ export const getMediaTool: ToolConfig<WordPressGetMediaParams, WordPressGetMedia
   name: 'WordPress Get Media',
   description: 'Get a single media item from WordPress.com by ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

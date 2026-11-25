@@ -14,6 +14,7 @@ export const batchGetV2Tool: ToolConfig<
   name: 'Batch Read Google Sheets V2',
   description: 'Read multiple ranges from a Google Sheets spreadsheet in a single request',
   version: '2.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

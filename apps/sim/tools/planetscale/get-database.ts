@@ -22,6 +22,7 @@ export const planetScaleGetDatabaseTool: ToolConfig<
   name: 'PlanetScale Get Database',
   description: 'Get a database',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

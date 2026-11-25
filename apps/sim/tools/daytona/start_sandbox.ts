@@ -19,6 +19,7 @@ export const daytonaStartSandboxTool: ToolConfig<
   name: 'Daytona Start Sandbox',
   description: 'Start a stopped Daytona sandbox',
   version: '1.0.0',
+  effect: 'write',
   oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {

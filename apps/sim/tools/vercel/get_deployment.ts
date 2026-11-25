@@ -11,6 +11,7 @@ export const vercelGetDeploymentTool: ToolConfig<
   name: 'Vercel Get Deployment',
   description: 'Get details of a specific Vercel deployment',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

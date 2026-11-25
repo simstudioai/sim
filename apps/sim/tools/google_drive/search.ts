@@ -22,6 +22,7 @@ export const searchTool: ToolConfig<GoogleDriveSearchParams, GoogleDriveSearchRe
   description:
     'Search for files in Google Drive using advanced query syntax (e.g., fullText contains, mimeType, modifiedTime, etc.)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

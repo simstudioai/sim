@@ -9,6 +9,7 @@ export const xDeleteTweetTool: ToolConfig<XDeleteTweetParams, XDeleteTweetRespon
   name: 'X Delete Tweet',
   description: 'Delete a tweet authored by the authenticated user',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

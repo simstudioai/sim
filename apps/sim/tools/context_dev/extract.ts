@@ -16,6 +16,7 @@ export const contextDevExtractTool: ToolConfig<ContextDevExtractParams, ContextD
     name: 'Context.dev Extract',
     description: 'Crawl a website and extract structured data matching a provided JSON schema.',
     version: '1.0.0',
+    effect: 'read',
 
     hosting: contextDevHosting<ContextDevExtractParams>(),
 

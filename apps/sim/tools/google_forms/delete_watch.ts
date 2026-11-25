@@ -13,6 +13,7 @@ export const deleteWatchTool: ToolConfig<
   name: 'Google Forms: Delete Watch',
   description: 'Delete a notification watch from a form',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

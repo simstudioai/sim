@@ -12,6 +12,7 @@ export const slackArchiveConversationTool: ToolConfig<
   name: 'Slack Archive Conversation',
   description: 'Archive a Slack channel so it is closed to new activity.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

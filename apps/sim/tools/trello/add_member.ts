@@ -9,6 +9,7 @@ export const trelloAddMemberTool: ToolConfig<TrelloAddMemberParams, TrelloAddMem
   name: 'Trello Add Member',
   description: 'Assign a member to a Trello card',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

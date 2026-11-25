@@ -8,6 +8,7 @@ export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCanc
   name: 'Calendly Cancel Event',
   description: 'Cancel a scheduled event',
   version: '1.0.0',
+  effect: 'write',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

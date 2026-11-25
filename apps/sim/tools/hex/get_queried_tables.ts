@@ -13,6 +13,7 @@ export const getQueriedTablesTool: ToolConfig<
   description:
     'Return the warehouse tables queried by a Hex project, including data connection and table names.',
   version: '1.0.0',
+  effect: 'read',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

@@ -7,6 +7,7 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
   name: 'Write Wealthbox Contact',
   description: 'Create a new Wealthbox contact',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -18,6 +18,7 @@ export const trashTool: ToolConfig<GoogleDriveTrashParams, GoogleDriveTrashRespo
   name: 'Trash Google Drive File',
   description: 'Move a file to the trash in Google Drive (can be restored later)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

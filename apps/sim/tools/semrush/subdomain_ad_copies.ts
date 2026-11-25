@@ -21,6 +21,7 @@ export const semrushSubdomainAdCopiesTool: ToolConfig<
   name: 'Semrush Subdomain Ad Copies',
   description: 'List the unique Google Ads creatives a subdomain runs.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

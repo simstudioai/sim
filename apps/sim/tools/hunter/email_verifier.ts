@@ -13,6 +13,7 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
     description:
       'Verifies the deliverability of an email address and provides detailed verification status.',
     version: '1.0.0',
+    effect: 'read',
 
     hosting: {
       envKeyPrefix: HUNTER_API_KEY_PREFIX,

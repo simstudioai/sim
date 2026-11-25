@@ -9,6 +9,7 @@ export const pitchbookDealDetailedTool: ToolConfig<PitchbookProfileParams, Pitch
   description:
     'Retrieve the full detail of a deal: synopsis, percent acquired, round, invested capital, ownership, debt, and stock split',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

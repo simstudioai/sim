@@ -7,6 +7,7 @@ export const searchLogoTool: ToolConfig<EnrichSearchLogoParams, EnrichSearchLogo
   name: 'Enrich Search Logo',
   description: 'Get a company logo image URL by domain.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const rocketlaneDeleteProjectTool: ToolConfig<
   description:
     'Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super Users, and Project Owners can delete)',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

@@ -26,6 +26,7 @@ export const mailchimpGetTemplatesTool: ToolConfig<
   name: 'Get Templates from Mailchimp',
   description: 'Retrieve a list of templates from Mailchimp',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

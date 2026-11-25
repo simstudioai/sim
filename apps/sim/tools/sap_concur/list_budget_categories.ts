@@ -10,6 +10,7 @@ export const listBudgetCategoriesTool: InternalToolConfig<
   name: 'SAP Concur List Budget Categories',
   description: 'List budget categories (GET /budget/v4/budgetCategory).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

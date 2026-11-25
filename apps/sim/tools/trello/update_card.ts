@@ -21,6 +21,7 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
   name: 'Trello Update Card',
   description: 'Update an existing card on Trello',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -13,6 +13,7 @@ export const getParametersByPathTool: InternalToolConfig<
   name: 'SSM Get Parameters By Path',
   description: 'Read parameters under a Parameter Store hierarchy path',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

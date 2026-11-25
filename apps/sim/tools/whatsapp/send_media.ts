@@ -9,6 +9,7 @@ export const sendMediaTool: InternalToolConfig<WhatsAppSendMediaParams, WhatsApp
   description:
     'Send an image, document, video, audio, or sticker message. Accepts an uploaded file, a media ID, or a public link.',
   version: '1.0.0',
+  effect: 'write',
   oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {

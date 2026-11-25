@@ -11,6 +11,7 @@ export const grainGetTranscriptTool: ToolConfig<
   name: 'Grain Get Transcript',
   description: 'Get the full transcript of a recording',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAIN_CREDENTIAL_OAUTH,
 
   params: {

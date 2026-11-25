@@ -18,6 +18,7 @@ export const spotifyRemoveSavedAudiobooksTool: ToolConfig<
   name: 'Spotify Remove Saved Audiobooks',
   description: "Remove audiobooks from the user's library.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

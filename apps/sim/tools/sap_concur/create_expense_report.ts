@@ -15,6 +15,7 @@ export const createExpenseReportTool: InternalToolConfig<
   description:
     'Create an expense report (POST /expensereports/v4/users/{userId}/context/{contextType}/reports — supported contexts: TRAVELER, PROXY). Required body fields: name, policyId.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

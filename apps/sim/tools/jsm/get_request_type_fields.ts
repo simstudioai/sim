@@ -14,6 +14,7 @@ export const jsmGetRequestTypeFieldsTool: InternalToolConfig<
   description:
     'Get the fields required to create a request of a specific type in Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

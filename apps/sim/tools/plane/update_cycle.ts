@@ -21,6 +21,7 @@ export const planeUpdateCycleTool: ToolConfig<PlaneUpdateCycleParams, PlaneUpdat
   name: 'Plane Update a cycle',
   description: 'Update a cycle in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

@@ -15,6 +15,7 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
   name: 'ArXiv Search',
   description: 'Search for academic papers on ArXiv by keywords, authors, titles, or other fields.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     searchQuery: {

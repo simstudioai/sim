@@ -18,6 +18,7 @@ export const storageDownloadTool: ToolConfig<
   name: 'Supabase Storage Download',
   description: 'Download a file from a Supabase storage bucket',
   version: '1.0.0',
+  effect: 'read',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

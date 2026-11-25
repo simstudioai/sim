@@ -26,6 +26,7 @@ export const runTool: ToolConfig<TinyFishRunParams, TinyFishRunResponse> = {
   description:
     'Run a TinyFish web agent against a website and wait for it to finish, returning the structured result it extracted',
   version: '1.0.0',
+  effect: 'write',
 
   params: { ...AUTOMATION_TOOL_PARAMS },
 

@@ -19,6 +19,7 @@ export const createSecretTool: ToolConfig<
   name: 'Infisical Create Secret',
   description: 'Create a new secret in a project environment.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INFISICAL_CREDENTIAL_OAUTH,
 
   params: {

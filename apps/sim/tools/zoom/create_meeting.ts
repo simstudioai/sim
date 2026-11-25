@@ -8,6 +8,7 @@ export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCrea
     name: 'Zoom Create Meeting',
     description: 'Create a new Zoom meeting',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

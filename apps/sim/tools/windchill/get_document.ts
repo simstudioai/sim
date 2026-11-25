@@ -15,6 +15,7 @@ export const windchillGetDocumentTool: ToolConfig<WindchillParams, WindchillResp
   name: 'Windchill Get Document',
   description: 'Get a WT.Document by OID',
   version: '1.0.0',
+  effect: 'read',
   params: {
     baseUrl: {
       type: 'string',

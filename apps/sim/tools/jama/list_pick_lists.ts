@@ -22,6 +22,7 @@ export const jamaListPickListsTool: ToolConfig<JamaListPickListsParams, JamaList
     name: 'Jama List Pick Lists',
     description: "List Pick Lists in Jama Connect using the connected user's access permissions.",
     version: '1.0.0',
+    effect: 'read',
     oauth: jamaOAuth,
     params: {
       ...jamaAuthParams,

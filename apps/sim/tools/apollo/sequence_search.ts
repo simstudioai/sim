@@ -11,6 +11,7 @@ export const apolloSequenceSearchTool: ToolConfig<
   name: 'Apollo Search Sequences',
   description: "Search for sequences/campaigns in your team's Apollo account (master key required)",
   version: '1.0.0',
+  effect: 'read',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

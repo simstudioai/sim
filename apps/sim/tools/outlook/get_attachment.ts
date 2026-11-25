@@ -13,6 +13,7 @@ export const outlookGetAttachmentTool: InternalToolConfig<
   name: 'Outlook Get Attachment',
   description: 'Get a single attachment on an Outlook message, including its file contents',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

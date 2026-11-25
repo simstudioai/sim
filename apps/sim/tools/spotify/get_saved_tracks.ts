@@ -13,6 +13,7 @@ export const spotifyGetSavedTracksTool: ToolConfig<
   name: 'Spotify Get Saved Tracks',
   description: "Get the current user's saved/liked tracks from their library.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

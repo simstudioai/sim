@@ -19,6 +19,7 @@ export const clerkListOrganizationMembershipsTool: ToolConfig<
   name: 'List Organization Memberships from Clerk',
   description: 'List members of a Clerk organization with optional filtering and pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

@@ -26,6 +26,7 @@ export const fivetranListDestinationsTool: ToolConfig<
   description:
     'List the destinations in the Fivetran account, such as Databricks or Snowflake, with their region and setup status.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

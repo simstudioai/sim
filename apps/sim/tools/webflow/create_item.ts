@@ -9,6 +9,7 @@ export const webflowCreateItemTool: ToolConfig<WebflowCreateItemParams, WebflowC
     name: 'Webflow Create Item',
     description: 'Create a new item in a Webflow CMS collection',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

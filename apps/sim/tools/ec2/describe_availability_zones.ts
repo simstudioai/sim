@@ -14,6 +14,7 @@ export const describeAvailabilityZonesTool: InternalToolConfig<
   name: 'EC2 Describe Availability Zones',
   description: 'List Availability Zones, Local Zones, and Wavelength Zones in the region',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

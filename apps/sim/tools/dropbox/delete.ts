@@ -6,6 +6,7 @@ export const dropboxDeleteTool: ToolConfig<DropboxDeleteParams, DropboxDeleteRes
   name: 'Dropbox Delete',
   description: 'Delete a file or folder in Dropbox (moves to trash)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

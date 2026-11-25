@@ -11,6 +11,7 @@ export const deleteSnapshotTool: InternalToolConfig<
   name: 'EC2 Delete Snapshot',
   description: 'Permanently delete an EBS snapshot',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

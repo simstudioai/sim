@@ -17,6 +17,7 @@ export const listSecuritySignalsTool: ToolConfig<
   description:
     'Search Cloud SIEM security signals by query and time range. Requires the `security_monitoring_signals_read` permission.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

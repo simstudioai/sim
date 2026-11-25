@@ -19,6 +19,7 @@ export const codaAddCustomDomainTool: ToolConfig<CodaCustomDomainParams, CodaCus
     description:
       'Connect a custom domain to a published Coda doc. Requires a Coda plan with custom domains.',
     version: '1.0.0',
+    effect: 'write',
     oauth: codaOAuth,
     errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

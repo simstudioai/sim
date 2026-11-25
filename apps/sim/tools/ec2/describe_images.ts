@@ -16,6 +16,7 @@ export const describeImagesTool: InternalToolConfig<
   name: 'EC2 Describe Images',
   description: 'List AMIs owned by the account (or by the owners you specify)',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -16,6 +16,7 @@ export const clerkLockUserTool: ToolConfig<ClerkLockUserParams, ClerkLockUserRes
   name: 'Lock User in Clerk',
   description: 'Lock a user account, blocking sign-in attempts',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

@@ -25,6 +25,7 @@ export const quickbooksCreateVendorCreditTool: ToolConfig<
   name: 'QuickBooks Create Vendor Credit',
   description: 'Create a vendor credit without applying it to a bill',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

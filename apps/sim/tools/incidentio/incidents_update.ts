@@ -15,6 +15,7 @@ export const incidentsUpdateTool: ToolConfig<
   description:
     'Update an existing incident in incident.io. Can update name, summary, severity, or status.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

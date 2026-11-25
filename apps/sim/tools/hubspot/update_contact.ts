@@ -17,6 +17,7 @@ export const hubspotUpdateContactTool: ToolConfig<
   name: 'Update Contact in HubSpot',
   description: 'Update an existing contact in HubSpot by ID or email',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

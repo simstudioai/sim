@@ -7529,6 +7529,7 @@ type GetBlockResponseRef4 = {
   name: string
   description: string
   version?: string
+  effect: 'read' | 'write'
   hostedApiKey: 'always' | 'conditional' | 'none'
   oauth?: {
     required: boolean
@@ -7585,6 +7586,7 @@ type GetBlockResponseRef6 = {
     {
       toolId?: string
       toolName?: string
+      effect?: 'read' | 'write'
       description?: string
       inputs: Record<string, GetBlockResponseRef2>
       outputs: Record<string, GetBlockResponseRef3>
@@ -9258,6 +9260,8 @@ export type GetSourceCatalogResponse = {
             nullable?: Array<string>
           }
         >
+        effect?: 'read' | 'write'
+        operationEffects?: Record<string, 'read' | 'write'>
         dynamicOutputs?: {
           source: 'responseFormat' | 'inputFormat' | 'humanForm' | 'tableRows'
           param: string
@@ -10061,6 +10065,7 @@ type GetToolResponseRef2 = {
   name: string
   description: string
   version?: string
+  effect: 'read' | 'write'
   hostedApiKey: 'always' | 'conditional' | 'none'
   oauth?: {
     required: boolean
@@ -13831,6 +13836,7 @@ type ListToolsResponseRef0 = {
   name: string
   description: string
   version?: string
+  effect: 'read' | 'write'
   hostedApiKey: 'always' | 'conditional' | 'none'
   oauth?: {
     required: boolean

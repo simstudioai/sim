@@ -13,6 +13,7 @@ export const browseRecordsTool: ToolConfig<
   name: 'Algolia Browse Records',
   description: 'Browse and iterate over all records in an Algolia index using cursor pagination',
   version: '1.0',
+  effect: 'read',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

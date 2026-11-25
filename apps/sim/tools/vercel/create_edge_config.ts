@@ -13,6 +13,7 @@ export const vercelCreateEdgeConfigTool: ToolConfig<
   name: 'Vercel Create Edge Config',
   description: 'Create a new Edge Config store',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

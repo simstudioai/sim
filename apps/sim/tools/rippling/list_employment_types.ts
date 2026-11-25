@@ -9,6 +9,7 @@ export const ripplingListEmploymentTypesTool: ToolConfig<RipplingListEmploymentT
   name: 'Rippling List Employment Types',
   description: 'List all employment types',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

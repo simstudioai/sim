@@ -7,6 +7,7 @@ export const getEventTypeTool: ToolConfig<CalcomGetEventTypeParams, CalcomGetEve
   name: 'Cal.com Get Event Type',
   description: 'Get detailed information about a specific event type',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

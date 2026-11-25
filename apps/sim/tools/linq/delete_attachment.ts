@@ -9,6 +9,7 @@ export const linqDeleteAttachmentTool: ToolConfig<LinqDeleteAttachmentParams, Li
   name: 'Delete Attachment',
   description: 'Permanently delete an attachment owned by your account',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

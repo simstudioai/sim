@@ -22,6 +22,7 @@ export const createWorkItemTool: ToolConfig<CreateWorkItemParams, CreateWorkItem
   description:
     'Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Returns the created work item with its assigned ID.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

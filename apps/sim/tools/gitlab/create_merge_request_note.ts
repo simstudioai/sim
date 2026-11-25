@@ -16,6 +16,7 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
   name: 'GitLab Create Merge Request Comment',
   description: 'Add a comment to a GitLab merge request',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

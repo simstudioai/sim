@@ -27,6 +27,7 @@ export const mailchimpGetCampaignContentTool: ToolConfig<
   name: 'Get Campaign Content from Mailchimp',
   description: 'Retrieve the HTML and plain-text content for a Mailchimp campaign',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

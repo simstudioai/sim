@@ -16,6 +16,7 @@ export const describeInstancesTool: InternalToolConfig<
   name: 'EC2 Describe Instances',
   description: 'List EC2 instances with their state, type, networking, and tags',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

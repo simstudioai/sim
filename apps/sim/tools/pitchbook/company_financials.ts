@@ -10,6 +10,7 @@ export const pitchbookCompanyFinancialsTool: ToolConfig<PitchbookProfileParams, 
     description:
       'Retrieve reported financials for a private company across every available fiscal period. Annual data is returned by default.',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

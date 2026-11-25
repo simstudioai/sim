@@ -35,6 +35,7 @@ export const managedAgentInterruptSessionTool: InternalToolConfig<
   name: 'Managed Agent Interrupt Session',
   description: 'Stop a running Managed Agent session; it stays usable afterwards.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

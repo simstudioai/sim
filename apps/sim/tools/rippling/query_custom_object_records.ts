@@ -10,6 +10,7 @@ export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCusto
     name: 'Rippling Query Custom Object Records',
     description: 'Query custom object records with filters',
     version: '1.0.0',
+    effect: 'read',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

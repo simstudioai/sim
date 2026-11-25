@@ -14,6 +14,7 @@ export const squareListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
   name: 'Square List Invoices',
   description: 'List invoices for a specific location',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

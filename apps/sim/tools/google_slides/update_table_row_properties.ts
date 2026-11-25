@@ -32,6 +32,7 @@ export const updateTableRowPropertiesTool: ToolConfig<
   name: 'Update Table Row Properties in Google Slides',
   description: 'Update minimum row heights and other row-level table properties.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

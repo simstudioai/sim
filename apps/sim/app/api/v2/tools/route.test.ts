@@ -40,6 +40,7 @@ const summary = {
   name: 'Slack Send Message',
   description: 'Send a message.',
   version: '1.0.0',
+  effect: 'write',
   hostedApiKey: 'none' as const,
 }
 

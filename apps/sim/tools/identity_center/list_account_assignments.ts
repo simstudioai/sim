@@ -14,6 +14,7 @@ export const listAccountAssignmentsTool: InternalToolConfig<
   description:
     'List every account and permission set a specific user or group is assigned. Use List Assignments For Account to go the other way, from an account to its principals.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -29,6 +29,7 @@ export const mailchimpUpdateInterestTool: ToolConfig<
   name: 'Update Interest in Mailchimp Interest Category',
   description: 'Update an existing interest in an interest category in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

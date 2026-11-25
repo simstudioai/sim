@@ -9,6 +9,7 @@ export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult>
   name: 'SendGrid Get Contact',
   description: 'Get a specific contact by ID from SendGrid',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

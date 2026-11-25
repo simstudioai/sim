@@ -11,6 +11,7 @@ export const terminateInstancesTool: InternalToolConfig<
   name: 'EC2 Terminate Instances',
   description: 'Permanently terminate one or more EC2 instances',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

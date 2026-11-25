@@ -13,6 +13,7 @@ export const listQueryExecutionsTool: InternalToolConfig<
   name: 'Athena List Query Executions',
   description: 'List recent Athena query execution IDs',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

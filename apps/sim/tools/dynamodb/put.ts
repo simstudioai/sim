@@ -7,6 +7,7 @@ export const putTool: InternalToolConfig<DynamoDBPutParams, DynamoDBPutResponse>
   name: 'DynamoDB Put',
   description: 'Put an item into a DynamoDB table',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

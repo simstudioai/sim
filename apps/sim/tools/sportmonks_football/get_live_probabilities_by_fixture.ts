@@ -37,6 +37,7 @@ export const sportmonksGetLiveProbabilitiesByFixtureTool: ToolConfig<
   description:
     'Retrieve all live (in-play) prediction probabilities for a fixture ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

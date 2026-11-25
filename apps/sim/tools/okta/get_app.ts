@@ -14,6 +14,7 @@ export const oktaGetAppTool: ToolConfig<OktaGetAppParams, OktaGetAppResponse> = 
   description:
     'Retrieve a single Okta application by ID, including its sign-on mode, status, enabled provisioning features, and configuration objects.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

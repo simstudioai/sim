@@ -14,6 +14,7 @@ export const windchillDeleteDocumentTool: InternalToolConfig<WindchillParams, Wi
   name: 'Windchill Delete Document',
   description: 'Delete one document',
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

@@ -15,6 +15,7 @@ export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
   description:
     'Read GitHub repository metadata, including stars, forks, issues, and primary language. Requires a GitHub token with access to the repository.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -94,10 +95,11 @@ URL: ${data.html_url}`
 
 export const repoInfoV2Tool: ToolConfig<BaseGitHubParams, any> = {
   id: 'github_repo_info_v2',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: repoInfoTool.name,
   description: repoInfoTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: repoInfoTool.params,
   request: repoInfoTool.request,

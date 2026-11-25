@@ -21,6 +21,7 @@ export const intuneGetCompliancePolicyTool: ToolConfig<
   name: 'Microsoft Intune Get Compliance Policy',
   description: 'Read common metadata for an Intune compliance policy',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

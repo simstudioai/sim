@@ -19,6 +19,7 @@ export const spotifyCheckPlaylistFollowersTool: ToolConfig<
   name: 'Spotify Check Playlist Followers',
   description: 'Check if the current user follows a playlist.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

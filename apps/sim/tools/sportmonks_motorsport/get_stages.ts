@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetStagesTool: ToolConfig<
   name: 'Get All Stages',
   description: 'Retrieve all motorsport stages (race weekends) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

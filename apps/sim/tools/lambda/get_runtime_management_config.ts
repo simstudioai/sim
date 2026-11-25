@@ -14,6 +14,7 @@ export const getRuntimeManagementConfigTool: InternalToolConfig<
   name: 'Lambda Get Runtime Management Config',
   description: 'Get the runtime update policy of a function version',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

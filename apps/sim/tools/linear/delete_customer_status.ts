@@ -13,6 +13,7 @@ export const linearDeleteCustomerStatusTool: ToolConfig<
   name: 'Linear Delete Customer Status',
   description: 'Delete a customer status in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

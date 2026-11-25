@@ -30,6 +30,7 @@ export const planetScaleListBranchesTool: ToolConfig<
   name: 'PlanetScale List Branches',
   description: 'List branches',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

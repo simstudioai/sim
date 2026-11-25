@@ -7,6 +7,7 @@ export const getTemplateTool: InternalToolConfig<SESGetTemplateParams, SESGetTem
   name: 'SES Get Template',
   description: 'Retrieve the content and details of an SES email template',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

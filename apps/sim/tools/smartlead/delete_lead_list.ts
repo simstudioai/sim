@@ -21,6 +21,7 @@ export const deleteLeadListTool: ToolConfig<DeleteLeadListParams, SmartleadActio
   name: 'Smartlead Delete Lead List',
   description: 'Deletes a Smartlead lead list.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

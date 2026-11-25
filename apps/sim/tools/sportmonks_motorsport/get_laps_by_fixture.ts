@@ -30,6 +30,7 @@ export const sportmonksMotorsportGetLapsByFixtureTool: ToolConfig<
   name: 'Get Laps by Fixture',
   description: 'Retrieve all laps for a motorsport fixture (session) by fixture ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

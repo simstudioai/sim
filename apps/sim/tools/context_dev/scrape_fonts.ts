@@ -22,6 +22,7 @@ export const contextDevScrapeFontsTool: ToolConfig<
   name: 'Context.dev Scrape Fonts',
   description: 'Extract the font families, usage stats, and font files used by a domain.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevScrapeFontsParams>(),
 

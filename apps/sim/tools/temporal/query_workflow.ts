@@ -24,6 +24,7 @@ export const queryWorkflowTool: ToolConfig<
   description:
     'Run a synchronous query against the state of a Temporal workflow execution and return the result.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     serverUrl: {

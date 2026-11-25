@@ -10,6 +10,7 @@ export const listWorkGroupsTool: InternalToolConfig<
   name: 'Athena List Workgroups',
   description: 'List the Athena workgroups available in the AWS account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

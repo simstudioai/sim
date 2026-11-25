@@ -38,6 +38,7 @@ export const bufferGetIdeasTool: ToolConfig<BufferGetIdeasParams, BufferIdeasRes
   name: 'Buffer Get Ideas',
   description: 'List content ideas saved in a Buffer organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {

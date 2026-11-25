@@ -8,6 +8,7 @@ export const ripplingGetCustomAppTool: ToolConfig<RipplingGetCustomAppParams> = 
   name: 'Rippling Get CustomApp',
   description: 'Get a specific custom app',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -19,6 +19,7 @@ export const listWarehousesTool: ToolConfig<
 > = {
   id: 'snowflake_list_warehouses',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Warehouses',
   description: 'List warehouses visible to the active Snowflake role.',

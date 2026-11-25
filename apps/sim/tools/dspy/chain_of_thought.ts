@@ -9,6 +9,7 @@ export const chainOfThoughtTool: ToolConfig<DSPyChainOfThoughtParams, DSPyChainO
     description:
       'Run a Chain of Thought prediction using a self-hosted DSPy ChainOfThought program endpoint',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       baseUrl: {

@@ -19,6 +19,7 @@ export const deleteR2BucketCorsTool: ToolConfig<
   name: 'Cloudflare Delete R2 Bucket Cors',
   description: 'Delete the CORS policy for a bucket.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

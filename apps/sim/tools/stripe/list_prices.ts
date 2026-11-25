@@ -8,6 +8,7 @@ export const stripeListPricesTool: ToolConfig<ListPricesParams, PriceListRespons
   name: 'Stripe List Prices',
   description: 'List all prices',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

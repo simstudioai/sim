@@ -10,6 +10,7 @@ export const xGetUserMentionsTool: ToolConfig<XGetUserMentionsParams, XTweetList
   name: 'X Get User Mentions',
   description: 'Get tweets that mention a specific user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -12,6 +12,7 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
   name: 'Qdrant Search Vector',
   description: 'Search for similar vectors in a Qdrant collection',
   version: '1.0',
+  effect: 'read',
   oauth: QDRANT_CREDENTIAL_OAUTH,
 
   params: {

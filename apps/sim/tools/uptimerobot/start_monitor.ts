@@ -18,6 +18,7 @@ export const uptimeRobotStartMonitorTool: ToolConfig<
   name: 'UptimeRobot Start Monitor',
   description: 'Resume a paused UptimeRobot monitor so it starts running checks again',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

@@ -37,6 +37,7 @@ export const sportmonksGetTransfersBetweenDatesTool: ToolConfig<
   name: 'Get Transfers Between Dates',
   description: 'Retrieve transfers within a date range (YYYY-MM-DD) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

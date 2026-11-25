@@ -14,6 +14,7 @@ export const createReleaseTool: ToolConfig<CreateReleaseParams, ReleaseResponse>
   description:
     'Create a new release for a GitHub repository. Specify tag name, target commit, title, description, and whether it should be a draft or prerelease.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -170,6 +171,7 @@ export const createReleaseV2Tool: ToolConfig = {
   name: createReleaseTool.name,
   description: createReleaseTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: createReleaseTool.params,
   request: createReleaseTool.request,
   oauth: createReleaseTool.oauth,

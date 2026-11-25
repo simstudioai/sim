@@ -8,6 +8,7 @@ export const pitchbookServicedDealsTool: ToolConfig<PitchbookProfileParams, Pitc
   name: 'PitchBook Serviced Deals',
   description: 'Retrieve the deals a service provider worked on and what it was hired for on each',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -16,6 +16,7 @@ export const monacoGetMeetingTool: ToolConfig<MonacoGetMeetingParams, MonacoGetM
   description:
     'Get one Monaco meeting by ID, including AI pre-meeting notes, the AI summary, a presigned recording URL, and the full speaker-attributed transcript with word-level timestamps. The transcript is returned untruncated and can be very large for long meetings.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

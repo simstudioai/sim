@@ -11,6 +11,7 @@ export const getProspectFlowsTool: ToolConfig<
   name: 'Gong Get Prospect Flows',
   description: 'Get the Gong Engage flows currently assigned to the given CRM prospects.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

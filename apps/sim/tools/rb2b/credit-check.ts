@@ -8,6 +8,7 @@ export const rb2bCreditCheckTool: ToolConfig<Rb2bCreditCheckParams, Rb2bCreditCh
   name: 'RB2B Credit Check',
   description: 'Check the number of API credits remaining on your RB2B account.',
   version: '1.0.0',
+  effect: 'read',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

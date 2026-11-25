@@ -11,6 +11,7 @@ export const ripplingListSupergroupExclusionMembersTool: ToolConfig<RipplingList
     name: 'Rippling List Supergroup Exclusion Members',
     description: 'List exclusion members of a supergroup',
     version: '1.0.0',
+    effect: 'read',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

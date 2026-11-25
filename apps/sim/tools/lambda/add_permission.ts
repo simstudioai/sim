@@ -11,6 +11,7 @@ export const addPermissionTool: InternalToolConfig<
   name: 'Lambda Add Permission',
   description: 'Grant an AWS service, account, or organization permission to use a function',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

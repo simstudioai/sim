@@ -10,6 +10,7 @@ export const jsmGetApprovalsTool: InternalToolConfig<
   name: 'JSM Get Approvals',
   description: 'Get approvals for a request in Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

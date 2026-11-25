@@ -18,6 +18,7 @@ export const rocketlaneGetProjectTool: ToolConfig<
   name: 'Rocketlane Get Project',
   description: 'Retrieve a Rocketlane project by its unique identifier',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const jamaGetProjectTool: ToolConfig<JamaGetProjectParams, JamaGetProject
   name: 'Jama Get Project',
   description: "Get Project in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

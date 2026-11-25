@@ -11,6 +11,7 @@ export const discordLeaveThreadTool: ToolConfig<
   name: 'Discord Leave Thread',
   description: 'Leave a thread in Discord',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

@@ -32,6 +32,7 @@ export const spotifyGetSavedAudiobooksTool: ToolConfig<
   name: 'Spotify Get Saved Audiobooks',
   description: "Get the user's saved audiobooks.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

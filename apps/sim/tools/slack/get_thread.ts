@@ -8,6 +8,7 @@ export const slackGetThreadTool: ToolConfig<SlackGetThreadParams, SlackGetThread
   description:
     'Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

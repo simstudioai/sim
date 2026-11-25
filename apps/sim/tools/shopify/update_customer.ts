@@ -16,6 +16,7 @@ export const shopifyUpdateCustomerTool: ToolConfig<
   name: 'Shopify Update Customer',
   description: 'Update an existing customer in your Shopify store',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

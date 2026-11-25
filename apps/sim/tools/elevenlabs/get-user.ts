@@ -8,6 +8,7 @@ export const elevenLabsGetUserTool: ToolConfig<ElevenLabsGetUserParams, ElevenLa
     name: 'ElevenLabs Get User',
     description: 'Get account and subscription information for the ElevenLabs user',
     version: '1.0.0',
+    effect: 'read',
     oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
     params: {

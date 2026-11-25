@@ -17,6 +17,7 @@ export const searchCompanyTool: ToolConfig<
   name: 'Prospeo Search Company',
   description: 'Search for companies using 20+ filters to build account lists.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
   hosting: prospeoHosting<ProspeoSearchCompanyParams>((_params, output) => {

@@ -22,6 +22,7 @@ export const checkrGetSubscriptionTool: ToolConfig<
   name: 'Checkr Get Subscription',
   description: 'Retrieve a subscription by ID, including its schedule and next occurrence.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

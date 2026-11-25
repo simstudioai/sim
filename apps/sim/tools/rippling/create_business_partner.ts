@@ -7,6 +7,7 @@ export const ripplingCreateBusinessPartnerTool: ToolConfig<RipplingCreateBusines
   name: 'Rippling Create Business Partner',
   description: 'Create a new business partner',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

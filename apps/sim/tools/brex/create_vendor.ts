@@ -21,6 +21,7 @@ export const brexCreateVendorTool: ToolConfig<
   name: 'Brex Create Vendor',
   description: 'Create a new vendor in the Brex account',
   version: '1.0.0',
+  effect: 'write',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

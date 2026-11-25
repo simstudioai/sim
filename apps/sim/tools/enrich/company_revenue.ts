@@ -11,6 +11,7 @@ export const companyRevenueTool: ToolConfig<
   description:
     'Retrieve company revenue data, CEO information, and competitive analysis by domain.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

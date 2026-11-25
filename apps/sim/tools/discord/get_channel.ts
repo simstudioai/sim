@@ -9,6 +9,7 @@ export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordG
     name: 'Discord Get Channel',
     description: 'Get information about a Discord channel',
     version: '1.0.0',
+    effect: 'read',
     oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {

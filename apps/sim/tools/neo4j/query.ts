@@ -7,6 +7,7 @@ export const queryTool: InternalToolConfig<Neo4jQueryParams, Neo4jResponse> = {
   description:
     'Execute MATCH queries to read nodes and relationships from Neo4j graph database. For best performance and to prevent large result sets, include LIMIT in your query (e.g., "MATCH (n:User) RETURN n LIMIT 100") or use LIMIT $limit with a limit parameter.',
   version: '1.0',
+  effect: 'write',
 
   params: {
     host: {

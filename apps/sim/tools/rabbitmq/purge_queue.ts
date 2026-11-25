@@ -17,6 +17,7 @@ export const rabbitmqPurgeQueueTool: ToolConfig<
   description:
     'Discard every ready message in a RabbitMQ queue while leaving the queue itself in place.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

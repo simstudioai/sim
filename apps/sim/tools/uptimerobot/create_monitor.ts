@@ -19,6 +19,7 @@ export const uptimeRobotCreateMonitorTool: ToolConfig<
   name: 'UptimeRobot Create Monitor',
   description: 'Create a new monitor in UptimeRobot',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

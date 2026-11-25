@@ -9,6 +9,7 @@ export const bulkCreateLinksTool: ToolConfig<DubBulkCreateLinksParams, DubBulkCr
     description:
       'Create up to 100 short links in a single request. Returns the created links alongside any per-link errors.',
     version: '1.0.0',
+    effect: 'write',
     oauth: DUB_CREDENTIAL_OAUTH,
 
     params: {

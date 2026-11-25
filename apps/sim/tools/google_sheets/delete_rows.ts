@@ -29,6 +29,7 @@ export const deleteRowsV2Tool: ToolConfig<
   name: 'Delete Rows from Google Sheets V2',
   description: 'Delete rows from a sheet in a Google Sheets spreadsheet',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

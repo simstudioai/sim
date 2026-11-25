@@ -21,6 +21,7 @@ export const rocketlaneListProjectsTool: ToolConfig<
   description:
     'List Rocketlane projects with optional filters, sorting, and token-based pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

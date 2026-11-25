@@ -14,6 +14,7 @@ export const companySearchTool: ToolConfig<
   description:
     'Enrich company data including firmographics, headcount, funding, and social profiles by domain, LinkedIn URL, or name. Charges 1 credit when a company is found; free when no result.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: leadmagicHosting<LeadMagicCompanySearchParams>((_params, output) => {
     // 1 credit when company found, 0 otherwise.

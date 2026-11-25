@@ -10,6 +10,7 @@ export const getTrailTool: InternalToolConfig<
   name: 'CloudTrail Get Trail',
   description: 'Retrieve the settings of a single CloudTrail trail by name or ARN',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

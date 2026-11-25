@@ -13,6 +13,7 @@ export const gaugeRenameTopicTool: ToolConfig<GaugeRenameTopicParams, GaugeRenam
   name: 'Gauge Rename Topic',
   description: 'Change the title of an existing topic.',
   version: '1.0.0',
+  effect: 'write',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

@@ -11,6 +11,7 @@ export const discordAddReactionTool: ToolConfig<
   name: 'Discord Add Reaction',
   description: 'Add a reaction emoji to a Discord message',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const mintlifyCreateAgentJobTool: ToolConfig<
   description:
     'Create a background Mintlify agent job that edits your documentation from a prompt. Opens a pull request when the agent successfully edits files.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     projectId: {

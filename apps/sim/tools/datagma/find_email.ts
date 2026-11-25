@@ -16,6 +16,7 @@ export const findEmailTool: ToolConfig<DatagmaFindEmailParams, DatagmaFindEmailR
   description:
     "Find a verified work email from a person's full name and company. Uses 1 credit when a verified email is found.",
   version: '1.0.0',
+  effect: 'read',
 
   hosting: datagmaHosting<DatagmaFindEmailParams>((_params, output) => {
     const email = output.email as string | null

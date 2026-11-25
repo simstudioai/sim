@@ -23,6 +23,7 @@ export const createSubmissionsTool: ToolConfig<
   description:
     'Submit several entries to a Jotform form in one call. Each entry is keyed by question ID.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

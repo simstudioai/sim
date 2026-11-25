@@ -106,6 +106,8 @@ export const respondTool: ToolConfig<GoogleCalendarRespondParams, GoogleCalendar
   description:
     'RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched.',
   version: '1.0.0',
+  // tool-effect: the GET reads the event; transformResponse then PATCHes the response status
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -227,6 +229,8 @@ export const respondV2Tool: ToolConfig<
   description:
     'RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched.',
   version: '2.0.0',
+  // tool-effect: the GET reads the event; transformResponse then PATCHes the response status
+  effect: 'write',
   oauth: respondTool.oauth,
   params: respondTool.params,
   request: respondTool.request,

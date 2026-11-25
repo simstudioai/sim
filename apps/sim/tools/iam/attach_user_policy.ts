@@ -10,6 +10,7 @@ export const attachUserPolicyTool: InternalToolConfig<
   name: 'IAM Attach User Policy',
   description: 'Attach a managed policy to an IAM user',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

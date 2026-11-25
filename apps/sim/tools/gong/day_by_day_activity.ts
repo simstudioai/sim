@@ -12,6 +12,7 @@ export const dayByDayActivityTool: ToolConfig<
   description:
     'Retrieve detailed day-by-day activity (call IDs per activity type) for users by date range from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

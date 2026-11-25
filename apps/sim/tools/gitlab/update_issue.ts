@@ -11,6 +11,7 @@ export const gitlabUpdateIssueTool: ToolConfig<GitLabUpdateIssueParams, GitLabUp
     name: 'GitLab Update Issue',
     description: 'Update an existing issue in a GitLab project',
     version: '1.0.0',
+    effect: 'write',
     oauth: GITLAB_CREDENTIAL_OAUTH,
 
     params: {

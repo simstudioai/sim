@@ -35,6 +35,7 @@ export const managedAgentRespondCustomToolTool: InternalToolConfig<
   description:
     'Return the result of a custom tool a Managed Agent session is waiting on so it can continue.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

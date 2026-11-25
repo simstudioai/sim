@@ -14,6 +14,7 @@ export const cbinsightsListOutlookTool: InternalToolConfig<
   description:
     'Retrieve Mosaic Score, Commercial Maturity, and Exit Probability for up to 100 organizations at once.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

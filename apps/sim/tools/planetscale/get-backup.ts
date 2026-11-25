@@ -22,6 +22,7 @@ export const planetScaleGetBackupTool: ToolConfig<
   name: 'PlanetScale Get Backup',
   description: 'Get a backup',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

@@ -21,6 +21,7 @@ export const shopifyGetFulfillmentOrderTool: ToolConfig<
   name: 'Shopify Get Fulfillment Order',
   description: 'Read a fulfillment order and one page of line items for partial fulfillment',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'shopify', authoritativeParams: ['domain', 'idToken'] },
   params: {
     accessToken: {

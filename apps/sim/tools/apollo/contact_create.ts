@@ -11,6 +11,7 @@ export const apolloContactCreateTool: ToolConfig<
   name: 'Apollo Create Contact',
   description: 'Create a new contact in your Apollo database',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

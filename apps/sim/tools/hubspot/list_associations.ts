@@ -18,6 +18,7 @@ export const hubspotListAssociationsTool: ToolConfig<
   description:
     'List records of one object type associated with a given record, e.g. all emails or notes logged on a contact',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

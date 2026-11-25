@@ -21,6 +21,7 @@ export const flowFilterEntitiesTool: ToolConfig<
   description:
     'Read one page of IDs matching typed field conditions and AND/OR groups. Continue until nextCursor is null, including after empty pages; results reflect current state.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

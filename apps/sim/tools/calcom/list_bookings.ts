@@ -12,6 +12,7 @@ export const listBookingsTool: ToolConfig<CalcomListBookingsParams, CalcomListBo
   name: 'Cal.com List Bookings',
   description: 'List bookings, optionally filtered by status, attendee email, or time range',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

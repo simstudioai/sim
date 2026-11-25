@@ -10,6 +10,7 @@ export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
   name: 'Rippling Get Worker',
   description: 'Get a specific worker by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

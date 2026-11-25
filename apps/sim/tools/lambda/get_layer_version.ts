@@ -13,6 +13,7 @@ export const getLayerVersionTool: InternalToolConfig<
   name: 'Lambda Get Layer Version',
   description: 'Get details and a download link for a specific layer version',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

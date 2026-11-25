@@ -64,6 +64,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
   name: 'Read SharePoint Page',
   description: 'Read a specific page from a SharePoint site',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

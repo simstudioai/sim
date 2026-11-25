@@ -16,6 +16,7 @@ export const uptimeRobotDeleteMonitorTool: ToolConfig<
   name: 'UptimeRobot Delete Monitor',
   description: 'Permanently delete an UptimeRobot monitor by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

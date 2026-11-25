@@ -14,6 +14,7 @@ export const deleteCommentTool: ToolConfig<
   name: 'WordPress Delete Comment',
   description: 'Delete a comment from WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

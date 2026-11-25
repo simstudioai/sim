@@ -9,6 +9,7 @@ export const linearUpdateLabelTool: ToolConfig<LinearUpdateLabelParams, LinearUp
     name: 'Linear Update Label',
     description: 'Update an existing label in Linear',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

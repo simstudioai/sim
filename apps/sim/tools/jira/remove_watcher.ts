@@ -11,6 +11,7 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
     name: 'Jira Remove Watcher',
     description: 'Remove a watcher from a Jira issue',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

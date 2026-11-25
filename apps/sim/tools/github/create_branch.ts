@@ -10,6 +10,7 @@ export const createBranchTool: ToolConfig<CreateBranchParams, RefResponse> = {
   description:
     'Create a new branch in a GitHub repository by creating a git reference pointing to a specific commit SHA.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -102,6 +103,7 @@ export const createBranchV2Tool: ToolConfig<CreateBranchParams, any> = {
   name: createBranchTool.name,
   description: createBranchTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createBranchTool.params,
   request: createBranchTool.request,

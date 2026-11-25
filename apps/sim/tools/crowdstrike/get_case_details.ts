@@ -17,6 +17,7 @@ export const crowdstrikeGetCaseDetailsTool: InternalToolConfig<
   description:
     'Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the "Cases: Read" API scope.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const gaugeListCitationsTool: ToolConfig<
   name: 'Gauge List Citations',
   description: 'List one page of sources cited by AI answers in a category.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

@@ -16,6 +16,7 @@ export const intuneRebootDeviceTool: ToolConfig<
   description:
     'Request a device restart after explicit confirmation; may interrupt the signed-in user',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

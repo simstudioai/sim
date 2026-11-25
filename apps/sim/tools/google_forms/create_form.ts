@@ -14,6 +14,7 @@ export const createFormTool: ToolConfig<
   name: 'Google Forms: Create Form',
   description: 'Create a new Google Form with a title',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

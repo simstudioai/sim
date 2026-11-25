@@ -6,6 +6,7 @@ export const slackListEmojiTool = createSlackWebApiTool({
   id: 'slack_list_emoji',
   name: 'Slack List Custom Emoji',
   description: 'List workspace custom emoji as names mapped to image URLs or alias references.',
+  effect: 'read',
   endpoint: 'emoji.list',
   method: 'GET',
   oauth: {

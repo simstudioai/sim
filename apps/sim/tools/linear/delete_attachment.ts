@@ -13,6 +13,7 @@ export const linearDeleteAttachmentTool: ToolConfig<
   name: 'Linear Delete Attachment',
   description: 'Delete an attachment from Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

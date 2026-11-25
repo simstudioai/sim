@@ -24,6 +24,7 @@ export const quickbooksUpdateJournalEntryTool: ToolConfig<
   name: 'QuickBooks Update Journal Entry',
   description: 'Sparse-update journal-entry header fields after explicit confirmation',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

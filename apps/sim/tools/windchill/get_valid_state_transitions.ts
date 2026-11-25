@@ -16,6 +16,7 @@ export const windchillGetValidStateTransitionsTool: ToolConfig<WindchillParams, 
     name: 'Windchill Get Valid State Transitions',
     description: 'Get lifecycle states a document can transition to from its current state',
     version: '1.0.0',
+    effect: 'read',
     params: {
       baseUrl: {
         type: 'string',

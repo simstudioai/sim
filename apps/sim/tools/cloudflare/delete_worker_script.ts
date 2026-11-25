@@ -20,6 +20,7 @@ export const deleteWorkerScriptTool: ToolConfig<
   name: 'Cloudflare Delete Worker Script',
   description: 'Delete your worker. This call has no response body on a successful delete.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

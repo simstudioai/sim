@@ -13,6 +13,7 @@ export const createDashboardTool: ToolConfig<
   name: 'Grafana Create Dashboard',
   description: 'Create a new dashboard',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

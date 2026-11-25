@@ -8,6 +8,7 @@ export const zepCreateThreadTool: ToolConfig<any, ZepResponse> = {
   name: 'Create Thread',
   description: 'Start a new conversation thread in Zep',
   version: '1.0.0',
+  effect: 'write',
   oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {

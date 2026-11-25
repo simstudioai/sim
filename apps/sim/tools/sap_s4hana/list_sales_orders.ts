@@ -8,6 +8,7 @@ export const listSalesOrdersTool: InternalToolConfig<ListSalesOrdersParams, SapS
   description:
     'List sales orders from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

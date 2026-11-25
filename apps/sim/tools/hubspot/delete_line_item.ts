@@ -16,6 +16,7 @@ export const hubspotDeleteLineItemTool: ToolConfig<
   name: 'Delete Line Item from HubSpot',
   description: 'Archive a line item in HubSpot by ID (moves it to the recycling bin)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

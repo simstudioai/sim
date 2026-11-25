@@ -37,6 +37,7 @@ export const sportmonksMotorsportGetFixturesByIdsTool: ToolConfig<
   description:
     'Retrieve multiple motorsport fixtures (sessions) by their IDs (max 50) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

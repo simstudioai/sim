@@ -14,6 +14,7 @@ export const trelloGetBoardTool: ToolConfig<TrelloGetBoardParams, TrelloGetBoard
   name: 'Trello Get Board',
   description: 'Retrieve a single Trello board by ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

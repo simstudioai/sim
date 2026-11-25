@@ -34,6 +34,7 @@ export const sportmonksExpectedByTeamTool: ToolConfig<
   name: 'Get Expected xG by Team',
   description: 'Retrieve fixture-level expected goals (xG) values per team from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

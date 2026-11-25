@@ -26,6 +26,7 @@ export const checkrListCandidatesTool: ToolConfig<
   description:
     'List candidates, optionally filtered by email, name, custom ID, adjudication, dates, geo, or program. Candidates with non-US work locations are not returned.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

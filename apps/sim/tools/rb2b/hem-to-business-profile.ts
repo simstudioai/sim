@@ -16,6 +16,7 @@ export const rb2bHemToBusinessProfileTool: ToolConfig<
   description:
     'Return a full business profile (name, title, company, industry, seniority and more) for an email address or MD5-hashed email.',
   version: '1.0.0',
+  effect: 'read',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

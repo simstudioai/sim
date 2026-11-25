@@ -10,6 +10,7 @@ export const attioListListsTool: ToolConfig<AttioListListsParams, AttioListLists
   name: 'Attio List Lists',
   description: 'List all lists in the Attio workspace',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

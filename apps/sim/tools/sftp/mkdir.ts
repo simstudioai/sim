@@ -6,6 +6,7 @@ export const sftpMkdirTool: InternalToolConfig<SftpMkdirParams, SftpMkdirResult>
   name: 'SFTP Create Directory',
   description: 'Create a directory on a remote SFTP server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

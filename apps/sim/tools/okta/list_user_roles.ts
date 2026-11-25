@@ -19,6 +19,7 @@ export const oktaListUserRolesTool: ToolConfig<OktaListUserRolesParams, OktaList
     description:
       'List the administrator roles assigned to a user. Returns both standard roles and custom role bindings, so you can review who holds privileged access.',
     version: '1.0.0',
+    effect: 'read',
     oauth: OKTA_CREDENTIAL_OAUTH,
 
     params: {

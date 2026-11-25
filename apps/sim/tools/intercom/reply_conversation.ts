@@ -114,6 +114,7 @@ export const intercomReplyConversationTool: ToolConfig<
   name: 'Reply to Conversation in Intercom',
   description: 'Reply to a conversation as an admin in Intercom',
   version: '1.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...replyConversationBase,
@@ -199,6 +200,7 @@ export const intercomReplyConversationV2Tool: ToolConfig<
   name: 'Reply to Conversation in Intercom',
   description: 'Reply to a conversation as an admin in Intercom',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

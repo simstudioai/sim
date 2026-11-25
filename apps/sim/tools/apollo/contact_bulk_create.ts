@@ -15,6 +15,7 @@ export const apolloContactBulkCreateTool: ToolConfig<
   description:
     'Create up to 100 contacts at once in your Apollo database. Supports deduplication to prevent creating duplicate contacts. Master key required.',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

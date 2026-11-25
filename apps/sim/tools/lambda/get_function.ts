@@ -11,6 +11,7 @@ export const getFunctionTool: InternalToolConfig<
   name: 'Lambda Get Function',
   description: "Get a function's configuration, code location, tags, and reserved concurrency",
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

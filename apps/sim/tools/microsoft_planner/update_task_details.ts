@@ -19,6 +19,7 @@ export const updateTaskDetailsTool: ToolConfig<
   description:
     'Update task details including description, checklist items, and references in Microsoft Planner',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

@@ -10,6 +10,7 @@ export const firefliesListBitesTool: ToolConfig<
   name: 'Fireflies List Bites',
   description: 'List soundbites/highlights from Fireflies.ai',
   version: '1.0.0',
+  effect: 'read',
   oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {

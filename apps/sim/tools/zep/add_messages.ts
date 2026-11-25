@@ -62,6 +62,7 @@ export const zepAddMessagesTool: ToolConfig<ZepAddMessagesParams, ZepResponse> =
   name: 'Add Messages',
   description: 'Add messages to an existing thread',
   version: '1.0.0',
+  effect: 'write',
   oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {

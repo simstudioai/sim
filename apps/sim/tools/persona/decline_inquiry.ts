@@ -19,6 +19,7 @@ export const personaDeclineInquiryTool: ToolConfig<
   description:
     'Decline an identity verification inquiry. Declining prevents further progress on the inquiry and triggers any associated workflows and webhooks.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

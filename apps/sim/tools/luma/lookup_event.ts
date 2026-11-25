@@ -8,6 +8,7 @@ export const lookupEventTool: ToolConfig<LumaLookupEventParams, LumaLookupEventR
   description:
     'Look up an event by its public URL or event ID to resolve its canonical ID, API ID, and approval status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {

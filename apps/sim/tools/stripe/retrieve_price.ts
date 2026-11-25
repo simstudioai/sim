@@ -8,6 +8,7 @@ export const stripeRetrievePriceTool: ToolConfig<RetrievePriceParams, PriceRespo
   name: 'Stripe Retrieve Price',
   description: 'Retrieve an existing price by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

@@ -8,6 +8,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
   description:
     'Get a complete list of URLs from any website quickly and reliably. Useful for discovering all pages on a site without crawling them.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

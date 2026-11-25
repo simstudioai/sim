@@ -19,6 +19,7 @@ export const replaceAudienceManagersTool: ToolConfig<
   description:
     "Replace a Thrive audience's entire manager list with the given managers (does not support an empty array).",
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

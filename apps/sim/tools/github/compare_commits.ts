@@ -54,6 +54,7 @@ export const compareCommitsTool: ToolConfig<CompareCommitsParams, CompareCommits
   description:
     'Compare two commits or branches to see the diff, commits between them, and changed files',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -233,6 +234,7 @@ export const compareCommitsV2Tool: ToolConfig<CompareCommitsParams, any> = {
   name: compareCommitsTool.name,
   description: compareCommitsTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: compareCommitsTool.params,
   request: compareCommitsTool.request,

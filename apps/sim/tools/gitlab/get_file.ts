@@ -9,6 +9,7 @@ export const gitlabGetFileTool: ToolConfig<GitLabGetFileParams, GitLabGetFileRes
   name: 'GitLab Get File',
   description: 'Get the contents of a file from a GitLab project repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

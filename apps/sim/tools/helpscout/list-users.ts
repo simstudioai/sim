@@ -24,6 +24,7 @@ export const helpScoutListUsersTool: ToolConfig<
   name: 'Help Scout List Users',
   description: 'List Help Scout users, optionally filtered by exact email or by inbox.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

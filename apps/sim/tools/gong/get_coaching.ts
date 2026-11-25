@@ -14,6 +14,7 @@ export const getCoachingTool: ToolConfig<GongGetCoachingParams, GongGetCoachingR
   name: 'Gong Get Coaching',
   description: 'Retrieve coaching metrics for a manager from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

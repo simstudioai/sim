@@ -35,6 +35,7 @@ export const confluenceSearchTool: InternalToolConfig<
   name: 'Confluence Search',
   description: 'Search for content across Confluence pages, blog posts, and other content.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

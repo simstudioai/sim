@@ -22,6 +22,7 @@ export const helpScoutGetOrganizationTool: ToolConfig<
   description:
     'Get a Help Scout organization by ID, optionally with its customer and conversation counts and property values.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

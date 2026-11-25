@@ -16,6 +16,7 @@ export const pipedriveCreateDealTool: ToolConfig<
   name: 'Create Deal in Pipedrive',
   description: 'Create a new deal in Pipedrive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

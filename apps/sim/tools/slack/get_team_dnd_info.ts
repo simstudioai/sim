@@ -7,6 +7,7 @@ export const slackGetTeamDndInfoTool = createSlackWebApiTool({
   id: 'slack_get_team_dnd_info',
   name: 'Slack Get Team Do Not Disturb Info',
   description: 'Read Do Not Disturb settings for the supplied user IDs.',
+  effect: 'read',
   endpoint: 'dnd.teamInfo',
   method: 'GET',
   oauth: {

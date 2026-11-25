@@ -64,6 +64,7 @@ export const updateSurveyTool: ToolConfig<PostHogUpdateSurveyParams, PostHogUpda
     description:
       'Update an existing survey in PostHog. Can modify questions, appearance, conditions, and other settings.',
     version: '1.0.0',
+    effect: 'write',
     errorExtractor: 'posthog-errors',
 
     params: {

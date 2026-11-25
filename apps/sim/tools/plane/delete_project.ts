@@ -20,6 +20,7 @@ export const planeDeleteProjectTool: ToolConfig<
   name: 'Plane Delete a project',
   description: 'Delete a project in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

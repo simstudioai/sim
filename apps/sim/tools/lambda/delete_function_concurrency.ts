@@ -13,6 +13,7 @@ export const deleteFunctionConcurrencyTool: InternalToolConfig<
   name: 'Lambda Delete Function Concurrency',
   description: 'Remove the reserved concurrency configuration from a function',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

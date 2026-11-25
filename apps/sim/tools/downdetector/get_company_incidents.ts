@@ -23,6 +23,7 @@ export const getCompanyIncidentsTool: ToolConfig<
   description:
     'Get the list of incidents (outages) for a Downdetector company. Defaults to the last 24 hours unless a date range is provided.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     companyId: {

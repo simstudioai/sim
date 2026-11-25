@@ -16,6 +16,7 @@ export const describeNetworkAclsTool: InternalToolConfig<
   name: 'EC2 Describe Network ACLs',
   description: 'List network ACLs with their inbound and outbound rules and subnet associations',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -26,6 +26,7 @@ export const brexListExpensesTool: ToolConfig<BrexListExpensesParams, BrexListEx
   description:
     'List expenses in the Brex account with optional filters for user, status, payment status, and purchase date range',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

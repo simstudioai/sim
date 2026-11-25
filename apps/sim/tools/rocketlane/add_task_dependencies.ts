@@ -18,6 +18,7 @@ export const rocketlaneAddTaskDependenciesTool: ToolConfig<
   name: 'Rocketlane Add Task Dependencies',
   description: 'Add finish-to-start dependencies between a Rocketlane task and other tasks',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

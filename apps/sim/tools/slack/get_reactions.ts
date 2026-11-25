@@ -15,6 +15,7 @@ export const slackGetReactionsTool = createSlackWebApiTool({
   name: 'Slack Get Reactions',
   description:
     'Get reactions for exactly one message, file, or file comment. Messages require both Channel ID and Message Timestamp.',
+  effect: 'read',
   endpoint: 'reactions.get',
   method: 'GET',
   oauth: { required: true, provider: 'slack', requiredScopes: ['reactions:read'] },

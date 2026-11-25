@@ -24,6 +24,7 @@ export const getSavedSearchTool: ToolConfig<
   description:
     'Get the configuration of a single Splunk saved search by name, including its SPL, schedule, and alert settings.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {

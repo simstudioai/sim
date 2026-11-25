@@ -10,6 +10,7 @@ export const getPipelineTool: ToolConfig<GetPipelineParams, GetPipelineResponse>
   description:
     'Get details for a specific pipeline in an Azure DevOps project, including configuration and repository info.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const loopsListTransactionalEmailsTool: ToolConfig<
   description:
     'Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, created/updated timestamps, and data variables.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {

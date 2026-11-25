@@ -9,6 +9,7 @@ export const getPeriodicNoteTool: ToolConfig<
   name: 'Obsidian Get Periodic Note',
   description: 'Retrieve the current periodic note (daily, weekly, monthly, quarterly, or yearly)',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

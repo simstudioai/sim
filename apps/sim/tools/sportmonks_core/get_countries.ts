@@ -34,6 +34,7 @@ export const sportmonksCoreGetCountriesTool: ToolConfig<
   name: 'Get Countries',
   description: 'Retrieve all countries from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

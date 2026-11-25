@@ -21,6 +21,7 @@ export const zohoDeskCreateContactTool: ToolConfig<
   name: 'Zoho Desk Create Contact',
   description: 'Create Contact in Zoho Desk.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

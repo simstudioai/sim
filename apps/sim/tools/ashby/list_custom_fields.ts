@@ -42,6 +42,7 @@ export const listCustomFieldsTool: ToolConfig<
   name: 'Ashby List Custom Fields',
   description: 'Lists all custom field definitions configured in Ashby.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

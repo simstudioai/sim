@@ -21,6 +21,7 @@ export const affinityGetMergeTool: ToolConfig<
   name: 'Affinity Get Merge',
   description: 'Read the status of one company or person merge, including why it failed if it did.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

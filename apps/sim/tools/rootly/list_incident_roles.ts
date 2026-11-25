@@ -14,6 +14,7 @@ export const rootlyListIncidentRolesTool: ToolConfig<
   name: 'Rootly List Incident Roles',
   description: 'List incident roles configured in Rootly (e.g. commander, scribe).',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const listWatchesTool: ToolConfig<
   name: 'Google Forms: List Watches',
   description: 'List all notification watches for a form',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

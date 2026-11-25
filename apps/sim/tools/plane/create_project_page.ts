@@ -27,6 +27,7 @@ export const planeCreateProjectPageTool: ToolConfig<
   name: 'Plane Create a project page',
   description: 'Create a project page in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

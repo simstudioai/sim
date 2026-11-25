@@ -29,6 +29,7 @@ export const searchCompaniesTool: ToolConfig<
   description:
     'Search Downdetector for monitored companies by name, slug, country, or category. Returns matching companies with their ids and slugs, which you can use with the other Downdetector operations.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     name: {

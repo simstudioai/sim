@@ -11,6 +11,7 @@ export const apolloContactSearchTool: ToolConfig<
   name: 'Apollo Search Contacts',
   description: "Search your team's contacts in Apollo",
   version: '1.0.0',
+  effect: 'read',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

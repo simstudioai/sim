@@ -21,6 +21,7 @@ export const rocketlaneListSpaceDocumentsTool: ToolConfig<
   description:
     'List space documents in a Rocketlane project, with optional filters, sorting, and pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

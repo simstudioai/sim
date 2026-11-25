@@ -13,6 +13,7 @@ export const oktaGetUserTool: ToolConfig<OktaGetUserParams, OktaGetUserResponse>
   name: 'Get User from Okta',
   description: 'Get a specific user by ID or login from your Okta organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

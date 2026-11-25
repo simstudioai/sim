@@ -26,6 +26,7 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
   description:
     'Extract structured data from web pages using natural language prompts and JSON Schema.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     urls: {

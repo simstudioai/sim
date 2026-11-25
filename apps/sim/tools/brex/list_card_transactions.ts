@@ -22,6 +22,7 @@ export const brexListCardTransactionsTool: ToolConfig<
   name: 'Brex List Card Transactions',
   description: 'List settled card transactions for all Brex card accounts',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

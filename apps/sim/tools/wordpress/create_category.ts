@@ -14,6 +14,7 @@ export const createCategoryTool: ToolConfig<
   name: 'WordPress Create Category',
   description: 'Create a new category in WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

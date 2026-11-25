@@ -9,6 +9,7 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
   name: 'Databricks List Jobs',
   description: 'List all jobs in a Databricks workspace with optional filtering by name.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

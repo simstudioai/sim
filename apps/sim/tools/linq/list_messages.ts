@@ -9,6 +9,7 @@ export const linqListMessagesTool: ToolConfig<LinqListMessagesParams, LinqListMe
   name: 'List Messages',
   description: 'List messages in a chat with pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

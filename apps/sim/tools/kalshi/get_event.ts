@@ -20,6 +20,7 @@ export const kalshiGetEventTool: ToolConfig<KalshiGetEventParams, KalshiGetEvent
   name: 'Get Event from Kalshi',
   description: 'Retrieve details of a specific event by ticker',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     eventTicker: {
@@ -138,6 +139,7 @@ export const kalshiGetEventV2Tool: ToolConfig<KalshiGetEventV2Params, KalshiGetE
   name: 'Get Event from Kalshi V2',
   description: 'Retrieve details of a specific event by ticker',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     eventTicker: {

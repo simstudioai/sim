@@ -53,6 +53,7 @@ export const enrowFindEmailTool: ToolConfig<EnrowFindEmailParams, EnrowFindEmail
   description:
     'Find a verified B2B email address from a full name and company domain or name. Uses the Enrow async finder — submits a search and polls until the result is ready. Costs 1 credit per valid email found. (https://docs.enrow.io/api-reference/email-finder/find-single)',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: enrowHosting<EnrowFindEmailParams>((_params, output) => {
     // 1 credit charged only when a valid email is returned. Compare

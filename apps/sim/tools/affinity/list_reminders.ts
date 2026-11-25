@@ -17,6 +17,7 @@ export const affinityListRemindersTool: ToolConfig<
   description:
     'Page through the reminders the caller can see. Filter by status to surface what is overdue.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

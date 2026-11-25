@@ -9,6 +9,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   name: 'Supabase Insert',
   description: 'Insert data into a Supabase table',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

@@ -8,6 +8,7 @@ export const vercelUpdateCheckTool: ToolConfig<VercelUpdateCheckParams, VercelCh
   name: 'Vercel Update Check',
   description: 'Update an existing deployment check',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const updateTunnelTool: ToolConfig<
   name: 'Cloudflare Update Tunnel',
   description: 'Updates the name or secret of an existing Cloudflare Tunnel.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

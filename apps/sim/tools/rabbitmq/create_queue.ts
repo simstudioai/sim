@@ -18,6 +18,7 @@ export const rabbitmqCreateQueueTool: ToolConfig<
   description:
     'Declare a RabbitMQ queue. Declaring a queue that already exists with the same settings succeeds without changing it.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

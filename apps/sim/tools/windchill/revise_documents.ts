@@ -15,6 +15,7 @@ export const windchillReviseDocumentsTool: InternalToolConfig<WindchillParams, W
     name: 'Windchill Revise Documents',
     description: 'Create new revisions of multiple documents atomically',
     version: '1.0.0',
+    effect: 'write',
     params: {
       baseUrl: {
         type: 'string',

@@ -14,6 +14,7 @@ export const triggerDevResumeQueueTool: ToolConfig<TriggerDevQueueParams, Trigge
     name: 'Trigger.dev Resume Queue',
     description: 'Resume a paused Trigger.dev queue so new runs can start again.',
     version: '1.0.0',
+    effect: 'write',
     oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
     params: {

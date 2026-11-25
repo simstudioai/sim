@@ -21,6 +21,7 @@ export const getCompanyTool: ToolConfig<CirclebackGetCompanyParams, CirclebackCo
   description:
     'Gets a company by its domain from Circleback, including its people and external links.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

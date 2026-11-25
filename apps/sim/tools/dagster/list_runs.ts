@@ -56,6 +56,7 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
   description:
     'List Dagster runs with optional filters by job name, status, and creation-time range, plus cursor pagination.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

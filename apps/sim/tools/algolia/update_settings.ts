@@ -13,6 +13,7 @@ export const updateSettingsTool: ToolConfig<
   name: 'Algolia Update Settings',
   description: 'Update the settings of an Algolia index',
   version: '1.0',
+  effect: 'write',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

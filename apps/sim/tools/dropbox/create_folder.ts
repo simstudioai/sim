@@ -9,6 +9,7 @@ export const dropboxCreateFolderTool: ToolConfig<
   name: 'Dropbox Create Folder',
   description: 'Create a new folder in Dropbox',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

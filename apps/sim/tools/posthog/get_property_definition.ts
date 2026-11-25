@@ -41,6 +41,7 @@ export const getPropertyDefinitionTool: ToolConfig<
   description:
     'Get a PostHog property definition, including its metadata, type, and verification status.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

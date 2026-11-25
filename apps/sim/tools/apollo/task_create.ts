@@ -8,6 +8,7 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
   name: 'Apollo Create Task',
   description: 'Create one or more tasks in Apollo (one task per contact_id, master key required)',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

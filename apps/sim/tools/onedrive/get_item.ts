@@ -16,6 +16,7 @@ export const getItemTool: ToolConfig<OneDriveToolParams, OneDriveGetItemResponse
   name: 'Get OneDrive Item Metadata',
   description: 'Get metadata for a specific OneDrive file or folder by ID, or the drive root',
   version: '1.0',
+  effect: 'read',
 
   oauth: {
     required: true,

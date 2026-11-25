@@ -17,6 +17,7 @@ export const salesforceGetContactsTool: ToolConfig<
   name: 'Get Contacts from Salesforce',
   description: 'Get contact(s) from Salesforce - single contact if ID provided, or list if not',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

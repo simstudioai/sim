@@ -7,6 +7,7 @@ export const indexRepoTool: ToolConfig<GreptileIndexParams, GreptileIndexRespons
   description:
     'Submit a repository to be indexed by Greptile. Indexing must complete before the repository can be queried. Small repos take 3-5 minutes, larger ones can take over an hour.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     remote: {

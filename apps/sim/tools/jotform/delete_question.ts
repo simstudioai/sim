@@ -14,6 +14,7 @@ export const deleteQuestionTool: ToolConfig<JotformDeleteQuestionParams, Jotform
   name: 'Jotform Delete Question',
   description: 'Delete a question from a Jotform form.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

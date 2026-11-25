@@ -40,6 +40,7 @@ export const updatePageElementTransformTool: ToolConfig<
   description:
     'Move, resize, scale, or shear a page element. Translate is specified in points; applyMode controls whether the transform is absolute (default) or relative (multiplied with the current transform).',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

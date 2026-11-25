@@ -35,6 +35,7 @@ export const sportmonksGetStatesTool: ToolConfig<
   description:
     'Retrieve all fixture states (e.g. Not Started, 1st Half, Full Time) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const similarwebVisitDurationTool: ToolConfig<
   name: 'SimilarWeb Visit Duration',
   description: 'Get average desktop visit duration over time (in seconds)',
   version: '1.0.0',
+  effect: 'read',
   oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {

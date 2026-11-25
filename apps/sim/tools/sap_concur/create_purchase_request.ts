@@ -10,6 +10,7 @@ export const createPurchaseRequestTool: InternalToolConfig<
   name: 'SAP Concur Create Purchase Request',
   description: 'Create a purchase request (POST /purchaserequest/v4/purchaserequests).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

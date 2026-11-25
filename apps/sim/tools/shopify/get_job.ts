@@ -13,6 +13,7 @@ export const shopifyGetJobTool: ToolConfig<ShopifyGetJobParams, ShopifyJobRespon
   name: 'Shopify Get Job',
   description: 'Read Shopify job progress or the outcome and errors of an order cancellation',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'shopify', authoritativeParams: ['domain', 'idToken'] },
   params: {
     accessToken: {

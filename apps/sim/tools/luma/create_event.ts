@@ -13,6 +13,7 @@ export const createEventTool: ToolConfig<LumaCreateEventParams, LumaCreateEventR
   description:
     'Create a new event on Luma with a name, start time, timezone, and optional details like description, location, and visibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {

@@ -21,6 +21,7 @@ export const azureDataExplorerIngestFromQueryTool: InternalToolConfig<
   description:
     "Materialize the result of a KQL query into a table with .set, .append, .set-or-append, or .set-or-replace. Use this to build rollup or summary tables instead of pushing rows from a workflow. Kusto matches the query result to the target table by column type and position, NOT by column name, so project the columns in exactly the table's order or the data lands in the wrong columns.",
   version: '1.0.0',
+  effect: 'write',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

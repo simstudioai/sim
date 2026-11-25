@@ -20,6 +20,7 @@ export const rocketlaneAssignPlaceholdersTool: ToolConfig<
   name: 'Rocketlane Assign Placeholders',
   description: 'Assign a placeholder in a Rocketlane project to a user',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

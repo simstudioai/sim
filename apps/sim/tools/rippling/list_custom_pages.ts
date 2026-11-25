@@ -8,6 +8,7 @@ export const ripplingListCustomPagesTool: ToolConfig<RipplingListCustomPagesPara
   name: 'Rippling List CustomPages',
   description: 'List all custom pages',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

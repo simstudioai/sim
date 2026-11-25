@@ -32,6 +32,7 @@ export const insertTableColumnsTool: ToolConfig<
   name: 'Insert Table Columns in Google Slides',
   description: 'Insert one or more columns into a table, left or right of a reference cell.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

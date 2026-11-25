@@ -20,6 +20,7 @@ export const polymarketGetMidpointTool: ToolConfig<
   name: 'Get Midpoint Price from Polymarket',
   description: 'Retrieve the midpoint price for a specific token',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tokenId: {

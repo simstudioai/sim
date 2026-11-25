@@ -6,6 +6,7 @@ export const insertTool: InternalToolConfig<MongoDBInsertParams, MongoDBResponse
   name: 'MongoDB Insert',
   description: 'Insert documents into MongoDB collection',
   version: '1.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -2,14 +2,13 @@ import { createExecutionContext } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// Compile the lazy authorization graph before the first test's execution deadline.
+import { withAssistantActionExecution } from '@/lib/assistant-actions/execution-scope'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { InternalToolConfig } from '@/tools/types'
-
-// Compile the lazy authorization graph before the first test's execution deadline.
-import '@/lib/assistant-actions/execution-scope'
 
 const { getTool, resolveToken, operation, resolvePersonalToken } = vi.hoisted(() => ({
   getTool: vi.fn(),
@@ -71,7 +70,8 @@ function tool(id: string): InternalToolConfig {
     name: id,
     description: 'Personal integration fixture',
     version: '1.0.0',
-    assistant: { effect: 'read', version: 1 },
+    effect: 'read',
+    assistant: { version: 1 },
     oauth: { required: true, provider: 'google-drive' },
     params: { accessToken: { type: 'string', visibility: 'hidden' } },
     operation: { input: (params) => params },
@@ -213,6 +213,36 @@ describe('Assistant integration execution boundary', () => {
     expect(result.success).toBe(false)
     expect(operation).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['read', 2],
+    ['write', 1],
+  ] as const)(
+    'replays a %s operation after a rejected credential only when replay cannot repeat a write',
+    async (effect, calls) => {
+      const selected = tool('google_drive_get_file')
+      selected.effect = effect
+      selected.oauth = { required: true, provider: 'google-drive', retryOnUnauthorized: true }
+      getTool.mockReturnValue(selected)
+      getToolMetadata.mockReturnValue(selected)
+      operation.mockImplementationOnce(async () => new Response(null, { status: 401 }))
+      const operationContext = { ...assistantContext, organizationId: 'org' }
+
+      await withAssistantActionExecution(
+        {
+          userId: 'caller',
+          organizationId: 'org',
+          toolCallId: 'assistant-call',
+          toolId: selected.id,
+          args: { credentialId: 'mine' },
+          binding: { credentialId: 'mine', operationVersion: 1, effect },
+        },
+        () => executeTool(selected.id, { credentialId: 'mine' }, { operationContext })
+      )
+
+      expect(operation).toHaveBeenCalledTimes(calls)
+    }
+  )
 
   it('binds the personal token and host through the authorized operation', async () => {
     const gitlab = tool('gitlab_list_projects')

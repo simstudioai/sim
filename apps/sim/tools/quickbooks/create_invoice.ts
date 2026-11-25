@@ -25,6 +25,7 @@ export const quickbooksCreateInvoiceTool: ToolConfig<
   name: 'QuickBooks Create Invoice',
   description: 'Create an invoice without emailing or collecting payment',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

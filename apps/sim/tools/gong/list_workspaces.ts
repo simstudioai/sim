@@ -9,6 +9,7 @@ export const listWorkspacesTool: ToolConfig<GongListWorkspacesParams, GongListWo
     name: 'Gong List Workspaces',
     description: 'List all company workspaces in Gong.',
     version: '1.0.0',
+    effect: 'read',
     oauth: GONG_CREDENTIAL_OAUTH,
 
     params: {

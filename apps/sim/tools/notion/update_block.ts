@@ -35,6 +35,7 @@ export const notionUpdateBlockTool: ToolConfig<NotionUpdateBlockParams, NotionUp
     name: 'Notion Update Block',
     description: 'Update the content or archived state of a single Notion block',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,
@@ -124,6 +125,7 @@ export const notionUpdateBlockV2Tool: ToolConfig<
   name: 'Notion Update Block',
   description: 'Update the content or archived state of a single Notion block',
   version: '2.0.0',
+  effect: 'write',
   oauth: notionUpdateBlockTool.oauth,
   params: notionUpdateBlockTool.params,
   request: notionUpdateBlockTool.request,

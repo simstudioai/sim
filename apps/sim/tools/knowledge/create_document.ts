@@ -13,6 +13,7 @@ export const knowledgeCreateDocumentTool: InternalToolConfig<any, KnowledgeCreat
     name: 'Knowledge Create Document',
     description: 'Create a new document in a knowledge base',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       knowledgeBaseId: {

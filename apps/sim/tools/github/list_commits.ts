@@ -45,6 +45,7 @@ export const listCommitsTool: ToolConfig<ListCommitsParams, ListCommitsResponse>
   description:
     'List commits in a repository with optional filtering by SHA, path, author, committer, or date range',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -215,6 +216,7 @@ export const listCommitsV2Tool: ToolConfig<ListCommitsParams, any> = {
   name: listCommitsTool.name,
   description: listCommitsTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listCommitsTool.params,
   request: listCommitsTool.request,

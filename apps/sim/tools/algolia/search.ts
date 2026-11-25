@@ -7,6 +7,7 @@ export const searchTool: ToolConfig<AlgoliaSearchParams, AlgoliaSearchResponse> 
   name: 'Algolia Search',
   description: 'Search an Algolia index',
   version: '1.0',
+  effect: 'read',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

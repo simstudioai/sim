@@ -10,6 +10,7 @@ export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProj
   description:
     'Update a Hex project status label (e.g., endorsement or custom workspace statuses).',
   version: '1.0.0',
+  effect: 'write',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

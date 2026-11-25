@@ -10,6 +10,7 @@ export const rootlyRunWorkflowTool: ToolConfig<RootlyRunWorkflowParams, RootlyRu
     name: 'Rootly Run Workflow',
     description: 'Trigger a Rootly automation workflow, optionally scoped to an incident or alert.',
     version: '1.0.0',
+    effect: 'write',
     oauth: ROOTLY_CREDENTIAL_OAUTH,
 
     params: {

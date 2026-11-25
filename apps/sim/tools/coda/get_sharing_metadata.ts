@@ -17,6 +17,7 @@ export const codaGetSharingMetadataTool: ToolConfig<CodaDocParams, CodaSharingMe
   description:
     'Check whether the connected user can share or copy a Coda doc, and whether they can share it with the workspace or organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

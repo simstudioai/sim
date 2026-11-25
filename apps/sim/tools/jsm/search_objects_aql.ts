@@ -10,6 +10,7 @@ export const jsmSearchObjectsAqlTool: InternalToolConfig<
   description:
     'Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. objectType = "Host" AND Status = "Running". Supports pagination.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

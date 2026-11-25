@@ -32,6 +32,7 @@ export const updateTableColumnPropertiesTool: ToolConfig<
   name: 'Update Table Column Properties in Google Slides',
   description: 'Update column widths and other column-level table properties.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

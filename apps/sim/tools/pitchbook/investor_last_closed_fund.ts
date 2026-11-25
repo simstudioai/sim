@@ -12,6 +12,7 @@ export const pitchbookInvestorLastClosedFundTool: ToolConfig<
   description:
     'Retrieve the most recently closed fund raised by an investor, with its size, type, and vintage',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

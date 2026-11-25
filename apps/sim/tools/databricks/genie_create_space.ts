@@ -22,6 +22,7 @@ export const genieCreateSpaceTool: ToolConfig<
   name: 'Databricks Create Genie Space',
   description: 'Create a Genie space from its serialized configuration and a SQL warehouse.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

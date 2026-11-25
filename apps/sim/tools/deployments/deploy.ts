@@ -10,6 +10,7 @@ export const deploymentsDeployTool: InternalToolConfig<
   description:
     'Deploy a workflow’s current draft state, creating a new deployment version and making it live for API execution. Requires admin permission on the workflow’s workspace.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     workflowId: {

@@ -12,6 +12,7 @@ export const clickupGetSpacesTool: ToolConfig<ClickUpGetSpacesParams, ClickUpSpa
   name: 'ClickUp Get Spaces',
   description: 'List the spaces in a ClickUp workspace',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

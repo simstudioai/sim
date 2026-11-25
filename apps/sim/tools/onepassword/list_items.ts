@@ -12,6 +12,7 @@ export const listItemsTool: InternalToolConfig<
   name: '1Password List Items',
   description: 'List items in a vault. Returns summaries without field values.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     connectionMode: {

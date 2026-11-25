@@ -13,6 +13,7 @@ export const startQueryTool: InternalToolConfig<
   name: 'CloudTrail Start Query',
   description: 'Start a CloudTrail Lake SQL query over an event data store',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

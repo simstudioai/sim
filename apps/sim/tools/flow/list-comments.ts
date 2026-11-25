@@ -19,6 +19,7 @@ export const flowListCommentsTool: ToolConfig<FlowListCommentsParams, FlowListCo
   description:
     'Read direct comment threads for an entity or direct replies to the original comment ID. Keep the same branch when following replies.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

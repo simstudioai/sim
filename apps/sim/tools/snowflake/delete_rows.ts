@@ -26,6 +26,7 @@ function parseFilters(value: unknown): Record<string, unknown> {
 export const deleteRowsTool: ToolConfig<SnowflakeDeleteRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_delete_rows',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Delete Rows',
   description: 'Delete rows matching a required set of bound column filters.',

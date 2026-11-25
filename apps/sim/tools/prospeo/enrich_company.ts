@@ -15,6 +15,7 @@ export const enrichCompanyTool: ToolConfig<
   name: 'Prospeo Enrich Company',
   description: 'Enrich a company with complete B2B data.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
   hosting: prospeoHosting<ProspeoEnrichCompanyParams>((_params, output) => {

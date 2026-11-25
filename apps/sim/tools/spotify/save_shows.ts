@@ -15,6 +15,7 @@ export const spotifySaveShowsTool: ToolConfig<SpotifySaveShowsParams, SpotifySav
   name: 'Spotify Save Shows',
   description: "Save podcast shows to the user's library.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -13,6 +13,7 @@ export const retryStageExecutionTool: InternalToolConfig<
   name: 'CodePipeline Retry Stage Execution',
   description: 'Retry the failed actions (or all actions) of a failed CodePipeline stage',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

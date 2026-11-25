@@ -21,6 +21,7 @@ export const planeListWebhooksTool: ToolConfig<PlaneListWebhooksParams, PlaneLis
     name: 'Plane List webhooks',
     description: 'List webhooks in Plane. Requires API v2.',
     version: '1.0.0',
+    effect: 'read',
     oauth: PLANE_CREDENTIAL_OAUTH,
     params: {
       ...PLANE_CREDENTIAL_PARAMS,

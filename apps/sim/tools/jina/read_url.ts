@@ -7,6 +7,7 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
   description:
     'Extract and process web content into clean, LLM-friendly text using Jina AI Reader. Supports advanced content parsing, link gathering, and multiple output formats with configurable processing options.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     url: {

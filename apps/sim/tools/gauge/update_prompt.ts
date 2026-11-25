@@ -15,6 +15,7 @@ export const gaugeUpdatePromptTool: ToolConfig<GaugeUpdatePromptParams, GaugeUpd
     description:
       'Move a prompt to another topic or change its tracking type. Prompt text is immutable: create a new prompt instead.',
     version: '1.0.0',
+    effect: 'write',
     oauth: gaugeOAuth,
     params: {
       ...gaugeAuthParams,

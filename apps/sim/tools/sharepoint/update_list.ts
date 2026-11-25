@@ -13,6 +13,7 @@ export const updateListItemTool: ToolConfig<
   name: 'Update SharePoint List Item',
   description: 'Update the properties (fields) on a SharePoint list item',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

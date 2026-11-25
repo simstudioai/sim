@@ -19,6 +19,7 @@ export const unpauseScheduleTool: ToolConfig<
   name: 'Temporal Unpause Schedule',
   description: 'Unpause a Temporal schedule so it resumes taking actions.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

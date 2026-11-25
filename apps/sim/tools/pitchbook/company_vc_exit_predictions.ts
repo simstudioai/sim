@@ -12,6 +12,7 @@ export const pitchbookCompanyVcExitPredictionsTool: ToolConfig<
   description:
     'Retrieve PitchBook machine-learning exit predictions for a VC-backed company. Requires at least two funding rounds in the past six years.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

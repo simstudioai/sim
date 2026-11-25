@@ -9,6 +9,7 @@ export const asanaAddCommentTool: InternalToolConfig<
   name: 'Asana Add Comment',
   description: 'Add a comment (story) to an Asana task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

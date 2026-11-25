@@ -11,6 +11,7 @@ export const hubspotGetListTool: ToolConfig<HubSpotGetListParams, HubSpotGetList
   name: 'Get List from HubSpot',
   description: 'Retrieve a single list by ID from HubSpot',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

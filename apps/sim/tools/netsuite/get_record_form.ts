@@ -11,6 +11,7 @@ export const netsuiteGetRecordFormTool: InternalToolConfig<
   name: 'NetSuite Get Record Form',
   description: 'Return a prepopulated create form, or an edit form when a record ID is supplied.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

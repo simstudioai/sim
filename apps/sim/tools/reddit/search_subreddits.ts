@@ -46,6 +46,7 @@ export const searchSubredditsTool: ToolConfig<
   name: 'Search Subreddits',
   description: 'Search for subreddits by name and description',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

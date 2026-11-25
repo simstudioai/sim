@@ -30,6 +30,7 @@ export const sportmonksCoreGetCountryTool: ToolConfig<
   name: 'Get Country by ID',
   description: 'Retrieve a single country by its ID from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

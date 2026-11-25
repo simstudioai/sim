@@ -26,6 +26,7 @@ export const addEmailAccountsToCampaignTool: ToolConfig<
   description:
     'Attaches sending email accounts to a Smartlead campaign. A campaign needs at least one attached account before it can start.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

@@ -13,6 +13,7 @@ export const listDashboardsTool: ToolConfig<
   name: 'Grafana List Dashboards',
   description: 'Search and list all dashboards',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

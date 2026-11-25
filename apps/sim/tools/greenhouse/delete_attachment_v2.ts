@@ -19,6 +19,7 @@ export const greenhouseDeleteAttachmentV2Tool: ToolConfig<
   name: 'Greenhouse Delete Attachment',
   description: 'Delete attachment using Greenhouse Harvest v3.',
   version: '2.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

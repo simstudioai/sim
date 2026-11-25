@@ -15,6 +15,7 @@ export const searchPersonTool: ToolConfig<ProspeoSearchPersonParams, ProspeoSear
     name: 'Prospeo Search Person',
     description: 'Search for leads using 20+ filters to build targeted contact lists.',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
     hosting: prospeoHosting<ProspeoSearchPersonParams>((_params, output) => {

@@ -11,6 +11,7 @@ export const getRevenueTool: ToolConfig<AmplitudeGetRevenueParams, AmplitudeGetR
   name: 'Amplitude Get Revenue',
   description: 'Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user counts.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {

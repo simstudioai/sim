@@ -11,6 +11,7 @@ export const getDatabaseTool: InternalToolConfig<
   description:
     'Get a single database (name, description, and parameters) from an Athena data catalog',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -11,6 +11,7 @@ export const hubspotGetTicketTool: ToolConfig<HubSpotGetTicketParams, HubSpotGet
   name: 'Get Ticket from HubSpot',
   description: 'Retrieve a single ticket by ID from HubSpot',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -23,6 +23,7 @@ export const zoominfoSearchContactsTool: InternalToolConfig<
   description:
     'Search ZoomInfo for contacts (people) by name, job title, company, and other filters. Does not return emails or phone numbers — use Enrich Contacts for engagement data.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {

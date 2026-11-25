@@ -13,6 +13,7 @@ export const describeAlarmHistoryTool: InternalToolConfig<
   name: 'CloudWatch Describe Alarm History',
   description: 'Retrieve state-change and configuration history for CloudWatch alarms',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

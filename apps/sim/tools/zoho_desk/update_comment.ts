@@ -23,6 +23,7 @@ export const zohoDeskUpdateCommentTool: ToolConfig<
   description:
     'Update comment content or attachments; visibility can only be set when creating a comment.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

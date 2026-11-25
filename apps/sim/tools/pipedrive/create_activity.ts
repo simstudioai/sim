@@ -16,6 +16,7 @@ export const pipedriveCreateActivityTool: ToolConfig<
   name: 'Create Activity in Pipedrive',
   description: 'Create a new activity (task) in Pipedrive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

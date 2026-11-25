@@ -14,6 +14,7 @@ export const schedulesShowTool: ToolConfig<
   name: 'Show Schedule',
   description: 'Get details of a specific schedule in incident.io',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const redisIncrbyTool: InternalToolConfig<RedisIncrbyParams, RedisIncrbyR
   name: 'Redis INCRBY',
   description: 'Increment the integer value of a key by a given amount in Redis.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

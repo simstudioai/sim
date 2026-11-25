@@ -13,6 +13,7 @@ export const firefliesListTranscriptsTool: ToolConfig<
   name: 'Fireflies List Transcripts',
   description: 'List meeting transcripts from Fireflies.ai with optional filtering',
   version: '1.0.0',
+  effect: 'read',
   oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {

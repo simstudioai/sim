@@ -18,6 +18,7 @@ export const jamaGetItemTool: ToolConfig<JamaGetItemParams, JamaGetItemResponse>
   name: 'Jama Get Item',
   description: "Get Item in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

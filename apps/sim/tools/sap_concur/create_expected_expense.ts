@@ -15,6 +15,7 @@ export const createExpectedExpenseTool: InternalToolConfig<
   description:
     'Create an expected expense on a travel request (POST /travelrequest/v4/requests/{requestUuid}/expenses).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

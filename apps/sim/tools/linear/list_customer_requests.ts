@@ -13,6 +13,7 @@ export const linearListCustomerRequestsTool: ToolConfig<
   name: 'Linear List Customer Requests',
   description: 'List all customer requests (needs) in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

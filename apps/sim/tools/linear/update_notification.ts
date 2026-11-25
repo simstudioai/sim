@@ -13,6 +13,7 @@ export const linearUpdateNotificationTool: ToolConfig<
   name: 'Linear Update Notification',
   description: 'Mark a notification as read or unread in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

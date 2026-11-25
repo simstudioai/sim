@@ -9,6 +9,7 @@ export const cbinsightsGetOrgRevenueTool: InternalToolConfig<CbInsightsOrgParams
   description:
     'Retrieve reported and estimated revenue by calendar year for one organization, with the sources behind each figure.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

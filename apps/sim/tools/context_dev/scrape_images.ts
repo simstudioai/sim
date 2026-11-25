@@ -22,6 +22,7 @@ export const contextDevScrapeImagesTool: ToolConfig<
   name: 'Context.dev Scrape Images',
   description: 'Discover every image asset on a page, with optional dimension and type enrichment.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevScrapeImagesParams>(),
 

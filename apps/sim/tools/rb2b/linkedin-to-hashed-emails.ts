@@ -12,6 +12,7 @@ export const rb2bLinkedinToHashedEmailsTool: ToolConfig<
   description:
     'Return the business and personal hashed emails (MD5 and SHA-256) associated with a LinkedIn profile.',
   version: '1.0.0',
+  effect: 'read',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

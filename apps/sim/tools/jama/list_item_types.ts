@@ -23,6 +23,7 @@ export const jamaListItemTypesTool: ToolConfig<JamaListItemTypesParams, JamaList
     name: 'Jama List Item Types',
     description: "List Item Types in Jama Connect using the connected user's access permissions.",
     version: '1.0.0',
+    effect: 'read',
     oauth: jamaOAuth,
     params: {
       ...jamaAuthParams,

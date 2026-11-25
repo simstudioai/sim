@@ -9,6 +9,7 @@ export const listDashboardsTool: ToolConfig<ListDashboardsParams, ListDashboards
   description:
     'List custom created or cloned dashboards. Datadog preset dashboards are not returned.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

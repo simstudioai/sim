@@ -13,6 +13,7 @@ export const startDeploymentTool: InternalToolConfig<
   name: 'AppConfig Start Deployment',
   description: 'Start deploying a configuration version to an AWS AppConfig environment',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

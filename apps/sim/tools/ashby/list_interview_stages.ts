@@ -24,6 +24,7 @@ export const listInterviewStagesTool: ToolConfig<Params, Response> = {
   name: 'Ashby List Interview Stages',
   description: 'Lists the ordered stages in an Ashby interview plan.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

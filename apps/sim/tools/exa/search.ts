@@ -33,6 +33,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
   description:
     'Search the web using Exa AI. Returns relevant search results with titles, URLs, and text snippets.',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     query: {

@@ -22,6 +22,7 @@ export const personaMarkInquiryForReviewTool: ToolConfig<
   description:
     'Mark an identity verification inquiry for manual review, moving it to the needs_review status.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

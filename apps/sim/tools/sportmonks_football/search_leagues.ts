@@ -36,6 +36,7 @@ export const sportmonksSearchLeaguesTool: ToolConfig<
   name: 'Search Leagues',
   description: 'Search for football leagues by name from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

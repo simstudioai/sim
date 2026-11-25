@@ -14,6 +14,7 @@ export const trelloAddCommentTool: ToolConfig<TrelloAddCommentParams, TrelloAddC
   name: 'Trello Add Comment',
   description: 'Add a comment to a Trello card',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -8,6 +8,7 @@ export const getUserTool: ToolConfig<CalendlyGetUserParams, CalendlyGetUserRespo
   name: 'Calendly Get User',
   description: 'Get information about a specific Calendly user',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

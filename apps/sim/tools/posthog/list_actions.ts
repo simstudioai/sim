@@ -40,6 +40,7 @@ export const listActionsTool: ToolConfig<PostHogListActionsParams, PostHogListAc
   description:
     'List all actions in a PostHog project. Returns action definitions, steps, and metadata.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

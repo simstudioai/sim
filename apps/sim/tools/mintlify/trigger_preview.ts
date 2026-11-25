@@ -20,6 +20,7 @@ export const mintlifyTriggerPreviewTool: ToolConfig<
   description:
     'Create or update a Mintlify preview deployment for a Git branch. Redeploys when a preview already exists for the branch.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     projectId: {

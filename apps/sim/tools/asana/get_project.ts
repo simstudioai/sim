@@ -9,6 +9,7 @@ export const asanaGetProjectTool: InternalToolConfig<
   name: 'Asana Get Project',
   description: 'Retrieve a single Asana project by its GID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

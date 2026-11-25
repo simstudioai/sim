@@ -16,6 +16,7 @@ export const langsmithCreateRunTool: ToolConfig<
   name: 'LangSmith Create Run',
   description: 'Forward a single run to LangSmith for ingestion.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     region: LANGSMITH_REGIONS.param,

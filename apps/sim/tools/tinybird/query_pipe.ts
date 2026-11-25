@@ -48,6 +48,7 @@ export const queryPipeTool: ToolConfig<TinybirdQueryPipeParams, TinybirdQueryPip
   description:
     'Call a published Tinybird Pipe API Endpoint by name, passing dynamic parameters and receiving structured JSON results.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 

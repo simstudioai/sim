@@ -8,6 +8,7 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
   name: 'Vault Create Export',
   description: 'Create an export in a matter',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

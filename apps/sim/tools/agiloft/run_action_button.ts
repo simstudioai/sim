@@ -13,6 +13,7 @@ export const agiloftRunActionButtonTool: InternalToolConfig<
   description:
     'Run an action button on an Agiloft record, such as an approval or send-for-signature step.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     instanceUrl: {

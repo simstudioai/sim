@@ -21,6 +21,7 @@ export const gmailTrashThreadV2Tool: ToolConfig<GmailTrashThreadParams, GmailTra
     name: 'Gmail Trash Thread',
     description: 'Move an email thread to trash in Gmail',
     version: '2.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

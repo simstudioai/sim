@@ -9,6 +9,7 @@ export const agentmailDeleteThreadTool: ToolConfig<DeleteThreadParams, DeleteThr
   description:
     'Delete an email thread in AgentMail (moves to trash, or permanently deletes if already in trash)',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

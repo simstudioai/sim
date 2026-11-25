@@ -11,6 +11,7 @@ export const getListTool: InternalToolConfig<GetListParams, SapConcurResponse> =
   name: 'SAP Concur Get List',
   description: 'Get a single custom list (GET /list/v4/lists/{listId}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

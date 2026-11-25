@@ -12,6 +12,7 @@ export const triggerDevGetRunEventsTool: ToolConfig<
   description:
     'Retrieve the log and span events of a Trigger.dev run, including messages, levels, durations, and error events.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

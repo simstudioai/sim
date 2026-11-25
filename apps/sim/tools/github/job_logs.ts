@@ -90,6 +90,7 @@ export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
   description:
     "Read the tail of a GitHub Actions job log. Takes the job id, which is a check run's databaseId for an Actions check.",
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {

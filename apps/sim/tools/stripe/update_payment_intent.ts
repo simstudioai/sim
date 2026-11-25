@@ -25,6 +25,7 @@ export const stripeUpdatePaymentIntentTool: ToolConfig<
   name: 'Stripe Update Payment Intent',
   description: 'Update an existing Payment Intent',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

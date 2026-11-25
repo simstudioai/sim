@@ -13,6 +13,7 @@ export const listAliasesTool: ToolConfig<
   name: 'Google Groups List Aliases',
   description: 'List all email aliases for a Google Group',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

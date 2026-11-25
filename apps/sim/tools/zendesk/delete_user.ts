@@ -30,6 +30,7 @@ export const zendeskDeleteUserTool: ToolConfig<ZendeskDeleteUserParams, ZendeskD
     name: 'Delete User from Zendesk',
     description: 'Delete a user from Zendesk',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: ZENDESK_CREDENTIAL_OAUTH,
 

@@ -20,6 +20,7 @@ export const rocketlaneListTasksTool: ToolConfig<
   name: 'Rocketlane List Tasks',
   description: 'Retrieve all Rocketlane tasks with optional filters, sorting, and pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

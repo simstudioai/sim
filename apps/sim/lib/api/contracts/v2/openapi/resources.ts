@@ -162,6 +162,7 @@ const BLOCK_DETAIL_EXAMPLE = {
     send: {
       toolId: 'slack_message',
       toolName: 'Slack Send Message',
+      effect: 'write',
       description: 'Send a message to a Slack channel.',
       inputs: { text: { type: 'string', required: true, description: 'Message body.' } },
       outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
@@ -174,6 +175,7 @@ const BLOCK_DETAIL_EXAMPLE = {
       name: 'Slack Send Message',
       description: 'Send a message to a Slack channel.',
       version: '1.0.0',
+      effect: 'write',
       hostedApiKey: 'none',
       oauth: { required: true, provider: 'slack', requiredScopes: ['chat:write'] },
       params: { text: { type: 'string', required: true, description: 'Message body.' } },
@@ -355,6 +357,7 @@ const TOOL_SUMMARY_EXAMPLE = {
   name: 'Slack Send Message',
   description: 'Send a message to a Slack channel.',
   version: '1.0.0',
+  effect: 'write',
   hostedApiKey: 'none',
   oauth: { required: true, provider: 'slack', requiredScopes: ['chat:write'] },
 } as const

@@ -7,6 +7,7 @@ export const updateAlertRuleTool: InternalToolConfig<GrafanaUpdateAlertRuleParam
   name: 'Grafana Update Alert Rule',
   description: 'Update an existing alert rule. Fetches the current rule and merges your changes.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

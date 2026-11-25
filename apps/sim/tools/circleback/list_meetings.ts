@@ -25,6 +25,7 @@ export const listMeetingsTool: ToolConfig<
   description:
     'Lists meetings from Circleback with optional ownership, status, tag, and attendee filters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

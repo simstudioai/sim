@@ -8,6 +8,7 @@ export const deleteFolderTool: ToolConfig<GrafanaDeleteFolderParams, GrafanaDele
     name: 'Grafana Delete Folder',
     description: 'Delete a folder by its UID',
     version: '1.0.0',
+    effect: 'write',
     oauth: GRAFANA_CREDENTIAL_OAUTH,
 
     params: {

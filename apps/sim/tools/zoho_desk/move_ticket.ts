@@ -16,6 +16,7 @@ export const zohoDeskMoveTicketTool: ToolConfig<
   name: 'Zoho Desk Move Ticket',
   description: 'Move a ticket to another department.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

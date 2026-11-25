@@ -20,6 +20,7 @@ export const triggerDevGetDeploymentTool: ToolConfig<
   description:
     'Retrieve a Trigger.dev deployment by its ID, including its status, version, and registered tasks.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

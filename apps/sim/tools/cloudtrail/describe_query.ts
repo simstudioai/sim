@@ -13,6 +13,7 @@ export const describeQueryTool: InternalToolConfig<
   name: 'CloudTrail Describe Query',
   description: 'Check the status, run time, and scan statistics of a CloudTrail Lake query',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

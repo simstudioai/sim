@@ -13,6 +13,7 @@ export const linearUpdateCustomerTierTool: ToolConfig<
   name: 'Linear Update Customer Tier',
   description: 'Update a customer tier in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

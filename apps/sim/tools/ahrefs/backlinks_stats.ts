@@ -11,6 +11,7 @@ export const backlinksStatsTool: ToolConfig<
   description:
     'Get backlink and referring domain totals for a target domain or URL, both currently live and across all time.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {

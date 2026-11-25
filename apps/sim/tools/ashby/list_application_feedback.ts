@@ -30,6 +30,7 @@ export const listApplicationFeedbackTool: ToolConfig<Params, Response> = {
   description:
     'Lists submitted interview feedback, optionally for one application, with pagination and incremental sync.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

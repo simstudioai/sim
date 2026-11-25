@@ -25,6 +25,7 @@ export const listVaultItemsTool: ToolConfig<
   description:
     'List the credentials available from password managers connected to TinyFish, with the URIs an agent run can be scoped to',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

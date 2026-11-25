@@ -48,6 +48,7 @@ export const downloadArtifactTool: InternalToolConfig<
   name: 'Cursor Download Artifact',
   description: 'Download a generated artifact file from a cloud agent.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...downloadArtifactBase,
@@ -98,6 +99,7 @@ export const downloadArtifactV2Tool: InternalToolConfig<
   description:
     'Download a generated artifact file from a cloud agent. Returns the file for execution storage.',
   version: '2.0.0',
+  effect: 'read',
   oauth: CURSOR_CREDENTIAL_OAUTH,
 
   transformResponse: async (response) => {

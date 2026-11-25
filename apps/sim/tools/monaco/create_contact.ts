@@ -23,6 +23,7 @@ export const monacoCreateContactTool: ToolConfig<
   description:
     'Create a Monaco contact from an email or LinkedIn URL. Monaco enriches the contact and resolves or creates its account, which can take several seconds. A duplicate email or LinkedIn URL is rejected; use Upsert Contact to update a match instead.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

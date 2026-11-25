@@ -9,6 +9,7 @@ export const jsmListObjectSchemasTool: InternalToolConfig<
   name: 'JSM List Asset Schemas',
   description: 'List Assets (Insight/CMDB) object schemas in Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

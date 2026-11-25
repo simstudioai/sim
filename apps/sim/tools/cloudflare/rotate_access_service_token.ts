@@ -23,6 +23,7 @@ export const rotateAccessServiceTokenTool: ToolConfig<
   description:
     'Generates a new Client Secret. The previous secret expires immediately unless previous_client_secret_expires_at schedules a later expiration.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

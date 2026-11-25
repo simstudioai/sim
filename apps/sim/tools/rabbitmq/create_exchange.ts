@@ -23,6 +23,7 @@ export const rabbitmqCreateExchangeTool: ToolConfig<
   description:
     'Declare a RabbitMQ exchange. Declaring an exchange that already exists with the same settings succeeds without changing it.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

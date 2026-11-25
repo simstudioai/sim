@@ -8,6 +8,7 @@ export const webflowGetItemTool: ToolConfig<WebflowGetItemParams, WebflowGetItem
   name: 'Webflow Get Item',
   description: 'Get a single item from a Webflow CMS collection',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

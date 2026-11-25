@@ -8,6 +8,7 @@ export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResul
   name: 'Mailgun Get Message',
   description: 'Retrieve a stored message by its key',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {

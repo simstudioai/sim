@@ -10,6 +10,7 @@ export const attioListTasksTool: ToolConfig<AttioListTasksParams, AttioListTasks
   name: 'Attio List Tasks',
   description: 'List tasks in Attio, optionally filtered by record, assignee, or completion status',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

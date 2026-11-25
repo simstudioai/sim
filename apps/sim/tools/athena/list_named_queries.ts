@@ -13,6 +13,7 @@ export const listNamedQueriesTool: InternalToolConfig<
   name: 'Athena List Named Queries',
   description: 'List saved/named query IDs in AWS Athena',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

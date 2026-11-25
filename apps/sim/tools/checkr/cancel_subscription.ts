@@ -22,6 +22,7 @@ export const checkrCancelSubscriptionTool: ToolConfig<
   name: 'Checkr Cancel Subscription',
   description: 'Cancel a subscription so no further recurring checks run.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

@@ -7,6 +7,7 @@ export const getRecordsTool: ToolConfig<AlgoliaGetRecordsParams, AlgoliaGetRecor
   name: 'Algolia Get Records',
   description: 'Retrieve multiple records by objectID from one or more Algolia indices',
   version: '1.0',
+  effect: 'read',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

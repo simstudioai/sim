@@ -8,6 +8,7 @@ export const updateFormTool: ToolConfig<TypeformUpdateFormParams, TypeformUpdate
   name: 'Typeform Update Form',
   description: 'Update an existing form using JSON Patch operations',
   version: '1.0.0',
+  effect: 'write',
   oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const oracleFusionFinancialsCreateExpenseLineTool: InternalToolConfig<
   name: 'Oracle Fusion Financials Create Expense Line',
   description: 'Create an Oracle Fusion expense line.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     expenseReportUniqId: {

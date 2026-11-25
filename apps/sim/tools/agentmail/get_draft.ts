@@ -8,6 +8,7 @@ export const agentmailGetDraftTool: ToolConfig<GetDraftParams, GetDraftResult> =
   name: 'Get Draft',
   description: 'Get details of a specific email draft in AgentMail',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

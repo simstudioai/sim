@@ -16,6 +16,7 @@ export const spotifyGetPlaybackStateTool: ToolConfig<
   name: 'Spotify Get Playback State',
   description: 'Get the current playback state including device, track, and progress.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

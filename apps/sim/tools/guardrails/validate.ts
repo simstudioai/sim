@@ -76,6 +76,7 @@ export const guardrailsValidateTool: InternalToolConfig<
   description:
     'Validate content using guardrails (JSON, regex, hallucination check, or PII detection)',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     input: {

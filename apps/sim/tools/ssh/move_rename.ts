@@ -6,6 +6,7 @@ export const moveRenameTool: InternalToolConfig<SSHMoveRenameParams, SSHResponse
   name: 'SSH Move/Rename',
   description: 'Move or rename a file or directory on the remote SSH server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

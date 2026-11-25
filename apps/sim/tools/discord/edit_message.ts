@@ -11,6 +11,7 @@ export const discordEditMessageTool: ToolConfig<
   name: 'Discord Edit Message',
   description: 'Edit an existing message in a Discord channel',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const vercelCancelDeploymentTool: ToolConfig<
   name: 'Vercel Cancel Deployment',
   description: 'Cancel a running Vercel deployment',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

@@ -19,6 +19,7 @@ export const instagramReplyToCommentTool: ToolConfig<
   name: 'Instagram Reply to Comment',
   description: 'Reply to a comment on Instagram media',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

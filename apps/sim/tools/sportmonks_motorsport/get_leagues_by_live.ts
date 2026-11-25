@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetLeaguesByLiveTool: ToolConfig<
   name: 'Get Leagues by Live',
   description: 'Retrieve all motorsport leagues that currently have live fixtures from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

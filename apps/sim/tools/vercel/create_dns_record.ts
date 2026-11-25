@@ -14,6 +14,7 @@ export const vercelCreateDnsRecordTool: ToolConfig<
   name: 'Vercel Create DNS Record',
   description: 'Create a DNS record for a domain in a Vercel account',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

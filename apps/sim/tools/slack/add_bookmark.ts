@@ -7,6 +7,7 @@ export const slackAddBookmarkTool = createSlackWebApiTool({
   id: 'slack_add_bookmark',
   name: 'Slack Add Bookmark',
   description: 'Add a link bookmark to a Slack channel.',
+  effect: 'write',
   endpoint: 'bookmarks.add',
   method: 'POST',
   oauth: {

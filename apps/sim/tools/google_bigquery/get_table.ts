@@ -13,6 +13,7 @@ export const googleBigQueryGetTableTool: ToolConfig<
   name: 'BigQuery Get Table',
   description: 'Get metadata and schema for a Google BigQuery table',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

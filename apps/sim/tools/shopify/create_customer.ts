@@ -16,6 +16,7 @@ export const shopifyCreateCustomerTool: ToolConfig<
   name: 'Shopify Create Customer',
   description: 'Create a new customer in your Shopify store',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

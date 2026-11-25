@@ -6,6 +6,7 @@ export const playhtTtsTool: InternalToolConfig<PlayHtTtsParams, TtsBlockResponse
   name: 'PlayHT TTS',
   description: 'Convert text to speech using PlayHT (voice cloning)',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     text: {

@@ -6,6 +6,7 @@ export const appendNoteTool: ToolConfig<ObsidianAppendNoteParams, ObsidianAppend
   name: 'Obsidian Append to Note',
   description: 'Append content to an existing note in your Obsidian vault',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

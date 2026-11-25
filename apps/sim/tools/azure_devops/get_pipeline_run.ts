@@ -10,6 +10,7 @@ export const getPipelineRunTool: ToolConfig<GetPipelineRunParams, GetPipelineRun
   description:
     'Get details for a specific pipeline run in an Azure DevOps project. Returns run state, result, timestamps, and the pipeline reference.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

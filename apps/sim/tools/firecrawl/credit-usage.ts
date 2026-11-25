@@ -10,6 +10,7 @@ export const creditUsageTool: ToolConfig<FirecrawlCreditUsageParams, FirecrawlCr
     name: 'Firecrawl Credit Usage',
     description: 'Retrieve the remaining and allocated Firecrawl credits for the team.',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       apiKey: {

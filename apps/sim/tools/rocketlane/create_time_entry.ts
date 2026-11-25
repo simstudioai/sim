@@ -19,6 +19,7 @@ export const rocketlaneCreateTimeEntryTool: ToolConfig<
   description:
     'Create a time entry in Rocketlane against an adhoc activity, task, project phase, or project',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

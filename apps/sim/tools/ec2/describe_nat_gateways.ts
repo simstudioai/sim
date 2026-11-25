@@ -16,6 +16,7 @@ export const describeNatGatewaysTool: InternalToolConfig<
   name: 'EC2 Describe NAT Gateways',
   description: 'List NAT gateways with their state, subnet, and IP addresses',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -7,6 +7,7 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
   name: 'Exa Answer',
   description: 'Get an AI-generated answer to a question with citations from the web using Exa AI.',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     query: {

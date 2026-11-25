@@ -14,6 +14,7 @@ export const escalationPathsCreateTool: ToolConfig<
   name: 'Create Escalation Path',
   description: 'Create a new escalation path in incident.io',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

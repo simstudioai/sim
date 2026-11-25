@@ -33,6 +33,7 @@ export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkf
   description:
     'Trigger a workflow dispatch event for a GitHub Actions workflow. The workflow must have a workflow_dispatch trigger configured. Returns 204 No Content on success.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -119,6 +120,7 @@ export const triggerWorkflowV2Tool: ToolConfig = {
   name: triggerWorkflowTool.name,
   description: triggerWorkflowTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: triggerWorkflowTool.params,
   request: triggerWorkflowTool.request,
   oauth: triggerWorkflowTool.oauth,

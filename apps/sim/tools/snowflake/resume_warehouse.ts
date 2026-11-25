@@ -14,6 +14,7 @@ export const resumeWarehouseTool: ToolConfig<SnowflakeWarehouseParams, Snowflake
   {
     id: 'snowflake_resume_warehouse',
     version: '1.0.0',
+    effect: 'write',
     oauth: SNOWFLAKE_OAUTH,
     name: 'Snowflake Resume Warehouse',
     description: 'Resume a Snowflake virtual warehouse if it is suspended.',

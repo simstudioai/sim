@@ -16,6 +16,7 @@ export const confirmBookingTool: ToolConfig<
   name: 'Cal.com Confirm Booking',
   description: 'Confirm a pending booking that requires confirmation',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

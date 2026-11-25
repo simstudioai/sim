@@ -20,6 +20,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
   name: 'Write to Google Sheets',
   description: 'Write data to a Google Sheets spreadsheet',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -197,9 +198,9 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
   name: 'Write to Google Sheets V2',
   description: 'Write data to a specific sheet in a Google Sheets spreadsheet',
   version: '2.0.0',
+  effect: 'write',
 
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'spreadsheetId', label: 'Spreadsheet', target: true },

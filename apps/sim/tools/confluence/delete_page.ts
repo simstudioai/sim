@@ -26,6 +26,7 @@ export const confluenceDeletePageTool: InternalToolConfig<
   description:
     'Delete a Confluence page. By default moves to trash; use purge=true to permanently delete.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

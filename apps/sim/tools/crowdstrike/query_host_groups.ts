@@ -17,6 +17,7 @@ export const crowdstrikeQueryHostGroupsTool: InternalToolConfig<
   description:
     'Search CrowdStrike Falcon host groups with a Falcon Query Language filter and return their IDs (GET /devices/queries/host-groups/v1). Requires the "Host groups: Read" API scope.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

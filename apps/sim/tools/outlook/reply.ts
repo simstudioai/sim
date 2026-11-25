@@ -8,6 +8,7 @@ export const outlookReplyTool: ToolConfig<OutlookReplyParams, OutlookReplyRespon
   name: 'Outlook Reply',
   description: 'Reply to the sender of an Outlook message with a comment',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

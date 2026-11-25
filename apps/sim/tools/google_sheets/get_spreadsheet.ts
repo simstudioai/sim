@@ -10,10 +10,11 @@ export const getSpreadsheetV2Tool: ToolConfig<
   GoogleSheetsV2GetSpreadsheetResponse
 > = {
   id: 'google_sheets_get_spreadsheet_v2',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Get Spreadsheet Info V2',
   description: 'Get metadata about a Google Sheets spreadsheet including title and sheet list',
   version: '2.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

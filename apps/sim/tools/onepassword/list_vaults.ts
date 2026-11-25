@@ -12,6 +12,7 @@ export const listVaultsTool: InternalToolConfig<
   name: '1Password List Vaults',
   description: 'List all vaults accessible by the Connect token or Service Account',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     connectionMode: {

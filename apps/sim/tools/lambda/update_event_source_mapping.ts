@@ -14,6 +14,7 @@ export const updateEventSourceMappingTool: InternalToolConfig<
   name: 'Lambda Update Event Source Mapping',
   description: 'Update the batching, retry, filtering, or enabled state of an event source mapping',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

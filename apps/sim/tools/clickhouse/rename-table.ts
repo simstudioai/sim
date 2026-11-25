@@ -12,6 +12,7 @@ export const renameTableTool: InternalToolConfig<
   name: 'ClickHouse Rename Table',
   description: 'Rename a ClickHouse table',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

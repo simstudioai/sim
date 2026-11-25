@@ -18,6 +18,7 @@ export const getCiTool: ToolConfig<ServiceNowGetCiParams, ServiceNowGetCiRespons
   description:
     'Retrieve a configuration item and its CMDB relationships through the CMDB Instance API. Returns the CI attributes plus its inbound and outbound relations, each carrying the related CI and the relationship type.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

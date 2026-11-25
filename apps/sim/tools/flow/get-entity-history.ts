@@ -24,6 +24,7 @@ export const flowGetEntityHistoryTool: ToolConfig<
   description:
     'Read a page of change history for up to 500 entities. Keep project, branch, and entity IDs fixed while paging; restart if a rebase expires the cursor.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

@@ -30,6 +30,7 @@ export const managedAgentCreateSessionTool: InternalToolConfig<
   description:
     'Create a Claude Platform Managed Agent session and return its id without waiting for a reply.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

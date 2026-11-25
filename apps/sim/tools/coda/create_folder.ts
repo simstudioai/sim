@@ -19,6 +19,7 @@ export const codaCreateFolderTool: ToolConfig<CodaCreateFolderParams, CodaFolder
   name: 'Coda Create Folder',
   description: 'Create a folder in a Coda workspace',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

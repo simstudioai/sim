@@ -14,6 +14,7 @@ export const getFunctionConfigurationTool: InternalToolConfig<
   name: 'Lambda Get Function Configuration',
   description: "Get a function's version-specific configuration",
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

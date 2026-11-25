@@ -13,6 +13,7 @@ export const getLogEventsTool: InternalToolConfig<
   name: 'CloudWatch Get Log Events',
   description: 'Retrieve log events from a specific CloudWatch log stream',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

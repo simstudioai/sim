@@ -18,6 +18,7 @@ export const zohoDeskGetAgentTool: ToolConfig<ZohoDeskGetAgentParams, ZohoDeskGe
   name: 'Zoho Desk Get Agent',
   description: 'Get Agent in Zoho Desk.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

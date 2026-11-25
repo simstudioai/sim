@@ -32,6 +32,7 @@ export const spotifyGetShowEpisodesTool: ToolConfig<
   name: 'Spotify Get Show Episodes',
   description: 'Get episodes from a podcast show.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

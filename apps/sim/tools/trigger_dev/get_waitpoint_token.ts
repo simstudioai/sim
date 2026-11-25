@@ -20,6 +20,7 @@ export const triggerDevGetWaitpointTokenTool: ToolConfig<
   description:
     'Retrieve a Trigger.dev waitpoint token by its ID, including its status, timeout, and completion data.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const getZoneTool: ToolConfig<CloudflareGetZoneParams, CloudflareGetZoneR
   name: 'Cloudflare Get Zone',
   description: 'Gets details for a specific zone (domain) by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

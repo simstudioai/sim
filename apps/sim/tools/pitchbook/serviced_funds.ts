@@ -9,6 +9,7 @@ export const pitchbookServicedFundsTool: ToolConfig<PitchbookProfileParams, Pitc
   description:
     'Retrieve the funds a service provider has worked with and the service provided to each',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {
