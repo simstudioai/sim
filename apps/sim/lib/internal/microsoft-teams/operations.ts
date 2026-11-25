@@ -8,6 +8,7 @@ import {
   type MicrosoftTeamsGraphObject,
 } from '@/lib/internal/microsoft-teams/client'
 import { MicrosoftTeamsOperationError } from '@/lib/internal/microsoft-teams/errors'
+import { rewritesTeamsMessage } from '@/lib/internal/microsoft-teams/message-rewrite'
 import type {
   MicrosoftTeamsWriteChannelInput,
   MicrosoftTeamsWriteChatInput,
@@ -25,7 +26,6 @@ import type { UserFile } from '@/executor/types'
 
 const MAX_GRAPH_RESPONSE_BYTES = 2 * 1024 * 1024
 const MAX_TEAMS_FILE_SIZE = 4 * 1024 * 1024
-const MENTION_PATTERN = /<at>[^<]+<\/at>/i
 
 const logger = createLogger('MicrosoftTeamsOperations')
 
@@ -286,7 +286,7 @@ async function sendMessage(args: {
   plainMetadata: (data: MicrosoftTeamsGraphObject) => Record<string, unknown>
   enhancedMetadata: (data: MicrosoftTeamsGraphObject) => Record<string, unknown>
 }) {
-  const enhanced = Boolean(args.files?.length || MENTION_PATTERN.test(args.content))
+  const enhanced = rewritesTeamsMessage(args.content, args.files)
   const requestedContentType: 'text' | 'html' = args.contentType === 'html' ? 'html' : 'text'
   const client = new MicrosoftTeamsClient(args.accessToken)
   if (!enhanced) {

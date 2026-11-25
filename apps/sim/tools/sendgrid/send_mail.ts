@@ -1,4 +1,5 @@
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
+import { dryRunId } from '@/tools/dry-run'
 import type { SendMailParams, SendMailResult } from '@/tools/sendgrid/types'
 import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -133,6 +134,13 @@ export const sendGridSendMailTool: InternalToolConfig<SendMailParams, SendMailRe
       attachments: params.attachments,
     }),
   },
+
+  /** A dry run's placeholder holds the recipient and subject the call sends; its id is a placeholder. */
+  dryRunOutput: (params) => ({
+    messageId: dryRunId('message'),
+    to: params.to,
+    subject: params.subject || '',
+  }),
 
   transformResponse: async (response): Promise<SendMailResult> => {
     const data = await response.json()

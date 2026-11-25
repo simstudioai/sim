@@ -1,4 +1,5 @@
 import type { AirtableCreateParams, AirtableCreateResponse } from '@/tools/airtable/types'
+import { placeholderRecords } from '@/tools/airtable/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, AirtableCreateResponse> = {
@@ -60,6 +61,12 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
       ...(params.typecast != null ? { typecast: params.typecast } : {}),
     }),
   },
+
+  /** A dry run's placeholder holds the records the call creates, their ids placeholders. */
+  dryRunOutput: (params) => ({
+    records: placeholderRecords(params.records),
+    metadata: { recordCount: params.records.length },
+  }),
 
   transformResponse: async (response) => {
     const data = await response.json()

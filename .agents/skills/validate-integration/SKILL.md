@@ -88,6 +88,9 @@ For **every** tool file, check:
       `request` is not `null`, and every read runs for real; a write absent from `stubbed` counts
       only if its block ran (not on an untaken branch or `--mock`ed) (rules: `add-tools` →
       Declaring the effect)
+- [ ] A write's `dryRunOutput`, where it declares one, echoes only what its request determines,
+      provider-assigned ids as `dryRunId(kind, n)`, and shares any param normalisation with the
+      request builder through a named helper (rules: `add-tools` → Declaring the effect)
 
 ### Params
 - [ ] All required API params are marked `required: true`

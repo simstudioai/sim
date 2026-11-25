@@ -14,9 +14,8 @@ export function sampleBlockOutput(block: {
 }): Record<string, unknown> {
   const subBlocks: Record<string, { value: unknown }> = {}
   for (const [key, value] of Object.entries(block.params)) subBlocks[key] = { value }
-  const sample = generateMockPayloadFromOutputsDefinition(
-    getEffectiveBlockOutputs(block.type, subBlocks)
-  )
+  const outputs = getEffectiveBlockOutputs(block.type, subBlocks)
+  const sample = withEmptyFileLists(outputs, generateMockPayloadFromOutputsDefinition(outputs))
   return Object.fromEntries(
     Object.entries(sample).filter(([field]) => !isRunControlledOutputField(field))
   )
@@ -29,6 +28,30 @@ function declaredFields(output: unknown): Record<string, unknown> | null {
   return (output.type === 'object' || output.type === 'json') && isPlainRecord(output.properties)
     ? output.properties
     : null
+}
+
+/**
+ * `value` with each `file[]` its declared `output` holds empty, through declared fields and array
+ * items: a placeholder stores no file to reference.
+ */
+function emptyFileLists(output: unknown, value: unknown): unknown {
+  if (isPlainRecord(output) && output.type === 'file[]') return []
+  const fields = declaredFields(output)
+  if (fields) return isPlainRecord(value) ? withEmptyFileLists(fields, value) : value
+  if (isPlainRecord(output) && output.type === 'array' && Array.isArray(value)) {
+    return value.map((item) => emptyFileLists(output.items, item))
+  }
+  return value
+}
+
+/** {@link emptyFileLists} over each field of a sample of `fields`. */
+function withEmptyFileLists(
+  fields: Record<string, unknown>,
+  sample: Record<string, unknown>
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(sample).map(([field, value]) => [field, emptyFileLists(fields[field], value)])
+  )
 }
 
 /**
@@ -77,6 +100,6 @@ export function sampleToolOutput(
 ): Record<string, unknown> {
   const outputs = getToolOutputsMetadata(toolId)
   if (!outputs) return {}
-  const sample = generateMockPayloadFromOutputsDefinition(outputs)
+  const sample = withEmptyFileLists(outputs, generateMockPayloadFromOutputsDefinition(outputs))
   return echoed ? overlayFields(outputs, sample, echoed) : sample
 }

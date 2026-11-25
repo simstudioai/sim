@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotUpdateDealParams, HubSpotUpdateDealResponse } from '@/tools/hubspot/types'
 import { DEAL_OBJECT_OUTPUT } from '@/tools/hubspot/types'
+import { parseHubSpotProperties, placeholderCrmRecord } from '@/tools/hubspot/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -66,19 +67,17 @@ export const hubspotUpdateDealTool: ToolConfig<HubSpotUpdateDealParams, HubSpotU
         }
       },
       body: (params) => {
-        let properties = params.properties
-        if (typeof properties === 'string') {
-          try {
-            properties = JSON.parse(properties)
-          } catch {
-            throw new Error(
-              'Invalid JSON format for properties. Please provide a valid JSON object.'
-            )
-          }
-        }
+        const properties = parseHubSpotProperties(params.properties)
         return { properties }
       },
     },
+
+    dryRunOutput: (params) =>
+      placeholderCrmRecord(
+        'deal',
+        params.properties,
+        params.idProperty ? undefined : params.dealId.trim()
+      ),
 
     transformResponse: async (response: Response) => {
       const data = await response.json()

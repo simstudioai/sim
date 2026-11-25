@@ -124,6 +124,14 @@ export const knowledgeUpsertDocumentTool: InternalToolConfig<
     },
   },
 
+  /**
+   * A dry run's placeholder names the document the call writes. Its id stays a placeholder: an
+   * upsert always creates a new document, and an id the call names becomes `previousDocumentId`.
+   */
+  dryRunOutput: (params) => ({
+    data: { documentName: inferDocumentFileInfo(params.name.trim()).filename },
+  }),
+
   transformResponse: async (response): Promise<KnowledgeUpsertDocumentResponse> => {
     const result = await response.json()
     const data = result.data ?? result

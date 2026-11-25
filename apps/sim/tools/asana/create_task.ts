@@ -1,4 +1,5 @@
 import type { AsanaCreateTaskParams, AsanaCreateTaskResponse } from '@/tools/asana/types'
+import { dryRunId } from '@/tools/dry-run'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const asanaCreateTaskTool: InternalToolConfig<
@@ -65,6 +66,14 @@ export const asanaCreateTaskTool: InternalToolConfig<
       due_on: params.due_on,
     }),
   },
+
+  /** A dry run's placeholder holds the open task the call creates; its gid is a placeholder. */
+  dryRunOutput: (params) => ({
+    gid: dryRunId('task'),
+    name: params.name,
+    notes: params.notes || '',
+    completed: false,
+  }),
 
   transformResponse: async (response: Response) => {
     const responseText = await response.text()

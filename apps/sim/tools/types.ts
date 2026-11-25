@@ -287,7 +287,9 @@ export interface ToolConfig<P = any, R = any> {
    * `properties` (a field it does not declare is dropped), item by item where it declares array
    * `items`, and anywhere else the value replaces the sample whole, so a hook returns an undeclared
    * shape (a `json` row) complete, with placeholders for what the request cannot know. Whatever it
-   * leaves out keeps the sample.
+   * leaves out keeps the sample. An id the provider would assign is `dryRunId` (`@/tools/dry-run`),
+   * and a value the request builder normalises (parsed JSON, rows built from objects) comes from a
+   * named helper the builder and the hook share, never a second copy of the builder's logic.
    */
   dryRunOutput?: (params: P) => Record<string, unknown>
 

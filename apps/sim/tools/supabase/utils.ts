@@ -33,3 +33,26 @@ export function encodeStoragePath(path: string): string {
     .map((segment) => encodeURIComponent(segment.trim()))
     .join('/')
 }
+
+/** The rows an insert or upsert sends: one object as a one-row array, anything else as given. */
+export function supabaseWriteRows<T>(data: T): T | T[] {
+  return typeof data === 'object' && !Array.isArray(data) ? [data] : data
+}
+
+/** The message an insert or upsert reports for the rows it wrote. */
+export function supabaseWriteMessage(verb: 'inserted' | 'upserted', count: number): string {
+  return `Successfully ${verb} ${count} row${count === 1 ? '' : 's'} into Supabase`
+}
+
+/**
+ * A dry run's placeholder for an insert or upsert: the rows the call writes, without the columns
+ * the database fills in.
+ */
+export function supabaseWritePlaceholder(data: unknown, verb: 'inserted' | 'upserted') {
+  const rows = supabaseWriteRows(data)
+  if (!Array.isArray(rows)) return {}
+  return {
+    message: supabaseWriteMessage(verb, rows.length),
+    results: rows,
+  }
+}

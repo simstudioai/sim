@@ -1,6 +1,15 @@
 import type { DiscordSendMessageParams, DiscordSendMessageResponse } from '@/tools/discord/types'
+import { dryRunId } from '@/tools/dry-run'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
+
+/** The text a message sends: a default when it has neither text nor files. */
+function sentContent(params: DiscordSendMessageParams): string | undefined {
+  return (
+    params.content ||
+    (Array.isArray(params.files) && params.files.length > 0 ? undefined : 'Message sent from Sim')
+  )
+}
 
 export const discordSendMessageTool: InternalToolConfig<
   DiscordSendMessageParams,
@@ -51,11 +60,7 @@ export const discordSendMessageTool: InternalToolConfig<
       return {
         botToken: params.botToken.trim(),
         channelId: params.channelId.trim(),
-        content:
-          params.content ||
-          (Array.isArray(params.files) && params.files.length > 0
-            ? undefined
-            : 'Message sent from Sim'),
+        content: sentContent(params),
         files: params.files || null,
       }
     },
@@ -69,6 +74,15 @@ export const discordSendMessageTool: InternalToolConfig<
     return {
       success: true,
       output: data.output,
+    }
+  },
+
+  /** A dry run's placeholder holds the text the call sends and the channel it names. */
+  dryRunOutput: (params) => {
+    const content = sentContent(params) ?? ''
+    return {
+      message: content,
+      data: { id: dryRunId('message'), content, channel_id: params.channelId.trim() },
     }
   },
 

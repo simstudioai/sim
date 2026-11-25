@@ -1,7 +1,58 @@
+import { dryRunId } from '@/tools/dry-run'
 import type { LinearCreateIssueParams, LinearCreateIssueResponse } from '@/tools/linear/types'
 import { ISSUE_EXTENDED_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** The `IssueCreateInput` a call sends: its title and team, and each optional field it sets. */
+function issueCreateInput(params: LinearCreateIssueParams): Record<string, unknown> {
+  if (!params.title || !params.title.trim()) {
+    throw new Error('Title is required to create a Linear issue')
+  }
+
+  const input: Record<string, unknown> = {
+    teamId: params.teamId,
+    title: params.title,
+  }
+
+  if (params.projectId != null && params.projectId !== '') {
+    input.projectId = params.projectId
+  }
+  if (params.description != null && params.description !== '') {
+    input.description = params.description
+  }
+  if (params.stateId != null && params.stateId !== '') {
+    input.stateId = params.stateId
+  }
+  if (params.assigneeId != null && params.assigneeId !== '') {
+    input.assigneeId = params.assigneeId
+  }
+  if (params.priority != null) {
+    input.priority = Number(params.priority)
+  }
+  if (params.estimate != null) {
+    input.estimate = Number(params.estimate)
+  }
+  if (Array.isArray(params.labelIds)) {
+    input.labelIds = params.labelIds
+  }
+  if (params.cycleId != null && params.cycleId !== '') {
+    input.cycleId = params.cycleId
+  }
+  if (params.parentId != null && params.parentId !== '') {
+    input.parentId = params.parentId
+  }
+  if (params.dueDate != null && params.dueDate !== '') {
+    input.dueDate = params.dueDate
+  }
+  if (Array.isArray(params.subscriberIds)) {
+    input.subscriberIds = params.subscriberIds
+  }
+  if (params.projectMilestoneId != null && params.projectMilestoneId !== '') {
+    input.projectMilestoneId = params.projectMilestoneId
+  }
+  return input
+}
 
 export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCreateIssueResponse> =
   {
@@ -116,52 +167,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
         }
       },
       body: (params) => {
-        if (!params.title || !params.title.trim()) {
-          throw new Error('Title is required to create a Linear issue')
-        }
-
-        const input: Record<string, any> = {
-          teamId: params.teamId,
-          title: params.title,
-        }
-
-        if (params.projectId != null && params.projectId !== '') {
-          input.projectId = params.projectId
-        }
-        if (params.description != null && params.description !== '') {
-          input.description = params.description
-        }
-        if (params.stateId != null && params.stateId !== '') {
-          input.stateId = params.stateId
-        }
-        if (params.assigneeId != null && params.assigneeId !== '') {
-          input.assigneeId = params.assigneeId
-        }
-        if (params.priority != null) {
-          input.priority = Number(params.priority)
-        }
-        if (params.estimate != null) {
-          input.estimate = Number(params.estimate)
-        }
-        if (params.labelIds != null && Array.isArray(params.labelIds)) {
-          input.labelIds = params.labelIds
-        }
-        if (params.cycleId != null && params.cycleId !== '') {
-          input.cycleId = params.cycleId
-        }
-        if (params.parentId != null && params.parentId !== '') {
-          input.parentId = params.parentId
-        }
-        if (params.dueDate != null && params.dueDate !== '') {
-          input.dueDate = params.dueDate
-        }
-        if (params.subscriberIds != null && Array.isArray(params.subscriberIds)) {
-          input.subscriberIds = params.subscriberIds
-        }
-        if (params.projectMilestoneId != null && params.projectMilestoneId !== '') {
-          input.projectMilestoneId = params.projectMilestoneId
-        }
-
+        const input = issueCreateInput(params)
         return {
           query: `
         mutation CreateIssue($input: IssueCreateInput!) {
@@ -221,6 +227,16 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
           },
         }
       },
+    },
+
+    /**
+     * A dry run's placeholder holds the fields the call sets on the issue it creates; its id, URL,
+     * times, and the state, assignee, labels and subscribers Linear resolves from ids stay
+     * placeholders.
+     */
+    dryRunOutput: (params) => {
+      const { stateId, assigneeId, labelIds, subscriberIds, ...fields } = issueCreateInput(params)
+      return { issue: { id: dryRunId('issue'), ...fields } }
     },
 
     transformResponse: async (response) => {

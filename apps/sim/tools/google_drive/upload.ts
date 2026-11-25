@@ -1,3 +1,4 @@
+import { dryRunId } from '@/tools/dry-run'
 import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from '@/tools/google_drive/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -67,6 +68,24 @@ export const uploadTool: InternalToolConfig<GoogleDriveToolParams, GoogleDriveUp
       mimeType: params.mimeType,
       folderId: params.folderSelector || params.folderId,
     }),
+  },
+
+  /**
+   * A dry run's placeholder names the file the call uploads and the folder it names, with the MIME
+   * type it requests (text content defaults to plain text; a stored file's own type is resolved at
+   * upload); its id is a placeholder.
+   */
+  dryRunOutput: (params) => {
+    const mimeType = params.mimeType || (params.file ? undefined : 'text/plain')
+    const folderId = (params.folderSelector || params.folderId)?.trim()
+    return {
+      file: {
+        id: dryRunId('file'),
+        name: params.fileName,
+        ...(mimeType ? { mimeType } : {}),
+        ...(folderId ? { parents: [folderId] } : {}),
+      },
+    }
   },
 
   transformResponse: async (response: Response) => {

@@ -164,6 +164,21 @@ export const zendeskCreateTicketTool: ToolConfig<
     },
   },
 
+  /**
+   * A dry run's placeholder holds the subject, first comment and the priority, status and type
+   * the call sets on the ticket it creates; Zendesk's defaults and its id stay placeholders.
+   */
+  dryRunOutput: (params) => ({
+    ticket: {
+      subject: params.subject,
+      raw_subject: params.subject,
+      description: params.description,
+      ...(params.priority ? { priority: params.priority } : {}),
+      ...(params.status ? { status: params.status } : {}),
+      ...(params.type ? { type: params.type } : {}),
+    },
+  }),
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const data = await response.json()

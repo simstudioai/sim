@@ -101,6 +101,14 @@ export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
     },
   },
 
+  /**
+   * A dry run's placeholder holds the title and body of the open issue the call creates; its
+   * number, URL and times stay placeholders.
+   */
+  dryRunOutput: (params) => ({
+    metadata: { title: params.title, state: 'open', body: params.body || null },
+  }),
+
   transformResponse: async (response) => {
     const issue = await response.json()
 
@@ -162,6 +170,17 @@ export const createIssueV2Tool: ToolConfig<CreateIssueParams, any> = {
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createIssueTool.params,
   request: createIssueTool.request,
+
+  /**
+   * A dry run's placeholder holds the title and body of the open issue the call creates; its id,
+   * number, URL and times stay placeholders.
+   */
+  dryRunOutput: (params) => ({
+    title: params.title,
+    state: 'open',
+    body: params.body || null,
+    closed_at: null,
+  }),
 
   transformResponse: async (response: Response) => {
     const issue = await response.json()

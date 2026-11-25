@@ -1,3 +1,4 @@
+import { placeholderTeamsMessage } from '@/tools/microsoft_teams/dry-run'
 import type {
   MicrosoftTeamsToolParams,
   MicrosoftTeamsWriteResponse,
@@ -68,6 +69,12 @@ export const writeChannelTool: InternalToolConfig<
         'Body format: "text" (default) or "html". Mentions and attachments always send HTML',
     },
   },
+
+  dryRunOutput: (params) => ({
+    ...placeholderTeamsMessage(params),
+    teamId: params.teamId?.trim(),
+    channelId: params.channelId?.trim(),
+  }),
 
   outputs: {
     success: { type: 'boolean', description: 'Teams channel message send success status' },

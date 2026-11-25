@@ -4,6 +4,7 @@ import type {
   HubSpotCreateCompanyResponse,
 } from '@/tools/hubspot/types'
 import { COMPANY_OBJECT_OUTPUT } from '@/tools/hubspot/types'
+import { parseHubSpotProperties, placeholderCrmRecord } from '@/tools/hubspot/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotCreateCompany')
@@ -60,14 +61,7 @@ export const hubspotCreateCompanyTool: ToolConfig<
       }
     },
     body: (params) => {
-      let properties = params.properties
-      if (typeof properties === 'string') {
-        try {
-          properties = JSON.parse(properties)
-        } catch {
-          throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
-        }
-      }
+      const properties = parseHubSpotProperties(params.properties)
 
       const body: any = {
         properties,
@@ -90,6 +84,8 @@ export const hubspotCreateCompanyTool: ToolConfig<
       return body
     },
   },
+
+  dryRunOutput: (params) => placeholderCrmRecord('company', params.properties),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()

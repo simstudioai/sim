@@ -66,6 +66,12 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
     }),
   },
 
+  /** A dry run's placeholder holds the record the call names, with the fields it writes. */
+  dryRunOutput: (params) => ({
+    record: { id: params.recordId.trim(), fields: params.fields },
+    metadata: { recordCount: 1 },
+  }),
+
   transformResponse: async (response) => {
     const data = await response.json()
     return {
