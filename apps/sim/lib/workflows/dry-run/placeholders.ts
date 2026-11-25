@@ -59,22 +59,27 @@ function* tokensIn(text: string): Generator<string> {
 
 /**
  * The placeholders a dry run's answers returned: every `dry_run_<kind>_<n>` string (see
- * `dryRunId`) and every placeholder number (see `dryRunNumber`), minted by a tool's `dryRunOutput`
- * for an id the provider would assign, or by the sample for a field the request cannot know. Only
- * placeholder answers are registered, so a placeholder is a value the run made up, never one a
- * real call returned or the workflow was given. A read that would send one, as an id or inside
+ * `dryRunId`), minted by a tool's `dryRunOutput` for an id the provider would assign or by the
+ * sample for a field the request cannot know, and every placeholder number (see `dryRunNumber`),
+ * which only the sample mints. Only placeholder answers are registered, and a number the answer
+ * echoes from its request is not, so a placeholder is a value the run made up, never one a real
+ * call returned or the workflow was given. A read that would send one, as an id or inside
  * free text (a message quoting a placeholder title), depends on a write that was never sent.
  */
 export class PlaceholderTokens {
   private readonly tokens = new Set<string>()
   private readonly numbers = new Set<number>()
 
-  /** Registers the placeholders of a placeholder answer. */
-  register(returned: unknown): void {
+  /**
+   * Registers the placeholders of a placeholder answer, `returned`, except a number `echoed` (the
+   * part of it a tool's `dryRunOutput` echoed from the request) carries: that one was given.
+   */
+  register(returned: unknown, echoed: unknown = null): void {
+    const given = new Set(leavesOf(echoed).filter((value) => typeof value === 'number'))
     for (const value of leavesOf(returned)) {
       if (this.tokens.size + this.numbers.size >= MAX_TRACKED) return
       if (typeof value === 'number') {
-        if (isPlaceholderNumber(value)) this.numbers.add(value)
+        if (isPlaceholderNumber(value) && !given.has(value)) this.numbers.add(value)
       } else if (TOKEN.test(value.toLowerCase())) {
         this.tokens.add(value.toLowerCase())
       }

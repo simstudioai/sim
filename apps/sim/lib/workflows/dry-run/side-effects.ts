@@ -243,7 +243,8 @@ export class WriteStubPolicy implements SideEffectPolicy {
         ),
       onRequest: async (request) => {
         const reads = isReadRequest(request.method, request.headerNames)
-        const dependsOnStub = reads && this.placeholders.occursIn([request.url, request.body])
+        const dependsOnStub =
+          reads && this.placeholders.occursIn([request.url, request.headerValues, request.body])
         if (reads && !dependsOnStub) return 'send'
         if (allowed && !dependsOnStub) {
           this.allowed.add(
@@ -268,7 +269,7 @@ export class WriteStubPolicy implements SideEffectPolicy {
 
   stubCall(call: StubbedToolCall): Record<string, unknown> {
     const returned = sampleToolOutput(call.toolId, call.echoed, call.discoveredOutputs)
-    this.placeholders.register(returned)
+    this.placeholders.register(returned, call.echoed)
     this.stubbed.add({
       ...recordedSite(call),
       tool: call.toolId,

@@ -2286,28 +2286,39 @@ return created.id.toString()`
           code: `const res = await fetch('${server.url}${prefix}/code/' + <save.row.id>)
 return { status: res.status, stubbed: res.headers.get('x-sim-dry-run') }`,
         }),
+        block('header', 'function', {
+          language: 'javascript',
+          code: `const res = await fetch('${server.url}${prefix}/header', { headers: { 'X-Record-Id': <save.row.id> } })
+return res.headers.get('x-sim-dry-run')`,
+        }),
         block('fetch', 'api', { url: `${server.url}${prefix}/api/<save.row.id>`, method: 'GET' }),
         block('real', 'api', { url: `${server.url}${prefix}/api/row_8f3a2c`, method: 'GET' }),
       ],
       [
         ['start', 'save'],
         ['save', 'code'],
-        ['code', 'fetch'],
+        ['code', 'header'],
+        ['header', 'fetch'],
         ['fetch', 'real'],
       ]
     )
     const workflowId = await saveWorkflow(fixture.state)
 
-    const result = await run(workflowId, { dry: true, selectedOutputs: ['code.result'] })
+    const result = await run(workflowId, {
+      dry: true,
+      selectedOutputs: ['code.result', 'header.result'],
+    })
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     expect(arrivalsUnder(prefix)).toEqual([`GET ${prefix}/api/row_8f3a2c`])
     expect(result.blockOutputs?.['code.result']).toEqual({ status: 200, stubbed: 'stubbed' })
+    expect(result.blockOutputs?.['header.result']).toBe('stubbed')
     expect(
       result.sideEffects?.stubbed.map((entry) => [entry.block, entry.tool, entry.dependsOnStub])
     ).toEqual([
       ['save', 'table_upsert_row', false],
       ['code', 'function_execute', true],
+      ['header', 'function_execute', true],
       ['fetch', 'http_request', true],
     ])
   })

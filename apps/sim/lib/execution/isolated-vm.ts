@@ -82,8 +82,10 @@ interface IsolatedFetchRequest {
   /** As sent ({@link normalizeFetchMethod}); GET when the code named none. */
   method: string
   url: string
-  /** The names of the headers it carries, never their values. */
+  /** The names of the headers it carries. */
   headerNames: string[]
+  /** Their values, which may hold credentials: for the policy to search, never to record. */
+  headerValues: string[]
   body: string | undefined
 }
 
@@ -450,6 +452,7 @@ async function decideFetch(
     method: fetchOptions.method ?? 'GET',
     url,
     headerNames: Object.keys(fetchOptions.headers ?? {}),
+    headerValues: Object.values(fetchOptions.headers ?? {}),
     body: typeof fetchOptions.body === 'string' ? fetchOptions.body : undefined,
   })
   return decision === 'stub'

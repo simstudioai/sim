@@ -13,7 +13,7 @@ import { hubspotUpdateContactTool } from '@/tools/hubspot/update_contact'
 import { hubspotUpdateDealTool } from '@/tools/hubspot/update_deal'
 import { knowledgeUpsertDocumentTool } from '@/tools/knowledge/upsert_document'
 import { resendSendTool } from '@/tools/resend/send'
-import { answerUnsentWrite, describeToolRequest, unsentWriteFor } from '@/tools/side-effects'
+import { answerUnsentCall, describeToolRequest, unsentWriteFor } from '@/tools/side-effects'
 import { slackMessageTool } from '@/tools/slack/message'
 import type { ExecutableToolConfig } from '@/tools/types'
 
@@ -48,7 +48,7 @@ async function placeholderFor(toolId: string, params: Record<string, unknown>) {
     } as ExecutionContext,
   })
   if (!write) throw new Error('The policy sent the write')
-  const response = await answerUnsentWrite(write, {
+  const response = await answerUnsentCall(write, {
     params: callParams,
     registry: new ResolvedSecretTraceRegistry(),
     describe: (masked) => describeToolRequest(tool, masked),

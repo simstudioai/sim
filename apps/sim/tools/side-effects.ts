@@ -544,6 +544,7 @@ export function codeNetworkFor(input: {
         method: request.method,
         headerNames: request.headerNames,
         url: request.url,
+        headerValues: request.headerValues,
         body: request.body,
         describe: async () => {
           const redacted = await redactSideEffectPayload({

@@ -221,6 +221,7 @@ describe('code a dry run runs', () => {
       method: 'POST',
       url: 'https://hook.example/x',
       headerNames: [],
+      headerValues: [],
       body,
     })
 
@@ -241,7 +242,10 @@ describe('code a dry run runs', () => {
 
     const decision = await code.onRequest({
       method: 'POST',
+      url: 'https://hook.example/x',
       headerNames: [],
+      headerValues: [],
+      body: undefined,
       describe: async () => {
         throw new Error('redaction failed')
       },
@@ -262,7 +266,10 @@ describe('code a dry run runs', () => {
     let described = 0
     const request = {
       method: 'POST',
+      url: 'https://hook.example/x',
       headerNames: [],
+      headerValues: [],
+      body: undefined,
       describe: async () => {
         described++
         return { method: 'POST' }

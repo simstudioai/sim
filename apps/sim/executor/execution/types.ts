@@ -394,10 +394,11 @@ interface CodeNetworkRequest {
   /** The names of the headers it carries, never their values. */
   headerNames: string[]
   /**
-   * The URL and body it sends, unredacted: only searched for the run's placeholders (a read that
-   * would send one is stubbed), never recorded.
+   * The URL, header values and body it sends, unredacted: only searched for the run's placeholders
+   * (a read that would send one is stubbed), never recorded.
    */
   url: string
+  headerValues: string[]
   body: string | undefined
   /**
    * What the request would send (method, capped origin and path with query parameter names, header

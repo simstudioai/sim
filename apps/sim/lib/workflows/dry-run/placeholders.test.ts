@@ -39,4 +39,13 @@ describe('a dry run’s placeholder tokens', () => {
   ])('are not found in %s', (_, sent) => {
     expect(registered().occursIn({ sent })).toBe(false)
   })
+
+  it('leave out a number the answer echoed from its request, even one in the placeholder range', () => {
+    const tokens = new PlaceholderTokens()
+    const echoed = { row: { data: { customerId: 900_000_123 } } }
+    tokens.register({ row: { id: 'dry_run_row_1', data: { customerId: 900_000_123 } } }, echoed)
+
+    expect(tokens.occursIn({ sent: '/customers/900000123' })).toBe(false)
+    expect(tokens.occursIn({ sent: 'dry_run_row_1' })).toBe(true)
+  })
 })

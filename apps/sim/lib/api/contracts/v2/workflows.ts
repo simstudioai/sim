@@ -2026,7 +2026,7 @@ const v2RunSideEffectsSchema = z
           dependsOnStub: z
             .boolean()
             .describe(
-              'True for a read that was not sent because what it would send holds a placeholder the run returned earlier (a `dry_run_<kind>_<n>` string or a number above 900000000, such as a placeholder row id), so it depends on a write that was never sent.'
+              'True for a read that was not sent because what it would send holds a placeholder the run returned earlier (a `dry_run_<kind>_<n>` string or a number above 900000000, such as a placeholder row id), so it depends on a call that was never sent.'
             ),
           readOnlyHint: z
             .boolean()
@@ -2036,7 +2036,7 @@ const v2RunSideEffectsSchema = z
         })
       )
       .describe(
-        'Calls that were not sent, in the order the run reached them: writes, and reads that depend on one (`dependsOnStub`).'
+        'Calls that were not sent, in the order the run reached them: writes, every MCP call (`readOnlyHint` marks one its server declares read-only), and reads that would send a placeholder (`dependsOnStub`).'
       ),
     allowed: z
       .array(
