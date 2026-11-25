@@ -14,7 +14,11 @@ import { attachKnowledgeExport } from './knowledge-export'
 import { attachKnowledgeImport } from './knowledge-import'
 import { attachLogsFollow } from './logs-follow'
 import { attachResourceDirectoryCommands } from './resource-directory'
-import { WORKFLOW_SOURCE_LOOP_HELP, WORKSPACE_SOURCE_LOOP_HELP } from './source-loop-help'
+import {
+  WORKFLOW_SOURCE_LOOP_HELP,
+  WORKFLOW_SOURCE_SCOPE_HELP,
+  WORKSPACE_SOURCE_LOOP_HELP,
+} from './source-loop-help'
 import { attachTableImport } from './tables-import'
 import { attachWorkflowRunFollow } from './workflow-run-follow'
 import { attachWorkflowRunGet } from './workflow-run-get'
@@ -94,6 +98,7 @@ export function attachProtocolCommands(program: Command): void {
   const source = group(workflows, 'source').description(
     'Read and apply a workflow as TypeScript source (preview)'
   )
+  source.addHelpText('before', WORKFLOW_SOURCE_SCOPE_HELP)
   source.addHelpText('after', WORKFLOW_SOURCE_LOOP_HELP)
   attachWorkflowSourceGet(source)
   attachWorkflowSourceApply(source)

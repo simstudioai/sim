@@ -5,7 +5,9 @@
  */
 
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import type { BlockCatalog, ChildResults } from '@sim/workflow-code'
+import { isRecordLike } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
+import type { BlockCatalog, ChildResults, CompileResult } from '@sim/workflow-code'
 import { parseSourceBase, parseWorkflowLock, type WorkflowLockV1 } from '@sim/workflow-code'
 import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import {
@@ -48,7 +50,8 @@ import {
   WORKSPACE_TYPES_FILE,
   type WorkspaceTypes,
 } from './source-tree'
-import { storedEdgesWrite } from './stored-edges'
+import type { Diagnostic } from './source-ui'
+import { compilePrinted, runFailingFindings, storedEdgesOf } from './stored-edges'
 
 type SourceBase = ApplyWorkflowSourceBody['base']
 
@@ -291,7 +294,7 @@ async function writeSourceTree(
   workspaceTypes: WorkspaceTypes | null,
   blockTypes: readonly string[],
   childResults: ChildResults | null | undefined
-): Promise<SourceTree> {
+): Promise<SourceTree & PrintedReads> {
   const [previousLock, tree] = await Promise.all([
     readPreviousLock(dir),
     sourceTreeChange(dir, catalog, workspaceTypes, WORKFLOW_TREE, {
@@ -299,14 +302,56 @@ async function writeSourceTree(
       blockTypes,
     }),
   ])
-  const edges = storedEdgesWrite(source, catalog, childResults)
+  const compiled = compilePrinted(source, catalog, childResults)
+  const edges = storedEdgesOf(source, compiled)
   const written = await writeBack(
     dir,
     source,
     previousLock,
     edges ? { ...tree.change, write: [...tree.change.write, edges] } : tree.change
   )
-  return finishTree(dir, written, workspaceTypes, tree)
+  return { ...finishTree(dir, written, workspaceTypes, tree), ...printedReads(compiled) }
+}
+
+/** A canonical resource node: what `table('k')`, `credential('k')` and the like compile to. */
+function resourceNode(value: unknown): { kind: string; key: string } | null {
+  if (!isRecordLike(value) || value.$sim !== 'resource') return null
+  const { kind, key } = value
+  return typeof kind === 'string' && typeof key === 'string' ? { kind, key } : null
+}
+
+/** Every resource node inside a value, depth first. */
+export function resourceNodes(value: unknown): Array<{ kind: string; key: string }> {
+  const node = resourceNode(value)
+  if (node) return [node]
+  if (Array.isArray(value)) return value.flatMap(resourceNodes)
+  if (isRecordLike(value)) return Object.values(value).flatMap(resourceNodes)
+  return []
+}
+
+/** What a printed workflow reads beyond its own source, and the findings that fail its runs. */
+interface PrintedReads {
+  /**
+   * The tables its blocks read or write, by key, sorted: their columns and rows are edited in a
+   * workspace directory, not this one.
+   */
+  tables?: string[]
+  /** {@link runFailingFindings} of the printed source. */
+  runFindings: Diagnostic[]
+}
+
+function printedReads(compiled: CompileResult | null): PrintedReads {
+  const tables = new Set(
+    Object.values(compiled?.workflow?.blocks ?? {}).flatMap((block) =>
+      resourceNodes(block.params)
+        .filter((node) => node.kind === 'table')
+        .map((node) => node.key)
+    )
+  )
+  const runFindings = runFailingFindings(compiled)
+  return tables.size > 0
+    ? { tables: [...tables].sort(compareStrings), runFindings }
+    : { runFindings }
 }
 
 /** The workflow directory's tree beside the printed source. */
@@ -369,7 +414,7 @@ export async function writeSourceDirectory(
   source: PrintedSource,
   blockTypes: readonly string[],
   childResults: ChildResults | null | undefined
-): Promise<SourceTree> {
+): Promise<SourceTree & PrintedReads> {
   const [catalog, workspaceTypes] = await Promise.all([
     loadCatalog(client, {
       workspaceId: source.workspaceId,

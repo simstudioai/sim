@@ -209,6 +209,55 @@ describe('sim workflows source get --dir', () => {
     expect(agents).not.toContain('`slack.sendMessage`')
   })
 
+  it('names the tables the workflow uses and the output paths its runs fail on, which the read does not', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { codeFile, fn, table, trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('Invoices', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const lookup = table.queryRows('Lookup Customer', { tableId: table('customers') })",
+      "  const discount = fn('Apply Discount', { code: codeFile('./functions/apply-discount.js') })",
+      '  start.to(lookup)',
+      '  lookup.to(discount)',
+      '})',
+      '',
+    ].join('\n')
+    const read = {
+      code: 'W_UNRESOLVED_REF',
+      severity: 'warning',
+      message: '<nosuch.x> names no block.',
+      blockKey: 'applydiscount',
+    }
+    serve({
+      [SOURCE_PATH]: () => {
+        const answer = source(
+          {
+            'workflow.ts': workflow,
+            'functions/apply-discount.js':
+              'const customer = $ref.lookupcustomer.row\nreturn $ref.nosuch.x\n',
+          },
+          ['function', 'start_trigger', 'table_v2']
+        )
+        return { data: { ...answer.data, diagnostics: [read] } }
+      },
+    })
+
+    await get('--dir', outDir)
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed.tables).toEqual(['customers'])
+    expect(printed.diagnostics).toEqual([
+      expect.objectContaining({ code: 'W_UNRESOLVED_REF', message: read.message }),
+      expect.objectContaining({
+        code: 'W_UNKNOWN_OUTPUT_PATH',
+        file: 'functions/apply-discount.js',
+        line: 1,
+        hint: expect.stringContaining('rows'),
+      }),
+    ])
+  })
+
   it('writes a root AGENTS.md pointing at the guide, and never replaces one it did not write', async () => {
     serve({ [SOURCE_PATH]: () => source() })
 

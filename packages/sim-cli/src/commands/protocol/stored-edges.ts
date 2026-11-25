@@ -21,6 +21,7 @@ import { KIND_DIRS } from '@sim/workspace-code'
 import type { OperationClient } from '../../runtime/called-operations'
 import { digest, readSourceJson, SOURCE_STORED_EDGES_FILE } from './source-dir'
 import { cachedCatalogByHash, loadWorkflowCatalog } from './source-tree'
+import type { Diagnostic } from './source-ui'
 
 /** A printed source as a get, apply or create answers it. */
 interface PrintedAnswer {
@@ -97,24 +98,62 @@ function storedEdgesRecord(
 }
 
 /**
- * The `.sim/stored-edges.json` write for a printed source of one workflow, compiled against
- * `catalog` (the one it was printed with) and typed as it was printed: each child call by
- * `childResults`, which a workflow folder of a workspace directory takes from its workspace
- * directory and a workflow directory of its own has none of. A check compiles it the same way,
- * so a block it reports changed is one an edit changed. `null` when the answer has no fingerprint
- * or entry, or nothing to compile or type it with (`childResults` `null`: the workspace directory
- * could not be read); the record left on disk then names an older fingerprint, which a check
- * ignores.
+ * A printed source of one workflow compiled against `catalog` (the one it was printed with) and
+ * typed as it was printed: each child call by `childResults`, which a workflow folder of a
+ * workspace directory takes from its workspace directory and a workflow directory of its own has
+ * none of. A check compiles it the same way, so a block it reports changed is one an edit
+ * changed. `null` when the answer has no entry or lock, or nothing to compile or type it with
+ * (`childResults` `null`: the workspace directory could not be read).
  */
+export function compilePrinted(
+  answer: PrintedAnswer,
+  catalog: BlockCatalog | null,
+  childResults?: ChildResults | null
+): CompileResult | null {
+  if (childResults === null) return null
+  const input = catalog && printedInput(answer, catalog)
+  return input ? compileWorkflow({ ...input, childResults }) : null
+}
+
+/**
+ * The `.sim/stored-edges.json` write for a printed source of one workflow from its
+ * {@link compilePrinted} compile (`null` when it has none, or the answer no fingerprint); the
+ * record left on disk then names an older fingerprint, which a check ignores.
+ */
+export function storedEdgesOf(
+  answer: PrintedAnswer,
+  compiled: CompileResult | null
+): readonly [string, string] | null {
+  return compiled ? storedEdgesRecord(answer, compiled, '') : null
+}
+
+/** {@link storedEdgesOf} the {@link compilePrinted} compile of `answer`. */
 export function storedEdgesWrite(
   answer: PrintedAnswer,
   catalog: BlockCatalog | null,
   childResults?: ChildResults | null
 ): readonly [string, string] | null {
-  if (childResults === null) return null
-  const input = catalog && printedInput(answer, catalog)
-  if (!input) return null
-  return storedEdgesRecord(answer, compileWorkflow({ ...input, childResults }), '')
+  return storedEdgesOf(answer, compilePrinted(answer, catalog, childResults))
+}
+
+/**
+ * The findings of a printed source's compile that the server's read does not report and that fail
+ * a run reaching them after the block ran: an output path no block produces. `prefix` goes before
+ * each file path (`workflows/<key>/` in a workspace directory).
+ */
+export function runFailingFindings(compiled: CompileResult | null, prefix = ''): Diagnostic[] {
+  return (compiled?.diagnostics ?? [])
+    .filter((diagnostic) => diagnostic.code === 'W_UNKNOWN_OUTPUT_PATH')
+    .map(({ code, severity, message, hint, blockKey, span }) => ({
+      code,
+      severity,
+      message,
+      ...(hint !== undefined ? { hint } : {}),
+      ...(blockKey !== undefined ? { blockKey } : {}),
+      file: `${prefix}${span.file}`,
+      line: span.line,
+      column: span.column,
+    }))
 }
 
 /** The workflow folders a workspace answer's files hold, by key, each as a printed source. */
@@ -147,6 +186,8 @@ function parseJson(text: string): unknown {
 /** The stored-edges records of a workspace answer, and the folders left without one. */
 export interface WorkflowFolderRecords {
   records: Array<readonly [string, string]>
+  /** {@link runFailingFindings} of every folder, by its path in the workspace directory. */
+  runFindings: Diagnostic[]
   /** Folder keys whose catalog could not be fetched: their record is skipped, not failed. */
   unrecorded: string[]
 }
@@ -208,12 +249,16 @@ export async function workflowFolderRecords(
     if (node) nodes.set(key, node)
   }
   const childResults = resolveChildResults(nodes)
-  const records = compiledFolders.flatMap(({ key, folder, input, compiled }) => {
+  const records: Array<readonly [string, string]> = []
+  const runFindings: Diagnostic[] = []
+  for (const { key, folder, input, compiled } of compiledFolders) {
     const typed = compiledWithChildResults(input, compiled, childResults)
-    const record = storedEdgesRecord(folder, typed, `${KIND_DIRS.workflow}/${key}/`)
-    return record ? [record] : []
-  })
-  return { records, unrecorded }
+    const prefix = `${KIND_DIRS.workflow}/${key}/`
+    const record = storedEdgesRecord(folder, typed, prefix)
+    if (record) records.push(record)
+    runFindings.push(...runFailingFindings(typed, prefix))
+  }
+  return { records, runFindings, unrecorded }
 }
 
 /**

@@ -70,11 +70,12 @@ Examples:
 export const HELP_EPILOGUE = `${HELP_NOTES}${HELP_EXAMPLES}`
 
 /**
- * Printed above group-level help when a coding agent runs the CLI.
+ * Printed above the root help when a coding agent runs the CLI.
  *
  * Agents otherwise map the surface by walking `--help` down every group, which
- * costs a call and a screenful of context per level. Leaf help is left alone:
- * an agent reading it has already found its command.
+ * costs a call and a screenful of context per level. Group and leaf help are
+ * left alone: an agent reading one has already found where its task lives, and
+ * the note there is the same screen again on every call.
  */
 export const AGENT_DISCOVERY_NOTE = `=== AGENT COMMAND DISCOVERY ===
 Do not explore commands by chaining nested --help calls. Instead run:
@@ -232,8 +233,8 @@ export function buildProgram(
     if (options.helpText !== undefined) return options.helpText
     return detectCodingAgent(env) !== undefined ? HELP_NOTES : HELP_EPILOGUE
   })
-  program.addHelpText('beforeAll', ({ command }) =>
-    detectCodingAgent(env) !== undefined && command.commands.length > 0 ? AGENT_DISCOVERY_NOTE : ''
+  program.addHelpText('before', () =>
+    detectCodingAgent(env) !== undefined ? AGENT_DISCOVERY_NOTE : ''
   )
 
   refuseHelpAfterUnknownCommand(program)
