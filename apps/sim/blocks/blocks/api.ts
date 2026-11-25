@@ -103,34 +103,37 @@ Example:
     },
     {
       id: 'retries',
-      title: 'Retries',
+      title: 'Request retries',
       type: 'short-input',
       placeholder: '0',
       description:
-        'Number of retry attempts after a timeout, a connection reset, a 429 or a 5xx response (default: 0, no retries). A host that does not resolve or refuses the connection fails without retrying.',
+        'Times to resend the HTTP request within one run of this block (default: 0, max: 10), only after a timeout, a connection reset, a 429 or a 5xx response, and only for GET, HEAD, PUT and DELETE unless Retry non-idempotent methods is on. A host that does not resolve or refuses the connection, and any other 4xx, fail at once. Separate from the block retry setting, which reruns the whole block, these request retries included, after any failure.',
       mode: 'advanced',
     },
     {
       id: 'retryDelayMs',
-      title: 'Retry delay (ms)',
+      title: 'Request retry delay (ms)',
       type: 'short-input',
       placeholder: '500',
-      description: 'Initial retry delay in milliseconds (exponential backoff)',
+      description:
+        'Wait before the first request retry in milliseconds (default: 500); it doubles each retry, with jitter, up to the max request retry delay. Not the block retry wait between tries.',
       mode: 'advanced',
     },
     {
       id: 'retryMaxDelayMs',
-      title: 'Max retry delay (ms)',
+      title: 'Max request retry delay (ms)',
       type: 'short-input',
       placeholder: '30000',
-      description: 'Maximum delay between retries in milliseconds',
+      description:
+        'Longest wait between request retries in milliseconds (default: 30000). A Retry-After header asking for longer ends the retries.',
       mode: 'advanced',
     },
     {
       id: 'retryNonIdempotent',
       title: 'Retry non-idempotent methods',
       type: 'switch',
-      description: 'Allow retries for POST/PATCH requests (may create duplicate requests)',
+      description:
+        'Also resend POST, PATCH and other non-idempotent requests on request retries (may create duplicates).',
       mode: 'advanced',
     },
     {
@@ -169,15 +172,19 @@ Example:
     body: { type: 'json', description: 'Request body data' },
     params: { type: 'json', description: 'URL query parameters' },
     timeout: { type: 'number', description: 'Request timeout in milliseconds' },
-    retries: { type: 'number', description: 'Number of retry attempts for retryable failures' },
-    retryDelayMs: { type: 'number', description: 'Initial retry delay in milliseconds' },
+    retries: {
+      type: 'number',
+      description:
+        'Times to resend the HTTP request after a timeout, connection reset, 429 or 5xx (not the block retry setting)',
+    },
+    retryDelayMs: { type: 'number', description: 'Wait before the first request retry in ms' },
     retryMaxDelayMs: {
       type: 'number',
-      description: 'Maximum delay between retries in milliseconds',
+      description: 'Longest wait between request retries in ms',
     },
     retryNonIdempotent: {
       type: 'boolean',
-      description: 'Allow retries for non-idempotent methods like POST/PATCH',
+      description: 'Also resend POST, PATCH and other non-idempotent requests on request retries',
     },
     redirectPolicyVersion: {
       type: 'string',

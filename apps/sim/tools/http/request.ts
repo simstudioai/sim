@@ -70,23 +70,25 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       type: 'number',
       visibility: 'hidden',
       description:
-        'Number of retry attempts after a timeout, a connection reset, a 429 or a 5xx response. A host that does not resolve or refuses the connection fails without retrying. Default: 0 (no retries).',
+        'Times to resend the request (default: 0, max: 10), only after a timeout, a connection reset, a 429 or a 5xx response, and only for GET, HEAD, PUT and DELETE unless retryNonIdempotent is true. A host that does not resolve or refuses the connection, and any other 4xx, fail at once.',
     },
     retryDelayMs: {
       type: 'number',
       visibility: 'hidden',
-      description: 'Initial retry delay in milliseconds (default: 500)',
+      description:
+        'Wait before the first retry in milliseconds (default: 500); it doubles each retry, with jitter, up to retryMaxDelayMs.',
     },
     retryMaxDelayMs: {
       type: 'number',
       visibility: 'hidden',
-      description: 'Maximum delay between retries in milliseconds (default: 30000)',
+      description:
+        'Longest wait between retries in milliseconds (default: 30000). A Retry-After header asking for longer ends the retries.',
     },
     retryNonIdempotent: {
       type: 'boolean',
       visibility: 'hidden',
       description:
-        'Allow retries for non-idempotent methods like POST/PATCH (may create duplicate requests).',
+        'Also retry POST, PATCH and other non-idempotent methods (may create duplicate requests).',
     },
     redirectPolicyVersion: {
       type: 'string',

@@ -23,7 +23,7 @@ import {
   escapeInertStringContent,
   formatInertStringLiteral,
 } from '@/executor/utils/code-formatting'
-import { isJSONString } from '@/executor/utils/json'
+import { isJSONString, mayBeJsonText } from '@/executor/utils/json'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
@@ -147,20 +147,38 @@ function isJsonStringContent(value: string): boolean {
 }
 
 /**
+ * Whether string `value` already reads as one JSON value (`42`, `true`, `{"a": 1}`, `"quoted"`).
+ * A bare reference in JSON text has always spliced its string as written, and workflows rely on a
+ * string holding JSON (an agent's JSON answer, a numeric env var) landing as that value.
+ */
+function isJsonValueText(value: string): boolean {
+  const trimmed = value.trim()
+  if (!mayBeJsonText(trimmed)) return false
+  try {
+    JSON.parse(trimmed)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Splices placeholder values into `text`. When `text` is JSON, a value landing inside one of its
  * string literals that would break the literal becomes escaped string content, so it cannot close
- * the string; a value that is already valid string content is spliced as written. Placeholders
+ * the string; a value that is already valid string content is spliced as written. A string value
+ * landing outside a string literal becomes a JSON string unless it already reads as one JSON
+ * value, so `{"error": <check.message>}` stays JSON whatever the message holds. Placeholders
  * must arrive in ascending offset order: the lexer resumes where the previous one stopped, then
  * skips the placeholder itself, so characters inside its own text never toggle the state.
  */
 function placeholderSplicer(
   text: string,
   jsonText: boolean | undefined
-): (value: string, start: number, end: number) => string {
+): (value: string, start: number, end: number, isString: boolean) => string {
   if (!jsonText) return (value) => value
   let position = 0
   let inString = false
-  return (value, start, end) => {
+  return (value, start, end, isString) => {
     while (position < start) {
       const char = text[position]
       if (inString && char === '\\') {
@@ -171,7 +189,10 @@ function placeholderSplicer(
       position++
     }
     position = Math.max(position, end)
-    return inString && !isJsonStringContent(value) ? JSON.stringify(value).slice(1, -1) : value
+    if (inString) {
+      return isJsonStringContent(value) ? value : JSON.stringify(value).slice(1, -1)
+    }
+    return isString && !isJsonValueText(value) ? JSON.stringify(value) : value
   }
 }
 
@@ -1872,7 +1893,12 @@ export class VariableResolver {
         }
 
         const raw = this.blockResolver.formatValueForBlock(resolved, blockType, language)
-        const formatted = spliceReference(raw, index, index + match.length)
+        const formatted = spliceReference(
+          raw,
+          index,
+          index + match.length,
+          typeof resolved === 'string'
+        )
         projectedReferenceResult += containsResolvedSecret ? match : formatted
         return formatted
       } catch (error) {
@@ -1891,7 +1917,7 @@ export class VariableResolver {
     result = await replaceEnvVarsAsync(result, async (match, index) => {
       const resolved = await this.resolveReference(match, resolutionContext)
       if (typeof resolved !== 'string') return match
-      return spliceEnvVar(resolved, index, index + match.length)
+      return spliceEnvVar(resolved, index, index + match.length, true)
     })
     ctx.resolvedSecretTraceRegistry?.recordResolvedInputProjection(
       options.inputPath,
