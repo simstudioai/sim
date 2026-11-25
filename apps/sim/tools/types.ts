@@ -229,7 +229,8 @@ export interface ToolParameterItemSchema {
 /**
  * What running a tool does outside Sim. `read` means the call changes nothing outside Sim: it
  * creates, updates, deletes, sends, posts, triggers, enqueues, consumes, and marks read nothing,
- * leaves no job, run, conversation, history item, or other resource in an account, reveals no
+ * starts no provider job or query (even a short-lived one), leaves no run, conversation, history
+ * item, or other resource in an account, reveals no
  * contact data for credits, and delivers nothing elsewhere. Usage billing for the call itself does
  * not count. `write` is anything else, including an effect that depends on the params.
  *

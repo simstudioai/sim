@@ -191,7 +191,9 @@ resources. A real external/browser route and an in-process tool may share the sa
 neither calls the other. Follow the full transport and handler rules in the `add-tools` skill.
 
 Every tool declares `effect: 'read' | 'write'`, classified from the API docs you researched in Step 1
-by the rules in `add-tools` → Declaring the effect; `bun run check:tool-effects` enforces them.
+by the rules in `add-tools` → Declaring the effect. `bun run check:tool-effects` checks only that the
+label agrees with the HTTP method (or carries a `// tool-effect:` reason); classifying POST and
+in-process operations is on you.
 
 **types.ts:**
 ```typescript

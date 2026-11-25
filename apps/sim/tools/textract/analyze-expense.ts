@@ -68,7 +68,7 @@ export const textractAnalyzeExpenseTool: InternalToolConfig<
   name: 'AWS Textract Analyze Expense',
   description: 'Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

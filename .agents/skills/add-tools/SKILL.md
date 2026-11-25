@@ -165,7 +165,7 @@ export const {serviceName}{Action}Tool: InternalToolConfig<
   name: '{Service} {Action}',
   description: 'Brief description',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write', // `read` only once you have verified the operation changes nothing outside Sim
   params: {
     // Same canonical metadata as an external tool.
   },
@@ -194,8 +194,8 @@ Labelling a write `read` is the one unsafe mistake, so classify from the provide
 semantics, never the name alone.
 
 `read` means the call changes nothing outside Sim: no create, update, delete, send, post, trigger,
-enqueue, consume, or mark-read; no job, run, conversation, history item, or other resource left in
-an account; no contact data revealed for credits; no external delivery. Usage billing for the call
+enqueue, consume, or mark-read; starts no provider job or query, even a short-lived one; leaves no
+run, conversation, history item, or other resource in an account; no contact data revealed for credits; no external delivery. Usage billing for the call
 itself does not count. `write` is anything else.
 
 **Contact reveals:** revealing a person's contact data (email, phone) for credits is `write`: an

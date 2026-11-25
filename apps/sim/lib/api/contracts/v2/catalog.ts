@@ -414,7 +414,7 @@ const v2HostedApiKeySchema = z
 export const v2ToolEffectSchema = z
   .enum(['read', 'write'])
   .describe(
-    "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no job, run, conversation, history item, or other resource left in an account; no contact data revealed for credits; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input. Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic lookups and verifications that only spend lookup credits are `read`."
+    "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no provider job or query started, even a short-lived one; no run, conversation, history item, or other resource left in an account; no contact data revealed for credits; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input. Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic lookups and verifications that only spend lookup credits are `read`."
   )
 
 const v2ToolOAuthSchema = z.object({

@@ -518,10 +518,8 @@ export function projectBlockDetail(
       inputs,
       outputs: tool?.outputs ?? {},
       inputSchema: operationFields[operationId] ?? [],
-      ...(toolId !== undefined ? { toolId } : {}),
-      ...(tool
-        ? { toolName: tool.name, effect: tool.effect, description: describeTool(tool) }
-        : {}),
+      ...(toolId !== undefined ? { toolId, effect: tool?.effect ?? 'write' } : {}),
+      ...(tool ? { toolName: tool.name, description: describeTool(tool) } : {}),
     }
   }
 
