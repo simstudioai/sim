@@ -247,3 +247,62 @@ describe('a truncation the response states inside its payload', () => {
     expect(JSON.parse(logged.join('\n'))).toEqual(payload)
   })
 })
+
+describe('a deploy result read by a person', () => {
+  const ref = (blockId: string, blockName: string, blockType: string) => ({
+    blockId,
+    blockName,
+    blockType,
+  })
+  /** A clean report as a real two-block workflow gets it: a source, a sink, no finding. */
+  const clean = {
+    sources: [ref('b-1', 'Start', 'start_trigger')],
+    sinks: [ref('b-2', 'Agent', 'agent')],
+    orphanBlocks: [],
+    emptyOutgoingPorts: [],
+    invalidBranchPorts: [],
+    invalidConnectionTargets: [],
+    fieldIssues: [],
+    unresolvedReferences: [],
+    tableFieldIssues: [],
+    manualRunIssue: null,
+    notes: [],
+  }
+  const deployed = (lint: Record<string, unknown>) => ({
+    id: 'wf-1',
+    isDeployed: true,
+    version: 7,
+    activeDeployment: {
+      deploymentVersionId: 'dv-7',
+      version: 7,
+      deployedAt: '2026-11-20T00:00:00Z',
+    },
+    latestDeploymentAttempt: null,
+    warnings: [],
+    lint,
+  })
+
+  it('opens with what is live, and keeps only the lint findings', () => {
+    const orphan = ref('b-3', 'Stray', 'function')
+    renderResult(
+      'deployWorkflow',
+      'text',
+      deployed({ ...clean, orphanBlocks: [orphan] }),
+      CLI_CONTRACT.deployWorkflow ?? {}
+    )
+    expect(logged[0]).toBe('live\tversion 7, serving (this deploy)')
+    expect(logged).toContain(`lint\t${JSON.stringify({ orphanBlocks: [orphan] })}`)
+  })
+
+  it('drops a report whose only entries are the graph sources and sinks, and keeps it whole for a machine', () => {
+    renderResult('deployWorkflow', 'text', deployed(clean), CLI_CONTRACT.deployWorkflow ?? {})
+    expect(logged.some((line) => line.startsWith('lint\t'))).toBe(false)
+
+    logged = []
+    renderResult('deployWorkflow', 'json', deployed(clean), CLI_CONTRACT.deployWorkflow ?? {})
+    expect(JSON.parse(logged.join('\n'))).toMatchObject({
+      live: 'version 7, serving (this deploy)',
+      lint: clean,
+    })
+  })
+})

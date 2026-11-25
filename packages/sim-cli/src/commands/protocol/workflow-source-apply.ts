@@ -13,6 +13,11 @@ import type {
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
+import {
+  liveAfterActivation,
+  liveAgainstDraft,
+  liveDeploymentStatus,
+} from '../../runtime/deployment-live'
 import { searchTasks } from '../search'
 import {
   type DeployedUrl,
@@ -184,21 +189,27 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   const findings = findingsOutput(args.output, options.verbose, options.dir)
   const notes = new Set<string>()
   const report = (data: SourceApplyData, deployment: DeployOutcome = {}) => {
-    publishSummary(() => planMarkdown(data, creating, deployment), {
+    const { live: deployedLive, deployed, ...outcome } = deployment
+    const live = deployedLive ?? liveAgainstDraft(data.deployedVersion, data.needsRedeployment)
+    publishSummary(() => planMarkdown(data, creating, live), {
       file: options.summaryFile,
       marker: summaryMarker(options.dir),
     })
-    const result = { ...summarize(data, creating, findings.machine), ...deployment }
+    // `deployed.version` is the version the deploy admitted, which may not be live yet: a person
+    // reads `live` instead, and a machine result keeps the record.
+    const result = {
+      ...(live ? { live } : {}),
+      ...summarize(data, creating, findings.machine),
+      ...(deployed && findings.machine ? { deployed } : {}),
+      ...outcome,
+    }
     printProtocolResult(
       args.output,
       { ...result, ...findings.result(data.diagnostics) },
       {
         ...(result.created ? { created: createdText(result.created) } : {}),
-        ...(deployment.next ? { next: deployment.next.command } : {}),
-        ...(deployment.deployed
-          ? { deployed: `version ${deployment.deployed.version ?? '?'}` }
-          : {}),
-        ...(deployment.urls?.length ? { urls: deployedUrlsText(deployment.urls) } : {}),
+        ...(outcome.next ? { next: outcome.next.command } : {}),
+        ...(outcome.urls?.length ? { urls: deployedUrlsText(outcome.urls) } : {}),
       }
     )
   }
@@ -255,9 +266,9 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
 
 /**
  * The plan of a dry run or write as the Markdown a step summary or `--summary-file` holds: the
- * counts, each block changed, each error, and whether the live deployment is now behind the draft.
+ * counts, each block changed, each error, and what is live.
  */
-function planMarkdown(data: SourceApplyData, creating: boolean, deployment: DeployOutcome): string {
+function planMarkdown(data: SourceApplyData, creating: boolean, live: string | undefined): string {
   const { blocks, edges } = data.diff
   const [added, removed, modified] = data.dryRun
     ? ['to add', 'to remove', 'to modify']
@@ -281,7 +292,6 @@ function planMarkdown(data: SourceApplyData, creating: boolean, deployment: Depl
   const variableChanges = variableChangeList(data.diff.variables)
   const errors = data.diagnostics.filter((finding) => finding.severity === 'error')
   const warnings = data.diagnostics.filter((finding) => finding.severity === 'warning').length
-  const needsRedeployment = deployment.needsRedeployment ?? data.needsRedeployment
   return [
     `### Sim workflow ${data.dryRun ? 'plan' : verb}: ${markdownCell(data.workflowId)}`,
     '',
@@ -304,13 +314,16 @@ function planMarkdown(data: SourceApplyData, creating: boolean, deployment: Depl
         ]
       : []),
     ...(errors.length > 0 ? ['', '**Errors**', '', ...errorBullets(errors)] : []),
-    ...(needsRedeployment ? ['', 'The live deployment now differs from the draft.'] : []),
+    ...(live ? ['', `Live: ${markdownCell(live)}`] : []),
   ].join('\n')
 }
 
 /** What a write adds to its result about deploying: the deploy it ran, or the one to run. */
 interface DeployOutcome {
+  /** What is live after the deploy step, when it deployed or read the deployment. */
+  live?: string
   deployed?: { version?: number; isDeployed: boolean; warnings?: string[] }
+  deployedVersion?: number | null
   needsRedeployment?: boolean
   /** The URL of each webhook the live deployment serves. */
   urls?: DeployedUrl[]
@@ -356,10 +369,12 @@ async function deployStep(
       if (!options.machine)
         printError('The live version already matches the draft; nothing was deployed.')
       return {
+        live: liveDeploymentStatus(status, data.workflowId).live,
         deployed: {
           ...(status.activeDeployment ? { version: status.activeDeployment.version } : {}),
           isDeployed: true,
         },
+        deployedVersion: status.activeDeployment?.version ?? null,
         needsRedeployment: false,
         urls: namedUrls(status.webhooks, lockBlockNames(data.lock)),
       }
@@ -380,13 +395,25 @@ async function deployStep(
   if (!options.machine) {
     for (const warning of deployed.warnings) printError(`deploy warning: ${warning}`)
   }
+  const { live, next } = liveAfterActivation(
+    deployed,
+    data.workflowId,
+    deployed.version,
+    'this deploy',
+    deployCommand
+  )
+  const liveVersion = deployed.activeDeployment?.version ?? null
   return {
+    live,
+    ...(next ? { next } : {}),
     deployed: {
       ...(deployed.version !== undefined ? { version: deployed.version } : {}),
       isDeployed: deployed.isDeployed,
       ...(options.machine && deployed.warnings.length > 0 ? { warnings: deployed.warnings } : {}),
     },
-    needsRedeployment: false,
+    deployedVersion: liveVersion,
+    // The draft is live only once the version this deploy admitted is the one serving.
+    needsRedeployment: deployed.version === undefined || liveVersion !== deployed.version,
     ...(deployed.isDeployed
       ? { urls: await deployedUrls(client, data.workflowId, lockBlockNames(data.lock)) }
       : {}),
@@ -680,6 +707,7 @@ function summarize(data: SourceApplyData, creating: boolean, machine: boolean) {
     warnings: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
     notes: machine ? data.notes : data.notes.length,
     fingerprint: data.base.fingerprint,
+    deployedVersion: data.deployedVersion,
     needsRedeployment: data.needsRedeployment,
     ...(creating && data.applied && !data.dryRun ? { guide: SOURCE_AGENTS_FILE } : {}),
   }

@@ -1,3 +1,4 @@
+import { isRecordLike, omit } from '@sim/utils/object'
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import { truncationMetadata } from '#sim-cli/output/truncation'
@@ -17,6 +18,7 @@ import {
   timestamp,
 } from '../output/render'
 import { printTraceSpans } from '../output/trace'
+import { withDeploymentLive } from './deployment-live'
 import { withRunNext } from './run-next'
 
 /** Result fields holding a command to run, printed whole (a clipped flag would make it wrong). */
@@ -298,6 +300,27 @@ function inferColumns(rows: unknown[], expand?: string): Column<unknown>[] {
   }))
 }
 
+/** Lint report fields that describe the graph's shape rather than report a finding. */
+const LINT_GRAPH_FACTS: ReadonlySet<string> = new Set(['sources', 'sinks'])
+
+/**
+ * A record whose `lint` (the workflow lint report a deploy or a graph write returns) keeps only
+ * its findings, for the human formats: the report lists every category, almost all empty, plus
+ * every workflow's source and sink blocks, and the one JSON line that made pushed the rest of the
+ * result off a short terminal or a `| tail`. Without a finding the field is dropped. Machine
+ * formats keep the report whole, as the API sent it.
+ */
+function withLintFindingsOnly(data: unknown): unknown {
+  if (!isRecordLike(data) || !isRecordLike(data.lint)) return data
+  const findings = Object.entries(data.lint).filter(
+    ([key, value]) =>
+      !LINT_GRAPH_FACTS.has(key) && value !== null && !(Array.isArray(value) && value.length === 0)
+  )
+  return findings.length > 0
+    ? { ...data, lint: Object.fromEntries(findings) }
+    : omit(data, ['lint'])
+}
+
 function unwrapResource(data: unknown): unknown {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return data
   const entries = Object.entries(data)
@@ -443,7 +466,10 @@ export function renderResult(
   // matches the OpenAPI shape the docs and the agent reference card are generated from.
   const data = withRunNext(
     operation,
-    format === 'json' || format === 'yaml' ? raw : unwrapResource(raw)
+    withDeploymentLive(
+      operation,
+      format === 'json' || format === 'yaml' ? raw : withLintFindingsOnly(unwrapResource(raw))
+    )
   )
   if (spec.itemsPath) {
     const items = at(data, spec.itemsPath)

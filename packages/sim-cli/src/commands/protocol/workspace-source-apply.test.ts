@@ -93,6 +93,30 @@ function answer(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** A deployment status of `wf_1`, live at `version` (none when null), serving `webhooks`. */
+function deploymentStatus(
+  version: number | null,
+  overrides: Record<string, unknown> = {}
+): { data: Record<string, unknown> } {
+  return {
+    data: {
+      id: 'wf_1',
+      isDeployed: version !== null,
+      deployedAt: null,
+      warnings: [],
+      activeDeployment:
+        version === null
+          ? null
+          : { deploymentVersionId: `dv-${version}`, version, deployedAt: '2026-11-20T00:00:00Z' },
+      latestDeploymentAttempt: null,
+      needsRedeployment: false,
+      isPublicApi: false,
+      webhooks: [],
+      ...overrides,
+    },
+  }
+}
+
 let dir: string
 
 function write(path: string, text: string | Buffer) {
@@ -1678,13 +1702,9 @@ describe('workspaces source apply', () => {
     }
     request.mockImplementation(async (path: string) =>
       path === '/api/v2/workflows/wf_1/deployment'
-        ? {
-            data: {
-              id: 'wf_1',
-              isDeployed: true,
-              webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
-            },
-          }
+        ? deploymentStatus(1, {
+            webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
+          })
         : answer({
             plan: [{ kind: 'deployment', key: 'ingest', action: 'create' }],
             applied: [{ kind: 'deployment', key: 'ingest', action: 'create' }],
@@ -1715,13 +1735,9 @@ describe('workspaces source apply', () => {
     writeFileSync(join(dir, 'workflows/ingest/.sim/lock.json'), JSON.stringify(lock))
     request.mockImplementation(async (path: string) =>
       path === '/api/v2/workflows/wf_1/deployment'
-        ? {
-            data: {
-              id: 'wf_1',
-              isDeployed: true,
-              webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
-            },
-          }
+        ? deploymentStatus(1, {
+            webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
+          })
         : answer({
             plan: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
             applied: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
@@ -1759,7 +1775,7 @@ describe('workspaces source apply', () => {
       .mocked(console.error)
       .mock.calls.map(([line]) => String(line))
       .join('\n')
-    expect(warned).toContain('its webhook URLs could not be read (gateway cleared)')
+    expect(warned).toContain('the deployment of ingest could not be read (gateway cleared)')
     expect(warned).not.toContain('\u001b')
   })
 
@@ -1777,6 +1793,135 @@ describe('workspaces source apply', () => {
 
     await expect(apply('--yes')).rejects.toMatchObject({ code: 'REQUEST_CANCELLED' })
     expect(vi.mocked(console.log)).not.toHaveBeenCalled()
+  })
+
+  describe('names each workflow it wrote with its id and what is live', () => {
+    const wrote = answer({
+      plan: [
+        { kind: 'workflow', key: 'draft-only', action: 'create', id: 'wf_new' },
+        { kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' },
+        { kind: 'deployment', key: 'ingest', action: 'update' },
+      ],
+      applied: [
+        { kind: 'workflow', key: 'draft-only', action: 'create', id: 'wf_new' },
+        { kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' },
+        { kind: 'deployment', key: 'ingest', action: 'update' },
+      ],
+      base: {
+        ...BASE,
+        resources: { 'workflow:draft-only': { id: 'wf_new' }, 'workflow:ingest': { id: 'wf_1' } },
+      },
+    })
+    const respond = (ingest: ReturnType<typeof deploymentStatus>) =>
+      request.mockImplementation(async (path: string) =>
+        path === '/api/v2/workflows/wf_new/deployment'
+          ? deploymentStatus(null, { id: 'wf_new' })
+          : path === '/api/v2/workflows/wf_1/deployment'
+            ? ingest
+            : wrote
+      )
+    const printedJson = () =>
+      JSON.parse(
+        vi
+          .mocked(console.log)
+          .mock.calls.map(([line]) => String(line))
+          .join('\n')
+      )
+
+    it('tells a workflow never deployed apart from one whose live version is the draft', async () => {
+      respond(deploymentStatus(4))
+
+      await apply('--yes')
+
+      expect(printedJson().workflows).toEqual([
+        {
+          key: 'draft-only',
+          workflowId: 'wf_new',
+          deployedVersion: null,
+          liveMatchesDraft: false,
+          live: 'not deployed',
+        },
+        {
+          key: 'ingest',
+          workflowId: 'wf_1',
+          deployedVersion: 4,
+          liveMatchesDraft: true,
+          live: 'version 4, matches the draft',
+        },
+      ])
+    })
+
+    it('says the draft is not live while the version it deployed is still activating', async () => {
+      respond(
+        deploymentStatus(4, {
+          latestDeploymentAttempt: {
+            id: 'op-5',
+            deploymentVersionId: 'dv-5',
+            version: 5,
+            action: 'deploy',
+            status: 'activating',
+            isCurrent: true,
+            readiness: { webhooks: 'pending', schedules: 'ready', mcp: 'ready' },
+            requestedAt: '2026-11-20T00:00:00Z',
+          },
+        })
+      )
+
+      await apply('--yes')
+
+      expect(printedJson().workflows[1]).toEqual({
+        key: 'ingest',
+        workflowId: 'wf_1',
+        deployedVersion: 4,
+        liveMatchesDraft: false,
+        live: 'version 4 still serving; version 5 activating',
+      })
+    })
+
+    it('reports a workflow whose deployment it deleted as not deployed', async () => {
+      request.mockImplementation(async (path: string) =>
+        path === '/api/v2/workflows/wf_1/deployment'
+          ? deploymentStatus(null)
+          : answer({
+              plan: [{ kind: 'deployment', key: 'ingest', action: 'delete' }],
+              applied: [{ kind: 'deployment', key: 'ingest', action: 'delete' }],
+              base: { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } },
+            })
+      )
+
+      await apply('--yes', '--allow-delete')
+
+      expect(printedJson()).toMatchObject({
+        workflows: [
+          {
+            key: 'ingest',
+            workflowId: 'wf_1',
+            deployedVersion: null,
+            liveMatchesDraft: false,
+            live: 'not deployed',
+          },
+        ],
+      })
+      expect(printedJson()).not.toHaveProperty('urls')
+    })
+
+    it('shows each id and live version to a person, and reads nothing on a dry run', async () => {
+      respond(deploymentStatus(4, { needsRedeployment: true }))
+      contextMockState.output = 'text'
+
+      await apply('--yes')
+
+      expect(vi.mocked(console.log).mock.calls.map((call) => call.join(' '))).toContain(
+        'workflows\tdraft-only wf_new: not deployed; ingest wf_1: version 4, draft has undeployed changes'
+      )
+
+      request.mockReset()
+      request.mockResolvedValue({ data: { ...wrote.data, dryRun: true } })
+      await apply('--dry-run')
+      expect(request.mock.calls.map((call) => call[0])).not.toContain(
+        '/api/v2/workflows/wf_1/deployment'
+      )
+    })
   })
 
   it('appends the plan and its errors to the GitHub Actions step summary', async () => {
@@ -1972,6 +2117,7 @@ describe('workspaces source apply', () => {
         if (path.endsWith('/source/catalog') && options.query?.workflowId) {
           throw new SimApiError('Service unavailable', 503, 'UNAVAILABLE')
         }
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(null)
         return answer({
           plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
           applied: [{ kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' }],

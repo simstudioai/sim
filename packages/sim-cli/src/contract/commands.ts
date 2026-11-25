@@ -2396,9 +2396,9 @@ always prints as null. For a copy to share outside this workspace, pass
           "Maximum duration of the run in seconds, capped by the plan's execution timeout. Requires --async or --wait-timeout",
       },
       input: { json: true, describe: 'Trigger input as JSON' },
-      // Built from --manual, --trigger, --mock-payload, --from-block, --source-run,
-      // --stop-after, --dry, --allow and --mock by `workflow-run-follow.ts`, so a run is
-      // selected one way only.
+      // Built from --deployment-version, --manual, --trigger, --mock-payload, --from-block,
+      // --source-run, --stop-after, --dry, --allow and --mock by `workflow-run-follow.ts`, so a
+      // run is selected one way only.
       run: { omit: true },
       // `workflows runs get` takes the same names (`workflow-run-get.ts` resolves
       // them against the draft graph), which is why both describes name theirs.
