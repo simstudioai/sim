@@ -20,7 +20,7 @@
  * POST, the rest of function-valued verbs, and in-process operations are not judged here: their
  * effect comes from the tool's documented semantics. The `add-tools` skill lists the rules.
  *
- * The tree was classified when this landed, so there is no baseline.
+ * Every tool is already classified, so there is no baseline.
  *
  * Usage: bun run check:tool-effects
  */

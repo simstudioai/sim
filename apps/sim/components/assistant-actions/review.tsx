@@ -150,14 +150,14 @@ export function AssistantActionReviewProvider({
       messageReceiptIds.set(
         message.id,
         new Set(
-          message.contentBlocks?.flatMap(({ toolCall }) =>
-            toolCall &&
-            getToolMetadata(toolCall.name)?.assistant &&
-            (getToolMetadata(toolCall.name)?.effect === 'write' ||
-              toolCall.status === ToolCallStatus.awaiting_approval)
+          message.contentBlocks?.flatMap(({ toolCall }) => {
+            const metadata = toolCall && getToolMetadata(toolCall.name)
+            return toolCall &&
+              metadata?.assistant &&
+              (metadata.effect === 'write' || toolCall.status === ToolCallStatus.awaiting_approval)
               ? [toolCall.id]
               : []
-          )
+          })
         )
       )
       const messageStreamId =
@@ -175,9 +175,11 @@ export function AssistantActionReviewProvider({
       }
       turn.messageId = message.id
       for (const { toolCall } of message.contentBlocks ?? []) {
-        if (!toolCall || !getToolMetadata(toolCall.name)?.assistant) continue
+        if (!toolCall) continue
+        const metadata = getToolMetadata(toolCall.name)
+        if (!metadata?.assistant) continue
         turn.representedIds.add(toolCall.id)
-        if (getToolMetadata(toolCall.name)?.effect === 'write') turn.writeIds.add(toolCall.id)
+        if (metadata.effect === 'write') turn.writeIds.add(toolCall.id)
         if (toolCall.status === ToolCallStatus.awaiting_approval) turn.hasApprovalRows = true
       }
       turns.set(messageStreamId, turn)
