@@ -194,8 +194,8 @@ Labelling a write `read` is the one unsafe mistake, so classify from the provide
 semantics, never the name alone.
 
 `read` means the call changes nothing outside Sim: no create, update, delete, send, post, trigger,
-enqueue, consume, or mark-read; starts no provider job or query, even a short-lived one; leaves no
-run, conversation, history item, or other resource in an account; no contact data revealed for credits; no external delivery. Usage billing for the call
+enqueue, consume, or mark-read; starts no asynchronous provider job or query execution (one with its own id that
+can keep running), even a short-lived one; a synchronous read-only query is fine; leaves no run, conversation, history item, or other resource in an account; no contact data revealed for credits; no external delivery. Usage billing for the call
 itself does not count. `write` is anything else.
 
 **Contact reveals:** revealing a person's contact data (email, phone) for credits is `write`: an
