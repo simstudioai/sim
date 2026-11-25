@@ -1,18 +1,11 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { Socket } from 'node:net'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import {
-  type ElectronApplication,
-  _electron as electron,
-  expect,
-  type Page,
-} from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
 import { getErrorMessage } from '@sim/utils/errors'
+import { type DesktopApp, type DesktopFixture, expect } from './harness'
 
 /**
  * A fixture Sim that speaks the background executor's device protocol (register, inbox,
@@ -20,10 +13,9 @@ import { getErrorMessage } from '@sim/utils/errors'
  * executor's Electron suites share.
  */
 
-const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 export const WORKSPACE = 'ws-e2e'
 const LEASE_RENEW_MS = 1_000
-export const RECONCILE_MS = 2_000
+const RECONCILE_MS = 2_000
 
 type CallStatus = 'pending' | 'awaiting_approval' | 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -45,7 +37,10 @@ export interface FixtureCall {
   issuedAt: number
   claimedAt?: number
   token?: string
+  /** Successful claims. */
   claims: number
+  /** Every claim request for this call, refused ones included. */
+  claimAttempts: number
   renewals: number
   completions: Completion[]
   acknowledged: boolean
@@ -72,6 +67,8 @@ export class FixtureSim {
   readonly streams = new Map<string, Set<ServerResponse>>()
   readonly imported: ImportedEntry[] = []
   enabled = true
+  /** How often a registered device reads its inbox without a ring. */
+  reconcileMs = RECONCILE_MS
   /** Connections reset while the network was cut. */
   droppedWhileOffline = 0
   private offline = false
@@ -125,6 +122,7 @@ export class FixtureSim {
     this.hits.clear()
     this.imported.length = 0
     this.enabled = true
+    this.reconcileMs = RECONCILE_MS
     this.offline = false
     this.droppedWhileOffline = 0
   }
@@ -147,6 +145,7 @@ export class FixtureSim {
       status,
       issuedAt: Date.now(),
       claims: 0,
+      claimAttempts: 0,
       renewals: 0,
       completions: [],
       acknowledged: false,
@@ -279,7 +278,7 @@ export class FixtureSim {
         protocolVersion: 1,
         leaseMs: 60_000,
         leaseRenewMs: LEASE_RENEW_MS,
-        reconcileMs: RECONCILE_MS,
+        reconcileMs: this.reconcileMs,
       })
       return
     }
@@ -347,6 +346,7 @@ export class FixtureSim {
         return
       }
       if (path === '/api/desktop/tool/claim') {
+        call.claimAttempts += 1
         if (call.status !== 'pending' || call.token) {
           this.json(response, 404, { error: 'This call is no longer waiting for this device' })
           return
@@ -434,37 +434,47 @@ export class FixtureSim {
   }
 }
 
+export interface ExecutorApp extends DesktopApp {
+  window: Page
+}
+
 /**
- * Launches the app against the fixture Sim. Its shells are zsh with an empty config directory, so
- * what they do is the app's and not this machine's: a developer's `.zshrc` can stop at a question
- * (oh-my-zsh asks before updating) and hold the first prompt for as long as nobody answers it.
- * The terminal's handling of slow and stalled startup files has its own tests.
+ * Launches the app against the fixture Sim and waits for its window to load Sim. Its shells are
+ * zsh with an empty config directory, so what they do is the app's and not this machine's: a
+ * developer's `.zshrc` can stop at a question (oh-my-zsh asks before updating) and hold the first
+ * prompt for as long as nobody answers it. Pass `userData` to relaunch on an earlier profile.
  */
-export async function launch(
+export async function launchAgainst(
+  desktop: DesktopFixture,
   sim: FixtureSim,
-  userData: string,
-  env: Record<string, string> = {}
-): Promise<{ app: ElectronApplication; window: Page }> {
-  const app = await electron.launch({
-    args: [process.env.SIM_DESKTOP_E2E_MAIN ?? '.'],
-    cwd: DESKTOP_DIR,
-    env: {
-      ...process.env,
-      SHELL: '/bin/zsh',
-      ZDOTDIR: mkdtempSync(join(tmpdir(), 'sim-e2e-zdotdir-')),
-      SIM_DESKTOP_ORIGIN: sim.origin,
-      SIM_DESKTOP_USER_DATA: userData,
-      ...env,
-    },
+  options: { userData?: string; env?: Record<string, string> } = {}
+): Promise<ExecutorApp> {
+  const launched = await desktop.launch({
+    origin: sim.origin,
+    userData: options.userData,
+    leaveDialogsToDesktop: true,
+    env: { SHELL: '/bin/zsh', ZDOTDIR: desktop.tempDir('sim-e2e-zdotdir-'), ...options.env },
   })
-  // A dialog listener stops Playwright auto-dismissing page dialogs, so the desktop's own handling
-  // decides their outcome exactly as it does in production.
-  const leaveDialogsToDesktop = (page: Page) => page.on('dialog', () => {})
-  app.context().pages().forEach(leaveDialogsToDesktop)
-  app.context().on('page', leaveDialogsToDesktop)
-  const window = await app.firstWindow()
+  const window = await launched.app.firstWindow()
   await window.waitForURL((url) => url.origin === sim.origin, { waitUntil: 'load' })
-  return { app, window }
+  return { ...launched, window }
+}
+
+/**
+ * Where the executor's encrypted journal has a call: `started`, `result` once its result is kept
+ * for delivery, undefined once the call is forgotten (or before it was recorded).
+ */
+export function journalState(app: ElectronApplication, toolCallId: string): Promise<unknown> {
+  return app.evaluate(({ safeStorage }, toolCallId) => {
+    const fs = process.getBuiltinModule('node:fs')
+    const path = `${process.env.SIM_DESKTOP_USER_DATA}/desktop-executor-journal.json`
+    if (!fs.existsSync(path)) return undefined
+    const envelope = JSON.parse(fs.readFileSync(path, 'utf8'))
+    const journal = JSON.parse(
+      safeStorage.decryptString(Buffer.from(envelope.ciphertext, 'base64'))
+    ) as { entries: { toolCallId: string; state: string }[] }
+    return journal.entries.find((entry) => entry.toolCallId === toolCallId)?.state
+  }, toolCallId)
 }
 
 /** The device this app registered, once it has opened its doorbell. */

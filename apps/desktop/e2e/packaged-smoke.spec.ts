@@ -1,10 +1,10 @@
-import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
-import { once } from 'node:events'
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { FuseV1Options, FuseVersion, getCurrentFuseWire } from '@electron/fuses'
-import { type Browser, chromium, expect, test } from '@playwright/test'
+import { type Browser, chromium } from '@playwright/test'
+import { expect, stopAndRemoveProfile, test } from './harness'
 
 const FUSE_DISABLED = '0'.charCodeAt(0)
 const FUSE_ENABLED = '1'.charCodeAt(0)
@@ -27,53 +27,6 @@ test.skip(
   'Packaged smoke runs only after the desktop executable has been built'
 )
 
-/**
- * The processes of a packaged run that can still write its profile. Chromium's helpers stay in the
- * app's process group (it is spawned detached, so the group is its own), while Crashpad's handler
- * starts its own session but names the profile's Crashpad database on its command line.
- */
-function profileWriters(appGroup: number, profilePaths: readonly string[]): number[] {
-  return execFileSync('ps', ['-axww', '-o', 'pid=,pgid=,command='], { encoding: 'utf8' })
-    .split('\n')
-    .flatMap((line) => {
-      const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line)
-      if (!match) return []
-      const [, pid, group, command] = match
-      return Number(group) === appGroup || profilePaths.some((path) => command.includes(path))
-        ? [Number(pid)]
-        : []
-    })
-}
-
-/**
- * Removes a profile only once nothing can write into it. Killing the main process leaves its
- * helpers and Crashpad's handler running for a moment, and a file one of them creates while the
- * directory is being removed fails the removal with ENOTEMPTY.
- */
-async function stopAndRemoveProfile(child: ChildProcess, userDataPath: string): Promise<void> {
-  if (child.exitCode === null && child.signalCode === null) {
-    const exited = once(child, 'exit')
-    child.kill('SIGKILL')
-    await exited
-  }
-  const appGroup = child.pid
-  if (appGroup !== undefined) {
-    const profilePaths = [userDataPath, realpathSync(userDataPath)]
-    await expect
-      .poll(() => {
-        const writers = profileWriters(appGroup, profilePaths)
-        for (const pid of writers) {
-          try {
-            process.kill(pid, 'SIGKILL')
-          } catch {}
-        }
-        return writers
-      })
-      .toEqual([])
-  }
-  rmSync(userDataPath, { recursive: true, force: true })
-}
-
 test('packaged Electron binary has the production fuse policy', async () => {
   const executablePath = process.env.SIM_DESKTOP_EXECUTABLE
   if (!executablePath) throw new Error('SIM_DESKTOP_EXECUTABLE is required')
@@ -90,48 +43,12 @@ test('packaged Electron binary has the production fuse policy', async () => {
   }
 })
 
-test('packaged main process starts and records launch telemetry', async () => {
-  const executablePath = process.env.SIM_DESKTOP_EXECUTABLE
-  if (!executablePath) throw new Error('SIM_DESKTOP_EXECUTABLE is required')
-  const userDataPath = mkdtempSync(join(tmpdir(), 'sim-desktop-packaged-e2e-'))
-  const child = spawn(executablePath, [], {
-    detached: true,
-    env: {
-      ...process.env,
-      SIM_DESKTOP_ORIGIN: 'http://127.0.0.1:1',
-      SIM_DESKTOP_USER_DATA: userDataPath,
-    },
-    stdio: 'ignore',
-  })
-  const eventLogPath = join(userDataPath, 'logs', 'desktop-events.log')
-
-  try {
-    await expect
-      .poll(
-        () => {
-          if (child.exitCode !== null || child.signalCode !== null) {
-            throw new Error(
-              `Packaged app exited with ${child.exitCode ?? child.signalCode ?? 'unknown status'}`
-            )
-          }
-          return (
-            existsSync(eventLogPath) && readFileSync(eventLogPath, 'utf8').includes('app_launch')
-          )
-        },
-        { timeout: 10_000 }
-      )
-      .toBe(true)
-  } finally {
-    await stopAndRemoveProfile(child, userDataPath)
-  }
-})
-
 // The unpackaged suite cannot see this: the bundled pages live inside app.asar
 // only once packaged, and the file-protocol fuse is only off once packaged.
 // v0.8.13 through v0.8.19 shipped both pages blank because nothing loaded them
 // in that configuration. Chromium's remote-debugging switch is honoured by the
 // fused binary, which is what lets the test read the rendered page.
-test('packaged shell renders the bundled offline page', async () => {
+test('packaged shell records its launch and renders the bundled offline page', async () => {
   const executablePath = process.env.SIM_DESKTOP_EXECUTABLE
   if (!executablePath) throw new Error('SIM_DESKTOP_EXECUTABLE is required')
   const userDataPath = mkdtempSync(join(tmpdir(), 'sim-desktop-packaged-e2e-'))
@@ -179,6 +96,10 @@ test('packaged shell renders the bundled offline page', async () => {
     if (!offline) throw new Error('offline page disappeared')
     await expect(offline.locator('#title')).toHaveText('Can’t connect to Sim')
     await expect(offline.locator('#server')).toBeVisible()
+    const eventLog = join(userDataPath, 'logs', 'desktop-events.log')
+    await expect
+      .poll(() => existsSync(eventLog) && readFileSync(eventLog, 'utf8').includes('app_launch'))
+      .toBe(true)
 
     // The picker is the recovery path from here. Opening it and reading the
     // pre-filled value crosses the local-page IPC gate twice, which packaged

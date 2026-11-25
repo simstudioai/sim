@@ -114,8 +114,7 @@
     },
     "apps/desktop": {
       "includeEntryExports": false,
-      // scripts/build.ts and e2e/updater.spec.ts supply these to esbuild by path; the nested
-      // Playwright run in e2e/check-report.spec.ts loads worker-restart.ts through its config.
+      // scripts/build.ts and e2e/updater.spec.ts supply these to esbuild by path.
       "entry": [
         "src/main/index.ts",
         "src/preload/*.ts",
@@ -123,7 +122,6 @@
         "src/renderer/*/index.tsx",
         "scripts/*.ts",
         "e2e/fixtures/updater.ts",
-        "e2e/fixtures/worker-restart.ts",
         // The native permission test launches this Electron fixture by filename.
         "native/computer-use/tests/electron-fixture/*.cjs"
       ],
