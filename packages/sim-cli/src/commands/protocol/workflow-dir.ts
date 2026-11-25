@@ -5,7 +5,7 @@
  */
 
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import type { BlockCatalog } from '@sim/workflow-code'
+import type { BlockCatalog, ChildResults } from '@sim/workflow-code'
 import { parseSourceBase, parseWorkflowLock, type WorkflowLockV1 } from '@sim/workflow-code'
 import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import {
@@ -48,7 +48,7 @@ import {
   WORKSPACE_TYPES_FILE,
   type WorkspaceTypes,
 } from './source-tree'
-import { type ChildResults, storedEdgesWrite } from './stored-edges'
+import { storedEdgesWrite } from './stored-edges'
 
 type SourceBase = ApplyWorkflowSourceBody['base']
 

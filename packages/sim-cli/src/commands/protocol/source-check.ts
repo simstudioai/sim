@@ -11,6 +11,7 @@ import {
   type BlockCatalog,
   type CanonicalWorkflow,
   type ChildResultNode,
+  type ChildResults,
   type CompileInput,
   calledWorkflowKey,
   catalogBlock,
@@ -67,7 +68,6 @@ import { type TypeCheck, typeCheck } from './source-types'
 import { type Diagnostic, findingsOutput } from './source-ui'
 import {
   blockDigest,
-  type ChildResults,
   compiledWithChildResults,
   readStoredBlockDigests,
   readStoredEdges,

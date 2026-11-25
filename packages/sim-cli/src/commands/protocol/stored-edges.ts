@@ -35,8 +35,6 @@ export function blockDigest(block: CanonicalBlock): string {
 
 type CompileInput = Parameters<typeof compileWorkflow>[0]
 
-export type { ChildResults }
-
 /**
  * `compiled`, the compile of `input`, as `childResults` type it: the same compile when none types
  * a call it makes, else `input` compiled again with them.
