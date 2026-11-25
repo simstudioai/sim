@@ -51,7 +51,7 @@ function sharedRules(group: string, extraRenames = ''): string {
 
 const WORKFLOW_PRIMER = `# Sim workflow source: primer
 
-\`${SOURCE_ENTRY_FILE}\` is a Sim workflow as TypeScript; the server compiles it statically and nothing in it runs. Run commands here: they read the workflow id from \`${SOURCE_BASE_FILE}\` (a starter has none until \`sim workflows source create\` makes the workflow; until then \`${SOURCE_STARTER_FILE}\` names its workspace), and each (table commands too) acts on its workspace; source commands refuse a \`-w\` naming another, the rest follow it.
+\`${SOURCE_ENTRY_FILE}\` is a Sim workflow as TypeScript; the server compiles it statically and nothing in it runs. Run commands here: they read the workflow id from \`${SOURCE_BASE_FILE}\` (a starter has none: \`${SOURCE_STARTER_FILE}\` names its workspace, and its loop ends in \`sim workflows source create --dir . --yes\`, not \`apply\`, which makes the workflow), and each (table commands too) acts on its workspace; source commands refuse a \`-w\` naming another, the rest follow it.
 
 **Edit loop**: write every file, then run one chained command; fix what it reports next: \`sim workflows source check --dir . && sim workflows source apply --dir . --yes && sim workflows run <workflowId> --manual --input '{…}'\`. A non-zero exit stops the chain. \`check\` compiles and type-checks (no separate \`tsc\`). Apply re-checks, so \`apply --dry-run\` is only for review. Apply saves the draft in canonical form: read \`${SOURCE_ENTRY_FILE}\` again before the next edit.
 
