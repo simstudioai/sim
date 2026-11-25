@@ -158,6 +158,12 @@ export interface ResolvedProfile {
   apiKey: string | null
   oauth: StoredOAuthCredential | null
   workspaceId: string | null
+  /**
+   * The source directory the command runs in whose workspace {@link workspaceId} is, when that
+   * directory chose it rather than {@link sources} (set where a command's requests take their
+   * workspace, never by {@link resolveProfile}).
+   */
+  workspaceDirectory?: string
   output: OutputFormat
   /**
    * Replaces global `fetch` for every request. Only an embedding server sets it, to
@@ -666,6 +672,16 @@ export function normalizeWorkspaceId(workspaceId: string, source: string): strin
     )
   }
   return trimmed
+}
+
+/**
+ * The setting that named a profile's workspace explicitly, `--workspace` or `SIM_WORKSPACE`, or
+ * `null` when it came from the profile or nowhere: only these outrank the source directory a
+ * command runs in or acts on.
+ */
+export function explicitWorkspaceSetting(profile: Pick<ResolvedProfile, 'sources'>): string | null {
+  const source = profile.sources.workspaceId
+  return source === 'flag' ? '--workspace' : source === 'env' ? 'SIM_WORKSPACE' : null
 }
 
 /**

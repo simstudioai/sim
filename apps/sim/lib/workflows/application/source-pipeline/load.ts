@@ -15,6 +15,10 @@ import {
 } from '@/lib/catalog/application/context'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { loadStoredSource } from '@/lib/workflows/application/read-workflow-source'
+import type {
+  ChildResultsMemo,
+  ChildSources,
+} from '@/lib/workflows/application/source-child-results'
 import type { SourceScope } from '@/lib/workflows/application/source-pipeline/evaluate'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { type StoredSource, storedSourceFingerprint } from '@/lib/workflows/code/print-stored'
@@ -73,6 +77,10 @@ export type SourceTarget =
 export interface SourceLoads {
   catalogGate?: Promise<CatalogGate>
   envNames?: Promise<string[]>
+  /** The child workflows read to type their callers' results (`loadChildResults`). */
+  childResults?: ChildResultsMemo
+  /** The workflow folders the workspace source apply writes, which its callers are typed by. */
+  childSources?: ChildSources
 }
 
 /** Everything a plan reads before it evaluates: the stored draft, its catalog and fingerprint. */

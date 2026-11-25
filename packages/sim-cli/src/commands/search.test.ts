@@ -141,6 +141,6 @@ describe('the agent discovery note', () => {
     const person = helpOf(['--help'], {})
     expect(person).toContain('\nExamples:\n')
     expect(agent).not.toContain('\nExamples:\n')
-    expect(agent).toContain('A command targets the profile')
+    expect(agent).toContain("A command's workspace is, first to last")
   })
 })

@@ -5,7 +5,7 @@
  */
 
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import type { BlockCatalog } from '@sim/workflow-code'
+import type { BlockCatalog, ChildResults } from '@sim/workflow-code'
 import { parseSourceBase, parseWorkflowLock, type WorkflowLockV1 } from '@sim/workflow-code'
 import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import {
@@ -228,7 +228,7 @@ Editing the \`workflow('…')\` name or description renames or redescribes the w
 
 ## A new workflow, or a fork
 
-\`sim workflows source create --dir <new dir> --workspace <workspaceId>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, the types of that workspace, \`tsconfig.json\` and this guide, records the workspace in \`${SOURCE_STARTER_FILE}\`, and creates nothing. Until the workflow exists there is no \`${SOURCE_BASE_FILE}\`, so \`status\`, \`diff\` and \`apply\` refuse the directory: edit the starter, check it, then \`sim workflows source create --dir <dir> --workspace <workspaceId> --dry-run\` and the same with \`--yes\` (the starter prints both with its workspace filled in): it prints the new workflow id and writes the lock files. A create goes to the starter's workspace whatever the profile's default, unless \`--workspace\` names another. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --workspace <workspaceId> --name <new name> --yes\`.
+\`sim workflows source create --dir <new dir> --workspace <workspaceId>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, the types of that workspace, \`tsconfig.json\` and this guide, records the workspace in \`${SOURCE_STARTER_FILE}\`, and creates nothing. Until the workflow exists there is no \`${SOURCE_BASE_FILE}\`, so \`status\`, \`diff\` and \`apply\` refuse the directory: edit the starter, check it, then \`sim workflows source create --dir <dir> --workspace <workspaceId> --dry-run\` and the same with \`--yes\` (the starter prints both with its workspace filled in): it prints the new workflow id and writes the lock files. A create goes to the starter's workspace whatever the profile's default, unless \`--workspace\` or \`SIM_WORKSPACE\` names another. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --workspace <workspaceId> --name <new name> --yes\`.
 
 ## File shape
 
@@ -289,7 +289,8 @@ async function writeSourceTree(
   source: PrintedSource,
   catalog: BlockCatalog,
   workspaceTypes: WorkspaceTypes | null,
-  blockTypes: readonly string[]
+  blockTypes: readonly string[],
+  childResults: ChildResults | null | undefined
 ): Promise<SourceTree> {
   const [previousLock, tree] = await Promise.all([
     readPreviousLock(dir),
@@ -298,7 +299,7 @@ async function writeSourceTree(
       blockTypes,
     }),
   ])
-  const edges = storedEdgesWrite(source, catalog)
+  const edges = storedEdgesWrite(source, catalog, childResults)
   const written = await writeBack(
     dir,
     source,
@@ -359,13 +360,15 @@ export async function writeSourceScaffold(
  * Writes a printed source with everything that makes the directory editable: the declarations
  * for the workspace catalog and its resources, `tsconfig.json`, the agent guide and the LF lines.
  * Shared by `get --dir` and `create --dir`, so a created workflow's directory is the one a get
- * would have written.
+ * would have written. `childResults` type its calls as the server printed them
+ * (`folderChildResults` of `dir`).
  */
 export async function writeSourceDirectory(
   client: OperationClient<'getSourceCatalog' | 'getSourceResources'>,
   dir: string,
   source: PrintedSource,
-  blockTypes: readonly string[]
+  blockTypes: readonly string[],
+  childResults: ChildResults | null | undefined
 ): Promise<SourceTree> {
   const [catalog, workspaceTypes] = await Promise.all([
     loadCatalog(client, {
@@ -377,7 +380,7 @@ export async function writeSourceDirectory(
     loadWorkspaceTypes(client, source.workspaceId),
   ])
   assertSdkMajor(catalog)
-  return writeSourceTree(dir, source, catalog, workspaceTypes, blockTypes)
+  return writeSourceTree(dir, source, catalog, workspaceTypes, blockTypes, childResults)
 }
 
 /**

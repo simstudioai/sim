@@ -735,8 +735,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
             options.dir,
             readFrom,
             profile,
-            (from, named) =>
-              `Run it without --workspace to apply it to ${from}, or promote it with --to ${named}: its resources bind by key to that workspace's own, and the directory stays bound to ${from}.`
+            (from, named, setting) =>
+              `Run it without ${setting} to apply it to ${from}, or promote it with --to ${named}: its resources bind by key to that workspace's own, and the directory stays bound to ${from}.`
           ) ?? undefined
         )
       const provenance = await gitProvenance(options.dir)

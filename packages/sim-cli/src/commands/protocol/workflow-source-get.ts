@@ -5,6 +5,7 @@ import type { GetWorkflowSourceResponse } from '../../generated/v2-api'
 import { callsOperations } from '../../runtime/called-operations'
 import { buildRequest } from '../../runtime/request'
 import { SourceDirError } from './local-errors'
+import { folderChildResults } from './source-check'
 import {
   absoluteDirOption,
   assertPrintedSourcePaths,
@@ -127,7 +128,8 @@ export function attachWorkflowSourceGet(source: Command): void {
         client,
         dir,
         workflowSource,
-        workflowSource.blockTypes
+        workflowSource.blockTypes,
+        await folderChildResults(dir)
       )
       const findings = findingsOutput(profile.output, false, dir)
       findings.print(workflowSource.diagnostics)

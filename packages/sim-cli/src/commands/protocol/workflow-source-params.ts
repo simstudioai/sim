@@ -8,7 +8,7 @@ import {
 import type { Command } from 'commander'
 import { printLine } from '#sim-cli/output/io'
 import type { ResolvedProfile } from '../../config/index'
-import { profileFrom } from '../../context'
+import { actingProfileFrom } from '../../context'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import { recordedWorkspace } from './source-dir'
@@ -66,7 +66,7 @@ export function attachWorkflowSourceParams(source: Command): void {
     .description("Print a builder's params and outputs from the cached block catalog (offline)")
     .addHelpText('after', PARAMS_HELP)
     .action(async (query: string, options: { dir: string; full?: boolean }, command: Command) => {
-      const profile = profileFrom(command)
+      const profile = actingProfileFrom(command)
       const catalog = await lookupCatalog(options.dir, profile)
       const found = lookupBuilder(catalog, query)
       const machine = isMachine(profile.output)

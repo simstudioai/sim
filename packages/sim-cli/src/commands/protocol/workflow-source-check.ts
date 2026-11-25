@@ -1,7 +1,7 @@
 import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS } from '@sim/workspace-code'
 import type { Command } from 'commander'
-import { profileFrom } from '../../context'
+import { actingProfileFrom } from '../../context'
 import { CliUsageError } from './local-errors'
 import {
   cachedOrRefuse,
@@ -67,7 +67,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
         options: { dir: string; verbose?: boolean } & StrictOptions & TypesOptions,
         command: Command
       ) => {
-        const profile = profileFrom(command)
+        const profile = actingProfileFrom(command)
         await assertSourceDirKind(options.dir, 'workflow')
         await requireEntry(options.dir)
         const workspace = await workspaceFolderOf(options.dir)
@@ -75,7 +75,8 @@ export function attachWorkflowSourceCheck(source: Command): void {
           options.dir,
           await recordedWorkspace(options.dir, profile),
           profile,
-          (from) => `Run it without --workspace to check it against the catalog of ${from}.`
+          (from, _named, setting) =>
+            `Run it without ${setting} to check it against the catalog of ${from}.`
         )
         if (!workspaceId) {
           throw new CliUsageError(
@@ -99,7 +100,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
               : undefined
             const { findings, entry, unlisted } = await checkWorkflowDir(options.dir, catalog, {
               strict: strictMode(options),
-              ...(declarations ? { declarations } : {}),
+              ...(workspace && declarations ? { declarations, key: workspace.key } : {}),
             })
             const enabled = options.types !== false
             let types: TypeCheck

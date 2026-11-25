@@ -9,6 +9,7 @@ import type {
 import { diagnostic } from '@sim/workflow-code/diagnostics'
 import { isEqual } from 'es-toolkit'
 import { withCatalogBlockScope } from '@/lib/catalog/application/context'
+import { loadChildResults } from '@/lib/workflows/application/source-child-results'
 import { assertCreateNameFree } from '@/lib/workflows/application/source-commit'
 import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import {
@@ -264,6 +265,13 @@ export async function planSource(
       })
     }
 
+    const childScope = {
+      workspaceId: scope.workspaceId,
+      workspaceOrganizationId: scope.workspaceOrganizationId,
+      gate: loaded.gate,
+      memo: options.loads ? (options.loads.childResults ??= new Map()) : new Map(),
+      ...(options.loads?.childSources ? { submitted: options.loads.childSources } : {}),
+    }
     const evaluation = await evaluateSource({
       principal,
       scope,
@@ -276,6 +284,7 @@ export async function planSource(
       files: submission.files,
       lock: submission.lock,
       ...(submission.pendingResources ? { pendingResources: submission.pendingResources } : {}),
+      loadChildResults: (keys) => loadChildResults(childScope, keys),
       ...(target.kind === 'existing'
         ? { base: target.base, allowDelete: target.allowDelete }
         : { create: target.create }),

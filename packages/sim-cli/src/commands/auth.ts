@@ -1119,7 +1119,15 @@ export function whoamiCommand(): Command {
           ...(verification.boundWorkspaceId
             ? [['Key bound to', safeOneLine(verification.boundWorkspaceId)] as [string, string]]
             : []),
-          ['Workspace', annotate(profile.workspaceId ?? '', sources.workspaceId)],
+          [
+            'Workspace',
+            annotate(
+              profile.workspaceId ?? '',
+              profile.workspaceDirectory
+                ? `source directory ${safeOneLine(profile.workspaceDirectory)}`
+                : sources.workspaceId
+            ),
+          ],
           ['Output', annotate(profile.output, sources.output)],
           ['Verified', presentVerification(verification)],
         ],
@@ -1132,7 +1140,7 @@ export function whoamiCommand(): Command {
           sources: {
             endpoint: sources.endpoint,
             authentication: authentication.source,
-            workspaceId: sources.workspaceId,
+            workspaceId: profile.workspaceDirectory ? 'directory' : sources.workspaceId,
             output: sources.output,
           },
           verification: {

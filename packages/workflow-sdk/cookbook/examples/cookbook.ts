@@ -135,9 +135,29 @@ export default workflow('Cookbook', { description: 'One example of each common b
     text: report.content,
   })
 
+  // Branches that rejoin: a block both lead to runs once, after whichever branch ran. A block
+  // that did not run reads as null in js`` code and as '' in t`` text, so a function picks the
+  // branch's value with ?? and one response replies for both.
+  const size = condition('Order Size', { large: js`${shape.result.cents} >= 100000`, else: true })
+  const review = table.upsertRow('Keep Open', {
+    tableId: table('orders'),
+    data: { orderId: start.orderId, status: 'open' },
+    conflictColumn: 'orderId',
+  })
+  const accept = table.upsertRow('Mark Answered', {
+    tableId: table('orders'),
+    data: { orderId: start.orderId, status: 'answered' },
+    conflictColumn: 'orderId',
+  })
+  const status = fn('Pick Status', {
+    code: js`return ${review.row.data.status} ?? ${accept.row.data.status}`,
+  })
+
   // Response: the API reply body. Wrap an untyped value (fn.result.x) in t`` when it is text.
   // body is the short form of the editor's JSON mode: { dataMode: 'json', data } as below.
-  const reply = response('Respond', { body: { risk: check.risk, id: t`${shape.result.id}` } })
+  const reply = response('Respond', {
+    body: { risk: check.risk, id: t`${shape.result.id}`, status: t`${status.result}` },
+  })
   const rejected = response('Respond Rejected', {
     dataMode: 'json',
     data: { status: 'rejected' },
@@ -158,7 +178,12 @@ export default workflow('Cookbook', { description: 'One example of each common b
   route.med.to(docs)
   docs.to(shape)
   route.else.to(shape)
-  shape.to(reply)
+  shape.to(size)
+  size.large.to(review)
+  size.else.to(accept)
+  review.to(status)
+  accept.to(status)
+  status.to(reply)
   shape.onError(invalid)
   nightly.to(recent)
   recent.to(each)

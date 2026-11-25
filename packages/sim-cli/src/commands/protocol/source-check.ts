@@ -10,13 +10,19 @@ import { collectStringLeaves, findWorkflowReferenceTokens } from '@sim/utils/wor
 import {
   type BlockCatalog,
   type CanonicalWorkflow,
+  type ChildResultNode,
+  type ChildResults,
+  type CompileInput,
+  calledWorkflowKey,
   catalogBlock,
   codeFrame,
   codePointLabel,
+  compiledResultNode,
   compileWorkflow,
   didYouMean,
   EDIT_REFUSALS,
   encodeAnchor,
+  folderCompileInput,
   formatStoredPath,
   getOwn,
   parseJsonField,
@@ -26,6 +32,7 @@ import {
   raisedMessage,
   refuseEditedFindings,
   refusesEdited,
+  resolveChildResults,
   respondsOnEveryRun,
   scriptName,
   startInputs,
@@ -46,9 +53,11 @@ import {
   readSourceText,
   unchangedTexts,
   type Written,
+  workspaceFolderOf,
 } from './source-dir'
 import { STRICT_FINDINGS } from './source-strict'
 import {
+  cachedCatalog,
   cachedSourceCatalog,
   type LocalDeclarations,
   refreshTsconfigs,
@@ -57,7 +66,12 @@ import {
 } from './source-tree'
 import { type TypeCheck, typeCheck } from './source-types'
 import { type Diagnostic, findingsOutput } from './source-ui'
-import { blockDigest, readStoredBlockDigests, readStoredEdges } from './stored-edges'
+import {
+  blockDigest,
+  compiledWithChildResults,
+  readStoredBlockDigests,
+  readStoredEdges,
+} from './stored-edges'
 import { lockRecoveryHint, readSourceFiles } from './workflow-dir'
 import {
   type DeclaredColumn,
@@ -253,13 +267,6 @@ function inputMappingOf(canonical: CanonicalWorkflow['blocks'][string]): Record<
   if (mapping?.kind !== 'value') return {}
   const value = rowJson(mapping.value)
   return toRecord(value)
-}
-
-/** The workflow a child workflow call names by key, or `null` for an id, a reference or none. */
-function calledWorkflowKey(canonical: CanonicalWorkflow['blocks'][string]): string | null {
-  const ref = canonical.params.workflowId
-  const child = ref?.kind === 'value' ? resourceNode(ref.value) : null
-  return child?.kind === 'workflow' ? child.key : null
 }
 
 /**
@@ -462,13 +469,13 @@ function declarationFindings(
 /**
  * Compiles the workflow source directory `dir` against the catalog its base names when that one is
  * cached (a workflow holding a type the workspace catalog lacks was printed with its own), else
- * `catalog`, checking env names against the names `secrets.ts` declares when `declarations` hold
- * them.
+ * `catalog`, checking env names against `envNames` (what `secrets.ts` declares) when given. Its
+ * calls are untyped: {@link compiledWithChildResults} types them.
  */
 async function compileWorkflowDir(
   dir: string,
   workspaceCatalog: BlockCatalog,
-  declarations?: WorkspaceDeclarations
+  envNames?: ReadonlySet<string>
 ) {
   const lockText = await readSourceText(dir, SOURCE_LOCK_FILE)
   const parsedLock = lockText === null ? null : parseWorkflowLock(lockText)
@@ -480,27 +487,24 @@ async function compileWorkflowDir(
     cachedSourceCatalog(dir),
   ])
   const catalog = printedWith ?? workspaceCatalog
-  const envNames = declarations?.envNames
-  const compiled = compileWorkflow({
-    entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
-    files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
-    catalog,
-    sdkMajor: catalog.sdkMajor,
-    knownKeys: new Set(Object.keys(lock?.blocks ?? {})),
-    storedUnread: lock ?? undefined,
+  const input: CompileInput = {
+    ...folderCompileInput(files[SOURCE_ENTRY_FILE], files, lock, catalog),
     ...(storedEdges ? { storedUnreadEdges: storedEdges } : {}),
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
-  })
+  }
   return {
     lock,
     lockProblems: parsedLock?.diagnostics ?? [],
     files,
-    compiled,
+    input,
+    compiled: compileWorkflow(input),
     storedBlocks,
     printedWith,
     catalog,
   }
 }
+
+type CompiledWorkflowDir = Awaited<ReturnType<typeof compileWorkflowDir>>
 
 /** What {@link readCheckDeclarations} reads: the declarations and the compiled workflows' facts. */
 type CheckDeclarations = WorkspaceDeclarations &
@@ -510,30 +514,59 @@ type CheckDeclarations = WorkspaceDeclarations &
  * The workspace directory `root`'s declarations, with what a child workflow call is checked
  * against from compiling each of its workflows: the inputs of each workflow that compiles
  * (`startInputs`, `null` without a Start trigger), which `workspace.d.ts` also types
- * `inputMapping` with, and the keys of those that end at a Response block on every run, whose
- * `result` is that block's output.
+ * `inputMapping` with, the keys of those that end at a Response block on every run, whose
+ * `result` is that block's output, and the typed fields of the data each of those responds with,
+ * which type a call's `<call.result.data.<field>>`. Each compile is kept (`compiledWorkflows`, by
+ * key) for {@link checkWorkflowDir}: env names change only its findings, never its blocks.
  */
 export async function readCheckDeclarations(
   root: string,
   catalog: BlockCatalog
 ): Promise<CheckDeclarations> {
-  const [declared, workflows] = await Promise.all([
-    readWorkspaceDeclarations(root),
-    compileWorkspaceWorkflows(root, catalog),
-  ])
-  return { ...declared, ...workflows }
+  const declared = await readWorkspaceDeclarations(root)
+  return { ...declared, ...(await compileWorkspaceWorkflows(root, catalog, declared.envNames)) }
 }
 
-async function compileWorkspaceWorkflows(root: string, catalog: BlockCatalog) {
+async function compileWorkspaceWorkflows(
+  root: string,
+  catalog: BlockCatalog,
+  envNames?: ReadonlySet<string>
+) {
   const workflowInputs = new Map<string, WorkflowInput[] | null>()
   const respondingWorkflows = new Set<string>()
+  const nodes = new Map<string, ChildResultNode>()
+  const compiledWorkflows = new Map<string, CompiledWorkflowDir>()
   for (const key of await workspaceWorkflowKeys(root)) {
-    const { compiled } = await compileWorkflowDir(join(root, KIND_DIRS.workflow, key), catalog)
-    if (!compiled.workflow) continue
-    workflowInputs.set(key, startInputs(compiled.workflow))
-    if (respondsOnEveryRun(compiled.workflow)) respondingWorkflows.add(key)
+    const dir = await compileWorkflowDir(join(root, KIND_DIRS.workflow, key), catalog, envNames)
+    compiledWorkflows.set(key, dir)
+    const { workflow } = dir.compiled
+    if (!workflow) continue
+    workflowInputs.set(key, startInputs(workflow))
+    if (respondsOnEveryRun(workflow)) respondingWorkflows.add(key)
+    const node = compiledResultNode(dir.input, dir.compiled)
+    if (node) nodes.set(key, node)
   }
-  return { workflowInputs, respondingWorkflows }
+  const childResults = resolveChildResults(nodes)
+  return { workflowInputs, respondingWorkflows, childResults, compiledWorkflows }
+}
+
+/**
+ * The child results that type the calls of a workflow written into `dir`, as a check of it types
+ * them: those of the workspace directory it is a workflow folder of, compiled from disk against
+ * the workspace's cached catalog; `undefined` for a workflow directory of its own, which has none.
+ * `null` when that directory cannot be read (a symbolic link in any of its workflow folders, say):
+ * they only type the folder's stored-edges record, a cache fill, so that record is skipped
+ * ({@link storedEdgesWrite}) and nothing else.
+ */
+export async function folderChildResults(dir: string): Promise<ChildResults | null | undefined> {
+  try {
+    const folder = await workspaceFolderOf(dir)
+    const catalog = folder && cachedCatalog(folder.workspaceId)
+    if (!folder || !catalog) return undefined
+    return (await compileWorkspaceWorkflows(folder.root, catalog)).childResults
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -607,9 +640,22 @@ async function writtenWorkspaceTypes(
 export async function checkWorkflowDir(
   dir: string,
   catalog: BlockCatalog,
-  options: { declarations?: WorkspaceDeclarations; strict: StrictMode; prefix?: string }
+  options: {
+    declarations?: CheckDeclarations
+    strict: StrictMode
+    /** The key of the workflow folder `dir` is, whose compile `declarations` hold. */
+    key?: string
+    prefix?: string
+  }
 ): Promise<{ findings: CheckFinding[]; entry: string; unlisted: UnlistedCounts }> {
-  const compiledDir = await compileWorkflowDir(dir, catalog, options.declarations)
+  const { declarations } = options
+  const untyped =
+    (options.key === undefined ? undefined : declarations?.compiledWorkflows.get(options.key)) ??
+    (await compileWorkflowDir(dir, catalog, declarations?.envNames))
+  const compiledDir = {
+    ...untyped,
+    compiled: compiledWithChildResults(untyped.input, untyped.compiled, declarations?.childResults),
+  }
   const { lock, lockProblems, files, compiled, storedBlocks, printedWith } = compiledDir
   const entryText = files[SOURCE_ENTRY_FILE]
   const locate = (block: string, param: string, names: string | undefined) => {

@@ -1,6 +1,7 @@
 import {
   type CanonicalizeResult,
   type CanonicalWorkflowMeta,
+  calledWorkflowKeys,
   canonicalizeUnderLock,
   type Diagnostic,
   parseWorkflowLock,
@@ -33,12 +34,15 @@ export interface CompiledSubmission {
 
 /**
  * Parses the submitted lock and compiles the files against the live catalog and the stored graph
- * read under that lock. Refuses a lock that does not parse, or a source that does not compile
- * (noting a catalog that moved since the read, which can explain the errors).
+ * read under that lock, typing child calls' results by the fields of the children the compiled
+ * source calls (`input.loadChildResults`): a compile names its calls only once it has run, so a
+ * source calling a child that responds is compiled again with those fields (the lock and the
+ * stored graph are read once). Refuses a lock that does not parse, or a source that does not
+ * compile (noting a catalog that moved since the read, which can explain the errors).
  */
-export function compileSubmission(
+export async function compileSubmission(
   input: SourceEvaluationInput
-): { refused: WorkflowSourceDiagnostic[] } | CompiledSubmission {
+): Promise<{ refused: WorkflowSourceDiagnostic[] } | CompiledSubmission> {
   const { catalog, files } = input
 
   const parsedLock = parseWorkflowLock(input.lock)
@@ -47,9 +51,8 @@ export function compileSubmission(
   }
   const lock = parsedLock.lock
 
-  const { state } = input.stored
   const storedCanonical = canonicalizeUnderLock(
-    state,
+    input.stored.state,
     { catalog, meta: input.stored.meta, resources: input.storedCanonical.resources },
     input.storedCanonical.canonical,
     lock
@@ -65,6 +68,24 @@ export function compileSubmission(
     ]),
     envNames: input.envNames,
   }
+  const read = { lock, storedCanonical, compileInput }
+
+  const untyped = compileUnder(input, read)
+  if ('refused' in untyped || !input.loadChildResults) return untyped
+  const called = calledWorkflowKeys(untyped.compiledWorkflow)
+  if (called.length === 0) return untyped
+  const childResults = await input.loadChildResults(called)
+  if (childResults.size === 0) return untyped
+  return compileUnder(input, { ...read, compileInput: { ...compileInput, childResults } })
+}
+
+/** Compiles the files under the lock and stored graph {@link compileSubmission} read. */
+function compileUnder(
+  input: SourceEvaluationInput,
+  read: Pick<CompiledSubmission, 'lock' | 'storedCanonical' | 'compileInput'>
+): { refused: WorkflowSourceDiagnostic[] } | CompiledSubmission {
+  const { catalog, files } = input
+  const { lock, storedCanonical, compileInput } = read
   const compiled = compileSource({ ...compileInput, stored: storedCanonical.workflow, lock })
   const compiledWorkflow = compiled.workflow
   if (!compiledWorkflow || hasErrors(compiled.diagnostics)) {

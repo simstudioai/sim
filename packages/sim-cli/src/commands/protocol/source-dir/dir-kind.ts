@@ -8,7 +8,7 @@ import { toRecord } from '@sim/utils/object'
 import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS } from '@sim/workspace-code'
 import type { Command } from 'commander'
-import type { ResolvedProfile } from '../../../config/index'
+import { explicitWorkspaceSetting, type ResolvedProfile } from '../../../config/index'
 import { embedStore } from '../../../embed-context'
 import { SourceDirError } from '../local-errors'
 import { readSourceJson, readSourceText } from './files'
@@ -30,24 +30,24 @@ export function absoluteDirOption(command: Command): Command {
 
 /**
  * The workspace a source command acts on for a directory read from `readFrom`: that workspace,
- * whatever the profile's default, so a directory stays bound to where it came from. Only a
- * `--workspace` naming another one is refused, with `next` saying what to run instead (given the
- * workspace the directory was read from and the one named). A directory that records no workspace
- * takes the profile's (`null` when none is selected).
+ * whatever the profile's default, so a directory stays bound to where it came from. A
+ * `--workspace` or `SIM_WORKSPACE` naming another one is refused rather than ignored, with `next`
+ * saying what to run instead (given the workspace the directory was read from, the one named, and
+ * the setting that named it). A directory that records no workspace takes the resolved one (`null`
+ * when none is selected).
  */
 export function directoryWorkspace(
   dir: string,
   readFrom: string | null,
   profile: Pick<ResolvedProfile, 'workspaceId' | 'sources'>,
-  next: (readFrom: string, named: string) => string
+  next: (readFrom: string, named: string, setting: string) => string
 ): string | null {
   const named = profile.workspaceId
   if (readFrom === null) return named
-  if (profile.sources.workspaceId !== 'flag' || named === null || named === readFrom) {
-    return readFrom
-  }
+  const setting = explicitWorkspaceSetting(profile)
+  if (setting === null || named === null || named === readFrom) return readFrom
   throw new SourceDirError(
-    `${dir} was read from workspace ${readFrom}, but --workspace names ${named}. ${next(readFrom, named)}`,
+    `${dir} was read from workspace ${readFrom}, but ${setting} names ${named}. ${next(readFrom, named, setting)}`,
     { code: 'SOURCE_OTHER_WORKSPACE' }
   )
 }
@@ -98,21 +98,60 @@ export async function readStarterWorkspace(dir: string): Promise<string | null> 
   return typeof workspaceId === 'string' ? workspaceId : null
 }
 
+/** The workspace a source directory names, and the directory whose record names it. */
+export interface NamedWorkspace {
+  workspaceId: string
+  /** `dir` itself, or the workspace directory it is a workflow folder of. */
+  dir: string
+  /** Whether a starter's record names it, which an explicit workspace overrides. */
+  starter: boolean
+}
+
 /**
- * The workspace `dir` records it belongs to: the one its `.sim/base.json` was read from, else the
+ * The workspace `dir` names: the one its `.sim/base.json` was read from, else that of the
  * workspace directory it is a workflow folder of, else the one its starter's types were written
- * for (`null` when none). A starter yields to a `--workspace` flag, which chooses another; a base
- * or workspace folder does not ({@link directoryWorkspace} refuses that flag).
+ * for (`null` when none). The one definition of the workspace a directory names, for a source
+ * command's `--dir` ({@link recordedWorkspace}) and the directory any command runs in
+ * ({@link enclosingWorkspace}).
+ */
+async function namedWorkspace(dir: string): Promise<NamedWorkspace | null> {
+  const base = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE))
+  if (typeof base.workspaceId === 'string') {
+    return { workspaceId: base.workspaceId, dir, starter: false }
+  }
+  const folder = await workspaceFolderOf(dir)
+  if (folder) return { workspaceId: folder.workspaceId, dir: folder.root, starter: false }
+  const starter = await readStarterWorkspace(dir)
+  return starter === null ? null : { workspaceId: starter, dir, starter: true }
+}
+
+/**
+ * The workspace `dir` records it belongs to ({@link namedWorkspace}). A starter yields to a
+ * `--workspace` or `SIM_WORKSPACE`, which chooses another; a base or workspace folder does not
+ * ({@link directoryWorkspace} refuses either).
  */
 export async function recordedWorkspace(
   dir: string,
   profile: Pick<ResolvedProfile, 'sources'>
 ): Promise<string | null> {
-  const base = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE))
-  if (typeof base.workspaceId === 'string') return base.workspaceId
-  const folder = await workspaceFolderOf(dir)
-  if (folder) return folder.workspaceId
-  return profile.sources.workspaceId === 'flag' ? null : readStarterWorkspace(dir)
+  const named = await namedWorkspace(dir)
+  if (!named || (named.starter && explicitWorkspaceSetting(profile) !== null)) return null
+  return named.workspaceId
+}
+
+/**
+ * The workspace the nearest directory at or above `cwd` names ({@link namedWorkspace}), which a
+ * command run in `cwd` acts on unless `--workspace` or `SIM_WORKSPACE` names one; `null` when none
+ * up to the root names one.
+ */
+export async function enclosingWorkspace(cwd: string): Promise<NamedWorkspace | null> {
+  for (let dir = resolve(cwd); ; dir = dirname(dir)) {
+    // One whose records cannot be read (a symbolic link, no permission) names none: a directory
+    // above the one a command runs in, such as a linked `~/.sim`, must not stop the command.
+    const named = await namedWorkspace(dir).catch(() => null)
+    if (named) return named
+    if (dirname(dir) === dir) return null
+  }
 }
 
 /**

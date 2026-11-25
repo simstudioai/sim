@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, mockedProfile } from '../../test/context-mock'
+import { folderChildResults } from './source-check'
+import { storedEdgesWrite, workflowFolderRecords } from './stored-edges'
 import { attachWorkspaceSourceCheck } from './workspace-source-check'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -381,7 +383,7 @@ describe('sim workspaces source check', () => {
   function workflowFile(...lines: string[]): string {
     return [
       '// @sim-sdk 1',
-      "import { agent, childWorkflow, condition, env, fn, js, response, runWorkflow, skill, t, trigger, workflow } from '@sim/workflow-sdk'",
+      "import { agent, api, childWorkflow, condition, env, fn, js, loop, response, runWorkflow, skill, stored, t, trigger, workflow } from '@sim/workflow-sdk'",
       "export default workflow('W', {}, () => {",
       ...lines.map((line) => `  ${line}`),
       '})',
@@ -571,6 +573,206 @@ describe('sim workspaces source check', () => {
       }),
     ])
   })
+
+  it("types a child call's result.data.<key> by the child's Response body, so it needs no t`${…}`", async () => {
+    writeFile(
+      'workflows/normalize-phone/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })",
+        "const reply = response('Reply', { body: { mobile: start.phone, digits: start.n } })",
+        'start.to(reply)'
+      )
+    )
+    writeFile(
+      'workflows/parent/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const call = runWorkflow('Call', { workflowId: childWorkflow('normalize-phone'), inputMapping: { phone: start.phone } })",
+        "const reply = response('Reply', { body: { mobile: call.result.data.mobile, digits: call.result.data.digits, other: call.result.data.missing } })",
+        'start.to(call)',
+        'call.to(reply)'
+      )
+    )
+
+    await check()
+
+    const untyped = (stdoutJson().diagnostics as Array<Record<string, unknown>>).filter(
+      (finding) => finding.code === 'W_JSON_REF_UNTYPED'
+    )
+    expect(untyped).toEqual([
+      expect.objectContaining({
+        file: 'workflows/parent/workflow.ts',
+        message: expect.stringContaining('<call.result.data.missing>'),
+      }),
+    ])
+  })
+
+  it("types a call by a field its child forwards from a grandchild's Response, through the chain", async () => {
+    writeFile(
+      'workflows/c/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })",
+        "const reply = response('Reply', { body: { text: start.phone, n: start.n } })",
+        'start.to(reply)'
+      )
+    )
+    writeFile(
+      'workflows/b/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const callC = runWorkflow('Call C', { workflowId: childWorkflow('c'), inputMapping: { phone: start.phone } })",
+        "const reply = response('Reply', { body: { text: callC.result.data.text, n: callC.result.data.n } })",
+        'start.to(callC)',
+        'callC.to(reply)'
+      )
+    )
+    writeFile(
+      'workflows/a/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const callB = runWorkflow('Call B', { workflowId: childWorkflow('b'), inputMapping: { phone: start.phone } })",
+        "const reply = response('Reply', { body: { text: callB.result.data.text, n: callB.result.data.n } })",
+        'start.to(callB)',
+        'callB.to(reply)'
+      )
+    )
+
+    await check()
+
+    const untyped = (stdoutJson().diagnostics as Array<Record<string, unknown>>).filter(
+      (finding) => finding.code === 'W_JSON_REF_UNTYPED'
+    )
+    expect(untyped).toEqual([])
+  })
+
+  it('types a call by a child whose blocks keep stored() values, compiled under its lock', async () => {
+    writeFile(
+      'workflows/normalize-phone/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const lookup = api('Lookup', { url: 'https://example.com', proxyUrl: stored() })",
+        "const reply = response('Reply', { body: { mobile: start.phone } })",
+        'start.to(lookup)',
+        'lookup.to(reply)'
+      )
+    )
+    writeFile(
+      'workflows/normalize-phone/.sim/lock.json',
+      JSON.stringify({
+        version: 1,
+        blocks: Object.fromEntries(
+          ['start', 'lookup', 'reply'].map((key, order) => [
+            key,
+            { id: `id-${key}`, parent: null, ident: key, order },
+          ])
+        ),
+        variables: {},
+      })
+    )
+    writeFile(
+      'workflows/parent/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const call = runWorkflow('Call', { workflowId: childWorkflow('normalize-phone'), inputMapping: { phone: start.phone } })",
+        "const reply = response('Reply', { body: { mobile: call.result.data.mobile } })",
+        'start.to(call)',
+        'call.to(reply)'
+      )
+    )
+
+    await check()
+
+    const codes = (stdoutJson().diagnostics as Array<Record<string, unknown>>).map(
+      (finding) => finding.code
+    )
+    expect(codes).not.toContain('W_JSON_REF_UNTYPED')
+    expect(codes).not.toContain('E_STORED_VALUE_MISSING')
+  })
+
+  it.each(['a workspace get', 'a workflow get into its folder'])(
+    "counts a block the get printed as unchanged while a child's Response data types its call, after %s",
+    async (get) => {
+      const child = workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const reply = response('Reply', { body: { mobile: start.phone } })",
+        'start.to(reply)'
+      )
+      const printed = workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const each = loop.for('Each', { count: 2 }, (p) => {",
+        "  const inner = fn('Inner', { code: 'return 1' })",
+        '  p.to(inner)',
+        '})',
+        "const call = runWorkflow('Call', { workflowId: childWorkflow('normalize-phone'), inputMapping: { phone: start.phone } })",
+        "const reply = response('Reply', { body: { mobile: call.result.data.mobile, at: '<loop.index>' } })",
+        'start.to(each)',
+        'each.to(call)',
+        'call.to(reply)'
+      )
+      const lockOf = (keys: string[]) => ({
+        version: 1,
+        blocks: Object.fromEntries(
+          keys.map((key, order) => [
+            key,
+            { id: `id-${key}`, parent: key === 'inner' ? 'each' : null, ident: key, order },
+          ])
+        ),
+        variables: {},
+      })
+      const baseOf = (workflowId: string) => ({
+        version: 1,
+        workflowId,
+        workspaceId: WORKSPACE_ID,
+        fingerprint: 'sf1:a',
+        catalogHash: 'fixture',
+      })
+      const folders = {
+        'normalize-phone': {
+          text: child,
+          lock: lockOf(['start', 'reply']),
+          base: baseOf('wf-child'),
+        },
+        parent: {
+          text: printed,
+          lock: lockOf(['start', 'each', 'inner', 'call', 'reply']),
+          base: baseOf('wf-parent'),
+        },
+      }
+      const files: Record<string, string> = {}
+      for (const [key, folder] of Object.entries(folders)) {
+        files[`workflows/${key}/workflow.ts`] = folder.text
+        files[`workflows/${key}/.sim/lock.json`] = JSON.stringify(folder.lock)
+        files[`workflows/${key}/.sim/base.json`] = JSON.stringify(folder.base)
+      }
+      for (const [path, text] of Object.entries(files)) writeFile(path, text)
+      const catalog = JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+      if (get === 'a workspace get') {
+        const { records } = await workflowFolderRecords(
+          contextMockFns.mockClientFrom().client as never,
+          WORKSPACE_ID,
+          catalog,
+          files
+        )
+        for (const [path, text] of records) writeFile(path, text)
+      } else {
+        const folder = join(dir, 'workflows', 'parent')
+        const record = storedEdgesWrite(
+          { files: { 'workflow.ts': printed }, ...folders.parent },
+          catalog,
+          await folderChildResults(folder)
+        )
+        if (!record) throw new Error('no stored-edges record')
+        writeFile(`workflows/parent/${record[0]}`, record[1])
+      }
+
+      await check()
+
+      const findings = stdoutJson().diagnostics as Array<Record<string, unknown>>
+      expect(findings.filter((finding) => String(finding.code).includes('OUT_OF_SCOPE'))).toEqual([
+        expect.objectContaining({ code: 'W_REF_OUT_OF_SCOPE', severity: 'warning' }),
+      ])
+    }
+  )
 
   it("checks the cookbook example's table writes clean against the cookbook workspace's tables", async () => {
     for (const [path, text] of Object.entries(WORKSPACE_COOKBOOK)) writeFile(path, text)

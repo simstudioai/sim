@@ -2,6 +2,7 @@ import {
   type BlockCatalog,
   type CanonicalizeResult,
   type CanonicalWorkflowMeta,
+  type ChildResultFields,
   canonicalDigests,
   canonicalHash,
   canonicalize,
@@ -44,6 +45,11 @@ interface PrintStoredSourceInput extends StoredSource {
    * with the author's file names instead of deriving new ones from the idents.
    */
   codeFiles?: Record<string, string>
+  /**
+   * The typed result fields of the child workflows the state calls, by key: what the apply of the
+   * printed source types a call's `<call.result.data.<field>>` by (`loadChildResults`).
+   */
+  childResults?: ReadonlyMap<string, ChildResultFields>
 }
 
 /** A stored workflow printed as source, with the lock and freshness token that go with it. */
@@ -142,6 +148,7 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
     catalog,
     hints: metaInputs.hints,
     options: { functionCode: input.functionCode },
+    ...(input.childResults ? { childResults: input.childResults } : {}),
   })
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),

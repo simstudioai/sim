@@ -31,7 +31,7 @@ The stored workflow and the file are two views of one canonical form, so a round
 
 Some state has no syntax in the file. Sim keeps it from the stored workflow on every apply:
 
-- **Layout.** Block positions stay in Sim. A new block is placed automatically. Moving blocks never makes a directory stale.
+- **Layout.** Block positions stay in Sim. `.sim/lock.json` keeps a copy, used only to place a block the target does not hold yet (a promotion or a fresh create); a new block is placed automatically. Moving blocks never makes a directory stale.
 - **Settings that do not run.** A value in a field that the block's current choices hide stays stored, so switching back in the workflow builder brings it back.
 - **Comments.** Comments in `workflow.ts` are stored with the workflow, by block, so a builder edit or a rename keeps them.
 

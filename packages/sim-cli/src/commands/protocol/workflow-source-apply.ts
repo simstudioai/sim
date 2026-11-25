@@ -24,6 +24,7 @@ import {
 import { gitProvenance } from './git-provenance'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
+import { folderChildResults } from './source-check'
 import {
   absoluteDirOption,
   assertSendableCodeFiles,
@@ -475,6 +476,7 @@ export function attachWorkflowSourceApply(source: Command): void {
           if (!isReadOnly(mode)) {
             await refreshWorkflowWorkspaceTypes(client, options.dir, base.workspaceId)
           }
+          const childResults = isReadOnly(mode) ? undefined : await folderChildResults(options.dir)
           await writeWorkflowSource<'applyWorkflowSource'>({
             options,
             mode,
@@ -494,7 +496,8 @@ export function attachWorkflowSourceApply(source: Command): void {
             save: async (data) => {
               const edges = storedEdgesWrite(
                 data,
-                cachedCatalogByHash(toRecord(data.base).catalogHash)
+                cachedCatalogByHash(toRecord(data.base).catalogHash),
+                childResults
               )
               await writeBack(options.dir, data, lock, { write: edges ? [edges] : [] })
               await refreshWorkflowTsconfigs(options.dir, data)
@@ -583,13 +586,14 @@ export function attachWorkflowSourceCreate(source: Command): void {
             options.dir,
             await recordedWorkspace(options.dir, profile),
             profile,
-            (from) => `Run it without --workspace to create it in ${from}.`
+            (from, _named, setting) => `Run it without ${setting} to create it in ${from}.`
           )
           const workspaceId = client.requireWorkspace(recorded ?? undefined)
           const files = await readSourceFiles(options.dir, null)
           if (!isReadOnly(mode)) {
             await refreshWorkflowWorkspaceTypes(client, options.dir, workspaceId)
           }
+          const childResults = isReadOnly(mode) ? undefined : await folderChildResults(options.dir)
           await writeWorkflowSource<'createWorkflowFromSource'>({
             options,
             mode,
@@ -602,7 +606,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
             params: { workspaceId },
             ifAnswerLost: `It may have been created. Run this command again: a SOURCE_NAME_TAKEN refusal means it was, so find its id with \`sim workflows list\` and run \`sim workflows source get <workflowId> --dir ${options.dir} --force\`.`,
             save: async (data) => {
-              await writeSourceDirectory(client, options.dir, data, [])
+              await writeSourceDirectory(client, options.dir, data, [], childResults)
               await updateSourceDir(options.dir, { write: [], remove: [SOURCE_STARTER_FILE] })
             },
             body: {

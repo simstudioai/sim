@@ -175,7 +175,8 @@ function folderWorkflow(
 
 /**
  * Reads a promotion record for `workspaceId`; `undefined` for anything else (no record, another
- * target's, an unreadable one), which makes the promotion take the target as it stands.
+ * target's, an unreadable one): the promotion then has no baseline, so it updates every resource
+ * to match the directory and refuses none as stale.
  */
 export function parsePromotionRecord(
   input: unknown,

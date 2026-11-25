@@ -7,10 +7,9 @@
  * of these types prints through its block builder or `raw(tool)`.
  */
 
-import { isRecordLike } from '@sim/utils/object'
 import { toolModes } from './canonicalize/modes'
 import type { BlockCatalog } from './catalog/types'
-import type { CanonicalTool, Json, ResourceKind, ResourceNode, Value } from './model'
+import { type CanonicalTool, isResource, type Json, type ResourceNode, type Value } from './model'
 import { deepEqual, setOwn } from './records'
 
 /** The stored type of an MCP server tool entry. */
@@ -93,15 +92,6 @@ function usageOf(tool: CanonicalTool): ToolUsage {
       usageControlExpression: tool.usageControlExpression,
     }),
   }
-}
-
-function isResource(value: Value | undefined, kind: ResourceKind): value is ResourceNode {
-  return (
-    isRecordLike(value) &&
-    value.$sim === 'resource' &&
-    value.kind === kind &&
-    typeof value.key === 'string'
-  )
 }
 
 function optionalString(value: Value | undefined): value is string | undefined {

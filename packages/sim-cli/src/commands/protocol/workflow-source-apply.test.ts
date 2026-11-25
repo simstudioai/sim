@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
@@ -1302,6 +1303,33 @@ describe('sim workflows source apply in a workflow folder of a workspace directo
 
     expect(lockedDuringWrite).toBe(true)
     expect(existsSync(join(dir, '.sim/command.lock'))).toBe(false)
+  })
+
+  it('writes the stored source back when another folder cannot be read to type its calls', async () => {
+    setTerminal(false)
+    const config = mkdtempSync(join(tmpdir(), 'sim-source-apply-config-'))
+    vi.stubEnv('SIM_CONFIG_DIR', config)
+    const catalogText = readFileSync(FIXTURE_CATALOG, 'utf8')
+    cacheCatalogText(config, WORKSPACE_ID, catalogText)
+    mkdirSync(join(dir, 'workflows/other'))
+    writeFileSync(join(config, 'elsewhere.ts'), ENTRY)
+    symlinkSync(join(config, 'elsewhere.ts'), join(dir, 'workflows/other/workflow.ts'))
+    const stored = outcome()
+    stored.data.base.catalogHash = JSON.parse(catalogText).hash
+    request.mockResolvedValue(stored)
+
+    try {
+      await apply('--dir', folder(), '--yes')
+    } finally {
+      rmSync(config, { recursive: true, force: true })
+    }
+
+    expect(process.exitCode).toBeUndefined()
+    expect(readFileSync(join(folder(), 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
+    expect(JSON.parse(readFileSync(join(folder(), '.sim/base.json'), 'utf8')).fingerprint).toBe(
+      'sf1:b'
+    )
+    expect(existsSync(join(folder(), '.sim/stored-edges.json'))).toBe(false)
   })
 })
 

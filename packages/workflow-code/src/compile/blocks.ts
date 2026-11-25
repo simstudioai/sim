@@ -84,6 +84,7 @@ import {
   type CompileContext,
   catalogBlockOf,
   EDGE_METHODS,
+  lockBinds,
   type ResolvedBuilder,
   rangeOf,
   recordSpan,
@@ -791,16 +792,24 @@ function pairMode(field: Extract<CatalogField, { kind: 'pair' }>, value: Compile
 /**
  * `stored()`: the param keeps what the stored block holds (`CompileInput.stored`), a pair its
  * members and mode, without the value ever appearing in source. Only a block the stored workflow
- * already has under this key and type, holding a value for the param, can keep one.
+ * already has under this key and type, holding a value for the param, can keep one. Under
+ * `CompileInput.storedUnread` a block the lock binds may be such a block, which only the server
+ * can tell, so its param is left out unread (neither refused nor defaulted, nor required).
  */
 function keepStored(
   ctx: CompileContext,
-  state: Pick<BlockState, 'decl' | 'params' | 'modes' | 'unset'>,
+  state: Pick<BlockState, 'decl' | 'params' | 'modes' | 'unset'> &
+    Partial<Pick<BlockState, 'explained'>>,
   members: ReadonlyArray<{ id: SubBlockId; password?: boolean }>,
   property: ObjectProperty,
   field: CatalogField | null
 ): void {
   const { decl, params, modes } = state
+  if (!ctx.stored && lockBinds(ctx, decl)) {
+    for (const member of members) state.unset.add(member.id)
+    if (field) state.explained?.add(field.name)
+    return
+  }
   const stored = ctx.stored ? getOwn(ctx.stored.blocks, decl.key) : undefined
   const name = field?.name ?? members[0]?.id ?? ''
   const type =
@@ -2049,16 +2058,6 @@ export function compileBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   return decl.builder.kind === 'container'
     ? compileContainer(ctx, decl)
     : compileRegularBlock(ctx, decl)
-}
-
-/** Whether the lock of an unread stored workflow binds `decl`, by key or by ident. */
-function lockBinds(ctx: CompileContext, decl: BlockDecl): boolean {
-  const lock = ctx.storedUnread
-  return (
-    lock !== undefined &&
-    (Object.hasOwn(lock.blocks, decl.key) ||
-      (decl.ident !== null && ctx.storedUnreadIdents.has(decl.ident)))
-  )
 }
 
 /**

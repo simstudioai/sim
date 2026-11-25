@@ -1300,7 +1300,7 @@ describe('workspaces source apply', () => {
     await expect(apply('--yes')).rejects.toThrow(/unsafe file path/)
   })
 
-  it('applies to the workspace the directory was read from, refusing only a --workspace naming another', async () => {
+  it('applies to the workspace the directory was read from, refusing a --workspace or SIM_WORKSPACE naming another', async () => {
     write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
     request.mockResolvedValue(answer())
 
@@ -1314,6 +1314,14 @@ describe('workspaces source apply', () => {
     await expect(apply('--yes')).rejects.toMatchObject({
       code: 'SOURCE_OTHER_WORKSPACE',
       message: expect.stringContaining('--to ws_local'),
+    })
+    expect(request).toHaveBeenCalledTimes(1)
+
+    write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
+    contextMockState.workspaceSource = 'env'
+    await expect(apply('--yes')).rejects.toMatchObject({
+      code: 'SOURCE_OTHER_WORKSPACE',
+      message: expect.stringContaining('but SIM_WORKSPACE names ws_local'),
     })
     expect(request).toHaveBeenCalledTimes(1)
   })

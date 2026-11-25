@@ -53,11 +53,27 @@ export type JsonTree =
 /** How a reference's value is typed; only `string` is stored quoted. */
 type RefValueKind = 'string' | 'typed' | 'untyped'
 
+/**
+ * The top-level fields of the data a child workflow always responds with, each with how it is
+ * typed (`childResultFields`, responds.ts); a field missing is untyped.
+ */
+export type ChildResultFields = ReadonlyMap<string, Exclude<RefValueKind, 'untyped'>>
+
 /** What {@link refValueKind} reads: the workflow's blocks and variables. */
 export interface RefTypeScope {
   catalog: BlockCatalog
   block(key: BlockKey): CanonicalBlock | undefined
   variable(key: string): CanonicalVariable | undefined
+  /** For a block that runs a child workflow, the fields of the data that child responds with. */
+  childResult?(key: BlockKey): ChildResultFields | undefined
+}
+
+/** The field `<call.result.data.<field>>` names, for a path that is exactly that. */
+function childResultField(segments: readonly RefSegment[]): string | undefined {
+  const [result, data, field] = segments
+  if (segments.length !== 3 || result?.kind !== 'name' || result.name !== 'result') return undefined
+  if (data?.kind !== 'name' || data.name !== 'data') return undefined
+  return field?.kind === 'name' ? field.name : undefined
 }
 
 const STRING_VARIABLE_TYPES: ReadonlySet<string> = new Set(['string', 'plain'])
@@ -181,8 +197,10 @@ export function responseFormatFields(param: CanonicalParam | undefined): string[
  * declares it (a path into untyped JSON, a loop item, an unknown block). An environment variable
  * is a string; a variable goes by its type; a block output by its declared output type, else by
  * the field its dynamic outputs declare, or for a Function's `result` by what its JavaScript
- * certainly returns there. An `any` output, or one the catalog marks `mayBeText` (a Function's
- * `result`, an HTTP `data`), is `untyped` unless the code says otherwise.
+ * certainly returns there; a child workflow call's `result.data.<field>` by the field the child's
+ * Response data holds, when the scope knows it ({@link RefTypeScope.childResult}). An `any`
+ * output, or one the catalog marks `mayBeText` (a Function's `result`, an HTTP `data`), is
+ * `untyped` unless the code says otherwise.
  */
 export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
   if (token.startsWith('{{')) return 'string'
@@ -206,6 +224,10 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
       ? 'typed'
       : 'untyped'
   }
+  const childField = childResultField(segments)
+  const childKind =
+    childField === undefined ? undefined : scope.childResult?.(head.name)?.get(childField)
+  if (childKind) return childKind
   const declared = catalogBlock(scope.catalog, block.type)
   if (!declared) return 'untyped'
   const outputs = blockOutputSchemas(scope.catalog, declared, {

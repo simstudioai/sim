@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import type { BlockCatalog, CatalogBlock } from './catalog/types'
-import { compileWorkflow } from './compile'
+import {
+  type ChildResultNode,
+  canonicalResultNode,
+  compiledResultNode,
+  folderCompileInput,
+  resolveChildResults,
+} from './child-results'
+import { type CompileInput, compileWorkflow } from './compile'
 import { TEST_CATALOG } from './compile/catalog.test-helpers'
 import { refValueKind, valueTree } from './json-fields'
 import type { CanonicalBlock, CanonicalWorkflow } from './model'
+import { printWorkflow } from './print'
+import { childResultFields } from './responds'
 
 const IMPORTS = "import { agent, api, raw, table, trigger, workflow } from '@sim/workflow-sdk'"
 
@@ -440,6 +449,334 @@ describe('W_JSON_REF_UNTYPED on the whole of an output that can hold text', () =
     it('is untyped, since it may be text, while a json output stays typed', () => {
       expect(kind('<svc.id>')).toBe('untyped')
       expect(kind('<svc.tags>')).toBe('typed')
+    })
+  })
+})
+
+describe("a reference into a child workflow's Response data, in a JSON field", () => {
+  const catalog: BlockCatalog = {
+    ...TEST_CATALOG,
+    builders: {
+      ...TEST_CATALOG.builders,
+      runWorkflow: { type: 'workflow_input' },
+      response: { type: 'response' },
+    },
+    blocks: {
+      ...TEST_CATALOG.blocks,
+      workflow_input: {
+        ...TEST_CATALOG.blocks.api,
+        type: 'workflow_input',
+        subBlocks: [
+          { id: 'workflowId', type: 'workflow-selector', valueKind: 'resource', storage: 'native' },
+          { id: 'inputMapping', type: 'input-mapping', valueKind: 'object', storage: 'native' },
+        ],
+        outputs: { success: { type: 'boolean' }, result: { type: 'json' } },
+      } as CatalogBlock,
+      response: {
+        ...TEST_CATALOG.blocks.api,
+        type: 'response',
+        subBlocks: [
+          { id: 'dataMode', type: 'dropdown', valueKind: 'string', storage: 'native' },
+          { id: 'data', type: 'code', valueKind: 'json', storage: 'native', neverDecoded: true },
+          { id: 'status', type: 'short-input', valueKind: 'string', storage: 'native' },
+        ],
+        outputs: { data: { type: 'json' }, status: { type: 'number' }, headers: { type: 'json' } },
+      } as CatalogBlock,
+    },
+  }
+  const imports =
+    "import { api, childWorkflow, condition, js, response, runWorkflow, stored, table, trigger, workflow } from '@sim/workflow-sdk'"
+
+  function compileText(body: string, childResults?: CompileInput['childResults']) {
+    const text = `// @sim-sdk 1\n${imports}\n\nexport default workflow('Test', {}, () => {\n  ${body}\n})\n`
+    return compileWorkflow({
+      entry: { path: 'workflow.ts', text },
+      files: new Map(),
+      catalog,
+      sdkMajor: 1,
+      ...(childResults ? { childResults } : {}),
+    })
+  }
+
+  function childFields(body: string) {
+    const { workflow: child } = compileText(body)
+    if (!child) throw new Error('the child did not compile')
+    return childResultFields(child, catalog)
+  }
+
+  const NORMALIZE = [
+    "const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })",
+    "const lookup = api('Lookup', { url: 'https://x' })",
+    "const reply = response('Reply', { body: { mobile: start.phone, count: start.n, valid: true, label: 'ok', raw: lookup.data } })",
+    'start.to(lookup)',
+    'lookup.to(reply)',
+  ].join('\n  ')
+
+  function parent(read: string, childResults?: CompileInput['childResults']) {
+    const result = compileText(
+      [
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const call = runWorkflow('Call', { workflowId: childWorkflow('normalize-phone'), inputMapping: { phone: start.phone } })",
+        `const row = table.insertRow('Row', { data: { v: ${read} } })`,
+        'start.to(call)',
+        'call.to(row)',
+      ].join('\n  '),
+      childResults
+    )
+    const param = result.workflow?.blocks.row?.params.data
+    return {
+      stored: param?.kind === 'value' ? param.value : undefined,
+      untyped: result.diagnostics.filter((d) => d.code === 'W_JSON_REF_UNTYPED'),
+    }
+  }
+
+  it("reads the kinds of a responding child's top-level body keys, leaving an untyped one out", () => {
+    expect(childFields(NORMALIZE)).toEqual(
+      new Map([
+        ['mobile', 'string'],
+        ['count', 'typed'],
+        ['valid', 'typed'],
+        ['label', 'string'],
+      ])
+    )
+  })
+
+  it('reads nothing from a child that can end without responding', () => {
+    expect(
+      childFields(
+        [
+          "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+          "const gate = condition('Gate', { yes: js`${start.phone} === 'y'` })",
+          "const reply = response('Reply', { body: { mobile: start.phone } })",
+          'start.to(gate)',
+          'gate.yes.to(reply)',
+        ].join('\n  ')
+      )
+    ).toBeNull()
+  })
+
+  it('keeps only the keys every Response block types the same way', () => {
+    expect(
+      childFields(
+        [
+          "const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })",
+          "const gate = condition('Gate', { yes: js`${start.phone} === 'y'`, else: true })",
+          "const a = response('A', { body: { mobile: start.phone, n: start.n, only: 1 } })",
+          "const b = response('B', { body: { mobile: 'none', n: 'many' } })",
+          'start.to(gate)',
+          'gate.yes.to(a)',
+          'gate.else.to(b)',
+        ].join('\n  ')
+      )
+    ).toEqual(new Map([['mobile', 'string']]))
+  })
+
+  it('stores a string field quoted and a typed one bare, with no W_JSON_REF_UNTYPED', () => {
+    const fields = childFields(NORMALIZE)
+    if (!fields) throw new Error('the child does not respond')
+    const childResults = new Map([['normalize-phone', fields]])
+
+    const text = parent('call.result.data.mobile', childResults)
+    expect(JSON.parse(String(text.stored))).toEqual({ v: '<call.result.data.mobile>' })
+    expect(text.untyped).toEqual([])
+
+    const count = parent('call.result.data.count', childResults)
+    expect(count.stored).toBe('{\n  "v": <call.result.data.count>\n}')
+    expect(count.untyped).toEqual([])
+  })
+
+  it('still warns on a key the child does not type, a deeper path, another child, or no input', () => {
+    const fields = childFields(NORMALIZE)
+    if (!fields) throw new Error('the child does not respond')
+    const childResults = new Map([['normalize-phone', fields]])
+    expect(parent('call.result.data.raw', childResults).untyped).toHaveLength(1)
+    expect(parent('call.result.data.mobile.digits', childResults).untyped).toHaveLength(1)
+    expect(parent('call.result.data.mobile', new Map([['other', fields]])).untyped).toHaveLength(1)
+    expect(parent('call.result.data.mobile').untyped).toHaveLength(1)
+  })
+
+  it('prints a stored reference back in the form the same compile stores again', () => {
+    const fields = childFields(NORMALIZE)
+    if (!fields) throw new Error('the child does not respond')
+    const childResults = new Map([['normalize-phone', fields]])
+    const read = 'call.result.data.mobile'
+    const { workflow } = compileText(
+      [
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const call = runWorkflow('Call', { workflowId: childWorkflow('normalize-phone'), inputMapping: { phone: start.phone } })",
+        `const row = table.insertRow('Row', { data: { v: ${read}, n: call.result.data.count } })`,
+        'start.to(call)',
+        'call.to(row)',
+      ].join('\n  '),
+      childResults
+    )
+    if (!workflow) throw new Error('the parent did not compile')
+    const stored = workflow.blocks.row?.params.data
+
+    const printed = (typed?: CompileInput['childResults']) => {
+      const { files } = printWorkflow({
+        workflow,
+        catalog,
+        options: { functionCode: 'inline' },
+        ...(typed ? { childResults: typed } : {}),
+      })
+      return files[0].text
+    }
+    const typedText = printed(childResults)
+    expect(typedText).toContain('data: { v: call.result.data.mobile, n: call.result.data.count }')
+    const again = compileWorkflow({
+      entry: { path: 'workflow.ts', text: typedText },
+      files: new Map(),
+      catalog,
+      sdkMajor: 1,
+      childResults,
+    })
+    expect(again.workflow?.blocks.row?.params.data).toEqual(stored)
+    expect(again.diagnostics.filter((d) => d.code === 'W_JSON_REF_UNTYPED')).toEqual([])
+
+    expect(printed()).toContain('v: t`${call.result.data.mobile}`')
+  })
+
+  function source(body: string) {
+    return `// @sim-sdk 1\n${imports}\n\nexport default workflow('Test', {}, () => {\n  ${body}\n})\n`
+  }
+
+  /** A lock binding `keys` in order, as a get writes one. */
+  function lockOf(...keys: string[]) {
+    return {
+      version: 1 as const,
+      blocks: Object.fromEntries(
+        keys.map((key, order) => [key, { id: `id-${key}`, parent: null, ident: key, order }])
+      ),
+      variables: {},
+    }
+  }
+
+  describe('a child whose blocks keep stored() values', () => {
+    const CHILD = [
+      "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+      "const lookup = api('Lookup', { url: stored() })",
+      "const reply = response('Reply', { body: { mobile: start.phone } })",
+      'start.to(lookup)',
+      'lookup.to(reply)',
+    ].join('\n  ')
+
+    it('is typed when compiled under its lock, as a check and an apply read it', () => {
+      const input = folderCompileInput(
+        source(CHILD),
+        {},
+        lockOf('start', 'lookup', 'reply'),
+        catalog
+      )
+      const compiled = compileWorkflow(input)
+      expect(compiled.diagnostics.map((d) => d.code)).toEqual([])
+      expect(compiled.workflow?.blocks.lookup?.params.url).toBeUndefined()
+      expect(compiledResultNode(input, compiled)?.fields(new Map())).toEqual(
+        new Map([['mobile', 'string']])
+      )
+    })
+
+    it('is refused for a block the lock does not bind, or without a lock', () => {
+      for (const lock of [lockOf('start', 'reply'), undefined]) {
+        const compiled = compileWorkflow(folderCompileInput(source(CHILD), {}, lock, catalog))
+        expect(compiled.workflow).toBeNull()
+        expect(compiled.diagnostics.map((d) => d.code)).toContain('E_STORED_VALUE_MISSING')
+      }
+    })
+  })
+
+  describe('a chain of calls', () => {
+    const C = [
+      "const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })",
+      "const reply = response('Reply', { body: { text: start.phone, n: start.n } })",
+      'start.to(reply)',
+    ].join('\n  ')
+    const B = [
+      "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+      "const callC = runWorkflow('Call C', { workflowId: childWorkflow('c'), inputMapping: { phone: start.phone } })",
+      "const reply = response('Reply', { body: { text: callC.result.data.text, n: callC.result.data.n, own: 1 } })",
+      'start.to(callC)',
+      'callC.to(reply)',
+    ].join('\n  ')
+    const A = [
+      "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+      "const callB = runWorkflow('Call B', { workflowId: childWorkflow('b'), inputMapping: { phone: start.phone } })",
+      "const row = table.insertRow('Row', { data: { text: callB.result.data.text, n: callB.result.data.n } })",
+      'start.to(callB)',
+      'callB.to(row)',
+    ].join('\n  ')
+
+    function node(body: string): ChildResultNode {
+      const compiled = compiledResultNode(folderCompileInput(source(body), {}, undefined, catalog))
+      if (!compiled) throw new Error('the workflow did not compile')
+      return compiled
+    }
+
+    it('types a field forwarded from a grandchild, whatever order the workflows are read in', () => {
+      const forward = resolveChildResults(
+        new Map([
+          ['a', node(A)],
+          ['b', node(B)],
+          ['c', node(C)],
+        ])
+      )
+      const backward = resolveChildResults(
+        new Map([
+          ['c', node(C)],
+          ['b', node(B)],
+          ['a', node(A)],
+        ])
+      )
+      const typed = new Map([
+        ['text', 'string'],
+        ['n', 'typed'],
+        ['own', 'typed'],
+      ])
+      expect(forward.get('b')).toEqual(typed)
+      expect(backward.get('b')).toEqual(typed)
+    })
+
+    it('reads the same fields from the stored workflow the typed compile writes', () => {
+      const resolved = resolveChildResults(
+        new Map([
+          ['b', node(B)],
+          ['c', node(C)],
+        ])
+      )
+      const calls = new Map([['c', resolved.get('c') ?? new Map()]])
+      const { workflow: stored } = compileText(B, calls)
+      if (!stored) throw new Error('b did not compile')
+      expect(canonicalResultNode(stored, catalog).fields(calls)).toEqual(resolved.get('b'))
+
+      const { workflow: parent, diagnostics } = compileText(A, resolved)
+      const data = parent?.blocks.row?.params.data
+      expect(data?.kind === 'value' && data.value).toBe(
+        '{\n  "text": "<callb.result.data.text>",\n  "n": <callb.result.data.n>\n}'
+      )
+      expect(diagnostics.filter((d) => d.code === 'W_JSON_REF_UNTYPED')).toEqual([])
+    })
+
+    it('leaves a field forwarded around a cycle untyped, whichever workflow is read first', () => {
+      const calling = (child: string, body: string) =>
+        [
+          "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+          `const call = runWorkflow('Call', { workflowId: childWorkflow('${child}'), inputMapping: { phone: start.phone } })`,
+          `const reply = response('Reply', { body: ${body} })`,
+          'start.to(call)',
+          'call.to(reply)',
+        ].join('\n  ')
+      const bodies: Record<string, string> = {
+        x: calling('y', "{ text: call.result.data.text, own: 'x' }"),
+        y: calling('x', "{ text: 'y', back: call.result.data.own }"),
+      }
+      for (const order of [
+        ['x', 'y'],
+        ['y', 'x'],
+      ]) {
+        const resolved = resolveChildResults(new Map(order.map((key) => [key, node(bodies[key])])))
+        expect(resolved.get('x')).toEqual(new Map([['own', 'string']]))
+        expect(resolved.get('y')).toEqual(new Map([['text', 'string']]))
+      }
     })
   })
 })

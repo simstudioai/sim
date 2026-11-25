@@ -235,6 +235,16 @@ interface Located {
   end?: number | null
 }
 
+/** Whether the lock of an unread stored workflow (`storedUnread`) binds `decl`, by key or ident. */
+export function lockBinds(ctx: CompileContext, decl: BlockDecl): boolean {
+  const lock = ctx.storedUnread
+  return (
+    lock !== undefined &&
+    (Object.hasOwn(lock.blocks, decl.key) ||
+      (decl.ident !== null && ctx.storedUnreadIdents.has(decl.ident)))
+  )
+}
+
 /** The range a node covers in the entry file. */
 export function rangeOf(ctx: CompileContext, node: Located): Range {
   const start = node.start ?? 0

@@ -30,6 +30,14 @@ export {
   expandBlockCatalog,
 } from './catalog/view'
 export {
+  type ChildResultNode,
+  type ChildResults,
+  canonicalResultNode,
+  compiledResultNode,
+  folderCompileInput,
+  resolveChildResults,
+} from './child-results'
+export {
   checkCodeFileBijection,
   createJsContextScanner,
   ENV_VAR_NAME,
@@ -38,7 +46,12 @@ export {
   isIdentifierName,
   parseStoredPath,
 } from './code-files'
-export { type CompileResult, compileWorkflow, type StoredEdgeRef } from './compile'
+export {
+  type CompileInput,
+  type CompileResult,
+  compileWorkflow,
+  type StoredEdgeRef,
+} from './compile'
 export { codePointLabel, scriptName } from './compile/characters'
 export { didYouMean, suggestBuilder } from './compile/hints'
 export { bracketDepthOverflow, sdkHeader, sourceDepthOverflow } from './compile/parse'
@@ -68,7 +81,7 @@ export {
 export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export { readsIterationOutOfScope, type ScopeNode } from './iteration-scope'
-export { parseJsonField } from './json-fields'
+export { type ChildResultFields, parseJsonField } from './json-fields'
 export {
   type DefinedField,
   fieldNames,
@@ -112,7 +125,11 @@ export { isResourceKind } from './model'
 export { assignIdentifiers, printWorkflow } from './print'
 export { hasSuspiciousCharacter, printKey, printNumber, quoteString } from './print/strings'
 export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
-export { respondsOnEveryRun } from './responds'
+export {
+  calledWorkflowKey,
+  calledWorkflowKeys,
+  respondsOnEveryRun,
+} from './responds'
 export { JS_RESERVED_WORDS, RESPONSE_OUTPUTS, SDK_CORE_EXPORTS } from './sdk'
 export { holdsSecret, withoutAuthScheme } from './secrets'
 export {
