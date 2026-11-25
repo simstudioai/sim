@@ -3626,7 +3626,6 @@
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2DuplicateWorkflowBody",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ExecuteWorkflowHeaders",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ExecuteWorkflowQueued",
-  "apps/sim/lib/api/contracts/v2/workflows.ts#V2ExecutionError",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ExportWorkflowQuery",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ImportWorkflowBody",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ListWorkflowRunsQuery",

@@ -327,6 +327,47 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
   })
 })
 
+describe('a stored quoted reference to text a Function returns', () => {
+  const FN_IMPORTS = "import { api, fn, trigger, workflow } from '@sim/workflow-sdk'"
+  const source = (
+    code: string
+  ) => `// @sim-sdk 1\n${FN_IMPORTS}\n\nexport default workflow('Test', {}, () => {
+  const start = trigger.start('Start')
+  const quote = fn('Quote', { code: ${JSON.stringify(code)} })
+  const next = api('Next', { url: 'https://x', body: { status: quote.result.status } })
+  start.to(quote)
+  quote.to(next)
+})\n`
+  const compile = (text: string, stored?: CanonicalWorkflow) =>
+    compileWorkflow({
+      entry: { path: 'workflow.ts', text },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      ...(stored ? { stored } : {}),
+    })
+
+  it('stays quoted when an edit to the Function alone leaves what it returns there unreadable', () => {
+    const stored = compile(source("return { status: 'live' }")).workflow
+    if (!stored) throw new Error('the source did not compile')
+    const body = stored.blocks.next?.params.body
+    expect(body).toEqual({ kind: 'value', value: '{\n  "status": "<quote.result.status>"\n}' })
+
+    const printed = printWorkflow({
+      workflow: stored,
+      catalog: TEST_CATALOG,
+      options: { functionCode: 'inline' },
+    }).files[0].text
+    const returnsLive = "js`return { status: 'live' }`"
+    expect(printed).toContain(returnsLive)
+    const edited = printed.replace(returnsLive, "js`return { status: ${start.status} ?? 'live' }`")
+    const applied = compile(edited, stored)
+
+    expect(applied.workflow?.blocks.next?.params.body).toEqual(body)
+    expect(applied.diagnostics.filter((d) => d.code === 'W_JSON_REF_UNTYPED')).toEqual([])
+  })
+})
+
 describe('W_JSON_REF_UNTYPED on the whole of an output that can hold text', () => {
   const WHOLE_IMPORTS = "import { api, fn, trigger, workflow } from '@sim/workflow-sdk'"
 
@@ -595,7 +636,7 @@ describe("a reference into a child workflow's Response data, in a JSON field", (
     expect(parent('call.result.data.mobile').untyped).toHaveLength(1)
   })
 
-  it('prints a stored reference back in the form the same compile stores again', () => {
+  it("prints a quoted reference to a child's text as a template, which compiles to the same storage", () => {
     const fields = childFields(NORMALIZE)
     if (!fields) throw new Error('the child does not respond')
     const childResults = new Map([['normalize-phone', fields]])
@@ -623,7 +664,9 @@ describe("a reference into a child workflow's Response data, in a JSON field", (
       return files[0].text
     }
     const typedText = printed(childResults)
-    expect(typedText).toContain('data: { v: call.result.data.mobile, n: call.result.data.count }')
+    expect(typedText).toContain(
+      'data: { v: t`${call.result.data.mobile}`, n: call.result.data.count }'
+    )
     const again = compileWorkflow({
       entry: { path: 'workflow.ts', text: typedText },
       files: new Map(),

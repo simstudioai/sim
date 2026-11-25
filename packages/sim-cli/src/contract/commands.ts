@@ -70,8 +70,10 @@ Edges:
   or {"source":{"block":"<id>","handle":"<target handle>"}}; "success" is an alias of "source".
   An add's connections create the new block's edges. An edit's connections REPLACE every
   outgoing edge of that block, on every handle: list again each edge to keep; {} removes them all.
-  A block moved into or out of a loop or parallel (parentId) loses every edge that would cross the
-  container's boundary: to leave the loop, wire its loop-end-source (parallel-end-source).
+  Moving a block into or out of a loop or parallel (parentId) removes each of its existing edges
+  that would cross the container's boundary, atomic or not, and names them in warnings. Edges the
+  batch itself asks for across a boundary are refused. Wire into the body from loop-start-source
+  and onward from loop-end-source (parallel-start-source, parallel-end-source).
   To remove one edge, edit its source block with
   {"removeEdges":[{"targetBlockId":"<id>","sourceHandle":"source"}]} (sourceHandle defaults to
   "source").
@@ -2323,16 +2325,27 @@ blocks you add from it.`,
   // Documents, not records
   // The payload is the artifact: `sim workflows export <id> > wf.json` has to
   // produce something `sim workflows import` accepts back.
+  //
+  // Workspace bindings are kept by default, unlike the API's sharing-safe default:
+  // a CLI caller reads the export in the workspace it came from, and a table block
+  // printed with its tableId cleared sent agents to a second command to learn what
+  // the block was bound to. The ids are non-secret and readable by anyone the export
+  // route admits; credentials are cleared either way.
   exportWorkflow: {
     describe: 'Print a workflow as a portable JSON document',
     helpText: `
-Workspace bindings (a table, a child workflow, a knowledge base) print as null unless
---include-workspace-bindings, and credentials always do: that is the export, not an unset block.
-To read what a block is set to, use \`sim workflows outline\` or \`sim workflows state get\`.`,
+A table, child workflow, knowledge base or other workspace binding prints as its id; a credential
+always prints as null. For a copy to share outside this workspace, pass
+--no-include-workspace-bindings to clear the bindings too.`,
     flags: {
       includeReferences: {
         boolean: true,
         describe: 'Include non-secret resource identities for mapped import',
+      },
+      includeWorkspaceBindings: {
+        requestDefault: 'true',
+        describe:
+          'Keep table, knowledge base, document, folder, channel and other workspace bindings. On by default; --no-include-workspace-bindings clears them for a copy to share outside this workspace. Credentials are cleared either way',
       },
     },
     document: true,
@@ -2383,10 +2396,9 @@ To read what a block is set to, use \`sim workflows outline\` or \`sim workflows
           "Maximum duration of the run in seconds, capped by the plan's execution timeout. Requires --async or --wait-timeout",
       },
       input: { json: true, describe: 'Trigger input as JSON' },
-      run: {
-        hidden: true,
-        describe: 'Low-level workflow state and entry-point selection',
-      },
+      // Built from --manual, --trigger, --mock-payload, --from-block, --source-run and
+      // --stop-after by `workflow-run-follow.ts`, so a run is selected one way only.
+      run: { omit: true },
       // `workflows runs get` takes the same names (`workflow-run-get.ts` resolves
       // them against the draft graph), which is why both describes name theirs.
       selectedOutputs: {

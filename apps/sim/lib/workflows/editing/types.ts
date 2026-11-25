@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import type { DroppedEdgeKind } from '@/stores/workflows/workflow/edge-validation'
 
 /** Selector subblock types that can be validated */
 export const SELECTOR_TYPES = new Set([
@@ -153,6 +154,16 @@ export interface EdgeHandleValidationResult {
   normalizedHandle?: string
 }
 
+/** A stored edge the batch's moves left invalid, which the apply removed rather than refused. */
+export interface RemovedEdge {
+  id: string
+  source: string
+  target: string
+  sourceHandle: string
+  kind: DroppedEdgeKind
+  reason: string
+}
+
 /**
  * Result of applying operations to workflow state
  */
@@ -166,6 +177,8 @@ export interface ApplyOperationsResult {
    * operation, so `operations - skippedItems` would go negative.
    */
   declinedOperationCount: number
+  /** Stored edges the batch left crossing a loop or parallel boundary (or otherwise invalid), removed. */
+  removedEdges: RemovedEdge[]
   /**
    * Requested `block_id` -> the id the block was actually given, for every
    * `add`/`insert_into_subflow` whose requested id was not already a UUID.

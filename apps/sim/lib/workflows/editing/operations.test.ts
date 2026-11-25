@@ -1771,20 +1771,22 @@ describe('connection shape validation', () => {
     expect(declinedOperationCount).toBe(1)
   })
 
-  it('does not charge a move for the existing edges it leaves crossing scopes', () => {
-    const { skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
-      makeLoopWorkflow(),
-      [
+  it('removes the stored edges a move leaves crossing scopes, without skipping anything', () => {
+    const { state, skippedItems, declinedOperationCount, removedEdges } =
+      applyOperationsToWorkflowState(makeLoopWorkflow(), [
         {
           operation_type: 'extract_from_subflow',
           block_id: 'agent-1',
           params: { subflowId: 'loop-1' },
         },
-      ]
-    )
+      ])
 
-    expect(skippedItems.filter((item) => item.type === 'invalid_edge_scope')).toHaveLength(1)
+    expect(skippedItems).toEqual([])
     expect(declinedOperationCount).toBe(0)
+    expect(removedEdges).toEqual([
+      expect.objectContaining({ id: 'edge-2', source: 'condition-1', target: 'agent-1' }),
+    ])
+    expect(state.edges.some((edge: { id: string }) => edge.id === 'edge-2')).toBe(false)
   })
 })
 

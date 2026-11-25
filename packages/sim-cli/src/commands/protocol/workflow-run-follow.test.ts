@@ -270,12 +270,17 @@ describe('sim workflows run --wait-timeout', () => {
 
 function program(): Command {
   const root = new Command()
-  root.exitOverride()
   for (const command of buildGeneratedCommands()) root.addCommand(command)
 
   const workflows = root.commands.find((command) => command.name() === 'workflows')
   if (!workflows) throw new Error('workflows group missing')
   attachWorkflowRunFollow(workflows)
+  // On every leaf, not just the root: a parse error raised by `run` exits the process otherwise.
+  const override = (command: Command) => {
+    command.exitOverride().configureOutput({ writeErr: () => {} })
+    command.commands.forEach(override)
+  }
+  override(root)
   return root
 }
 
@@ -422,6 +427,46 @@ describe('sim workflows run --follow', () => {
     )
     expect(request).not.toHaveBeenCalled()
     expect(requestRaw).not.toHaveBeenCalled()
+  })
+
+  it('selects a run only through its flags, not as raw JSON', async () => {
+    await expect(run(WORKFLOW_ID, '--run', '{"source":"manual"}')).rejects.toThrow(
+      "unknown option '--run'"
+    )
+    expect(requestRaw).not.toHaveBeenCalled()
+  })
+
+  it('prints with a failed run the command that reruns it from the failed block', async () => {
+    requestRaw.mockResolvedValueOnce(
+      ndjsonResponse({
+        type: 'final',
+        data: {
+          runId: 'run-1',
+          workflowId: WORKFLOW_ID,
+          status: 'failed',
+          output: {},
+          error: {
+            message: 'Agent failed',
+            code: 'BLOCK_EXECUTION_FAILED',
+            blockId: 'agent-1',
+            rerunFromBlockId: 'agent-1',
+          },
+        },
+      })
+    )
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await expect(run(WORKFLOW_ID, '--manual')).rejects.toThrow('Agent failed')
+    const next = JSON.parse(String(stdout.mock.calls[0][0])).next
+    expect(next).toBe(`sim workflows run ${WORKFLOW_ID} --from-block agent-1 --source-run run-1`)
+
+    await run(...next.split(' ').slice(3))
+    expect(requestRaw.mock.calls[1][1].body).toEqual({
+      run: {
+        source: 'manual',
+        entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
+      },
+    })
   })
 
   it('prints then fails for a failed NDJSON run just like the JSON path', async () => {

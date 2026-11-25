@@ -6730,7 +6730,7 @@
           "valueKind": "string",
           "storage": "native",
           "acceptsNumber": true,
-          "title": "Retries",
+          "title": "Request retries",
           "mode": "advanced"
         },
         {
@@ -6739,7 +6739,7 @@
           "valueKind": "string",
           "storage": "native",
           "acceptsNumber": true,
-          "title": "Retry delay (ms)",
+          "title": "Request retry delay (ms)",
           "mode": "advanced"
         },
         {
@@ -6748,7 +6748,7 @@
           "valueKind": "string",
           "storage": "native",
           "acceptsNumber": true,
-          "title": "Max retry delay (ms)",
+          "title": "Max request retry delay (ms)",
           "mode": "advanced"
         },
         {

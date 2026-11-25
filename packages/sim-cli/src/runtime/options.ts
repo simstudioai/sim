@@ -244,7 +244,6 @@ function addFieldOption(
 
   const hiddenNames = otherSpellings(flag).map(({ name }) => name)
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
-  if (flag.hidden) option.hideHelp()
   if (choices && !takesList) option.choices([...choices])
   if (descriptor.default !== undefined && field !== 'limit') {
     option.default(undefined, String(descriptor.default))

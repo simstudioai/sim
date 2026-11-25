@@ -271,7 +271,7 @@ const COMPILE_CATALOG_CODES = [
   'W_OUTPUT_PATH_UNDECLARED',
   /**
    * A bare reference in a JSON field literal whose output type nothing declares: it is stored bare
-   * (typed), so a string value would break the JSON (`json-fields.ts`).
+   * (typed), so text that reads as JSON would become that value, not text (`json-fields.ts`).
    */
   'W_JSON_REF_UNTYPED',
   /**

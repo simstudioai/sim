@@ -10,7 +10,7 @@
  * literal and each sets it to an expression whose kind is certain (a literal, arithmetic, a
  * comparison, `String(…)`, the `.length` of a string or an array, a local variable never
  * reassigned to another kind, …). Anything else stays unknown, and the reference keeps its
- * warning: a wrong "typed" would store a string bare and break the JSON at run time.
+ * warning: a wrong "typed" would store a string bare, where text that reads as JSON stops being text.
  */
 
 import { parse } from '@babel/parser'

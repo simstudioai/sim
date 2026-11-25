@@ -1403,6 +1403,24 @@ describe('VariableResolver JSON text inputs', () => {
     })
   })
 
+  it('serializes a bare string reference as a JSON string unless it already is JSON', async () => {
+    const { resolve } = createJsonResolver(BlockType.RESPONSE, {
+      dataMode: 'json',
+      data: '{"error": <producer.text>, "empty": <producer.blank>, "token": {{QUOTED_SECRET}}, "nested": <producer.jsonText>, "port": {{PORT}}}',
+    })
+    const resolved = await resolve({
+      env: { PORT: '8080' },
+      output: { blank: '', jsonText: '{"country": "F\\"R"}' },
+    })
+    expect(JSON.parse(resolved.data)).toEqual({
+      error: awkwardText,
+      empty: '',
+      token: 'p"ss\\word',
+      nested: { country: 'F"R' },
+      port: 8080,
+    })
+  })
+
   it('escapes environment variables inside JSON strings', async () => {
     await expect(resolveResponseBody('{"auth": "Bearer {{QUOTED_SECRET}}"}')).resolves.toEqual({
       auth: 'Bearer p"ss\\word',

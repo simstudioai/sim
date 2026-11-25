@@ -1454,7 +1454,7 @@ export default workflow('Secret', {}, () => {
       const read = await get(workspaceId)
       const printed = read.files['workflows/parent/workflow.ts']
       expect(printed).toContain(
-        'body: { mobile: run.result.data.mobile, digits: run.result.data.digits }'
+        'body: { mobile: t`${run.result.data.mobile}`, digits: run.result.data.digits }'
       )
       const single = await withPermissionGroupScope(() =>
         readWorkflowSource.execute({ principal: owner, input: { workflowId: parentId } })
@@ -1485,7 +1485,7 @@ export default workflow('Secret', {}, () => {
         digits: '<run.result.data.digits>',
         again: '"<run.result.data.mobile>"',
       })
-      expect(edited.files['workflow.ts']).toContain('again: run.result.data.mobile,')
+      expect(edited.files['workflow.ts']).toContain('again: t`${run.result.data.mobile}`,')
     }
   )
 
@@ -1514,7 +1514,9 @@ export default workflow('Secret', {}, () => {
 
       const read = await get(workspaceId)
       const printed = read.files['workflows/a/workflow.ts']
-      expect(printed).toContain('body: { text: call.result.data.text, n: call.result.data.n }')
+      expect(printed).toContain(
+        'body: { text: t`${call.result.data.text}`, n: call.result.data.n }'
+      )
       const single = await withPermissionGroupScope(() =>
         readWorkflowSource.execute({ principal: owner, input: { workflowId: id('a') } })
       )

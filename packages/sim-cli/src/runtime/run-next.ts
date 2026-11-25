@@ -1,7 +1,7 @@
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import type { V2OperationName } from '../generated/v2-api'
 
-/** Operations whose payload is a run record that may be paused. */
+/** Operations whose payload is a run record that may be paused or failed. */
 const RUN_OPERATIONS: ReadonlySet<V2OperationName> = new Set(['executeWorkflow', 'getWorkflowRun'])
 
 /** What the server issues for an id: letters, digits and `_ . : -` plus the `₍ ₎` of a branch id. */
@@ -45,13 +45,32 @@ export function resumeCommandFor(
 }
 
 /**
- * A run record with `next` added when it is paused for input. Any other payload comes back as it
- * was, and so does one that already has a `next`.
+ * The exact command that reruns a failed run from where the server says a rerun of its failure
+ * starts (`error.rerunFromBlockId`: the failed block, or the outermost loop or parallel holding
+ * it, which a rerun cannot start inside), with the run as the source of every upstream output, so
+ * a fix applied to that block's source is tested without repeating the blocks before it. Null
+ * when the server names no start block or an id is not in the format the server issues.
  */
-export function withResumeNext(operation: V2OperationName, payload: unknown): unknown {
+function rerunCommandFor(record: Record<string, unknown>, workflowId: string): string | null {
+  const startBlockId = toRecordOrNull(record.error)?.rerunFromBlockId
+  const { runId } = record
+  if (!issuedId(startBlockId) || !issuedId(runId) || !issuedId(workflowId)) return null
+  return `sim workflows run ${shellArgument(workflowId)} --from-block ${shellArgument(startBlockId)} --source-run ${shellArgument(runId)}`
+}
+
+/**
+ * A run record with `next` added: the `runs resume` command when it is paused for input, the
+ * rerun from the failed block when it failed in one. Any other payload comes back as it was, and
+ * so does one that already has a `next`.
+ */
+export function withRunNext(operation: V2OperationName, payload: unknown): unknown {
   if (!RUN_OPERATIONS.has(operation) || !isRecordLike(payload)) return payload
-  if (payload.status !== 'paused' || 'next' in payload) return payload
-  if (typeof payload.workflowId !== 'string') return payload
-  const next = resumeCommandFor(payload, payload.workflowId)
+  if ('next' in payload || typeof payload.workflowId !== 'string') return payload
+  const next =
+    payload.status === 'paused'
+      ? resumeCommandFor(payload, payload.workflowId)
+      : payload.status === 'failed'
+        ? rerunCommandFor(payload, payload.workflowId)
+        : null
   return next ? { ...payload, next } : payload
 }

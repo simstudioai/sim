@@ -47,7 +47,7 @@ describe('printWorkflow round trip', () => {
     expect(again.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
   })
 
-  it('prints a quoted reference to a text field a Function returns as the bare reference, not a template', () => {
+  it('prints a quoted reference to a text field a Function returns as a template, not the bare reference', () => {
     const body = [
       `  const score = fn('Score', { code: ${JSON.stringify("return { tier: 'gold' }")} })`,
       "  const next = api('Next', { url: 'https://x', body: { tier: score.result.tier } })",
@@ -58,7 +58,7 @@ describe('printWorkflow round trip', () => {
       value: '{\n  "tier": "<score.result.tier>"\n}',
     })
     const entry = printed(workflow).files[0]?.text ?? ''
-    expect(entry).toContain('body: { tier: score.result.tier }')
+    expect(entry).toContain('body: { tier: t`${score.result.tier}` }')
     expect(compile(entry).workflow?.blocks.next?.params.body).toEqual(
       workflow.blocks.next?.params.body
     )

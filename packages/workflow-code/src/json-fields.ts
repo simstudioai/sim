@@ -2,18 +2,21 @@
  * JSON code fields (a `code` subBlock holding JSON text: an agent's `responseFormat`, table row
  * `data`, a response body) written as object literals with typed references at their leaves.
  *
- * The executor resolves a reference inside such text by splicing the value's text where the token
- * stands (`resolveTemplate` → `formatValueForBlock`): a string goes in raw, any other value as its
- * JSON. So a token keeps its value's type only when it sits bare for a non-string value
- * (`"n": <score.value>` → `"n": 3`) and quoted for a string (`"s": "<ticket.subject>"`). A bare
- * reference in a literal is stored by its output type: quoted when the catalog types it `string`,
- * bare otherwise, and an untyped one bare with `W_JSON_REF_UNTYPED`, since a string there would
- * break the JSON. A string in the literal (`` t`Hi ${x.name}` ``, `'plain'`) is always a JSON
+ * The executor resolves a reference inside such text where the token stands (`resolveTemplate`):
+ * inside a JSON string it splices the value escaped as string content; bare, it splices the value
+ * as JSON, a string as a JSON string unless the string already reads as JSON. So a token keeps a
+ * string value as text only when it sits quoted (`"s": "<ticket.subject>"`): bare, text that reads
+ * as JSON (`123`, `true`) turns into that value. A bare reference in a literal is stored by its
+ * output type: quoted when the catalog types it `string`, bare otherwise, and an untyped one bare
+ * with `W_JSON_REF_UNTYPED`, since text there may not stay text. A string in the literal (`` t`Hi ${x.name}` ``, `'plain'`) is always a JSON
  * string, which is how a value is turned into text on purpose.
  *
  * The printer writes stored text back as a literal only when serializing that literal reproduces
  * the text byte for byte; everything else keeps its text form. Print and compile decide each
- * token's form through the same {@link refValueKind} over the same canonical workflow.
+ * token's form through the same {@link refValueKind} over the same canonical workflow, except that
+ * a stored quoted token prints bare only when a declaration types it a string
+ * ({@link refDeclaresString}): a type inferred from a Function's code or a child workflow would
+ * make the source's storage of this field depend on code another edit can change.
  */
 
 import { isRecordLike } from '@sim/utils/object'
@@ -201,8 +204,16 @@ export function responseFormatFields(param: CanonicalParam | undefined): string[
  * Response data holds, when the scope knows it ({@link RefTypeScope.childResult}). An `any`
  * output, or one the catalog marks `mayBeText` (a Function's `result`, an HTTP `data`), is
  * `untyped` unless the code says otherwise.
+ *
+ * With `inferred: false` only declarations count: a Function's code and a child workflow's
+ * Response data, which infer a type from code that can change without this field changing, are
+ * read as declaring nothing ({@link refDeclaresString}).
  */
-export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
+export function refValueKind(
+  token: string,
+  scope: RefTypeScope,
+  { inferred = true }: { inferred?: boolean } = {}
+): RefValueKind {
   if (token.startsWith('{{')) return 'string'
   const path = parseStoredPath(token.slice(1, -1))
   const head = path?.[0]
@@ -224,7 +235,7 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
       ? 'typed'
       : 'untyped'
   }
-  const childField = childResultField(segments)
+  const childField = inferred ? childResultField(segments) : undefined
   const childKind =
     childField === undefined ? undefined : scope.childResult?.(head.name)?.get(childField)
   if (childKind) return childKind
@@ -239,7 +250,7 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
   })
   const found = outputAt(outputs, segments)
   // A Function's `result`, or `result.<field>`, is typed by what its JavaScript returns.
-  const returned = referencedResultKind(token, scope.block)
+  const returned = inferred ? referencedResultKind(token, scope.block) : undefined
   if (returned) return returned
   if (found) {
     if (found.type === 'string') return 'string'
@@ -257,6 +268,21 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
   }
   // `x.error` (or a Function's `x.errorMessage`): what a block outputs after an error edge.
   return errorOutputOf(declared, segments) ? 'string' : 'untyped'
+}
+
+/**
+ * Whether a stored token is a string by declaration (the catalog, a variable's type, an input or
+ * response format, an environment variable), not only by what a Function's code or a child
+ * workflow's Response infers. Only such a token prints as a bare reference where it is stored
+ * quoted: a bare reference typed by inference would compile bare, and stop storing text as text,
+ * once an edit to that other code leaves its type unreadable, so the printer writes it as `` t`${ref}` ``,
+ * which is text whatever the code returns.
+ */
+export function refDeclaresString(token: string, scope: RefTypeScope): boolean {
+  return (
+    refValueKind(token, scope) === 'string' &&
+    refValueKind(token, scope, { inferred: false }) === 'string'
+  )
 }
 
 /** A block's stored value of `id`, when it holds one. */

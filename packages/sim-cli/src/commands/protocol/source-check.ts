@@ -103,10 +103,12 @@ const STRICT_CODES: ReadonlySet<string> = new Set(STRICT_FINDINGS.keys())
 const STORED_EXEMPT_CODES: ReadonlySet<string> = new Set(['W_BRANCH_UNWIRED'])
 
 /**
- * Warnings a check reports only on a block the lock does not bind (one added since the get), and
- * on every block with `--strict`: printed source holds them on blocks nobody edited, and the
- * server, which compares with the stored workflow, already reports them only for an edited field.
- * `W_JSON_REF_UNTYPED`: a bare reference nothing types, in a JSON field.
+ * Warnings a check reports only on a block the edit added or changed (see `changed` in
+ * {@link checkWorkflowDir}), and on every block with `--strict`: printed source holds them on
+ * blocks nobody edited, and the server, which compares with the stored workflow, reports them only
+ * for a field that compiles differently than it stores. A block whose own source is untouched
+ * still counts when it compiles differently, as when an edit elsewhere changes how it stores a
+ * reference. `W_JSON_REF_UNTYPED`: a bare reference nothing types, in a JSON field.
  */
 const EDIT_SCOPED_CODES: ReadonlySet<string> = new Set(['W_JSON_REF_UNTYPED'])
 
@@ -163,8 +165,9 @@ not move counts as unchanged, so the server may refuse what the check passes. A 
 function file to a block the lock binds that the source no longer declares stays a warning, unless
 a warning cap left findings out: the server may infer that block was renamed and rewrite the
 reference, and refuses it otherwise.
-${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not bind, and with
---strict on every block.`
+${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the edit added or changed,
+including an unedited block that an edit elsewhere makes compile differently, and with --strict
+on every block.`
 }
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
@@ -731,7 +734,12 @@ export async function checkWorkflowDir(
   const prefix = options.prefix ?? ''
   const reported = (code: string, blockKey: string | undefined) =>
     !SERVER_ONLY_CODES.has(code) &&
-    !(EDIT_SCOPED_CODES.has(code) && options.strict !== 'all' && bound(blockKey))
+    !(
+      EDIT_SCOPED_CODES.has(code) &&
+      options.strict !== 'all' &&
+      blockKey !== undefined &&
+      !changed(blockKey)
+    )
   /**
    * Whether the code `blockKey` runs from `file` changed, as the server compares it: the file's
    * text, or a bound block now pointed at another file whose text differs from what it ran.

@@ -60,6 +60,7 @@ import {
   type StructuredExecutionError,
 } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
+import { findRerunStartBlockId } from '@/executor/utils/run-from-block'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecuteService')
@@ -174,6 +175,8 @@ export interface ExecuteWorkflowServiceRun {
   aborted: 'client' | 'timeout' | null
   output: NormalizedBlockOutput | undefined
   error: StructuredExecutionError | null
+  /** Where a run-from-block rerun of the failure starts in the graph the run executed; see {@link findRerunStartBlockId}. */
+  rerunFromBlockId?: string
   /** Outputs of the blocks named by `selectedOutputs`, keyed by the caller's selector strings. */
   blockOutputs?: Record<string, unknown> | null
   /** Trusted execution-local catalog used by internal callers to project model-visible output. */
@@ -242,6 +245,14 @@ export type ExecuteWorkflowServiceImmediateResult = Exclude<
   ExecuteWorkflowServiceResult,
   ExecuteWorkflowServicePendingRun
 >
+
+/** Where a rerun of the block `error` attributes starts in the run's `blocks`, when it names one. */
+function rerunStartOf(
+  error: StructuredExecutionError | null,
+  blocks: Record<string, unknown>
+): string | undefined {
+  return error?.blockId ? findRerunStartBlockId(error.blockId, blocks) : undefined
+}
 
 function failure(f: ExecuteWorkflowServiceFailure): ExecuteWorkflowServiceFailureResult {
   return { ok: false, failure: f }
@@ -846,6 +857,10 @@ export async function executeWorkflowService(
               : result.success
                 ? 'completed'
                 : 'failed'
+        const runError =
+          status === 'failed' || (status === 'cancelled' && result.error)
+            ? classifyExecutionError(result.error ? new Error(result.error) : undefined, result)
+            : null
 
         return {
           ok: true,
@@ -858,10 +873,8 @@ export async function executeWorkflowService(
             await pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
             compactionContext
           ),
-          error:
-            status === 'failed' || (status === 'cancelled' && result.error)
-              ? classifyExecutionError(result.error ? new Error(result.error) : undefined, result)
-              : null,
+          error: runError,
+          rerunFromBlockId: rerunStartOf(runError, workflowBlocks),
           resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
           hasResponseBlock: workflowHasResponseBlock(result),
           startedAt: result.metadata?.startTime,
@@ -935,6 +948,7 @@ export async function executeWorkflowService(
           }
         }
 
+        const thrownError = classifyExecutionError(error, executionResult)
         return {
           ok: true,
           executionId,
@@ -943,7 +957,8 @@ export async function executeWorkflowService(
           aborted: null,
           output: compactErrorOutput,
           blockOutputs: compactErrorBlockOutputs,
-          error: classifyExecutionError(error, executionResult),
+          error: thrownError,
+          rerunFromBlockId: rerunStartOf(thrownError, workflowBlocks),
           resolvedSecretTraceProvenance:
             executionResult?.executionState?.resolvedSecretTraceProvenance,
           hasResponseBlock: false,

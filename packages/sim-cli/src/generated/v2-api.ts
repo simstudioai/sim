@@ -7152,6 +7152,7 @@ type ExecuteWorkflowResponseRef0 = {
   blockId?: string
   blockName?: string
   blockType?: string
+  rerunFromBlockId?: string
 }
 
 type ExecuteWorkflowResponseRef1 = {
@@ -10330,6 +10331,7 @@ type GetWorkflowRunResponseRef2 = {
   blockId?: string
   blockName?: string
   blockType?: string
+  rerunFromBlockId?: string
 }
 
 type GetWorkflowRunResponseRef3 = {
@@ -17799,27 +17801,25 @@ export type ResumeWorkflowBody = {
 }
 
 type ResumeWorkflowResponseRef0 = {
-  message: string
-  code:
-    | 'TIMEOUT'
-    | 'CANCELLED'
-    | 'USAGE_LIMIT_EXCEEDED'
-    | 'INVALID_INPUT'
-    | 'BLOCK_EXECUTION_FAILED'
-    | 'CHILD_WORKFLOW_FAILED'
-    | 'EXECUTION_FAILED'
-  blockId?: string
-  blockName?: string
-  blockType?: string
-}
-
-type ResumeWorkflowResponseRef1 = {
   runId: string
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
   blockOutputs: Record<string, unknown> | null
-  error: ResumeWorkflowResponseRef0 | null
+  error: {
+    message: string
+    code:
+      | 'TIMEOUT'
+      | 'CANCELLED'
+      | 'USAGE_LIMIT_EXCEEDED'
+      | 'INVALID_INPUT'
+      | 'BLOCK_EXECUTION_FAILED'
+      | 'CHILD_WORKFLOW_FAILED'
+      | 'EXECUTION_FAILED'
+    blockId?: string
+    blockName?: string
+    blockType?: string
+  } | null
   startedAt?: string
   endedAt?: string
   durationMs?: number
@@ -17833,7 +17833,7 @@ type ResumeWorkflowResponseRef1 = {
   } | null
 }
 
-type ResumeWorkflowResponseRef2 = {
+type ResumeWorkflowResponseRef1 = {
   runId: string
   statusUrl: string
   queuePosition?: number
@@ -17841,10 +17841,10 @@ type ResumeWorkflowResponseRef2 = {
 
 export type ResumeWorkflowResponse =
   | {
-      data: ResumeWorkflowResponseRef1
+      data: ResumeWorkflowResponseRef0
     }
   | {
-      data: ResumeWorkflowResponseRef2
+      data: ResumeWorkflowResponseRef1
     }
 
 /** `POST /api/v2/files/[fileId]/versions/[version]/revert` */
@@ -20648,7 +20648,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Column definition to add: {"name":"status","type":"string"}. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
+          'Column definition to add: {"name":"status","type":"string"}. Column fields: id - Optional client-provided column identifier; name (required) - Column name; type (required) - Column data type; required - Whether inserts must supply a value for this column; unique - Whether values in the column must be unique; options - Select options for select-type columns, as [{"id":"open","name":"Open"}]; multiple - Whether a select column accepts multiple values; currencyCode - ISO 4217 code for currency columns; position - Zero-based insertion position for the column. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
       },
     },
   },
@@ -22232,7 +22232,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Initial table column definitions: {"columns":[{"name":"email","type":"string"}]}. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
+          'Initial table column definitions: {"columns":[{"name":"email","type":"string","required":true,"unique":true}]}. Column fields: id - Optional client-provided column identifier; name (required) - Column name; type (required) - Column data type; required - Whether inserts must supply a value for this column; unique - Whether values in the column must be unique; options - Select options for select-type columns, as [{"id":"open","name":"Open"}]; multiple - Whether a select column accepts multiple values; currencyCode - ISO 4217 code for currency columns. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
       },
       folderPath: { kind: 'string', describe: 'Folder in which to create the table.' },
     },

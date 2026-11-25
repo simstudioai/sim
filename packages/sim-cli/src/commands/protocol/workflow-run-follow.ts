@@ -188,6 +188,17 @@ async function readWorkflowResult(response: Response): Promise<WorkflowResult> {
 }
 
 /**
+ * The request body: the generated one, the run selection the friendly flags make (the contract
+ * omits `run` as a flag of its own), and file references for an embedded run.
+ */
+function runBody(
+  body: Record<string, unknown> | undefined,
+  selection: WorkflowRunSelection | undefined
+): Record<string, unknown> | undefined {
+  return withEmbeddedFileReferences(selection ? { ...body, run: selection } : body)
+}
+
+/**
  * Asks an embedded run for file references without inline bytes unless the caller
  * passed `--include-file-base64`. The embedding host hands stdout to a model, which
  * reads a produced file by id; inlined bytes only grew the result it had to skim and
@@ -217,6 +228,7 @@ function stillRunning(runId: string, workflowId: string, waitedSeconds: number) 
 async function runWithResultStream(
   workflowId: string,
   command: Command,
+  selection: WorkflowRunSelection | undefined,
   waitTimeoutSeconds: number | undefined
 ): Promise<void> {
   const flags = command.optsWithGlobals() as Record<string, unknown>
@@ -227,7 +239,7 @@ async function runWithResultStream(
 
   try {
     const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
-    const body = withEmbeddedFileReferences(request.body)
+    const body = runBody(request.body, selection)
     const response = await client.requestRaw('executeWorkflow', {
       params: request.params,
       query: request.query,
@@ -426,7 +438,11 @@ export async function renderRunStream(
  * Sends the run and renders it. Kept apart from the Commander wiring so the
  * whole protocol can be exercised without parsing argv.
  */
-async function followRun(workflowId: string, command: Command): Promise<void> {
+async function followRun(
+  workflowId: string,
+  command: Command,
+  selection: WorkflowRunSelection | undefined
+): Promise<void> {
   const flags = command.optsWithGlobals() as Record<string, unknown>
 
   if (flags.async === true) {
@@ -448,7 +464,7 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
     params: request.params,
     query: request.query,
     body: {
-      ...withEmbeddedFileReferences(request.body),
+      ...runBody(request.body, selection),
       stream: true,
       ...(includeThinking ? { includeThinking: true } : {}),
       ...(includeToolCalls ? { includeToolCalls: true } : {}),
@@ -540,10 +556,9 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
       )
     }
     const selection = resolveWorkflowRunSelection(initialFlags)
-    if (selection) command.setOptionValue('run', selection)
-    const flags = command.optsWithGlobals() as Record<string, unknown>
-    const stopBlock = stopBlockSelection(selection, flags)
+    const stopBlock = stopBlockSelection(selection, initialFlags)
     if (stopBlock) command.setOptionValue('selectOutput', stopBlock)
+    const flags = command.optsWithGlobals() as Record<string, unknown>
 
     if (flags.follow !== true) {
       // A queued run has produced nothing to select from, so the server would
@@ -566,7 +581,7 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
         )
       }
       if (flags.async !== true) {
-        await runWithResultStream(workflowId, command, waitTimeoutSeconds)
+        await runWithResultStream(workflowId, command, selection, waitTimeoutSeconds)
         return
       }
 
@@ -583,7 +598,7 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
       return
     }
 
-    await followRun(workflowId, command)
+    await followRun(workflowId, command, selection)
   }
 }
 
@@ -596,6 +611,11 @@ The result is the run: runId, status (completed, failed, paused or cancelled), e
 workflow's final output) and blockOutputs (what --select-output named). It has no success field:
 branch on status, or on the exit code. With --follow it is the stream's final frame
 instead: success and output.
+
+A run that failed in a block has next: the command that reruns the saved draft from that block
+(or from the outermost loop or parallel holding it) with this run as --source-run, so after a fix
+only that block and those after it run again. Add --stop-after <block> to stop after a block;
+naming the block next starts from reruns only it.
 
 Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed
 first, then the error on stderr), or the command failed; ${STILL_RUNNING_EXIT_CODE} still running when --wait-timeout
@@ -636,11 +656,11 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option(
       '--from-block <block>',
-      'Run manually from this saved workflow block: its id, display name or key'
+      'Rerun the saved draft from this block (its id, display name or key), reusing the outputs --source-run produced before it; a failed run prints this command as next'
     )
     .option(
       '--source-run <runId>',
-      'Prior run whose persisted state supplies upstream outputs (requires --from-block)'
+      'Earlier run of this workflow, deployed or draft, whose outputs the blocks before --from-block keep (requires --from-block)'
     )
     .option(
       '--stop-after <block>',
