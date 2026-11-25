@@ -2901,6 +2901,41 @@ describe('a dry run’s mocks from an earlier run, read as that run shows them',
     expect(replayed.sideEffects?.stubbed[0]?.request).toMatchObject({ data: { note: 'count 7' } })
   })
 
+  it('refuse a block a test run logged before placeholders were recorded did not mock', async () => {
+    const tableId = await createTable()
+    const workflowId = await saveWorkflow(lookupThenSave(tableId, 'a@b.co').state)
+    const source = await run(workflowId, { dry: true, mocks: { save: { row: {} } } })
+    expect(source.status, JSON.stringify(source.error)).toBe('completed')
+    const [logged] = await db
+      .select({ executionData: workflowExecutionLogs.executionData })
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, source.executionId))
+    const recorded = await materializeExecutionData(toRecord(logged?.executionData), {
+      workspaceId,
+      workflowId,
+      executionId: source.executionId,
+    })
+    const trigger = toRecord(recorded.trigger)
+    const { placeholdersRecorded, ...olderTriggerData } = toRecord(trigger.data)
+    expect(placeholdersRecorded).toBe(true)
+    await db
+      .update(workflowExecutionLogs)
+      .set({ executionData: { ...recorded, trigger: { ...trigger, data: olderTriggerData } } })
+      .where(eq(workflowExecutionLogs.executionId, source.executionId))
+
+    await expect(
+      run(workflowId, { dry: true, mocksFrom: { runId: source.executionId, blocks: ['lookup'] } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('logged before'),
+    })
+    const replayed = await run(workflowId, {
+      dry: true,
+      mocksFrom: { runId: source.executionId, blocks: ['save'] },
+    })
+    expect(replayed.status, JSON.stringify(replayed.error)).toBe('completed')
+  })
+
   it('judge a block as the earlier run ran it, not as the draft has since been edited', async () => {
     const tableId = await createTable()
     const fixture = lookupThenSave(tableId, 'a@b.co')

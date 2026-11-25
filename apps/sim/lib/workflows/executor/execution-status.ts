@@ -48,7 +48,7 @@ type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 interface ExecutionDataShape {
   finalOutput?: unknown
   traceSpans?: unknown
-  trigger?: { data?: { dryRun?: unknown } }
+  trigger?: { data?: { dryRun?: unknown; placeholdersRecorded?: unknown } }
 }
 
 function resolvePath(value: unknown, path: string[]): unknown {
@@ -280,9 +280,13 @@ export interface ProjectedWorkflowExecutionStatus {
   dryRun: DryRunOptions | null
   /**
    * The blocks named by `selectedOutputs` that a dry run answered, or a call of which it answered,
-   * with a placeholder, so their outputs may hold made-up values; empty for any other run.
+   * with a placeholder, so their outputs may hold made-up values; empty for any other run. Null
+   * when unknown: a test run logged before its block states marked them, or a viewer whose group
+   * withholds execution data.
+   *
+   * permission-group-enforced: logs.trace_spans
    */
-  placeholderBlockIds: string[]
+  placeholderBlockIds: string[] | null
 }
 
 /**
@@ -316,7 +320,7 @@ export async function getProjectedWorkflowExecutionStatus(
     pausePoints: resolved.pausePoints,
     failedBlock: projection.hideTraceSpans ? null : resolved.failedBlock,
     dryRun: projection.hideTraceSpans ? null : resolved.dryRun,
-    placeholderBlockIds: resolved.placeholderBlockIds,
+    placeholderBlockIds: projection.hideTraceSpans ? null : resolved.placeholderBlockIds,
   }
 }
 
@@ -383,8 +387,11 @@ interface ResolvedExecutionStatus {
   failedBlock: FailedTraceBlock | null
   /** A dry run's allowed and mocked blocks, as its log's trigger recorded them, when execution data was read. */
   dryRun: DryRunOptions | null
-  /** The selected blocks a dry run answered, or a call of which it answered, with a placeholder. */
-  placeholderBlockIds: string[]
+  /**
+   * The selected blocks a dry run answered, or a call of which it answered, with a placeholder;
+   * null for a test run logged before its block states marked them.
+   */
+  placeholderBlockIds: string[] | null
 }
 
 async function readWorkflowExecutionStatus(
@@ -645,7 +652,10 @@ async function readWorkflowExecutionStatus(
     pausePoints: paused ? pausedRow?.pausePoints : null,
     failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans, error) : null,
     dryRun: logRow.trigger === TEST_TRIGGER ? readDryRun(executionData) : null,
-    placeholderBlockIds: [...materialized.placeholderBlockIds],
+    placeholderBlockIds:
+      logRow.trigger !== TEST_TRIGGER || executionData?.trigger?.data?.placeholdersRecorded === true
+        ? [...materialized.placeholderBlockIds]
+        : null,
   }
 }
 

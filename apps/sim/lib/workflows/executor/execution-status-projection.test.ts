@@ -47,7 +47,7 @@ const mockMaterializeForDisplayWithBlockOutputs =
 
 const BLOCK_ID = 'block-1'
 
-function queueCompletedRun(): void {
+function queueCompletedRun(placeholderBlockIds = new Set<string>()): void {
   queueTableRows(schemaMock.workflowExecutionLogs, [
     {
       executionId: 'execution-1',
@@ -68,8 +68,7 @@ function queueCompletedRun(): void {
   mockMaterializeForDisplayWithBlockOutputs.mockResolvedValueOnce({
     executionData: { finalOutput: { answer: 'a customer address' } },
     blockOutputs: new Map([[BLOCK_ID, { answer: 'a customer address' }]]),
-
-    placeholderBlockIds: new Set(),
+    placeholderBlockIds,
   })
 }
 
@@ -126,17 +125,16 @@ function queueFailedRun(): void {
       ],
     },
     blockOutputs: new Map(),
-
     placeholderBlockIds: new Set(),
   })
 }
 
-function readProjectedRun(viewerUserId: string | null | undefined) {
+function readProjectedRun(viewerUserId: string | null | undefined, selectedOutputs: string[] = []) {
   return getProjectedWorkflowExecutionStatus({
     workflowId: 'workflow-1',
     executionId: 'execution-1',
     includeOutput: false,
-    selectedOutputs: [],
+    selectedOutputs,
     workspaceId: 'workspace-1',
     workspaceOrganizationId: 'organization-1',
     viewerUserId,
@@ -150,7 +148,6 @@ describe('run-detail field projection', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
       executionData: {},
       blockOutputs: new Map(),
-
       placeholderBlockIds: new Set(),
     })
   })
@@ -218,6 +215,18 @@ describe('run-detail field projection', () => {
       blockName: 'Lookup',
       blockType: 'api',
     })
+  })
+
+  it('withholds which blocks a dry run answered with placeholders from a member whose group hides trace spans', async () => {
+    queueCompletedRun(new Set([BLOCK_ID]))
+    expect((await readProjectedRun(undefined, [BLOCK_ID]))?.placeholderBlockIds).toEqual([BLOCK_ID])
+
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideTraceSpans: true,
+    })
+    queueCompletedRun(new Set([BLOCK_ID]))
+    expect((await readProjectedRun('user-1', [BLOCK_ID]))?.placeholderBlockIds).toBeNull()
   })
 
   it('withholds the failing block from a member whose group hides trace spans', async () => {

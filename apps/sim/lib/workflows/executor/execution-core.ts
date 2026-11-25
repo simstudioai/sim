@@ -317,13 +317,14 @@ export function wasExecutionFinalizedByCore(error: unknown, executionId?: string
 
 /**
  * What a run records on its log's trigger: its correlation, and a dry run's allowed and mocked
- * blocks, which a rerun of it reads back.
+ * blocks, which a rerun of it reads back, with `placeholdersRecorded`, which says its block states
+ * mark each block it answered with a placeholder (a run logged before they did has no marks).
  */
 function logTriggerData(metadata: ExecutionMetadata): Record<string, unknown> | undefined {
   if (!metadata.correlation && !metadata.dryRun) return undefined
   return {
     ...(metadata.correlation ? { correlation: metadata.correlation } : {}),
-    ...(metadata.dryRun ? { dryRun: metadata.dryRun } : {}),
+    ...(metadata.dryRun ? { dryRun: metadata.dryRun, placeholdersRecorded: true } : {}),
   }
 }
 

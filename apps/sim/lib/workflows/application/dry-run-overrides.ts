@@ -339,7 +339,8 @@ interface RecordedMock {
  * Refused: a block the run did not execute; one inside a loop or parallel, whose recorded output
  * is one iteration's, unless the run mocked it (every iteration answered alike); and a block the
  * run answered, or a call of which it answered, with a placeholder, as the run recorded, or, when
- * it was a test run, one that runs another workflow, whose writes there were placeholders too.
+ * it was a test run, one that runs another workflow, whose writes there were placeholders too, and
+ * any block it did not mock when it was logged before such answers were recorded.
  * Each block is judged as that run's snapshot holds it, not as the draft has since been edited.
  */
 async function readRecordedOutputs(
@@ -410,7 +411,7 @@ async function readRecordedOutputs(
     ...(run.dryRun?.mockedBlocks ?? []),
     ...(run.dryRun?.mocksFrom?.blockIds ?? []),
   ])
-  const sourcePlaceholders = new Set(run.placeholderBlockIds)
+  const sourcePlaceholders = run.placeholderBlockIds && new Set(run.placeholderBlockIds)
   return selected.map(({ label, blockId }) => {
     const mockedThere = sourceMocked.has(blockId)
     const sourceBlock = sourceBlocks[blockId]
@@ -435,8 +436,14 @@ async function readRecordedOutputs(
         `${label} recorded an output that is not an object in run "${runId}".`
       )
     }
+    if (!sourcePlaceholders && !mockedThere) {
+      throw new OrchestrationError(
+        'validation',
+        `${label}: run "${runId}" was logged before Sim recorded which blocks a dry run answered with placeholders, so its output may be one; mock from a newer run, or pass its output with run.mocks.`
+      )
+    }
     if (
-      sourcePlaceholders.has(blockId) ||
+      sourcePlaceholders?.has(blockId) ||
       (sourceIsTestRun && !mockedThere && runsAnotherWorkflow(sourceBlock.type))
     ) {
       throw new OrchestrationError(
