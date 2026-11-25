@@ -591,21 +591,32 @@ describe('McpService best-effort discovery', () => {
     expect(tools.map((t) => t.name)).toEqual(['a1'])
   })
 
-  it('skips an OAuth server nobody authorized without creating its OAuth row or marking it pending', async () => {
-    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
-    mcpOauthMockFns.mockHasDecryptableOauthTokens.mockResolvedValue(false)
+  it.each([
+    ['a best-effort', { bestEffort: true }],
+    ['a read-only', { readOnly: true }],
+  ])(
+    'skips an OAuth server nobody authorized in %s discovery without creating its OAuth row or marking it pending',
+    async (_kind, options) => {
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+      mcpOauthMockFns.mockHasDecryptableOauthTokens.mockResolvedValue(false)
 
-    await expect(
-      mcpService.discoverServerTools(MEMBER_B, 'mcp-a', WORKSPACE_ID, 'cache-aside', undefined, {
-        bestEffort: true,
-      })
-    ).rejects.toBeInstanceOf(McpOauthAuthorizationRequiredError)
-    expect(mcpOauthMockFns.mockGetOrCreateOauthRow).not.toHaveBeenCalled()
-    // loadOauthRow clears a column it cannot decrypt; the gate must not risk that.
-    expect(mcpOauthMockFns.mockLoadOauthRow).not.toHaveBeenCalled()
-    expect(mockConnect).not.toHaveBeenCalled()
-    expectNoSharedStateWrites()
-  })
+      await expect(
+        mcpService.discoverServerTools(
+          MEMBER_B,
+          'mcp-a',
+          WORKSPACE_ID,
+          'cache-aside',
+          undefined,
+          options
+        )
+      ).rejects.toBeInstanceOf(McpOauthAuthorizationRequiredError)
+      expect(mcpOauthMockFns.mockGetOrCreateOauthRow).not.toHaveBeenCalled()
+      // loadOauthRow clears a column it cannot decrypt; the gate must not risk that.
+      expect(mcpOauthMockFns.mockLoadOauthRow).not.toHaveBeenCalled()
+      expect(mockConnect).not.toHaveBeenCalled()
+      expectNoSharedStateWrites()
+    }
+  )
 
   it.each([
     ['a best-effort', { bestEffort: true }],

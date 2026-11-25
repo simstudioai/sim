@@ -1254,8 +1254,10 @@ class McpService {
     const discoveryStartedAt = new Date()
     const maxRetries = 2
 
+    // Best-effort and read-only discoveries both leave the server's shared state as they found it.
+    const preservesSharedState = bestEffort || readOnly
     // Before the cache: another member's cached tools never reach a requester who cannot call them.
-    const requesterConfig = bestEffort
+    const requesterConfig = preservesSharedState
       ? await this.loadAuthenticatableServerConfig(serverId, userId, workspaceId)
       : undefined
 
@@ -1298,7 +1300,7 @@ class McpService {
           onResolvedSecretTraceProvenance,
           signal,
           requireComplete,
-          bestEffort || readOnly
+          preservesSharedState
         )
         logger.info(`Discovered ${tools.length} tools from server ${config.name}`, { requestId })
         if (readOnly) return tools
@@ -1334,7 +1336,7 @@ class McpService {
           signal?.throwIfAborted()
           continue
         }
-        if (bestEffort || readOnly) throw error
+        if (preservesSharedState) throw error
         // Drop positive cache so a follow-up doesn't return stale tools.
         const statusApplied = isOauthAuthorizationError(error, authType)
           ? await this.markServerOauthPending(serverId, workspaceId, discoveryStartedAt)
