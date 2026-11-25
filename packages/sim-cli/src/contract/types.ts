@@ -173,8 +173,6 @@ export interface FlagSpec {
    * owns that instead.
    */
   omit?: boolean
-  /** Accept and send this generated field, but hide its low-level flag from help. */
-  hidden?: boolean
 }
 
 /** How a route path parameter is exposed as a required named option. */

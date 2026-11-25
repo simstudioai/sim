@@ -221,8 +221,8 @@ reordered tool never takes another tool's secret.
 A JSON code field (subBlock type `code`: `responseFormat`, table row `data`, a response body)
 written as an object or array literal compiles to `JSON.stringify(value, null, 2)` text. Each bare
 reference is stored by its output type: quoted (`"<a.b>"`) when the catalog or the workflow types it
-`string`, bare (`<a.b>`) otherwise, because the executor splices a string raw and any other value as
-JSON. A Function `result` field its JavaScript certainly returns as text (`return { tier: 'gold' }`) is
+`string`, bare (`<a.b>`) otherwise, because the executor splices a bare string as JSON when it reads
+as JSON (`12345` becomes a number) and a quoted one always as text. A Function `result` field its JavaScript certainly returns as text (`return { tier: 'gold' }`) is
 quoted too, and one it returns as a non-string (`return { total: a + b }`) is bare; so is the whole
 `result` when every `return` is text (`return new Date().toISOString()`) or none is. A reference
 nothing types, including a whole Function `result` or HTTP `data` its code or response may make

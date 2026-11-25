@@ -48,6 +48,7 @@ import {
   type ValidationError,
 } from '@/lib/workflows/editing/types'
 import { preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
+import { quotedBlockLabel } from '@/lib/workflows/labels'
 import { assertNoWithheldBlockType } from '@/lib/workflows/persistence/block-access-guard'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import {
@@ -183,10 +184,10 @@ function applyBlockEnabledChanges(
  */
 function describeRemovedEdges(
   removedEdges: readonly RemovedEdge[],
-  blocks: Record<string, { name?: string }>
+  nameOf: (blockId: string) => string | undefined
 ): string[] {
   if (removedEdges.length === 0) return []
-  const label = (blockId: string) => `"${blocks[blockId]?.name ?? blockId}"`
+  const label = (blockId: string) => quotedBlockLabel(blockId, nameOf(blockId))
   const edges = removedEdges.map(
     (edge) =>
       `${label(edge.source)} -> ${label(edge.target)} (${edge.sourceHandle}): ${edge.reason}`
@@ -363,10 +364,11 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
        * the findings exist; the findings themselves stay only in `lint`.
        */
       const lintWarnings = hasWorkflowLintIssues(lint) ? [summarizeWorkflowLintIssues(lint)] : []
-      const removedEdgeWarnings = describeRemovedEdges(removedEdges, {
-        ...asGraph(baseGraph).blocks,
-        ...graph.blocks,
-      })
+      const storedBlocks = asGraph(baseGraph).blocks
+      const removedEdgeWarnings = describeRemovedEdges(
+        removedEdges,
+        (blockId) => graph.blocks[blockId]?.name ?? storedBlocks?.[blockId]?.name
+      )
 
       /**
        * A dry run still runs the whole engine — operations are applied, refusals

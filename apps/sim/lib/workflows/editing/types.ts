@@ -153,9 +153,6 @@ export interface EdgeHandleValidationResult {
   normalizedHandle?: string
 }
 
-/**
- * Result of applying operations to workflow state
- */
 /** A stored edge the batch's moves left invalid, which the apply removed rather than refused. */
 export interface RemovedEdge {
   id: string
@@ -165,6 +162,9 @@ export interface RemovedEdge {
   reason: string
 }
 
+/**
+ * Result of applying operations to workflow state
+ */
 export interface ApplyOperationsResult {
   state: any
   validationErrors: ValidationError[]

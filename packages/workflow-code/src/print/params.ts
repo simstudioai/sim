@@ -169,7 +169,15 @@ function printJsonField(ctx: PrintContext, block: CanonicalBlock, text: string):
   const tree = parseJsonField(text)
   if (tree === undefined) return null
   const isString = (token: string) => refValueKind(token, ctx.refTypes) === 'string'
-  const printsBare = (token: string) => refDeclaresString(token, ctx.refTypes)
+  const declared = new Map<string, boolean>()
+  const printsBare = (token: string) => {
+    let bare = declared.get(token)
+    if (bare === undefined) {
+      bare = refDeclaresString(token, ctx.refTypes)
+      declared.set(token, bare)
+    }
+    return bare
+  }
   let expressible = true
   const asCompiled = (node: JsonTree): JsonTree => {
     if (node instanceof JsonRef) {

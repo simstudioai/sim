@@ -303,7 +303,7 @@ export function applyOperationsToWorkflowState(
   // edge a move left crossing scopes is the move's documented effect, not a refusal.
   const { refusedEdgeIds, removedEdges } = removeInvalidScopeEdges(
     modifiedState,
-    new Set(toArray<{ id: string }>(workflowState.edges).map((edge) => edge.id)),
+    toArray<{ id: string }>(workflowState.edges),
     skippedItems
   )
   for (const edgeId of refusedEdgeIds) {
@@ -490,11 +490,14 @@ function resolvePendingConnections(
  */
 function removeInvalidScopeEdges(
   modifiedState: any,
-  storedEdgeIds: ReadonlySet<string>,
+  storedEdges: readonly { id: string }[],
   skippedItems: SkippedItem[]
 ): { refusedEdgeIds: string[]; removedEdges: RemovedEdge[] } {
   const { valid, dropped } = validateEdges(modifiedState.edges || [], modifiedState.blocks || {})
   modifiedState.edges = valid
+  if (dropped.length === 0) return { refusedEdgeIds: [], removedEdges: [] }
+
+  const storedEdgeIds = new Set(storedEdges.map((edge) => edge.id))
 
   const refusedEdgeIds: string[] = []
   const removedEdges: RemovedEdge[] = []

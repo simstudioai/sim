@@ -410,9 +410,11 @@ Function's code (or a child workflow's Response data) changes with an edit to th
 a bare reference to it would then compile bare, so an edit to one block would silently rewrite
 the storage of every unedited block that reads it (`refDeclaresString`). A quoted token prints bare
 only when a declaration (the catalog, a variable's type, an input or response format) types it a
-string. The runtime splice is not changed: a bare token outside a
-string is spliced raw by design (a string holding JSON text is nested on purpose), and the text is
-not valid JSON until the splice, so the resolver cannot tell where a value should be encoded. A string in the literal (a template or plain string) is always a JSON string. The
+string. At run time the resolver (`placeholderSplicer`) escapes a token inside a
+JSON string as string content and splices a bare one as JSON: a string becomes a JSON string unless
+it already reads as JSON (a string holding JSON text nests on purpose). So typing still matters for
+the one case the runtime cannot decide: text that reads as JSON (`12345`, `true`) stays text only
+when stored quoted. A string in the literal (a template or plain string) is always a JSON string. The
 printer writes stored text back as a literal only when serializing that literal reproduces the text
 byte for byte; print and compile decide each token's form through the same `refValueKind`, the
 printer reading only declarations for a quoted one. In a
