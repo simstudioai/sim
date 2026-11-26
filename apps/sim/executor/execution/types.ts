@@ -468,9 +468,9 @@ export interface SideEffectPolicy {
   answersBlock(block: SideEffectBlockSite): boolean
   /**
    * Whether the run has answered this block, or a call it made, with a placeholder (its mock is
-   * not one), so its output may hold made-up values.
+   * not one), or its `output` carries one it was handed, so the output may hold made-up values.
    */
-  answeredWithPlaceholder(block: SideEffectBlockSite): boolean
+  answeredWithPlaceholder(block: SideEffectBlockSite, output: unknown): boolean
   /** The output answering a block that does not run: its mock, or a recorded placeholder. */
   answerBlock(call: AnsweredBlockCall): Promise<NormalizedBlockOutput>
 }

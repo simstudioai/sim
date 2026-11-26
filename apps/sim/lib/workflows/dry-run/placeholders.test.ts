@@ -26,6 +26,7 @@ describe('a dry run’s placeholder tokens', () => {
     ['quoted in free text', 'Re: dry_run_title_2'],
     ['as a number', 900_000_003],
     ['as digits in a URL', 'https://api.github.com/repos/o/r/issues/900000003'],
+    ['as zero-padded digits', 'ticket 0900000003'],
   ])('are found %s', (_, sent) => {
     expect(registered().occursIn({ sent })).toBe(true)
   })

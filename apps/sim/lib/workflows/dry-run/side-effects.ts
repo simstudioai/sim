@@ -341,8 +341,8 @@ export class WriteStubPolicy implements SideEffectPolicy {
     return false
   }
 
-  answeredWithPlaceholder(block: SideEffectBlockSite): boolean {
-    return this.answeredSites.has(overrideKey(block))
+  answeredWithPlaceholder(block: SideEffectBlockSite, output: unknown): boolean {
+    return this.answeredSites.has(overrideKey(block)) || this.placeholders.occursIn(output)
   }
 
   async answerBlock(call: AnsweredBlockCall): Promise<NormalizedBlockOutput> {

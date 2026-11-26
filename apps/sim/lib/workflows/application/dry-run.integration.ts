@@ -2285,7 +2285,9 @@ return created.id.toString()`
 
     expect(result.status).toBe('failed')
     expect(JSON.stringify(result.error)).toContain(
-      "1 network write this code made got an empty stubbed response; --allow 'code' sends them"
+      JSON.stringify(
+        '1 network write this code made got an empty stubbed response; allowing block "code" sends them'
+      ).slice(1, -1)
     )
   })
 
@@ -2886,6 +2888,33 @@ describe('a dry run’s mocks from an earlier run, read as that run shows them',
     })
     expect(replayed.status, JSON.stringify(replayed.error)).toBe('completed')
     expect(replayed.sideEffects?.stubbed[0]?.request).toMatchObject({ data: { note: 'count 7' } })
+  })
+
+  it('refuse a block whose output carries a placeholder it was handed', async () => {
+    const tableId = await createTable()
+    const fixture = lookupThenSave(tableId, 'a@b.co')
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          ...Object.values(fixture.state.blocks),
+          block('format', 'function', { language: 'javascript', code: 'return { saved: <save> }' }),
+        ],
+        [
+          ['start', 'lookup'],
+          ['lookup', 'save'],
+          ['save', 'format'],
+        ]
+      ).state
+    )
+    const source = await run(workflowId, { dry: true })
+    expect(source.status, JSON.stringify(source.error)).toBe('completed')
+
+    await expect(
+      run(workflowId, { dry: true, mocksFrom: { runId: source.executionId, blocks: ['format'] } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('with a placeholder'),
+    })
   })
 
   it('refuse a block a test run logged before placeholders were recorded did not mock', async () => {

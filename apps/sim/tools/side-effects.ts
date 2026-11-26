@@ -581,6 +581,6 @@ export function codeNetworkFor(input: {
     failureHint: () =>
       stubbed === 0 || !site.blockName
         ? null
-        : `Dry run: ${stubbed} network write${stubbed === 1 ? '' : 's'} this code made got an empty stubbed response; --allow '${site.blockName}' sends them.`,
+        : `Dry run: ${stubbed} network write${stubbed === 1 ? '' : 's'} this code made got an empty stubbed response; allowing block ${JSON.stringify(site.blockName)} sends them.`,
   }
 }
