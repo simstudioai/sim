@@ -5706,7 +5706,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         inputFromExecutionId: {
           type: 'string',
           description:
-            'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input — handy for replaying a run without retyping inputs. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and useMockPayload.',
+            'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input — handy for replaying a run without retyping inputs. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and sample.',
+        },
+        sample: {
+          type: 'boolean',
+          description:
+            "When true, run with the trigger's sample payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
         },
         triggerBlockId: {
           type: 'string',
@@ -5717,11 +5722,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'boolean',
           description:
             'When true, runs the deployed version instead of the live draft. Default: false (draft).',
-        },
-        useMockPayload: {
-          type: 'boolean',
-          description:
-            "When true, run with the trigger's generated mock payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
         },
         workflowId: {
           type: 'string',
@@ -5745,7 +5745,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         inputFromExecutionId: {
           type: 'string',
           description:
-            'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and useMockPayload.',
+            'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and sample.',
+        },
+        sample: {
+          type: 'boolean',
+          description:
+            "When true, run with the trigger's sample payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
         },
         stopAfterBlockId: {
           type: 'string',
@@ -5760,11 +5765,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'boolean',
           description:
             'When true, runs the deployed version instead of the live draft. Default: false (draft).',
-        },
-        useMockPayload: {
-          type: 'boolean',
-          description:
-            "When true, run with the trigger's generated mock payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
         },
         workflowId: {
           type: 'string',

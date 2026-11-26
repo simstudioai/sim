@@ -185,7 +185,7 @@ export async function resolveTriggerExecution(params: {
   if (sourceCount > 1) {
     throw new OrchestrationError(
       'validation',
-      'Provide only one input source: workflow_input, useMockPayload: true, or inputFromExecutionId.'
+      'Provide only one input source: workflow_input, sample: true, or inputFromExecutionId.'
     )
   }
   if (params.input.sample) {
