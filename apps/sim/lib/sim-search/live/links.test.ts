@@ -152,6 +152,7 @@ describe('parseDocumentLinks', () => {
     ['a published copy of a Doc', 'https://docs.google.com/document/d/e/2PACX-1vQabcdefghij/pub'],
     ['a Slack channel', 'https://acme.slack.com/archives/C0123ABC'],
     ['a GitHub site page', 'https://github.com/orgs/acme/projects'],
+    ['a GitHub site listing', 'https://github.com/pulls/assigned'],
     [
       'a Gmail conversation without a message ID',
       'https://mail.google.com/mail/u/0/#inbox/FMfcgzQXJ',
