@@ -2,6 +2,7 @@ export { decodeAnchor, encodeAnchor } from './anchors'
 export { babelErrorShape, babelMessage } from './babel'
 export { type CanonicalizeResult, canonicalize, canonicalizeUnderLock } from './canonicalize'
 export { toolModes } from './canonicalize/modes'
+export { JSON_TEXT_CONTAINER_TYPES } from './canonicalize/params'
 export {
   builderOutputSchemas,
   builderProducedOutputs,
@@ -43,6 +44,8 @@ export {
 } from './child-results'
 export {
   checkCodeFileBijection,
+  codeFileLanguage,
+  codeFileRefs,
   createJsContextScanner,
   ENV_VAR_NAME,
   formatStoredPath,

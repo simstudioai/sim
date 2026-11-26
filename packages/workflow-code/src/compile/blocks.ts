@@ -41,18 +41,8 @@ import {
 } from '../catalog/surface'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { catalogBuildersOfType } from '../catalog/view'
-import {
-  type CodeFileLanguage,
-  type CodeFileRef,
-  codeFileLanguage,
-  fromCodeFile,
-} from '../code-files'
-import {
-  ENV_VAR_NAME,
-  isIdentifierName,
-  LOOP_PROPERTIES,
-  parseStoredPath,
-} from '../code-files/ref-path'
+import { type CodeFileLanguage, codeFileLanguage, codeFileRefs, fromCodeFile } from '../code-files'
+import { isIdentifierName, LOOP_PROPERTIES, parseStoredPath } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { type ConfigField, type ContainerForm, loopForm, parallelForm } from '../forms/subflow'
@@ -468,7 +458,7 @@ function parseCodeFile(
     return null
   }
   if (language !== 'javascript') reportScriptRefSyntax(ctx, path, text, language, decl.key)
-  const refs = [...back.refs, ...referenceTags(text)].sort((a, b) => a.start - b.start)
+  const refs = codeFileRefs(back.refs, text)
   if (refs.length > 0) ctx.codeFiles.chains.push({ path, blockKey: decl.key, refs })
   return back.code
 }
@@ -527,29 +517,6 @@ function reportScriptRefSyntax(
       { hint: `${label} files are saved as written: write ${form}.`, blockKey }
     )
   }
-}
-
-/**
- * The `<key.path>` references a code file writes as text, found by the runtime's own scanner (a
- * JavaScript string, a Python or shell line): the run resolves each one, so compile checks them as
- * it checks a `$ref` chain. A token with no path (`<b>` in HTML text) is no reference.
- */
-function referenceTags(text: string): CodeFileRef[] {
-  const tags: CodeFileRef[] = []
-  for (const token of findWorkflowReferenceTokens(text)) {
-    if (token.kind === 'environment') {
-      const name = token.value.slice(2, -2).trim()
-      if (ENV_VAR_NAME.test(name)) {
-        tags.push({ kind: 'env', name, start: token.start, end: token.end })
-      }
-      continue
-    }
-    if (token.kind !== 'workflow') continue
-    const segments = parseStoredPath(token.value.slice(1, -1))
-    if (!segments || segments.length < 2) continue
-    tags.push({ kind: 'ref', segments, start: token.start, end: token.end, tag: true })
-  }
-  return tags
 }
 
 interface WrittenParam {

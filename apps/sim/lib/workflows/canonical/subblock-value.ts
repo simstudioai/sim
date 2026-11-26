@@ -1,5 +1,4 @@
-import { parseJsonContainer } from '@sim/workflow-code'
-import { holdsNativeContainer } from '@/lib/workflows/code/catalog/value-kind'
+import { JSON_TEXT_CONTAINER_TYPES, parseJsonContainer } from '@sim/workflow-code'
 import {
   normalizedStringify,
   sanitizeInputFormat,
@@ -59,12 +58,15 @@ export function shapeSubBlockValue(
 }
 
 /**
- * JSON text in a field that holds a container natively (an `inputMapping` the operations route
- * stored as text) is that container: the executor parses both alike, so a change of encoding alone
- * is no change to deploy. The diff view still shows the encoding (`shapeSubBlockValue`).
+ * JSON text in a field whose runtime parses it like the container it encodes (a child workflow's
+ * `inputMapping`, `JSON_TEXT_CONTAINER_TYPES`) is that container, so a change of encoding alone is
+ * no change to deploy. Every other field compares as stored, and the diff view still shows the
+ * encoding (`shapeSubBlockValue`).
  */
 function decodeNativeContainer(value: unknown, spec: CanonicalFieldSpec | undefined): unknown {
-  if (typeof value !== 'string' || !spec?.type || !holdsNativeContainer(spec.type)) return value
+  if (typeof value !== 'string' || !spec?.type || !JSON_TEXT_CONTAINER_TYPES.has(spec.type)) {
+    return value
+  }
   return parseJsonContainer(value) ?? value
 }
 

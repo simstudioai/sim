@@ -26,6 +26,8 @@ export default workflow('W', {}, () => {
   fetchPolicy.to(score)
   const fallback = fn('Fallback', { code: js\`return 0\` })
   fetchPolicy.onError(fallback)
+  const audit = fn('Audit', { language: 'python', code: codeFile('./functions/audit.py') })
+  fetchPolicy.to(audit)
   const gate = condition('Gate', { if: js\`\${fetchPolicy.status} === 200\`, else: true })
   score.to(gate)
 })
@@ -56,7 +58,11 @@ beforeEach(() => {
   mkdirSync(join(dir, '.sim'))
   mkdirSync(join(dir, 'functions'))
   writeFileSync(join(dir, 'workflow.ts'), WORKFLOW_TS)
-  writeFileSync(join(dir, 'functions/score.js'), 'const s = 1\nreturn $ref.fetchpolicy.data\n')
+  writeFileSync(
+    join(dir, 'functions/score.js'),
+    "const s = 1\nreturn $ref.fetchpolicy.data\nconst tag = '<fetchpolicy.status>'\n"
+  )
+  writeFileSync(join(dir, 'functions/audit.py'), 'import json\nprint(<fetchpolicy.data>)\n')
   vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
   cacheCatalogText(join(dir, 'config'), null, FIXTURE_TEXT)
   writeFileSync(
@@ -91,9 +97,17 @@ describe('sim workflows source find', () => {
       outgoing: [
         { block: 'Score', port: 'out', line: lineOf('fetchPolicy.to(score)') },
         { block: 'Fallback', port: 'error', line: lineOf('fetchPolicy.onError(fallback)') },
+        {
+          block: 'Audit',
+          port: 'out',
+          line: lineOf('fetchPolicy.to(audit)'),
+          statement: 'fetchPolicy.to(audit)',
+        },
       ],
       readers: [
+        { block: 'Audit', file: 'functions/audit.py', line: 2 },
         { block: 'Score', file: 'functions/score.js', line: 2 },
+        { block: 'Score', file: 'functions/score.js', line: 3 },
         { block: 'Gate', file: 'workflow.ts', line: lineOf("condition('Gate'") },
       ],
     })

@@ -4,6 +4,8 @@ import {
   type BlockKey,
   type CanonicalBlock,
   type CompileResult,
+  codeFileLanguage,
+  codeFileRefs,
   didYouMean,
   encodeAnchor,
   fromCodeFile,
@@ -142,10 +144,9 @@ function readersByKey(index: SourceIndex): Map<BlockKey, Reader[]> {
       const heads = new Set(texts.flatMap(referencedHeads))
       heads.delete(readerKey)
       if (heads.size === 0) continue
-      const parsed =
-        field === 'code' && codeLines ? fromCodeFile(codeLines.text, 'javascript') : null
-      if (codeFile && codeLines && parsed?.ok) {
-        for (const ref of parsed.refs) {
+      if (field === 'code' && codeFile && codeLines) {
+        const parsed = fromCodeFile(codeLines.text, codeFileLanguage(codeFile) ?? 'javascript')
+        for (const ref of codeFileRefs(parsed.ok ? parsed.refs : [], codeLines.text)) {
           const [head] = ref.kind === 'ref' ? ref.segments : []
           if (head?.kind !== 'name' || !heads.has(head.name)) continue
           const { line } = codeLines.position(ref.start)
@@ -199,19 +200,22 @@ function describeBlock(
   key: BlockKey
 ): FoundBlock {
   const span = index.span({ kind: 'block', block: key })
-  const edge = (ref: StoredEdgeRef, other: BlockKey): FoundEdge => {
-    const at = index.span({ kind: 'edges', block: ref.from, port: ref.port })
+  const { edges, edgeSpans } = index.compiled
+  const edge = (at: number, other: BlockKey): FoundEdge => {
+    const ref = edges[at]
+    const written = edgeSpans[at]
     return {
       block: index.nameOf(other),
       port: ref.port,
-      file: at?.file ?? SOURCE_ENTRY_FILE,
-      line: at?.line ?? span?.line ?? 0,
-      statement: at
-        ? (index.linesOf(at.file)?.lines[at.line - 1]?.trim() ?? '')
-        : '(implied by the container)',
+      file: written?.file ?? SOURCE_ENTRY_FILE,
+      line: written?.line ?? span?.line ?? 0,
+      statement: written
+        ? (index.linesOf(written.file)?.lines[written.line - 1]?.trim() ?? '')
+        : '',
     }
   }
-  const { edges } = index.compiled
+  const ends = (side: 'from' | 'to', other: 'from' | 'to') =>
+    edges.flatMap((ref, at) => (ref[side] === key ? [edge(at, ref[other])] : [])).sort(byLine)
   return {
     name: index.nameOf(key),
     key,
@@ -221,14 +225,8 @@ function describeBlock(
     line: span?.line ?? 0,
     endLine: span?.endLine ?? 0,
     codeFile: index.codeFileOf(key),
-    incoming: edges
-      .filter((ref) => ref.to === key)
-      .map((ref) => edge(ref, ref.from))
-      .sort(byLine),
-    outgoing: edges
-      .filter((ref) => ref.from === key)
-      .map((ref) => edge(ref, ref.to))
-      .sort(byLine),
+    incoming: ends('to', 'from'),
+    outgoing: ends('from', 'to'),
     readers: [...(readers.get(key) ?? [])].sort(byLine),
   }
 }

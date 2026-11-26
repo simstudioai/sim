@@ -61,16 +61,20 @@ function holdsJsonText(declaration: CatalogSubBlock): boolean {
 }
 
 /**
- * A native object or list field (a child workflow's `inputMapping`, a message list). The operations
- * route and older editors may store it as JSON text, which would never type-check if printed as
- * text, so it decodes like a structured field; text that does not parse is a value of its own (a
- * reference to a whole list), not a warning.
+ * Field types whose runtime reads JSON text and the container it encodes alike: the workflow
+ * handler and the tool runners parse a child workflow's `inputMapping` either way, and the
+ * operations route stores either. Canonicalize decodes the text so it prints as the object source
+ * can type, and deploy-change detection takes the two encodings as one value. Any other native
+ * container field stays as stored, since its runtime reads only one form.
  */
+export const JSON_TEXT_CONTAINER_TYPES: ReadonlySet<string> = new Set([
+  'input-mapping',
+  'workflow-input-mapper',
+])
+
+/** A field of a {@link JSON_TEXT_CONTAINER_TYPES} type; text that does not parse stays a value. */
 function holdsNativeContainer(declaration: CatalogSubBlock): boolean {
-  return (
-    !holdsJsonText(declaration) &&
-    (declaration.valueKind === 'object' || declaration.valueKind === 'array')
-  )
+  return JSON_TEXT_CONTAINER_TYPES.has(declaration.type)
 }
 
 /** Whether canonicalize decodes this subBlock's JSON text. */
