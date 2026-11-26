@@ -211,6 +211,17 @@ describe('locateDocumentLink', () => {
     )
   })
 
+  it('names the branch of a GitLab file link, as a GitLab source pins one', async () => {
+    const [link] = parseDocumentLinks('https://git.acme.dev/team/api/-/blob/main/src/a.ts') ?? []
+    if (!link) throw new Error('Expected a link')
+    await expect(
+      locateDocumentLink(link, {
+        client: client({ path_with_namespace: 'team/api', default_branch: 'main' }),
+        origin: 'https://git.acme.dev',
+      })
+    ).resolves.toEqual({ id: 'src/a.ts', container: 'team/api', kind: 'code', revision: 'main' })
+  })
+
   it('refuses a Linear key that names an issue in another workspace', async () => {
     const [link] = parseDocumentLinks('https://linear.app/acme/issue/ENG-12') ?? []
     if (!link) throw new Error('Expected a link')
