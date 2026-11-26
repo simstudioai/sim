@@ -34,7 +34,8 @@ interface SwitchedSubscription extends OrgAllowanceInput {
  *
  * `previous` is the pool read before Stripe applied the change ({@link readPoolUsageSnapshot}).
  * Given it, the headroom comes from that limit and that credit balance, so neither a webhook that
- * raised the live limit first nor credit granted meanwhile changes the headroom the payer chose.
+ * raised the live limit first nor credit granted meanwhile changes the headroom the payer chose;
+ * a snapshot predates any webhook, so a limit in it at the new amount is chosen headroom.
  */
 export async function rebaseUsageLimit(
   params: {
@@ -53,7 +54,10 @@ export async function rebaseUsageLimit(
     const before = previous ? sql`${previous.limit}::numeric` : sql`${limit}`
     const creditBefore = previous ? sql`${previous.creditBalance}::numeric` : sql`${creditBalance}`
     const previousCovered = covered(previousIncluded, creditBefore)
-    const headroom = sql`case when ${before} = ${covered(nextIncluded, creditBefore)} then 0 else greatest(0, coalesce(${before}, ${previousCovered}) - ${previousCovered}) end`
+    const chosen = sql`greatest(0, coalesce(${before}, ${previousCovered}) - ${previousCovered})`
+    const headroom = previous
+      ? chosen
+      : sql`case when ${limit} = ${covered(nextIncluded, sql`${creditBalance}`)} then 0 else ${chosen} end`
     return sql`case when ${before} >= ${ON_DEMAND_UNLIMITED} then ${before} else round(${covered(nextIncluded, sql`${creditBalance}`)} + ${headroom} * ${headroomScale}::numeric, 2) end`
   }
 

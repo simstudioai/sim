@@ -179,11 +179,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     const orgScoped = await isSubscriptionOrgScoped(sub)
-    // Read before Stripe applies the switch: its webhook can move the live limit first.
-    const previous = await readPoolUsageSnapshot({
-      type: orgScoped ? 'organization' : 'user',
-      id: sub.referenceId,
-    })
+    // Read before Stripe applies the switch, since its webhook can move the live limit first. A
+    // retry finds Stripe already switched, so it has no pre-switch reading to take.
+    const previous = alreadyOnStripePrice
+      ? undefined
+      : await readPoolUsageSnapshot({
+          type: orgScoped ? 'organization' : 'user',
+          id: sub.referenceId,
+        })
     // The item's period after the switch: Stripe's response, or the retrieved item on a retry
     // that finds Stripe already on the target price.
     let switchedItem: typeof subscriptionItem | undefined = subscriptionItem
