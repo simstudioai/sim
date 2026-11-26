@@ -418,9 +418,7 @@ Return ONLY the JSON array.`,
   tools: {
     access: [...MODEL_PROVIDER_ACCESS_IDS],
     config: {
-      tool: (params: Record<string, any>) => {
-        return resolveModelProviderId(params.model)
-      },
+      tool: (params: Record<string, any>) => resolveModelProviderId(params.model),
       params: (params: Record<string, any>) => {
         const normalizedFiles = normalizeFileInput(params.files)
         const baseParams = normalizedFiles ? { ...params, files: normalizedFiles } : params

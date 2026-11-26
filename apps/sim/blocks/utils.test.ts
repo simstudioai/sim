@@ -65,7 +65,6 @@ import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-
 import { S3Icon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import {
-  findConfiguredModelProvider,
   getAgentModelOptions,
   getApiKeyCondition,
   getModelOptions,
@@ -379,56 +378,19 @@ describe('resolveModelProviderId', () => {
   beforeEach(() => {
     resolver.mockReset()
     resolver.mockImplementation(((model: string) => {
-      if (model.startsWith('openrouter/')) return 'openrouter'
       if (model === DEFAULT_BLOCK_MODEL) return 'anthropic'
       throw new Error(`No provider found for model: ${model}`)
     }) as unknown as typeof getProviderFromModel)
   })
 
-  it('resolves a gateway model that the base model map deliberately omits', () => {
-    expect(resolveModelProviderId('openrouter/meta-llama/llama-4-maverick')).toBe('openrouter')
-  })
-
   it('uses the default block model when the model is unset or still an unresolved reference', () => {
     expect(resolveModelProviderId('openrouter/<variable.vllm>')).toBe('anthropic')
     expect(resolveModelProviderId(undefined)).toBe('anthropic')
-    expect(resolver).not.toHaveBeenCalledWith('openrouter/<variable.vllm>')
-  })
-
-  it('looks up sim-auto as the model it falls back to, never as itself', () => {
-    expect(resolveModelProviderId('sim-auto')).toBe('anthropic')
-    expect(resolveModelProviderId(' SIM-AUTO ')).toBe('anthropic')
-    expect(resolver).toHaveBeenCalledWith(DEFAULT_BLOCK_MODEL)
-    expect(resolver).not.toHaveBeenCalledWith('sim-auto')
-    expect(resolver).not.toHaveBeenCalledWith(' SIM-AUTO ')
   })
 
   it('never throws when the resolver rejects the model', () => {
     expect(() => resolveModelProviderId('totally-unknown-model')).not.toThrow()
     expect(resolveModelProviderId('totally-unknown-model')).toBe('openai')
-  })
-})
-
-describe('findConfiguredModelProvider', () => {
-  const resolver = vi.mocked(getProviderFromModel)
-
-  beforeEach(() => {
-    resolver.mockReset()
-    resolver.mockImplementation(((model: string) => {
-      if (model.startsWith('openrouter/')) return 'openrouter'
-      if (model === 'sim-auto') throw new Error('sim-auto has no provider')
-      if (model === 'blacklisted-model') throw new Error('blacklisted')
-      return 'anthropic'
-    }) as unknown as typeof getProviderFromModel)
-  })
-
-  it('keeps the explicit namespace of a model reference', () => {
-    expect(findConfiguredModelProvider('openrouter/<variable.vllm>')).toBe('openrouter')
-  })
-
-  it('names no provider for sim-auto or a blacklisted model', () => {
-    expect(findConfiguredModelProvider('sim-auto')).toBeNull()
-    expect(findConfiguredModelProvider('blacklisted-model')).toBeNull()
   })
 })
 

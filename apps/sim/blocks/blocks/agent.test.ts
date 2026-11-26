@@ -123,5 +123,9 @@ describe('AgentBlock', () => {
     it('falls back to the same provider when no model is set', () => {
       expect(toolFunction?.({})).toBe('anthropic')
     })
+
+    it('records the default provider for a model reference, not its written namespace', () => {
+      expect(toolFunction?.({ model: 'openrouter/<variable.x>' })).toBe('anthropic')
+    })
   })
 })
