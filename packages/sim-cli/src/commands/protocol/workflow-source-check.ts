@@ -24,7 +24,14 @@ import {
   workspaceFolderOf,
 } from './source-dir'
 import { cachedCatalog, cachedSourceCatalog, refreshTsconfigs } from './source-tree'
-import { TYPES_HELP, type TypeCheck, type TypesOptions, typeCheck, typesFlag } from './source-types'
+import {
+  TYPES_HELP,
+  type TypeCheck,
+  type TypesOptions,
+  typeCheck,
+  typesFlag,
+  withStaleTableHints,
+} from './source-types'
 import { verboseFlag } from './source-ui'
 import { requireEntry, WORKFLOW_TREE } from './workflow-dir'
 
@@ -118,7 +125,15 @@ export function attachWorkflowSourceCheck(source: Command): void {
                 { sources: [entry] },
                 { incremental: true }
               )
-              types = await typeCheck(options.dir, { enabled, compiled: findings })
+              const checked = await typeCheck(options.dir, { enabled, compiled: findings })
+              types = {
+                ...checked,
+                findings: await withStaleTableHints(
+                  checked.findings,
+                  options.dir,
+                  `sim workflows source status --dir ${options.dir}`
+                ),
+              }
             }
             reportCheck(
               profile.output,

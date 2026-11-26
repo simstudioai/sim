@@ -477,6 +477,62 @@ describe('sim workflows source get --dir', () => {
     ])
   })
 
+  it('names the refresh when a row write names a column the table types the last get wrote lack', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { table, trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('W', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const save = table.insertRow('Save', { tableId: table('tickets'), data: { subject: 's', category: 'c' } })",
+      '  start.to(save)',
+      '})',
+      '',
+    ].join('\n')
+    serve({
+      [SOURCE_PATH]: () => source({ 'workflow.ts': workflow }, ['table_v2']),
+      [MANIFEST_PATH]: () => ({
+        data: {
+          ...MANIFEST.data,
+          tables: [
+            {
+              key: 'tickets',
+              id: 'tbl-1',
+              name: 'tickets',
+              columns: [
+                { name: 'subject', type: 'string' },
+                { name: 'body', type: 'string' },
+              ],
+            },
+          ],
+        },
+      }),
+    })
+    await get('--dir', outDir)
+    writeFileSync(join(outDir, 'workflow.ts'), `${workflow}\n`)
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: WORKSPACE_ID,
+      output: 'json',
+    })
+    const check = new Command('source')
+    attachWorkflowSourceCheck(check)
+    check.commands.forEach((command) => command.exitOverride())
+    await check.parseAsync(['node', 'source', 'check', '--dir', outDir])
+
+    expect(process.exitCode).toBe(1)
+    process.exitCode = undefined
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(
+      (printed.diagnostics as Array<{ code: string }>).filter(({ code }) => code === 'E_TYPE')
+    ).toEqual([
+      expect.objectContaining({
+        message: expect.stringMatching(/^TS2353: .*'category' does not exist/),
+        hint: expect.stringContaining(`sim workflows source status --dir ${outDir}`),
+      }),
+    ])
+  })
+
   it('writes the example workflows beside the guide, outside what the tsconfig files type-check', async () => {
     serve()
 

@@ -390,6 +390,19 @@ async function readKeptManifest(dir: string): Promise<WorkspaceManifest | null |
 }
 
 /**
+ * The column names of each stored table in the manifest the last get, apply or status kept beside
+ * `workspace.d.ts`, by table key; empty when none was kept or it does not parse.
+ */
+export async function keptTableColumns(
+  dir: string
+): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
+  const tables = (await readKeptManifest(dir))?.tables ?? {}
+  return new Map(
+    Object.entries(tables).map(([key, table]) => [key, new Set(Object.keys(table?.columns ?? {}))])
+  )
+}
+
+/**
  * `workspace.d.ts` for the kept stored manifest and `local`, as {@link refreshWorkspaceTypes}
  * would write it, without writing it; `null` for no file. A manifest that does not parse counts
  * as none kept.

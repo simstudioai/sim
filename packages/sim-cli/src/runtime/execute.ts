@@ -18,6 +18,7 @@ import { camel } from './derive'
 import { DEFAULT_PAGE_SIZE, defaultListLimit } from './options'
 import { warnRenamedFlag } from './renamed'
 import {
+  type BuiltRequest,
   buildRequest,
   cursorSlot,
   flagNameFor,
@@ -232,14 +233,25 @@ const RESULT_NOTES: Readonly<
   Partial<
     Record<
       V2OperationName,
-      (payload: Record<string, unknown>, body: Record<string, unknown> | undefined) => string | null
+      (payload: Record<string, unknown>, request: BuiltRequest) => string | null
     >
   >
 > = {
-  replaceWorkflowChatDeployment: (payload, body) => {
+  replaceWorkflowChatDeployment: (payload, { body }) => {
     const authType = payload.authType ?? body?.authType ?? 'public'
     return authType === 'public'
       ? 'note: auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
+      : null
+  },
+  /**
+   * `blocks get table` answers with `table_v2`, the type an add takes, and an add of the base
+   * type is refused. The resolved `id` is one field of a long record, and an agent's jq filter
+   * over `configuration` dropped it, so the add that followed said `table`.
+   */
+  getBlock: (payload, { params }) => {
+    const requested = params.blockId
+    return typeof payload.id === 'string' && requested !== undefined && payload.id !== requested
+      ? `note: "${requested}" reads as "${payload.id}", its current version; add it as {"type":"${payload.id}"}.`
       : null
   },
 }
@@ -248,7 +260,7 @@ const RESULT_NOTES: Readonly<
 function writeResultNote(
   operation: V2OperationName,
   payload: unknown,
-  body: Record<string, unknown> | undefined
+  request: BuiltRequest
 ): void {
   const note = RESULT_NOTES[operation]
   if (!note) return
@@ -256,7 +268,7 @@ function writeResultNote(
     payload && typeof payload === 'object' && !Array.isArray(payload)
       ? (payload as Record<string, unknown>)
       : {}
-  const message = note(record, body)
+  const message = note(record, request)
   if (message) writeStderr(styles().dim(`${message}\n`))
 }
 
@@ -672,7 +684,7 @@ export async function executeOperation(
     // its own truncation there, and unwrapping `data` discarded it.
     result
   )
-  writeResultNote(operation, payload, request.body)
+  writeResultNote(operation, payload, request)
 
   // Printed first, then failed, for the reason `followRun` gives: the envelope
   // carries the block outputs that explain *why* the run failed, and exiting

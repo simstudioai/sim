@@ -333,7 +333,7 @@ Also available as `sim files mv`.
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | No | Destination folder path; omit for root. |
 
 </CommandTable>
@@ -417,7 +417,7 @@ sim files share set <fileId> [options]
 | `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
 | `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
 | `--password <value>` | No | Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply. |
-| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -653,7 +653,7 @@ sim files batch-delete [file-ids...] [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | No | Files to delete, each by identifier or by the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike. At most 100 entries may be paths. (space-separated, or @path / @- with one value per line; @@value for a literal leading @) (required, or pass the values as arguments). |
+| `--file-ids <value...>` | No | Files to delete, each by identifier or by the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike. At most 100 entries may be paths. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @) (required, or pass the values as arguments). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>

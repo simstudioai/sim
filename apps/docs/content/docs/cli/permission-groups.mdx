@@ -229,7 +229,7 @@ sim permission-groups members batch-add [options]
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
 | `--group <value>` | Yes | Permission group identifier. |
-| `--user <value...>` | No | User IDs to add; cannot be combined with --all-members (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--user <value...>` | No | User IDs to add; cannot be combined with --all-members (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--all-members` | No | Add every current organization member; cannot be combined with --user. |
 
 </CommandTable>

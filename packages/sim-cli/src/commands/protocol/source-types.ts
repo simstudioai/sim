@@ -31,7 +31,7 @@ import {
   updateSourceDir,
   type Written,
 } from './source-dir'
-import { TSCONFIG_FILE, WORKSPACE_TYPES_FILE } from './source-tree'
+import { keptTableColumns, TSCONFIG_FILE, WORKSPACE_TYPES_FILE } from './source-tree'
 import type { Diagnostic } from './source-ui'
 
 /** The `--types` / `--no-types` pair: absent runs the type check. */
@@ -463,4 +463,49 @@ export async function typeCheck(
     })
   }
   return { checked: true, findings }
+}
+
+/** tsc's excess-property error: the property, and the object type it is missing from. */
+const UNKNOWN_PROPERTY = /^TS2353: .*'([^']+)' does not exist in type '(.*)'\.?$/
+
+/** A member name in a printed object type (`{ body?: …; "due date": … }`), quoted or bare. */
+const TYPE_MEMBER = /(?:^|[{;]\s*)("(?:[^"\\]|\\.)*"|[A-Za-z_$][\w$]*)\??:/g
+
+/** The member names of a printed object type. */
+function typeMembers(printed: string): string[] {
+  return [...printed.matchAll(TYPE_MEMBER)].map(([, name]) =>
+    name.startsWith('"') ? String(JSON.parse(name)) : name
+  )
+}
+
+/**
+ * Adds the refresh to a row write's excess-property type error when the row type is a table's as
+ * the last get typed it: a column created since (`sim tables columns create`) is missing from those
+ * types until a command that reads the server rewrites them, and a check makes no request. The
+ * table is the one whose stored columns hold every member the error prints, and not the property.
+ */
+export async function withStaleTableHints(
+  findings: Diagnostic[],
+  dir: string,
+  refresh: string
+): Promise<Diagnostic[]> {
+  const excess = (finding: Diagnostic) =>
+    finding.code === 'E_TYPE' && !finding.hint && UNKNOWN_PROPERTY.test(finding.message)
+  if (!findings.some(excess)) return findings
+  const tables = await keptTableColumns(dir)
+  return findings.map((finding) => {
+    const unknown = excess(finding) ? UNKNOWN_PROPERTY.exec(finding.message) : null
+    if (!unknown) return finding
+    const [, property, printed] = unknown
+    const members = typeMembers(printed)
+    if (members.length === 0) return finding
+    const table = [...tables].find(
+      ([, columns]) => !columns.has(property) && members.every((member) => columns.has(member))
+    )?.[0]
+    if (table === undefined) return finding
+    return {
+      ...finding,
+      hint: `"${property}" is not a column of table "${table}" in the types the last get wrote. If it was added since (sim tables columns create), refresh them with \`${refresh}\`, then check again.`,
+    }
+  })
 }

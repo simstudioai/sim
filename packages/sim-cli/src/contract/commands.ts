@@ -1082,19 +1082,20 @@ blocks you add from it.`,
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   // A dependency set is typed one specifier at a time or pasted from a
   // requirements file, so each list takes space-separated values or `@path`
-  // with one entry per line rather than a JSON array. The package lists are
+  // with one entry per line; a specifier holds commas (`requests>=2,<3`), so
+  // the dependency lists keep them (`keepsCommas`). The package lists are
   // manifests: a requirements file carries blank lines and `#` comments, which
   // the API ignores, so the reader drops them instead of refusing the file.
   createSandbox: {
     flags: {
-      dependencies: { list: true, manifest: true },
+      dependencies: { list: true, manifest: true, keepsCommas: true },
       cliTools: { list: true },
       systemPackages: { list: true, manifest: true },
     },
   },
   updateSandbox: {
     flags: {
-      dependencies: { list: true, manifest: true },
+      dependencies: { list: true, manifest: true, keepsCommas: true },
       cliTools: { list: true },
       systemPackages: { list: true, manifest: true },
     },
@@ -1791,7 +1792,6 @@ blocks you add from it.`,
       fileIds: {
         list: true,
         trailing: true,
-        fileReferences: true,
         hiddenAliases: ['ids', 'paths'],
       },
     },

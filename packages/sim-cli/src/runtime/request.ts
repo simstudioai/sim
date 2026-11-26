@@ -328,11 +328,19 @@ export async function readArgumentSource(
 }
 
 /**
- * The file references one list value carries: a JSON array's strings, a comma-joined run of
- * ids, or the value itself. See {@link FlagSpec.fileReferences} for why neither reading can
- * misread a single id or path.
+ * Whether a list flag reads one value as several entries ({@link listEntries}). A folder path and
+ * a {@link FlagSpec.keepsCommas} value may hold a comma of its own, so neither splits.
  */
-function fileReferenceEntries(value: string, flagName: string): string[] {
+export function splitsListValues(flag: FlagSpec): boolean {
+  return !flag.keepsCommas && !flag.folderPath
+}
+
+/**
+ * The entries one list value carries: a JSON array's strings, a comma-joined run of ids, or the
+ * value itself. A value holding a `/` (a `files/…` path) keeps its commas, so a path is never cut
+ * in two.
+ */
+function listEntries(value: string, flagName: string): string[] {
   const entries = value.startsWith('[')
     ? jsonStringArray(value)
     : value.includes(',') && !value.includes('/')
@@ -525,11 +533,11 @@ export async function coerce(
    */
   if (flag.list) {
     const listed = await readListValues(raw, flagName, flag.manifest === true)
-    const values = (
-      flag.fileReferences
-        ? listed.flatMap((value) => fileReferenceEntries(value, flagName))
+    const values = flag.folderPath
+      ? listed.map(encodeFolderPath)
+      : splitsListValues(flag)
+        ? listed.flatMap((value) => listEntries(value, flagName))
         : listed
-    ).map((value) => (flag.folderPath ? encodeFolderPath(value) : value))
     // Encoding first is also what keeps the comma-joined form unambiguous: a
     // folder name containing a comma leaves here as `%2C`, so the route's split
     // cannot cut one path in half.
