@@ -31,6 +31,6 @@ export const HOME_FAQS = [
   {
     question: 'How does Sim govern AI agents across a company?',
     answer:
-      "Sim's Enterprise plan gives administrators permission groups that control which models, integrations, and tools each team can use, organization and per-member spend limits, audit records, single sign-on with domain verification, and configurable data retention. Every plan traces each run in Logs, and Sim is SOC 2 Type II compliant.",
+      "Sim's Enterprise plan gives administrators permission groups that control which models, integrations, and tools each team can use, organization and per-member spend limits, audit records, single sign-on with domain verification, and configurable data retention. Every plan traces each run in Logs, and Sim has completed a SOC 2 Type II audit covering the Security criterion.",
   },
 ] as const
