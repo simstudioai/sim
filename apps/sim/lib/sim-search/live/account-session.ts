@@ -15,6 +15,7 @@ import {
   withRequestSignal,
 } from '@/lib/sim-search/live/http'
 import { readHubSpotMcp, searchHubSpotMcp } from '@/lib/sim-search/live/hubspot-mcp'
+import { type DocumentLink, locateDocumentLink } from '@/lib/sim-search/live/links'
 import { readLucidMcp, searchLucidMcp } from '@/lib/sim-search/live/lucid-mcp'
 import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
@@ -53,6 +54,12 @@ export interface LiveAccountSession {
   /** True only when the document is inside the source boundary and the member may read it. */
   verify(document: Reference): Promise<boolean>
   read(reference: Reference, filters?: WorkspaceSearchFilters): Promise<NativeDocument>
+  /**
+   * The reference a pasted link names within this account, bound like a search result's, or
+   * undefined when the link names another provider, site, host or workspace. Not a permission
+   * check: a located reference is verified like any other before it is read.
+   */
+  locate(link: DocumentLink): Promise<Reference | undefined>
   /**
    * Full text of a search result whose provider returned only an excerpt or metadata; `signal`
    * cancels the read when its preview is no longer wanted.
@@ -253,6 +260,11 @@ export async function openLiveAccountSession(
           })
         )
       return readMcp(reference)
+    },
+    async locate(link) {
+      if (link.provider !== provider) return undefined
+      const located = await locateDocumentLink(link, { client, origin })
+      return located && (connectionBinding ? { ...located, connectionBinding } : located)
     },
     async previewText(document, previewSignal) {
       if (admin || !client) return undefined

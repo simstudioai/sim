@@ -116,6 +116,21 @@ async function sites(client: NativeClient) {
   return array(await client.json('/oauth/token/accessible-resources', { memo: true }))
 }
 
+/** The cloud ID of the grant's site served at `host`, as a link to one of its pages names it. */
+export async function atlassianSiteId(
+  client: NativeClient,
+  host: string
+): Promise<string | undefined> {
+  const site = (await sites(client)).find((row) => {
+    try {
+      return new URL(string(row.url)).host === host
+    } catch {
+      return false
+    }
+  })
+  return string(site?.id) || undefined
+}
+
 /**
  * One Atlassian site's page; `ranking` marks a page whose order or completeness differs from the
  * all-terms search.

@@ -75,19 +75,23 @@ export function liveSearchMcpDefaultTopK(input: z.output<typeof liveSearchMcpSch
 /** Documents one read_document call may read; each counts as one read against the rate limit. */
 const MAX_MCP_READ_DOCUMENTS = 10
 
+const mcpDocumentIdSchema = readDocumentInputSchema.shape.documentId.describe(
+  'A document ID returned by search, or a link to the document in its source.'
+)
+
 export const readLiveDocumentMcpSchema = readDocumentInputSchema
   .extend({
-    documentId: readDocumentInputSchema.shape.documentId.optional(),
+    documentId: mcpDocumentIdSchema.optional(),
     startChunkIndex: readDocumentInputSchema.shape.startChunkIndex.describe(
       'Copy next.startChunkIndex from a prior read to continue it; live documents always use 0.'
     ),
     documentIds: z
-      .array(readDocumentInputSchema.shape.documentId)
+      .array(mcpDocumentIdSchema)
       .min(1)
       .max(MAX_MCP_READ_DOCUMENTS)
       .optional()
       .describe(
-        `Up to ${MAX_MCP_READ_DOCUMENTS} document IDs returned by search, read together from the beginning. Use instead of documentId.`
+        `Up to ${MAX_MCP_READ_DOCUMENTS} document IDs or links, read together from the beginning. Use instead of documentId.`
       ),
   })
   .strict()

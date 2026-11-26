@@ -18,7 +18,7 @@ function pageId(value: string): string | undefined {
   return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`.toLowerCase()
 }
 
-function notionResource(value: string): { id: string; url: string } | undefined {
+export function notionResource(value: string): { id: string; url: string } | undefined {
   const id = pageId(value)
   if (id) return { id, url: `https://www.notion.so/${id.replaceAll('-', '')}` }
   try {

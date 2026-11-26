@@ -1311,6 +1311,122 @@ describe('authorized live retrieval', () => {
     ).rejects.toMatchObject({ message: expect.stringContaining('next.startOffset') })
     expect(mocks.read).not.toHaveBeenCalled()
   })
+  describe('pasted links', () => {
+    const owner = liveReferenceOwner(
+      'reader',
+      resourceScopeKey(resourceScopeFromOwner({ workspaceId: 'workspace' }))
+    )
+    const read = (documentId: string) =>
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId,
+          limit: 3,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    const confluence = (id: string) => ({
+      ...account,
+      id,
+      provider: 'confluence',
+      providerId: 'confluence',
+      displayName: id,
+    })
+
+    it('reads a Drive link and names it by the ID search mints, which reads back', async () => {
+      mocks.read.mockResolvedValue({
+        ...document,
+        id: '1AbcDEFghijKLmn',
+        kind: 'application/vnd.google-apps.document',
+      })
+      const result = await read('https://drive.google.com/file/d/1AbcDEFghijKLmn/view')
+      expect(mocks.read).toHaveBeenCalledWith(
+        'google_drive',
+        expect.anything(),
+        { id: '1AbcDEFghijKLmn' },
+        expect.anything()
+      )
+      expect(decodeLiveReference(result.documentId)).toEqual({
+        account: 'account',
+        provider: 'google_drive',
+        id: '1AbcDEFghijKLmn',
+        kind: 'application/vnd.google-apps.document',
+      })
+      expect(result.chunks[0]?.content).toBe('Evidence')
+      await expect(read(result.documentId)).resolves.toMatchObject({
+        documentId: result.documentId,
+      })
+    })
+
+    it('verifies a linked document before reading it, like a document ID', async () => {
+      mocks.service.mockResolvedValue({
+        policy: defaultLiveSearchPolicy(),
+        verify: vi.fn(async () => false),
+        partial: false,
+      })
+      await expect(read('https://drive.google.com/file/d/1AbcDEFghijKLmn/view')).rejects.toThrow(
+        'outside your organization'
+      )
+      expect(mocks.read).not.toHaveBeenCalled()
+    })
+
+    it('reads an Atlassian link only from the account on its site', async () => {
+      mocks.accounts.mockResolvedValue([confluence('site-a'), confluence('site-b')])
+      mocks.json
+        .mockResolvedValueOnce([{ id: 'cloud-a', url: 'https://a.atlassian.net' }])
+        .mockResolvedValueOnce([{ id: 'cloud-b', url: 'https://b.atlassian.net' }])
+      mocks.read.mockResolvedValue({ ...document, id: '12345', kind: 'page', container: 'cloud-b' })
+      const result = await read('https://b.atlassian.net/wiki/spaces/ENG/pages/12345/Launch')
+      expect(mocks.read).toHaveBeenCalledOnce()
+      expect(mocks.read).toHaveBeenCalledWith(
+        'confluence',
+        expect.anything(),
+        { id: '12345', kind: 'page', container: 'cloud-b' },
+        expect.anything()
+      )
+      expect(result.documentId).toBe(
+        encodeLiveReference(
+          {
+            account: 'site-b',
+            provider: 'confluence',
+            id: '12345',
+            kind: 'page',
+            container: 'cloud-b',
+          },
+          owner
+        )
+      )
+    })
+
+    it('reports one account’s specific reason over another account not finding the link', async () => {
+      mocks.accounts.mockResolvedValue([confluence('site-a'), confluence('site-a-2')])
+      mocks.json
+        .mockResolvedValueOnce([{ id: 'cloud-a', url: 'https://a.atlassian.net' }])
+        .mockResolvedValueOnce([{ id: 'cloud-a', url: 'https://a.atlassian.net' }])
+      mocks.read
+        .mockRejectedValueOnce(new NativeSearchError('unavailable', 'Gone', undefined, 404))
+        .mockRejectedValueOnce(new NativeSearchError('reconnect', 'The provider denied access.'))
+      await expect(read('https://a.atlassian.net/wiki/spaces/ENG/pages/7')).rejects.toMatchObject({
+        code: 'unauthorized',
+        message: expect.stringContaining('Reconnect Confluence'),
+      })
+    })
+
+    it('names the source to connect when no account can open the link', async () => {
+      await expect(read('https://acme.slack.com/archives/C0123/p1700000000123456')).rejects.toThrow(
+        'No connected Slack account'
+      )
+      expect(mocks.resolveAccount).not.toHaveBeenCalled()
+    })
+
+    it('refuses a link it cannot read before listing any account', async () => {
+      await expect(read('https://example.com/about')).rejects.toMatchObject({
+        code: 'validation',
+      })
+      expect(mocks.accounts).not.toHaveBeenCalled()
+    })
+  })
   describe('live document IDs', () => {
     const workspaceScope = resourceScopeKey(resourceScopeFromOwner({ workspaceId: 'workspace' }))
     /** The earlier wire form, spelled out so these tests pin what older conversations hold. */
