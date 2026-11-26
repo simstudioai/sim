@@ -22,8 +22,11 @@ import { printTraceSpans } from '../output/trace'
 import { withDeploymentLive } from './deployment-live'
 import { withRunNext } from './run-next'
 
-/** Result fields holding a command to run, printed whole (a clipped flag would make it wrong). */
-const RUN_COMMAND_FIELDS: ReadonlySet<string> = new Set(['next'])
+/**
+ * Result fields printed whole: the command to run (a clipped flag would make it wrong), and the
+ * note naming the mocks it leaves out for the reader to pass again.
+ */
+const RUN_COMMAND_FIELDS: ReadonlySet<string> = new Set(['next', 'next note'])
 
 interface RenderResultOptions {
   expandedTrace?: boolean

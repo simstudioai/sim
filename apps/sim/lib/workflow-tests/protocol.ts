@@ -158,7 +158,8 @@ const storedStubbedCallSchema = z
 /** What one workflow run of a test did with the writes it reached, without their payloads. */
 const testRunSideEffectsSchema = z.object({
   /**
-   * Calls no mock answered, stubbed with a placeholder: writes, and reads that would have sent a
+   * Calls no mock answered, stubbed with a placeholder: writes, every MCP call (reason
+   * `mcp-read-only` when its server declares the tool read-only), and reads that would have sent a
    * placeholder (reason `placeholder`). `tool` is null for a block answered whole.
    */
   stubbed: z.array(storedStubbedCallSchema),

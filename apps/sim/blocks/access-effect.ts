@@ -18,14 +18,14 @@ export function accessIdEffect(id: string): ToolEffect {
 /**
  * A block's effect, the one rule every catalog reads: `write` when it runs tools its user chooses
  * (a `tool-input` field, as an Agent has) or any of its access ids writes ({@link accessIdEffect}),
- * else `read`. Undefined for a block with no tools.
+ * else `read`. Undefined for a block with no tools at all.
  */
 export function blockEffect(
   block: Pick<BlockConfig, 'tools' | 'subBlocks'>
 ): ToolEffect | undefined {
   const access = block.tools?.access ?? []
-  if (access.length === 0) return undefined
   const runsChosenTools = (block.subBlocks ?? []).some((subBlock) => subBlock.type === 'tool-input')
+  if (access.length === 0) return runsChosenTools ? 'write' : undefined
   return !runsChosenTools && access.every((toolId) => accessIdEffect(toolId) === 'read')
     ? 'read'
     : 'write'

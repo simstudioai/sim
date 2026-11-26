@@ -660,13 +660,19 @@ async function readWorkflowExecutionStatus(
   }
 }
 
+const legacyChildBlockSchema = z.object({ workflowId: z.string(), blockId: z.string() })
+
 /**
  * The only other shape a log holds overrides in: a dry run logged before they were named
- * `overrides` recorded just its own allowed and mocked blocks, by id (no child's, no `mocksFrom`).
+ * `overrides` listed its own blocks by id, a child's apart with its workflow id, and the blocks
+ * mocked from another run under `blockIds`.
  */
 const legacyDryRunSchema = z.object({
   allowBlocks: z.array(z.string()),
   mockedBlocks: z.array(z.string()),
+  childAllowBlocks: z.array(legacyChildBlockSchema).optional(),
+  childMockedBlocks: z.array(legacyChildBlockSchema).optional(),
+  mocksFrom: z.object({ runId: z.string(), blockIds: z.array(z.string()) }).optional(),
 })
 
 /**
@@ -679,7 +685,15 @@ function readOverrides(executionData: ExecutionDataShape | null): RunOverrides |
   const parsed = v2RunOverridesSchema.safeParse(data?.overrides)
   if (parsed.success) return parsed.data
   const legacy = legacyDryRunSchema.safeParse(data?.dryRun)
-  return legacy.success ? { allow: legacy.data.allowBlocks, mocks: legacy.data.mockedBlocks } : null
+  if (!legacy.success) return null
+  const { allowBlocks, mockedBlocks, childAllowBlocks, childMockedBlocks, mocksFrom } = legacy.data
+  const childSelector = ({ workflowId, blockId }: { workflowId: string; blockId: string }) =>
+    `${workflowId}.${blockId}`
+  return {
+    allow: [...allowBlocks, ...(childAllowBlocks ?? []).map(childSelector)],
+    mocks: [...mockedBlocks, ...(childMockedBlocks ?? []).map(childSelector)],
+    ...(mocksFrom ? { mocksFrom: { runId: mocksFrom.runId, blocks: mocksFrom.blockIds } } : {}),
+  }
 }
 
 /**

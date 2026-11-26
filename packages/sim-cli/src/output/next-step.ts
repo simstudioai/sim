@@ -7,10 +7,12 @@ export interface NextStep {
 }
 
 /**
- * A `next` as a person reads it: the command, then why as a shell comment, so a pasted line runs
- * only the command. Null for a value that is not a {@link NextStep}.
+ * A `next` as a person reads it: the command on one line (several, as a paused run's resumes,
+ * chained with `&&`), then why as a shell comment, so a pasted line runs only the commands. Null
+ * for a value that is not a {@link NextStep}.
  */
 export function nextStepText(value: unknown): string | null {
   if (!isRecordLike(value) || typeof value.command !== 'string') return null
-  return typeof value.reason === 'string' ? `${value.command}  # ${value.reason}` : value.command
+  const command = value.command.split('\n').join(' && ')
+  return typeof value.reason === 'string' ? `${command}  # ${value.reason}` : command
 }

@@ -130,6 +130,7 @@ describe("a block detail's effect", () => {
 
   it('is write for a block running tools its user chooses, read for a model-only one, absent without tools', () => {
     expect(effectOf('agent')).toBe('write')
+    expect(effectOf('human_in_the_loop_v2')).toBe('write')
     expect(effectOf('router')).toBe('read')
     expect(effectOf('condition')).toBeUndefined()
   })

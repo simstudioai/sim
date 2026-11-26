@@ -638,7 +638,7 @@ failures in `workflow_source_applied`, `workflow_source_dry_run` and `workspace_
   are untyped globals in JavaScript. Source has no loops or helpers that generate blocks; the
   compiler accepts only the printed grammar.
 - Nothing in the source runs. `source check` compiles and type-checks it offline; the server's
-  checks happen on apply (or `--dry-run`).
+  checks happen on apply (or `--dry`).
 - A comment inside an expression is hoisted to its enclosing anchor (`W_COMMENT_MOVED`).
 - Chat in the product does not write through source yet.
 
