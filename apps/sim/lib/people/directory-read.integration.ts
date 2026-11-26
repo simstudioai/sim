@@ -9,7 +9,10 @@ import {
   scimUser,
   user,
 } from '@sim/db/schema'
-import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
@@ -154,6 +157,23 @@ it('browses source identities before they have accounts and preserves profile li
   const directory = async (extra: { search?: string; scope?: 'roots'; department?: string } = {}) =>
     (await listPeople.execute({ principal, input: { ...base, ...extra } })).data
   expect((await directory({ search: 'designer' })).map((p) => p.memberId)).toEqual([reportEntry])
+  expect((await directory({ search: 'design  DIRECTOR' })).map((p) => p.memberId)).toEqual([
+    bossEntry,
+  ])
+  const searchClient = createPersonalApiKeyPrincipal({ userId: ownerId, access: 'read' })
+  const found = await listPeople.execute({
+    principal: searchClient,
+    input: { ...base, search: 'designer' },
+  })
+  expect(found.data.map((p) => p.memberId)).toEqual([reportEntry])
+  expect(
+    (
+      await getPerson.execute({
+        principal: searchClient,
+        input: { ...base, memberId: reportEntry },
+      })
+    ).chain
+  ).toMatchObject([{ memberId: bossEntry }])
   expect((await directory({ scope: 'roots' })).map((p) => p.memberId)).toEqual([bossEntry])
   expect((await listDepartments.execute({ principal, input: base })).data).toContainEqual({
     name: 'Design',

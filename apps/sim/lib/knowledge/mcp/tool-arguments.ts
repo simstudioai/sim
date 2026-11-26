@@ -4,6 +4,7 @@ import {
   chatSearchMcpSchema,
   liveSearchMcpSchema,
   readLiveDocumentMcpSchema,
+  searchPeopleMcpSchema,
 } from '@/lib/api/contracts/knowledge/mcp'
 import { mcpToolCallParamsSchema } from '@/lib/api/contracts/mcp'
 import { liveSearchProviderSchema } from '@/lib/api/contracts/mothership-assistant-tools'
@@ -23,6 +24,7 @@ const TOOL_INPUT_SCHEMAS = new Map<string, z.ZodType>([
   ['search', liveSearchMcpSchema],
   ['read_document', readLiveDocumentMcpSchema],
   ['chat', chatSearchMcpSchema],
+  ['search_people', searchPeopleMcpSchema],
 ])
 
 function readToolCall(message: Record<string, unknown>) {

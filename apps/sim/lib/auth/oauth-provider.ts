@@ -95,7 +95,7 @@ export const OAUTH_SCOPE_DESCRIPTIONS: Record<OAuthScope, string> = {
   [OAUTH_API_READ_SCOPE]: 'Read your workspaces, workflows, files, tables, and logs',
   [OAUTH_API_WRITE_SCOPE]: 'Read, create, change, run, and delete resources in your workspaces',
   [OAUTH_SEARCH_READ_SCOPE]:
-    'Search and read documents you can access, and start private Sim Search conversations',
+    'Search and read documents you can access, look up people in your organization, and start private Sim Search conversations',
 }
 
 /**
