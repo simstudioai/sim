@@ -1,6 +1,11 @@
 import { OddsApiIoIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { mapperOperation, parseOptionalNumberInput } from '@/blocks/utils'
+import {
+  isToolCall,
+  mapperOperation,
+  parseOptionalBooleanInput,
+  parseOptionalNumberInput,
+} from '@/blocks/utils'
 
 const GET_SPORTS = 'odds_api_io_get_sports'
 const GET_LEAGUES = 'odds_api_io_get_leagues'
@@ -332,12 +337,20 @@ export const OddsApiIoBlock: BlockConfig = {
       params: (params, context) => {
         const operation = mapperOperation(params, context)
         const { searchStatus, includeInactiveLeagues, ...rest } = params
+        // The dropdown and switch always hold a value, so on a tool call the model's own
+        // `status` / `all` argument wins and the canvas field only fills in when it gave none.
+        const modelArg = (value: unknown) => (isToolCall(context) ? value : undefined)
         return {
           ...rest,
-          status: operation === SEARCH_EVENTS ? searchStatus : params.status,
-          all: operation === GET_LEAGUES ? includeInactiveLeagues === true : undefined,
+          status:
+            operation === SEARCH_EVENTS ? (modelArg(params.status) ?? searchStatus) : params.status,
+          all:
+            operation === GET_LEAGUES
+              ? (modelArg(parseOptionalBooleanInput(params.all)) ??
+                (includeInactiveLeagues === true ? true : undefined))
+              : undefined,
           includeEventDetails: EVENT_DETAILS_OPERATIONS.includes(operation)
-            ? params.includeEventDetails !== false
+            ? (parseOptionalBooleanInput(params.includeEventDetails) ?? true)
             : undefined,
           minDrop:
             operation === GET_DROPPING_ODDS

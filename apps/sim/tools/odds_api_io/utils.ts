@@ -69,13 +69,12 @@ export function commaList(value: unknown): string | undefined {
 
 export async function readOddsApiIoJson(response: Response, action: string): Promise<unknown> {
   const text = await response.text()
-  let data: unknown = null
-  if (text) {
-    try {
-      data = JSON.parse(text)
-    } catch {
-      data = null
-    }
+  let data: unknown
+  let parseFailed = false
+  try {
+    data = text ? JSON.parse(text) : undefined
+  } catch {
+    parseFailed = true
   }
   if (!response.ok) {
     const message =
@@ -83,6 +82,9 @@ export async function readOddsApiIoJson(response: Response, action: string): Pro
         ? (toRecord(data).error as string)
         : `Odds-API.io ${action} failed with status ${response.status}`
     throw new Error(message)
+  }
+  if (parseFailed || data === undefined) {
+    throw new Error(`Odds-API.io ${action} returned a response that is not valid JSON`)
   }
   return data
 }
