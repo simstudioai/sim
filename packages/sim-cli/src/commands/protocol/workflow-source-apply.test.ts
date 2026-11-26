@@ -1241,7 +1241,7 @@ describe('sim workflows source apply', () => {
       ])
     })
 
-    it('without --deploy, names the tested deploy when the deployed workflow now differs', async () => {
+    it('without --deploy, names the pinned deploy when the deployed workflow now differs, and the tested one in its reason', async () => {
       setTerminal(false)
       request.mockResolvedValue(outcome())
 
@@ -1249,15 +1249,13 @@ describe('sim workflows source apply', () => {
 
       expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
       const result = stdoutJson()
+      // `next.command` runs as printed: no placeholder an agent would have to fill in.
       expect(result).toMatchObject({
         needsRedeployment: true,
-        next: {
-          command: `sim workflows source apply --dir ${dir} --yes --run '<input json>' --deploy`,
-        },
+        next: { command: `sim workflows deploy ${WORKFLOW_ID} --expected-draft-fingerprint sf1:b` },
       })
-      // The untested deploy stays one copy away, pinned to the draft this apply stored.
       expect(toRecord(result.next).reason).toContain(
-        `sim workflows deploy ${WORKFLOW_ID} --expected-draft-fingerprint sf1:b`
+        `\`sim workflows source apply --dir ${dir} --yes --run '{…}' --deploy\` tests and deploys it in one step`
       )
     })
 

@@ -319,11 +319,9 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
       ...options,
       verb,
       machine: findings.machine,
-      // Read only without --deploy: the next an untested draft gets is this write, tested, deployed.
+      // Read only without --deploy: an untested draft's next names the tested deploy too.
       testedDeploy:
-        run === undefined && !creating
-          ? `${args.command} --yes --run '<input json>' --deploy`
-          : undefined,
+        run === undefined && !creating ? `${args.command} --yes --run '{…}' --deploy` : undefined,
     })
   )
   report(data, deployment, run)
@@ -466,7 +464,7 @@ async function deployStep(
     dir: string
     verb: string
     machine: boolean
-    /** The write again with a test run before its deploy, while the draft is untested. */
+    /** The write again with a test run and the deploy, named in `next.reason` while the draft is untested. */
     testedDeploy?: string
   }
 ): Promise<DeployOutcome> {
@@ -474,18 +472,10 @@ async function deployStep(
   const deployCommand = `sim workflows deploy ${data.workflowId} --expected-draft-fingerprint ${data.base.fingerprint}`
   if (!options.deploy) {
     if (!data.needsRedeployment) return {}
-    if (options.testedDeploy) {
-      return {
-        next: {
-          command: options.testedDeploy,
-          reason: `The workflow is deployed and its draft now differs from the live version: this tests the saved draft with that input and deploys it only if the run completes (\`${deployCommand}\` deploys it untested).`,
-        },
-      }
-    }
     return {
       next: {
         command: deployCommand,
-        reason: `The workflow is deployed and its draft now differs from the live version: deploy to make the change live (or ${options.verb} with --deploy).`,
+        reason: `The workflow is deployed and its draft now differs from the live version: deploy to make the change live (or ${options.verb} with --deploy).${options.testedDeploy ? ` The draft is untested: \`${options.testedDeploy}\` tests and deploys it in one step.` : ''}`,
       },
     }
   }
