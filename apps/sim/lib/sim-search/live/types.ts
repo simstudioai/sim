@@ -118,6 +118,11 @@ export interface NativeSearchInput {
   /** How a plain query's words must match; providers without full-text search ignore it. */
   textMatch?: TextMatch
   /**
+   * Limits results to items this person took part in: `me` for the connected account's own user,
+   * or another person's lowercase email. Only providers that filter by person receive it.
+   */
+  involving?: string
+  /**
    * Cancels this search's provider requests alongside the client's own signal. Honored by the
    * providers that run the any-term fallback, so its budget stops the request itself.
    */

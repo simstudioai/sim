@@ -33,6 +33,7 @@ import { toolError } from '@/lib/mcp/tool-result'
 import {
   LIVE_DATE_ORDER_MESSAGE,
   LIVE_MORE_RANKED_BELOW_MESSAGE,
+  LIVE_NO_PERSON_FILTER_MESSAGE,
   LIVE_NOT_STARTED_MESSAGE,
   LIVE_OVER_ACCOUNT_LIMIT_MESSAGE,
   readLiveDocument,
@@ -93,6 +94,7 @@ const LIVE_ACCOUNT_NOTES = {
   dateOrderPartial: LIVE_DATE_ORDER_MESSAGE,
   notSearchedByDeadline: LIVE_NOT_STARTED_MESSAGE,
   notSearchedOverLimit: LIVE_OVER_ACCOUNT_LIMIT_MESSAGE,
+  notFilteredByPerson: LIVE_NO_PERSON_FILTER_MESSAGE,
 }
 
 /**
@@ -237,7 +239,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     async (input: unknown, extra: { signal: AbortSignal }) =>
       execute('search', knowledgeOperations.search, extra.signal, async (registry, signal) => {
         const parsed = liveSearchMcpSchema.parse(input)
-        const { query, topK, nativeQueries, ...filters } = parsed
+        const { query, topK, nativeQueries, involving, ...filters } = parsed
         const result = await searchLiveKnowledge.execute({
           principal,
           input: {
@@ -246,6 +248,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
             query,
             topK: topK ?? liveSearchMcpDefaultTopK(parsed),
             nativeQueries,
+            involving,
             filters,
             resultSecretRegistry: registry,
             signal,

@@ -50,12 +50,14 @@ export async function searchDrive(
   const query =
     input.native?.query ||
     (text ? `fullText contains '${escapeDriveLiteral(text)}'` : 'trashed = false')
+  const person = input.involving && `'${escapeDriveLiteral(input.involving)}'`
   const dates = nativeDateBounds(input)
   const data = object(
     await client.json('/drive/v3/files', {
       query: {
         q: [
           `trashed = false and (${query})`,
+          ...(person ? [`(${person} in owners or ${person} in writers)`] : []),
           ...(dates.start ? [`modifiedTime >= '${dates.start}'`] : []),
           ...(dates.end ? [`modifiedTime <= '${dates.end}'`] : []),
         ].join(' and '),
@@ -250,14 +252,25 @@ function gmailDocument(row: Record<string, unknown>): NativeDocument {
   }
 }
 
+/**
+ * Mail a person took part in. Nearly every message in your own mailbox is addressed to you, so
+ * `me` means mail you sent; anyone else's mail includes what was sent or copied to them.
+ */
+function gmailPersonClause(involving: string | undefined): string {
+  if (!involving) return ''
+  return involving === 'me' ? 'from:me' : `{from:${involving} to:${involving} cc:${involving}}`
+}
+
 export async function searchGmail(
   client: NativeClient,
   input: NativeSearchInput
 ): Promise<NativePage> {
   const dates = nativeDateBounds(input)
   const text = nativeText(input)
+  const person = gmailPersonClause(input.involving)
   const query = [
-    text ? (dates.start || dates.end ? `(${text})` : text) : '',
+    text ? (dates.start || dates.end || person ? `(${text})` : text) : '',
+    person,
     dates.start ? `after:${Math.floor(Date.parse(dates.start) / 1000) - 1}` : '',
     dates.end ? `before:${Math.ceil(Date.parse(dates.end) / 1000) + 1}` : '',
   ]
@@ -554,6 +567,21 @@ function calendarOccurrenceKey(row: Record<string, unknown>): string {
   ])
 }
 
+/**
+ * Whether the person with this email organizes or attends an event without having declined it.
+ * Always true without a person.
+ */
+function attendedBy(event: Record<string, unknown>, email: string | undefined): boolean {
+  if (!email) return true
+  const isPerson = (party: Record<string, unknown>) => string(party.email).toLowerCase() === email
+  return (
+    isPerson(object(event.organizer)) ||
+    array(event.attendees).some(
+      (attendee) => isPerson(attendee) && attendee.responseStatus !== 'declined'
+    )
+  )
+}
+
 /** Events without a resolvable start sort after every scheduled one. */
 function eventStartTime(document: NativeDocument): number {
   const time = Date.parse(document.eventStartAt ?? '')
@@ -565,6 +593,10 @@ export async function searchCalendar(
   input: NativeSearchInput
 ): Promise<NativePage> {
   // Native project names a calendar ID. Without one, query the user's calendar list.
+  /** Events you organize or attend are on your primary calendar, so `me` searches only it. */
+  const onlyPrimary = input.involving === 'me' && !input.native?.project
+  /** One calendar is searched, so its page token continues the search. */
+  const oneCalendar = Boolean(input.native?.project) || onlyPrimary
   const calendars = input.native?.project
     ? { items: [{ id: input.native.project }] }
     : object(
@@ -579,16 +611,33 @@ export async function searchCalendar(
           ...(row.primary === true ? ['primary'] : []),
         ])
     )
+    .filter((row) => !onlyPrimary || row.primary === true)
     .slice(0, 20)
     .sort((left, right) => Number(right.primary === true) - Number(left.primary === true))
   const chronological = hasDateBounds(input.filters) || Boolean(dateSortDirection(input.filters))
+  /**
+   * The person's email: `me` is the connected account, whose primary calendar ID is its address,
+   * since a shared calendar's `self` flag marks that calendar's owner rather than the caller.
+   */
+  const person =
+    input.involving === 'me'
+      ? string(
+          object(await client.json('/calendar/v3/calendars/primary', { memo: true })).id
+        ).toLowerCase()
+      : input.involving
+  if (input.involving && !person?.includes('@'))
+    throw new NativeSearchError('unavailable', 'Calendar did not return your account address.')
+  /** Another person's email narrows the provider search to events they are invited to. */
+  const q = [nativeText(input), input.involving === 'me' ? '' : input.involving]
+    .filter(Boolean)
+    .join(' ')
   const pages = await mapWithConcurrency(rows, 4, async (row) => {
     const calendarId = string(row.id)
     try {
       const data = object(
         await client.json(`/calendar/v3/calendars/${segment(calendarId)}/events`, {
           query: {
-            ...(nativeText(input) ? { q: nativeText(input) } : {}),
+            ...(q ? { q } : {}),
             ...(input.filters?.startDate
               ? {
                   timeMin: new Date(
@@ -607,9 +656,7 @@ export async function searchCalendar(
             ...(chronological ? { singleEvents: 'true', orderBy: 'startTime' } : {}),
             maxResults: String(input.limit),
             showDeleted: 'false',
-            ...(input.native?.cursor && input.native.project
-              ? { pageToken: input.native.cursor }
-              : {}),
+            ...(input.native?.cursor && oneCalendar ? { pageToken: input.native.cursor } : {}),
           },
         })
       )
@@ -627,7 +674,7 @@ export async function searchCalendar(
     )
   const perCalendar = searched.map(({ data, calendarId, timeZone }) =>
     array(data.items)
-      .filter((event) => event.status !== 'cancelled')
+      .filter((event) => event.status !== 'cancelled' && attendedBy(event, person))
       .map((event) => ({
         ...eventDocument(event, calendarId, input.policy?.includeAttendees, timeZone),
         dedupeKey: calendarOccurrenceKey(event),
@@ -636,7 +683,7 @@ export async function searchCalendar(
   const documents = chronological
     ? perCalendar.flat().sort((left, right) => eventStartTime(left) - eventStartTime(right))
     : interleaveByRank(perCalendar)
-  const single = input.native?.project ? searched[0] : undefined
+  const single = oneCalendar ? searched[0] : undefined
   return {
     documents,
     partial: Boolean(calendars.nextPageToken) || searched.length < rows.length,

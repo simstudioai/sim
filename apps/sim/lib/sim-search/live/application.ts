@@ -7,6 +7,7 @@ import { canonicalJson } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
+import { liveSearchInvolvingSchema } from '@/lib/api/contracts/knowledge/search'
 import type {
   WorkspaceKnowledgeSearchData,
   WorkspaceKnowledgeSearchResult,
@@ -82,7 +83,7 @@ import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-co
 import { joinMessages } from '@/lib/sim-search/live/pages'
 import { loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
-import { liveSearchGuidance } from '@/lib/sim-search/live/providers'
+import { filtersByPerson, liveSearchGuidance } from '@/lib/sim-search/live/providers'
 import { LiveReadError } from '@/lib/sim-search/live/read-error'
 import { encodedWindowEnd, READ_WINDOW_CHARACTERS } from '@/lib/sim-search/live/read-window'
 import {
@@ -162,6 +163,8 @@ interface LiveSearchOptions {
   topK: number
   filters?: WorkspaceSearchFilters
   nativeQueries?: NativeSearchQuery[]
+  /** Only items this person took part in: `me` or another person's lowercase email. */
+  involving?: string
   signal?: AbortSignal
   resultSecretRegistry?: ResolvedSecretTraceRegistry
 }
@@ -295,6 +298,9 @@ export const LIVE_NOT_STARTED_MESSAGE =
   'Not searched before the search deadline. Search this account alone or narrow the query.'
 /** Account status for each eligible account beyond {@link MAX_ACCOUNTS}. */
 export const LIVE_OVER_ACCOUNT_LIMIT_MESSAGE = `Not searched: one search covers at most ${MAX_ACCOUNTS} accounts. Search this source or account alone.`
+/** Account status when a search filtered by person reaches a provider that cannot apply it. */
+export const LIVE_NO_PERSON_FILTER_MESSAGE =
+  'Not searched: this source cannot filter by this person. Search it without involving.'
 /** Previews center on the query's longest matching term, like indexed passages. */
 const PREVIEW_CHARACTERS = 1800
 /**
@@ -486,14 +492,23 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
     const requestedFilters = input.filters
       ? workspaceSearchFiltersSchema.parse(input.filters)
       : undefined
-    input = { ...input, filters: requestedFilters }
+    input = {
+      ...input,
+      filters: requestedFilters,
+      involving: liveSearchInvolvingSchema.optional().parse(input.involving),
+    }
     if (
       (!input.query.trim() && !queries?.some((query) => query.query)) ||
       queries?.some((query) => !query.query)
     )
       input = { ...input, filters: withImpliedListingBound(input.filters, new Date()) }
     annotateSearchDiagnostics(
-      describeSearchRequest({ query: input.query, filters: input.filters, nativeQueries: queries })
+      describeSearchRequest({
+        query: input.query,
+        filters: input.filters,
+        nativeQueries: queries,
+        involving: input.involving,
+      })
     )
     if (
       (!input.query.trim() &&
@@ -530,14 +545,18 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
       measureSearchStage('live.policies', () => loadLiveSearchPolicies(input)),
       measureSearchStage('live.accounts', () => listLiveAccounts(input, userId)),
     ])
-    const eligible = allAccounts
+    const reachable = allAccounts
       .filter(
         (account) =>
           (!filters?.source || filters.source === account.provider) &&
           nativesFor(account).length > 0
       )
       .sort(compareAccounts)
-    const nothingSearched = !queries && eligible.length === 0
+    /** A person filter skips the sources that cannot apply it rather than return them unfiltered. */
+    const eligible = reachable.filter(
+      (account) => !input.involving || filtersByPerson(account.provider, input.involving)
+    )
+    const nothingSearched = !queries && reachable.length === 0
     const selected = eligible.slice(0, MAX_ACCOUNTS)
     const openingAccount = createConcurrencyLimit(ACCOUNT_OPEN_CONCURRENCY)
     annotateSearchDiagnostics({
@@ -615,6 +634,7 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
           policy: session.policy,
           query: input.query,
           native: queryNative,
+          involving: input.involving,
           limit: input.topK,
           scopes: resolved.account.scopes,
         })
@@ -944,22 +964,29 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
         ? [nothingSearchedGuidance(input, filters?.source, allAccounts.length > 0)]
         : []),
       liveSearchGuidance(
-        accounts.filter((account) => account.status !== 'reconnect').map(({ provider }) => provider)
+        accounts
+          .filter((account) => account.status !== 'reconnect')
+          .map(({ provider }) => provider),
+        Boolean(input.involving)
       ),
     ].join('\n')
-    for (const account of eligible.slice(MAX_ACCOUNTS)) {
-      for (const { queryIndex } of nativesFor(account))
-        accounts.push({
-          accountId: account.id,
-          provider: account.provider,
-          displayName: account.displayName,
-          ...(queryIndex === undefined ? {} : { queryIndex }),
-          status: 'unavailable',
-          message: LIVE_OVER_ACCOUNT_LIMIT_MESSAGE,
-        })
-    }
+    const unsearched: [LiveAccount[], string][] = [
+      [eligible.slice(MAX_ACCOUNTS), LIVE_OVER_ACCOUNT_LIMIT_MESSAGE],
+      [reachable.filter((account) => !eligible.includes(account)), LIVE_NO_PERSON_FILTER_MESSAGE],
+    ]
+    for (const [skipped, message] of unsearched)
+      for (const account of skipped)
+        for (const { queryIndex } of nativesFor(account))
+          accounts.push({
+            accountId: account.id,
+            provider: account.provider,
+            displayName: account.displayName,
+            ...(queryIndex === undefined ? {} : { queryIndex }),
+            status: 'unavailable',
+            message,
+          })
     for (const [queryIndex, query] of (queries ?? []).entries()) {
-      if (!eligible.some((account) => targetsAccount(query, account)))
+      if (!reachable.some((account) => targetsAccount(query, account)))
         accounts.push({
           accountId: query.accountId ?? '',
           provider: query.provider,

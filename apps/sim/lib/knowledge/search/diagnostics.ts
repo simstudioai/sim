@@ -78,6 +78,8 @@ export interface SearchDiagnosticMetadata {
   documentFilterCount?: number
   hasSourceFilter?: boolean
   hasDateFilter?: boolean
+  /** Whether a live search was limited to the caller (`me`) or another person; never the email. */
+  involving?: 'me' | 'person'
   tagFilterCount?: number
   hasProvenance?: boolean
   searchMode?: 'hybrid' | 'vector'
@@ -157,11 +159,13 @@ export function describeSearchRequest(input: {
   query: string
   filters?: WorkspaceSearchFilters
   nativeQueries?: readonly NativeSearchQuery[]
+  involving?: string
 }): SearchDiagnosticMetadata {
   const { start, end } = nativeDateBounds({ filters: input.filters })
   return {
     queryTermCount: input.query.split(/\s+/).filter(Boolean).length,
     sortBy: input.filters?.sortBy,
+    ...(input.involving ? { involving: input.involving === 'me' ? 'me' : 'person' } : {}),
     ...(start && end
       ? { dateWindowDays: Math.round(((Date.parse(end) - Date.parse(start)) / DAY_MS) * 10) / 10 }
       : {}),

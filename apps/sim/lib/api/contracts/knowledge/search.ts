@@ -1,3 +1,4 @@
+import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { z } from 'zod'
 import {
   nativeSearchQueriesSchema,
@@ -181,6 +182,18 @@ export const internalKnowledgeSearchContract = defineRouteContract({
 export { workspaceSearchFiltersSchema }
 
 export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
+
+/**
+ * The person a live search is limited to: `me` or a normalized email. Checked by refinement
+ * rather than `z.email()` so a tools/list schema built from it carries no long email pattern.
+ */
+export const liveSearchInvolvingSchema = z
+  .string()
+  .transform(normalizeEmail)
+  .refine((value) => value === 'me' || isValidEmailSyntax(value), {
+    message:
+      'involving takes "me" or an email address, not a name. Find the person\'s email first, or search without involving.',
+  })
 
 /** Chunks a search asks for at first paint, and once the reader asks for more; both within `topK`'s bound. */
 export const WORKSPACE_KNOWLEDGE_SEARCH_LIMITS = { initial: 20, expanded: 50 } as const
