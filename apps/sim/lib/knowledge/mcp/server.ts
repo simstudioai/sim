@@ -272,7 +272,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     {
       title: 'Read document',
       description:
-        'Read live documents using the exact document IDs returned by search: documentId for one, or documentIds to read several in one call rather than one call each. Access and the admin’s source settings are checked again on every read. When a document’s hasMore is true, pass its next.startChunkIndex and next.startOffset with the same documentId to continue. Cite citationUrl when available.',
+        'Read live documents using the exact document IDs returned by search: documentId for one, or documentIds to read several in one call rather than one call each. A link the user shares to a Google Drive, Gmail, Calendar, Slack, Jira, Confluence, GitHub, GitLab, Linear, Notion or Fireflies item reads the same way, without searching for it first. Access and the admin’s source settings are checked again on every read. When a document’s hasMore is true, pass its next.startChunkIndex and next.startOffset with the returned documentId to continue. Cite citationUrl when available.',
       inputSchema: readLiveDocumentMcpSchema,
       annotations: KNOWLEDGE_MCP_READ_ONLY,
     },

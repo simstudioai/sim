@@ -122,6 +122,8 @@ export interface SearchDiagnosticMetadata {
   dateWindowDays?: number
   /** One entry per native query, in request order, so `queryIndex` resolves to a provider. */
   nativeQueries?: NativeQueryShape[]
+  /** Whether a read named its document by a pasted source link rather than a document ID. */
+  fromLink?: boolean
   /** The source a read came from; a search reports its sources on each provider summary. */
   provider?: LiveSearchProvider
   /** The provider's type for the document read, such as `message` or `file`. */
