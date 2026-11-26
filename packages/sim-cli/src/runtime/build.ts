@@ -145,23 +145,22 @@ function misplacedFlagValue(command: Command): { option: Option; value: string }
 }
 
 /**
- * The visible sibling commands that do declare a flag this one does not, each
- * with its description, so a read never picks a sibling that deletes.
+ * The visible commands beside this one, or in a group beside it, that answer to a flag this one
+ * does not, by any spelling (a hidden alias such as `--row-ids` too), each with its description,
+ * so a read never picks a sibling that deletes. Looking one group down is what reaches `tables
+ * rows batch-delete` from `tables batch-delete --row-ids`, which deletes tables, not rows.
  */
 function siblingsDeclaring(command: Command, flag: string): string[] {
   const parent = command.parent
   if (!parent) return []
-  return parent
-    .createHelp()
-    .visibleCommands(parent)
-    .filter(
-      (sibling) =>
-        sibling !== command &&
-        sibling.options.some(
-          (option) => !option.hidden && (option.long === flag || option.short === flag)
-        )
+  const visible = (group: Command) => group.createHelp().visibleCommands(group)
+  return visible(parent)
+    .filter((sibling) => sibling !== command)
+    .flatMap((sibling) => [sibling, ...visible(sibling)])
+    .filter((candidate) =>
+      candidate.options.some((option) => option.long === flag || option.short === flag)
     )
-    .map((sibling) => `  ${commandPath(sibling)} — ${sibling.description().split('\n', 1)[0]}`)
+    .map((owner) => `  ${commandPath(owner)} — ${owner.description().split('\n', 1)[0]}`)
 }
 
 /**

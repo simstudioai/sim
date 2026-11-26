@@ -118,6 +118,23 @@ describe('embedded CLI output ownership', () => {
     expect(noOptions.stderr).not.toContain('Options for')
   })
 
+  it('names the command a guessed flag belongs to one group down, by any spelling it answers to', async () => {
+    const guessed = await runEmbeddedCli(
+      ['tables', 'batch-delete', 'tbl_1', '--row-ids', 'row_1', '--yes'],
+      {
+        ...identity,
+        transport: async () => {
+          throw new Error('a parse error must not reach the API')
+        },
+      }
+    )
+    expect(guessed.exitCode).toBe(1)
+    expect(guessed.stderr).toContain('--row-ids is an option of:\n')
+    expect(guessed.stderr).toContain(
+      '  sim tables rows batch-delete — Delete rows matching a filter'
+    )
+  })
+
   it('answers a value typed where a flag belongs with the command line that takes it', async () => {
     const transport = async () => {
       throw new Error('a parse error must not reach the API')

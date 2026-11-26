@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runEmbeddedCli } from '../embed'
+import { flagSpecFor, readListFlag } from './request'
 
 const identity = { endpoint: 'https://sim.test', apiKey: 'fixture', workspaceId: 'workspace' }
 
@@ -114,5 +115,68 @@ describe('id lists answer to the request field name behind a shortened flag', ()
     ])
     expect(result.exitCode).toBe(0)
     expect(result.bodies).toEqual([{ workspaceId: 'workspace', rowIds: ['row_a'] }])
+  })
+})
+
+describe('every id list reads repeated, comma-joined and JSON-array values alike', () => {
+  async function sentRowIds(listArgs: string[]) {
+    const result = await run(['tables', 'rows', 'batch-delete', 'tbl_a', ...listArgs, '--yes'])
+    expect(result.exitCode).toBe(0)
+    return result.bodies.map((body) => (body as { rowIds: string[] }).rowIds)
+  }
+
+  it('sends each row of a comma-joined --row-ids, not one id holding the commas', async () => {
+    expect(await sentRowIds(['--row-ids', 'row_a,row_b'])).toEqual([['row_a', 'row_b']])
+    expect(await sentRowIds(['--row', 'row_a, row_b'])).toEqual([['row_a', 'row_b']])
+  })
+
+  it('sends the same rows for the repeated and JSON-array forms', async () => {
+    expect(await sentRowIds(['--row', 'row_a', '--row', 'row_b'])).toEqual([['row_a', 'row_b']])
+    expect(await sentRowIds(['--row-ids', '["row_a","row_b"]'])).toEqual([['row_a', 'row_b']])
+  })
+
+  it('keeps a comma that belongs to the value: a requirement specifier', async () => {
+    const result = await run([
+      'sandboxes',
+      'create',
+      '--name',
+      'box',
+      '--language',
+      'python',
+      '--dependencies',
+      'requests>=2,<3',
+    ])
+    expect(result.exitCode).toBe(0)
+    expect(result.bodies).toEqual([expect.objectContaining({ dependencies: ['requests>=2,<3'] })])
+  })
+})
+
+describe('lists whose values hold commas still read a JSON array', () => {
+  it('sends each specifier of a JSON-array --dependencies, keeping the commas inside one', async () => {
+    const result = await run([
+      'sandboxes',
+      'create',
+      '--name',
+      'box',
+      '--language',
+      'python',
+      '--dependencies',
+      '["requests>=2,<3","httpx"]',
+    ])
+    expect(result.exitCode).toBe(0)
+    expect(result.bodies).toEqual([
+      expect.objectContaining({ dependencies: ['requests>=2,<3', 'httpx'] }),
+    ])
+  })
+
+  it('keeps an output selector naming a block whose name holds a comma as one selector', async () => {
+    const flag = flagSpecFor('executeWorkflow', 'selectedOutputs')
+    expect(await readListFlag(['Draft, Review.content'], flag, 'select-output')).toEqual([
+      'Draft, Review.content',
+    ])
+    expect(await readListFlag(['["a.content","b"]'], flag, 'select-output')).toEqual([
+      'a.content',
+      'b',
+    ])
   })
 })

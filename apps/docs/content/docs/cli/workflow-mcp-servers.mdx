@@ -73,7 +73,7 @@ sim workflow-mcp-servers create [options]
 | `--description <value>` | No | Optional server description. |
 | `--is-public` | No | Whether the server accepts MCP clients without a Sim API key. Defaults to false; a public server lets anyone holding its URL execute the workflows it exposes. |
 | `--no-is-public` | No | Send --is-public as false. |
-| `--workflow <value...>` | No | Deployed workflows to expose as MCP tools on the new server. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--workflow <value...>` | No | Deployed workflows to expose as MCP tools on the new server. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 

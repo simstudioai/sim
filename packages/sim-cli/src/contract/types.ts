@@ -51,12 +51,17 @@ export interface FlagSpec {
    */
   hiddenAliases?: readonly string[]
   /**
-   * The list holds workspace file ids or `files/…` paths, so an inline value written as a JSON
-   * array (`["wf_a","wf_b"]`) or joined with commas (`wf_a,wf_b`) is read as its entries.
-   * Unambiguous because an id is `[A-Za-z0-9_-]` and a path starts with `files/`: neither starts
-   * with `[`, and a comma splits only a value with no `/`, so a path keeps a comma in its name.
+   * How a {@link list} reads one inline value as entries; every list reads a JSON array of
+   * strings (`["a","b"]`) as its entries.
+   *
+   * - unset: ids, so a comma-joined run (`a,b`) is its entries too.
+   * - `text`: a value may hold a comma of its own (a pip requirement `requests>=2,<3`, an output
+   *   selector naming a block `Draft, Review`), so a comma never splits it. A folder path list
+   *   reads this way without saying so.
+   * - `fileReferences`: workspace file ids or `files/…` paths. A comma splits ids, never a value
+   *   that is a `files/` path, so a path keeps a comma in its name.
    */
-  fileReferences?: true
+  listValues?: 'text' | 'fileReferences'
   /**
    * Accept one or more space-separated values, or `@path` / `@-` with one
    * value per line.

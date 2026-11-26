@@ -6,6 +6,7 @@ import {
   type FieldSpec,
   flagNameFor,
   flagSpecFor,
+  listValuesOf,
   otherSpellings,
   PROFILE_INJECTED_FIELD,
   pathFlagNameFor,
@@ -211,6 +212,10 @@ function addFieldOption(
   }
 
   const takesList = flag.list === true
+  const inlineForms =
+    listValuesOf(flag) === 'text'
+      ? 'space-separated, a JSON array'
+      : 'space- or comma-separated, a JSON array'
   const wantsJson = takesJson(descriptor, flag)
   const placeholder = takesList
     ? '<value...>'
@@ -232,8 +237,8 @@ function addFieldOption(
   const describe = `${documented}${
     takesList
       ? flag.manifest
-        ? ' (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @)'
-        : ' (space-separated, or @path / @- with one value per line; @@value for a literal leading @)'
+        ? ` (${inlineForms}, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @)`
+        : ` (${inlineForms}, or @path / @- with one value per line; @@value for a literal leading @)`
       : wantsJson
         ? ' (JSON, or @path / @- to read a file or stdin)'
         : flag.textSource

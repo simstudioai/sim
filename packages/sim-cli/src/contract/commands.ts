@@ -1082,19 +1082,20 @@ blocks you add from it.`,
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   // A dependency set is typed one specifier at a time or pasted from a
   // requirements file, so each list takes space-separated values or `@path`
-  // with one entry per line rather than a JSON array. The package lists are
+  // with one entry per line; a specifier holds commas (`requests>=2,<3`), so
+  // the dependency lists keep them (`listValues: 'text'`). The package lists are
   // manifests: a requirements file carries blank lines and `#` comments, which
   // the API ignores, so the reader drops them instead of refusing the file.
   createSandbox: {
     flags: {
-      dependencies: { list: true, manifest: true },
+      dependencies: { list: true, manifest: true, listValues: 'text' },
       cliTools: { list: true },
       systemPackages: { list: true, manifest: true },
     },
   },
   updateSandbox: {
     flags: {
-      dependencies: { list: true, manifest: true },
+      dependencies: { list: true, manifest: true, listValues: 'text' },
       cliTools: { list: true },
       systemPackages: { list: true, manifest: true },
     },
@@ -1228,6 +1229,7 @@ blocks you add from it.`,
       fileReferences: {
         name: 'file',
         list: true,
+        listValues: 'fileReferences',
         describe: 'Workspace file ID or canonical files/<folder>/<name> path (repeatable)',
       },
     },
@@ -1791,7 +1793,7 @@ blocks you add from it.`,
       fileIds: {
         list: true,
         trailing: true,
-        fileReferences: true,
+        listValues: 'fileReferences',
         hiddenAliases: ['ids', 'paths'],
       },
     },
@@ -2405,6 +2407,7 @@ always prints as null. For a copy to share outside this workspace, pass
       selectedOutputs: {
         name: 'select-output',
         list: true,
+        listValues: 'text',
         describe:
           'Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async',
       },
@@ -2456,6 +2459,7 @@ always prints as null. For a copy to share outside this workspace, pass
       selectedOutputs: {
         name: 'select-output',
         list: true,
+        listValues: 'text',
         describe:
           'Include blockName.path or blockId.path values (e.g. agent_1.content) in JSON or YAML output; names resolve against the workflow’s current blocks, and missing paths are omitted',
       },

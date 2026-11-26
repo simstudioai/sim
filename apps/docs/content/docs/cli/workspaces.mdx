@@ -156,7 +156,7 @@ sim workspaces invitations create [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--emails <value...>` | Yes | Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--emails <value...>` | Yes | Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--permission <value>` | No | Workspace permission to grant. Existing workspace access is preserved. Defaults to "read". Accepted values: `admin`, `write`, `read`. |
 | `--membership <value>` | No | Organization membership: member or admin uses a seat when billing is enabled. External grants workspace access only and requires an eligible paid account when billing is enabled. Existing members of another organization remain external. Defaults to "member". Accepted values: `member`, `admin`, `external`. |
 
@@ -633,7 +633,7 @@ sim workspaces sync-exclusions [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | Yes | Workflow identifiers in the current workspace. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--workflow <value...>` | Yes | Workflow identifiers in the current workspace. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--fork-sync-excluded <true\|false>` | Yes | Whether the named workflows should be skipped as sync sources and targets. Accepted values: `true`, `false`. |
 
 </CommandTable>
