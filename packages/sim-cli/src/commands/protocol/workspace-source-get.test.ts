@@ -19,7 +19,7 @@ import { knowledgeCodec } from '@sim/workspace-code/kinds/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
-import { provideTscPrinting, provideTypescript } from '../../test/typescript'
+import { provideTscPrinting, provideTypescript, provideTypescriptIn } from '../../test/typescript'
 import { runWorkflowSourceCheck, runWorkspaceSource } from '../../test/workspace-source-command'
 import { blobBytes, blobDigests } from './workspace-source-blobs'
 import { kindFolders } from './workspace-source-dir'
@@ -1383,6 +1383,31 @@ describe('the type check of workspaces source check', () => {
     const env = readFileSync(join(rootDir, 'npm-env'), 'utf8')
     expect(env).toContain(`PATH=${bin}`)
     expect(env).not.toContain('sk-sim-secret')
+  })
+
+  it('type-checks with the release SIM_TYPESCRIPT_DIR holds, installing nothing', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+    await get()
+    writeInserting(
+      'leads',
+      "  const done = response('Done', { body: { email: start.emial } })\n  save.to(done)"
+    )
+    rmSync(join(rootDir, 'config/cache/typescript'), { recursive: true })
+    const bin = join(rootDir, 'bin')
+    mkdirSync(bin)
+    writeFileSync(join(bin, 'npm'), `#!/bin/sh\ntouch "${join(rootDir, 'npm-ran')}"\nexit 1\n`, {
+      mode: 0o755,
+    })
+    vi.stubEnv('PATH', `${bin}:${process.env.PATH}`)
+    provideTypescriptIn(join(rootDir, 'preinstalled'))
+    vi.stubEnv('SIM_TYPESCRIPT_DIR', join(rootDir, 'preinstalled'))
+
+    await runWorkspaceSource('check', dir)
+
+    expect(result().checked).toEqual(['compile', 'types'])
+    expect(result().diagnostics).toContainEqual(expect.objectContaining({ code: 'E_TYPE' }))
+    expect(existsSync(join(rootDir, 'npm-ran'))).toBe(false)
+    expect(existsSync(join(rootDir, 'config/cache/typescript'))).toBe(false)
   })
 
   it('warns and passes on the compile alone when the TypeScript cache cannot be written', async () => {

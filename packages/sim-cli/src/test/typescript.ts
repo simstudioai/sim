@@ -10,13 +10,25 @@ const REPO_TYPESCRIPT = join(__dirname, '../../../../node_modules/typescript')
  * by linking the repository's copy, so a check type-checks without reaching npm.
  */
 export function provideTypescript(configDir: string): void {
-  const installed = installedPath(configDir)
+  provideTypescriptIn(join(configDir, 'cache/typescript'))
+}
+
+/**
+ * Lays the pinned TypeScript out under `releases` as the cache does
+ * (`<version>/node_modules/typescript`), by linking the repository's copy.
+ */
+export function provideTypescriptIn(releases: string): void {
+  const installed = releasePath(releases)
   mkdirSync(dirname(installed), { recursive: true })
   symlinkSync(REPO_TYPESCRIPT, installed, 'dir')
 }
 
+function releasePath(releases: string): string {
+  return join(releases, SOURCE_TYPESCRIPT_VERSION, 'node_modules/typescript')
+}
+
 function installedPath(configDir: string): string {
-  return join(configDir, 'cache/typescript', SOURCE_TYPESCRIPT_VERSION, 'node_modules/typescript')
+  return releasePath(join(configDir, 'cache/typescript'))
 }
 
 /**

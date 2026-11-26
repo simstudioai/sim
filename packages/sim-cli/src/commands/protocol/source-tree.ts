@@ -53,7 +53,13 @@ import {
   updateSourceDir,
   withMissingLines,
 } from './source-dir'
-import { AGENTS_POINTER_MARKER, agentsPointer, type PrimerKind, primerFor } from './source-primer'
+import {
+  AGENTS_POINTER_MARKER,
+  agentsPointer,
+  type PrimerKind,
+  primerFor,
+  primerSurface,
+} from './source-primer'
 import { shellWord } from './source-ui'
 
 /** The CLI's `tsconfig.json`, which a check type-checks the directory with. */
@@ -830,7 +836,8 @@ export async function sourceTreeChange(
   options: { incremental?: boolean } = {}
 ): Promise<{ change: SourceDirChange; ownsTsconfig: boolean; primer: string }> {
   const sources = [...use.sources]
-  const primer = primerFor(profile.kind, catalog, sources)
+  const surface = primerSurface()
+  const primer = primerFor(profile.kind, surface, catalog, sources)
   const write: Array<readonly [string, string]> = [
     [SOURCE_AGENTS_FILE, `${primer}\n${profile.agents}`],
     ...(profile.guides ?? []),
@@ -853,7 +860,7 @@ export async function sourceTreeChange(
       readUserOwnedText(dir, ROOT_AGENTS_FILE),
     ])
   if (rootAgents === null || rootAgents.startsWith(AGENTS_POINTER_MARKER)) {
-    write.push([ROOT_AGENTS_FILE, agentsPointer(profile.kind)])
+    write.push([ROOT_AGENTS_FILE, agentsPointer(profile.kind, surface)])
   }
   const kept = options.incremental ? includedBlockTypes(tsconfig) : []
   const used = usedBlockTypes(catalog, {

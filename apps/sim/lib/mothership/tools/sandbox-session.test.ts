@@ -93,6 +93,7 @@ describe('deployment-owned workbench tooling', () => {
       SIM_API_KEY: expect.stringMatching(/^mothership-sandbox:[0-9a-f-]{36}$/),
       SIM_WORKSPACE: 'workspace',
       SIM_ENDPOINT: 'https://sim.test/api/mothership/sandbox/owned-token',
+      SIM_CLI_HOST: 'mothership',
     })
   })
 

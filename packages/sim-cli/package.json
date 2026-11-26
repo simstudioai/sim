@@ -77,6 +77,10 @@
       "types": "./src/embed.ts",
       "default": "./src/embed.ts"
     },
+    "./host": {
+      "types": "./src/host.ts",
+      "default": "./src/host.ts"
+    },
     "./runtime": {
       "types": "./dist/runtime.d.ts",
       "default": "./dist/runtime.js"

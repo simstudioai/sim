@@ -45,6 +45,7 @@ import { KIND_DIRS } from '@sim/workspace-code'
 import { KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import type { Command } from 'commander'
 import { setSoftExitCode } from '../../embed-context'
+import { printError } from '../../output/io'
 import { SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import {
@@ -65,7 +66,7 @@ import {
   workspaceTypesText,
 } from './source-tree'
 import { type TypeCheck, typeCheck } from './source-types'
-import { type Diagnostic, findingsOutput } from './source-ui'
+import { type Diagnostic, findingLine, findingsOutput } from './source-ui'
 import { blockDigest, compiledWithChildResults, readStoredRecord } from './stored-edges'
 import { lockRecoveryHint, readSourceFiles, resourceNodes } from './workflow-dir'
 import {
@@ -911,6 +912,10 @@ export function reportCheck(
     ...result,
     ...shown.result(listed),
   })
+  // A failed check's stderr ends with its first error, so a caller that reads the last stderr
+  // line as the failure reads the mistake, never a notice (the TypeScript install's) or a warning.
+  const first = findings.find((finding) => finding.severity === 'error')
+  if (first) printError(`Error: ${findingLine(first)}`)
 }
 
 /** The catalog a cache read found, or a refusal naming `get`, the command that caches one. */

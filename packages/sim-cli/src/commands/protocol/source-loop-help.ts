@@ -4,6 +4,7 @@
  */
 import { SOURCE_DRIFT_EXIT_CODE, SOURCE_LOCAL_CHANGES_EXIT_CODE } from '../../exit-codes'
 import { SOURCE_AGENTS_FILE } from './source-dir'
+import type { PrimerSurface } from './source-primer'
 
 /** Where the commands of either group find their workspace. */
 const WORKSPACE_LINE = `Workspace: a directory records it (.sim/base.json, or a starter's .sim/starter.json); other
@@ -23,33 +24,69 @@ function statusLine(group: string, dir: string): string {
 }
 
 /**
- * The top of `sim workflows source --help`, above the usage line: what a workflow's source leaves
- * out, so a task that changes a table starts in the directory that holds it.
+ * The top of `sim workflows source --help` on `surface`, above the usage line: what a workflow's
+ * source leaves out, so a task that changes a table starts in the command that changes it.
  */
-export const WORKFLOW_SOURCE_SCOPE_HELP = `A workflow's source holds that workflow alone: edit a table's columns and rows with
+export function workflowSourceScopeHelp(surface: PrimerSurface): string {
+  const tables =
+    surface === 'chat'
+      ? `change a table's columns with
+\`sim tables columns create|update\` before the get (the table types it writes miss a later
+change), its rows with \`sim tables rows\``
+      : `edit a table's columns and rows with
 \`sim workspaces source get --dir <dir>\` (tables/<key>.ts), read rows with \`sim tables rows
-list <table>\`. \`workflows source get\` names the tables a workflow uses (\`tables\`).
+list <table>\``
+  return `A workflow's source holds that workflow alone: ${tables}. \`workflows source get\` names the tables a workflow uses (\`tables\`).
 `
+}
+
+const GET_LINE = `  sim workflows source get <workflow> --dir ./wf && cat ./wf/${SOURCE_AGENTS_FILE}`
+
+const WORKFLOW_LOOP =
+  'sim workflows source check --dir ./wf && sim workflows source apply --dir ./wf --yes'
+
+const CHAIN_STOPS =
+  'A non-zero exit stops the chain at the first failure; fix what it reported and run it again.'
 
 /**
- * `sim workflows source --help`, after the command list. The get reads the primer in the same
- * shell call, so the agent edits without a turn spent opening it.
+ * The loop lines of `sim workflows source --help` on each surface: a coding agent chains the test
+ * run and the deploy onto the apply, while the chat's shell refuses a synchronous run, so it tests
+ * and deploys through `sim_cli`.
  */
-export const WORKFLOW_SOURCE_LOOP_HELP = `
-The loop, two shell calls (<workflow>: its id or exact name):
-  sim workflows source get <workflow> --dir ./wf && cat ./wf/${SOURCE_AGENTS_FILE}
-  edit every file, then: sim workflows source check --dir ./wf && sim workflows source apply --dir ./wf --yes --run '{…}' --deploy
-A non-zero exit stops the chain at the first failure; fix what it reported and run it again. check
+const WORKFLOW_LOOP_LINES: Record<PrimerSurface, string> = {
+  cli: `The loop, two shell calls (<workflow>: its id or exact name):
+${GET_LINE}
+  edit every file, then: ${WORKFLOW_LOOP} --run '{…}' --deploy
+${CHAIN_STOPS} check
 compiles and type-checks (TypeScript installs on first run; --no-types skips it); apply re-checks,
 saves the draft and rewrites the files; --run dry-runs that input on the saved draft (writes
 stubbed, listed under run.sideEffects); --deploy deploys only if that run completed (without it the
-draft stays undeployed). --allow-delete lets an edit remove a block or variable; apply --dry only
+draft stays undeployed).`,
+  chat: `The loop, two calls in run_code's shell (<workflow>: its id or exact name):
+${GET_LINE}
+  edit every file, then: ${WORKFLOW_LOOP}
+then test the saved draft with sim_cli (the shell refuses a synchronous run):
+  workflows run <workflowId> --dry --input '{…}' --dir ./wf
+and once it completes, deploy it with sim_cli: workflows deploy <workflowId>.
+${CHAIN_STOPS} check
+compiles and type-checks (--no-types skips it); apply re-checks, saves the draft and rewrites the
+files.`,
+}
+
+/**
+ * \`sim workflows source --help\` on \`surface\`, after the command list. The get reads the primer
+ * in the same shell call, so the agent edits without a turn spent opening it.
+ */
+export function workflowSourceLoopHelp(surface: PrimerSurface): string {
+  return `
+${WORKFLOW_LOOP_LINES[surface]} --allow-delete lets an edit remove a block or variable; apply --dry only
 prints the plan; get --force replaces unapplied edits or another workflow's source.
 A new workflow: \`sim workflows source create --dir ./new --workspace <workspaceId>\` writes a
-starter; edit and check it, then \`create --dir ./new --yes --run '{…}' --deploy\`.
+starter; edit and check it, then \`create --dir ./new --yes${surface === 'chat' ? '' : " --run '{…}' --deploy"}\`.
 ${WORKSPACE_LINE}
 ${RUN_LOGS_LINE}
 ${statusLine('sim workflows source', './wf')}`
+}
 
 /** `sim workspaces source --help`, after the command list. */
 export const WORKSPACE_SOURCE_LOOP_HELP = `

@@ -1,4 +1,5 @@
 import { type EmbeddedCliIdentity, runEmbeddedCli } from 'sim/embed'
+import { MOTHERSHIP_CLI_HOST } from 'sim/host'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/encoding'
 import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
@@ -53,6 +54,7 @@ export async function runCli(
   identity.signal?.throwIfAborted()
   return runEmbeddedCli(argv, identity, {
     workingDirectory: SESSION_SANDBOX_HOME,
+    host: MOTHERSHIP_CLI_HOST,
     ...(readFile ? { readFile } : {}),
     ...(openFile ? { openFile } : {}),
     ...(writeFile ? { writeFile } : {}),
