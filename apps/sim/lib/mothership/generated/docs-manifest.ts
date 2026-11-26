@@ -268,6 +268,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/notion-service-account.mdx',
   'integrations/notion.mdx',
   'integrations/obsidian.mdx',
+  'integrations/odds_api_io.mdx',
   'integrations/okta.mdx',
   'integrations/onedrive.mdx',
   'integrations/onepassword.mdx',

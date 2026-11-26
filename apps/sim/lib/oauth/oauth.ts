@@ -123,6 +123,7 @@ import {
   NetSuiteIcon,
   NewRelicIcon,
   NotionIcon,
+  OddsApiIoIcon,
   OktaIcon,
   OracleIcon,
   OtterIcon,
@@ -2741,6 +2742,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'smartlead',
+  },
+  odds_api_io: {
+    name: 'Odds-API.io',
+    icon: OddsApiIoIcon,
+    services: {
+      odds_api_io: {
+        name: 'Odds-API.io',
+        description: 'Sports odds, events, closing lines and odds scanners from Odds-API.io.',
+        providerId: 'odds_api_io',
+        serviceAccountProviderId: 'odds-api-io-service-account',
+        icon: OddsApiIoIcon,
+        baseProviderIcon: OddsApiIoIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'odds_api_io',
   },
   sportmonks: {
     name: 'Sportmonks',

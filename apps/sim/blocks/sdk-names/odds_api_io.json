@@ -1,0 +1,23 @@
+{
+  "namespace": "oddsApiIo",
+  "methods": {
+    "odds_api_io_get_arbitrage_bets": "getArbitrageBets",
+    "odds_api_io_get_bookmakers": "getBookmakers",
+    "odds_api_io_get_closing_lines": "getClosingLines",
+    "odds_api_io_get_dropping_odds": "getDroppingOdds",
+    "odds_api_io_get_event": "getEvent",
+    "odds_api_io_get_event_odds": "getEventOdds",
+    "odds_api_io_get_events": "getEvents",
+    "odds_api_io_get_historical_events": "getHistoricalEvents",
+    "odds_api_io_get_leagues": "getLeagues",
+    "odds_api_io_get_multi_odds": "getMultiOdds",
+    "odds_api_io_get_sports": "getSports",
+    "odds_api_io_get_value_bets": "getValueBets",
+    "odds_api_io_search_events": "searchEvents"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

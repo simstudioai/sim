@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-18",
+  "updatedAt": "2026-11-26",
   "integrations": [
     {
       "type": "onepassword",
@@ -19193,6 +19193,78 @@
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base"],
       "updatedAt": "2026-08-18"
+    },
+    {
+      "type": "odds_api_io",
+      "slug": "odds-api-io",
+      "name": "Odds-API.io",
+      "description": "Sports odds from 500+ bookmakers across 37 sports",
+      "longDescription": "Pre-match and live sports odds from 500+ bookmakers across 37 sports. List sports, leagues and events, fetch odds for one or many events, pull historical results and closing lines, and run the value-bet, dropping-odds and arbitrage scanners.",
+      "bgColor": "#C964CF",
+      "iconName": "OddsApiIoIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/odds_api_io",
+      "operations": [
+        {
+          "name": "Get Events",
+          "description": ""
+        },
+        {
+          "name": "Search Events",
+          "description": ""
+        },
+        {
+          "name": "Get Event",
+          "description": ""
+        },
+        {
+          "name": "Get Event Odds",
+          "description": ""
+        },
+        {
+          "name": "Get Multi Odds",
+          "description": ""
+        },
+        {
+          "name": "Get Value Bets",
+          "description": ""
+        },
+        {
+          "name": "Get Dropping Odds",
+          "description": ""
+        },
+        {
+          "name": "Get Arbitrage Bets",
+          "description": ""
+        },
+        {
+          "name": "Get Historical Events",
+          "description": ""
+        },
+        {
+          "name": "Get Closing Lines",
+          "description": ""
+        },
+        {
+          "name": "Get Sports",
+          "description": ""
+        },
+        {
+          "name": "Get Leagues",
+          "description": ""
+        },
+        {
+          "name": "Get Bookmakers",
+          "description": ""
+        }
+      ],
+      "operationCount": 13,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics", "automation", "monitoring"],
+      "updatedAt": "2026-11-26"
     },
     {
       "type": "okta_v2",
