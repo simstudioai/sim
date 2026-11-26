@@ -1127,6 +1127,31 @@ describe('executeTool', () => {
         vi.useRealTimers()
       }
     })
+
+    it('charges the first-page wait to the watchdog so the call ends within its budget', async () => {
+      const { contents, listeners, registered } = await openLoadingTab()
+      const watchdogMs = driver.browserToolWatchdogMs('browser_snapshot', {})
+      if (watchdogMs === null) throw new Error('browser_snapshot must have a watchdog')
+      const loadAfterMs = Math.floor(watchdogMs / 2) - 1
+      vi.mocked(contents.executeJavaScript).mockReturnValue(new Promise(() => {}))
+      vi.useFakeTimers()
+      try {
+        let outcome: unknown
+        void driver.executeTool('chat-test', 'browser_snapshot', {}).then((result) => {
+          outcome = result
+        })
+        await vi.advanceTimersByTimeAsync(loadAfterMs)
+        vi.mocked(contents.getURL).mockReturnValue('http://127.0.0.1/popup')
+        vi.mocked(contents.isLoading).mockReturnValue(false)
+        for (const onLoaded of listeners('did-stop-loading').slice(registered)) onLoaded()
+
+        // The page hangs once loaded; the call must still end at the watchdog measured from the start.
+        await vi.advanceTimersByTimeAsync(watchdogMs - loadAfterMs + 1)
+        expect(outcome).toMatchObject({ ok: false })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   it('leaves no watchdog timer pending once a tool finishes', async () => {

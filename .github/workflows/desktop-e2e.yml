@@ -154,7 +154,7 @@ jobs:
         working-directory: apps/desktop
         run: bunx playwright install chromium
 
-      # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
+      # The terminal-cancel suite drives a real tmux server and fails when tmux is missing.
       - name: Install tmux
         run: brew install tmux
         env:
@@ -241,7 +241,7 @@ jobs:
         working-directory: apps/desktop
         run: bunx playwright install chromium
 
-      # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
+      # The terminal-cancel suite drives a real tmux server and fails when tmux is missing.
       - name: Install tmux
         run: brew install tmux
         env:

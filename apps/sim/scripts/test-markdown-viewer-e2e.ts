@@ -624,7 +624,7 @@ async function provePastePersistence(page: Page, browserName: string) {
     try {
       // Leave the file before deleting it, or the open editor refetches it and the next check on
       // this page records that 404 as its own. A failed proof keeps the page for its screenshot.
-      if (proved) await page.goto('about:blank')
+      if (proved) await page.goto('about:blank').catch(() => undefined)
       await request(`/api/workspaces/${workspaceId}/files/${pastedFileId}`, undefined, 'DELETE')
     } finally {
       await sql`delete from public_share where id=${pastedShareId}`
