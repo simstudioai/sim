@@ -48,4 +48,13 @@ describe('a dry run’s placeholder tokens', () => {
     expect(tokens.occursIn({ sent: '/customers/900000123' })).toBe(false)
     expect(tokens.occursIn({ sent: 'dry_run_row_1' })).toBe(true)
   })
+
+  it('read a run of digits past the longest token, so one cut mid-run is never taken for it', () => {
+    const tokens = new PlaceholderTokens()
+    tokens.register({ row: { id: 'dry_run_row_1' } })
+
+    expect(tokens.occursIn({ sent: 'dry_run_row_10' })).toBe(false)
+    expect(tokens.occursIn({ sent: '/rows/dry_run_row_123/cells' })).toBe(false)
+    expect(tokens.occursIn({ sent: '/rows/dry_run_row_1/cells' })).toBe(true)
+  })
 })

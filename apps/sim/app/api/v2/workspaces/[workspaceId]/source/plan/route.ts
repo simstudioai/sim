@@ -3,8 +3,8 @@ import { v2PlanWorkspaceSourceContract } from '@/lib/api/contracts/v2/workspace-
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { withSourceSlot } from '@/lib/workflows/api'
 import {
+  presentWorkspaceApply,
   v2WorkspaceSourceErrorPolicy,
-  withBoundWorkspaceFindings,
   workspaceApplyRateCost,
 } from '@/lib/workspace-source/api/route-policies'
 import { planWorkspaceSource } from '@/lib/workspace-source/application/apply-workspace-source'
@@ -39,5 +39,5 @@ export const POST = defineV2JsonRoute({
   }),
   rateLimitCost: (input) => workspaceApplyRateCost(input.files, input.blobs),
   useCase: withSourceSlot(planWorkspaceSource, 'plan'),
-  present: (result) => ({ data: withBoundWorkspaceFindings(result) }),
+  present: (result) => ({ data: presentWorkspaceApply(result) }),
 })

@@ -79,7 +79,7 @@ Beside the resources:
 | `.sim/cache/` | This machine's file stats. It ignores itself | Not committed |
 | `tsconfig.json`, `tsconfig.full.json`, `.gitattributes`, `.gitignore` | As for a workflow directory. `.gitattributes` also keeps workspace files and knowledge base documents byte for byte | Commit all but `tsconfig.full.json` |
 
-The generated `.gitignore` leaves out only what a command keeps while it runs (`.sim/downloads/`, `.sim/command.lock/`, `.sim-staging-*`) and `tsconfig.full.json`. Commit the rest, including `.sim/`: a fresh clone can then run `check`, `apply --dry-run` and `apply`.
+The generated `.gitignore` leaves out only what a command keeps while it runs (`.sim/downloads/`, `.sim/command.lock/`, `.sim-staging-*`) and `tsconfig.full.json`. Commit the rest, including `.sim/`: a fresh clone can then run `check`, `apply --dry` and `apply`.
 
 ## Related docs
 

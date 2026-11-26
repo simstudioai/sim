@@ -7,6 +7,7 @@ import { kindOfPath } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
 import { renderSourceSlotBusy } from '@/lib/workflows/api/source-slots'
+import type { ApplyWorkspaceSourceResult } from '@/lib/workspace-source/application/apply-workspace-source'
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
 import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
@@ -53,6 +54,11 @@ export function withBoundWorkspaceFindings<
   R extends { diagnostics: readonly WorkspaceSourceDiagnostic[] },
 >(result: R) {
   return { ...result, diagnostics: boundAnswerFindings(result.diagnostics, WORKSPACE_ANSWER_BOUND) }
+}
+
+/** An apply's or plan's result as the routes answer it: {@link withBoundWorkspaceFindings}, with `dry`. */
+export function presentWorkspaceApply({ dryRun, ...result }: ApplyWorkspaceSourceResult) {
+  return { ...withBoundWorkspaceFindings(result), dry: dryRun }
 }
 
 /** Non-workflow text bytes (declarations and table rows) one source-write unit covers. */

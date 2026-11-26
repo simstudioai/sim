@@ -94,7 +94,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         stateExecutionId,
         pausePoints: loadedPausePoints,
         failedBlock,
-        dryRun,
+        overrides,
         placeholderBlockIds,
       } = projected
 
@@ -197,7 +197,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         pausedRunId: stateExecutionId,
         failedBlock,
         rerunFromBlockId,
-        dryRun,
+        overrides,
         placeholderBlockIds,
         /** Whether the viewer's group withheld `blockOutputs` and `finalOutput`. */
         outputsHidden: projection.hideTraceSpans,

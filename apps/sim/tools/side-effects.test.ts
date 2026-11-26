@@ -200,7 +200,7 @@ describe('code a dry run runs', () => {
   it('is listed unchecked, not allowed, when its block is allowed and it runs in a remote sandbox', () => {
     const policy = new WriteStubPolicy({
       workflowId: 'wf-1',
-      allowBlocks: [{ workflowId: 'wf-1', blockId: 'python', block: 'python' }],
+      allow: [{ workflowId: 'wf-1', blockId: 'python', block: 'python' }],
     })
     const code = policy.codeNetwork({
       workflowId: 'wf-1',

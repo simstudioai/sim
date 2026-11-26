@@ -480,7 +480,7 @@ describe('workspace source: custom tools and skills', () => {
       expect(codes(refused.diagnostics, 'warning')).not.toContain('W_RESOURCE_IN_USE')
       expect(
         refused.diagnostics.find((finding) => finding.code === 'E_APPLY_DELETE_NOT_ALLOWED')?.hint
-      ).toContain('--allow-delete --dry-run')
+      ).toMatch(/--allow-delete --dry(?!-run)/)
       expect(await snapshot(workspaceId)).toEqual(before)
 
       const dryRun = await apply(

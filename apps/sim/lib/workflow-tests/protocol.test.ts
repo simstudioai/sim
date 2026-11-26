@@ -20,35 +20,39 @@ describe('testReplyArgsSchema', () => {
 })
 
 describe('storedTestReportSchema', () => {
-  it('still reads a report stored before a stubbed call recorded its MCP target and flags', () => {
-    const stored = {
-      topLevel: [],
-      tests: [],
-      sideEffects: {
-        executions: {
-          'exec-1': {
-            stubbed: [{ workflowId: 'wf', blockId: 'b', block: 'Send', tool: 'slack', count: 1 }],
-            unchecked: [],
-            omitted: { stubbed: 0, unchecked: 0 },
-          },
-        },
-        omittedExecutions: 0,
+  const stored = (stubbed: Array<Record<string, unknown>>) => ({
+    topLevel: [],
+    tests: [],
+    sideEffects: {
+      executions: {
+        'exec-1': { stubbed, unchecked: [], omitted: { stubbed: 0, unchecked: 0 } },
       },
-    }
+      omittedExecutions: 0,
+    },
+  })
+  const call = { workflowId: 'wf', blockId: 'b', block: 'Send', tool: 'slack', count: 1 }
 
-    const parsed = storedTestReportSchema.parse(stored)
+  it('still reads a report stored before a stubbed call recorded its MCP target or reason', () => {
+    const parsed = storedTestReportSchema.parse(stored([call]))
+
+    expect(parsed.sideEffects?.executions['exec-1'].stubbed).toEqual([{ ...call, mcp: null }])
+  })
+
+  it('reads the reason a report stored as flags, before it was named', () => {
+    const parsed = storedTestReportSchema.parse(
+      stored([
+        { ...call, dependsOnStub: true, readOnlyHint: true },
+        { ...call, dependsOnStub: false, readOnlyHint: true },
+        { ...call, dependsOnStub: false, readOnlyHint: false },
+        { ...call, reason: 'placeholder' },
+      ])
+    )
 
     expect(parsed.sideEffects?.executions['exec-1'].stubbed).toEqual([
-      {
-        workflowId: 'wf',
-        blockId: 'b',
-        block: 'Send',
-        tool: 'slack',
-        mcp: null,
-        dependsOnStub: false,
-        readOnlyHint: false,
-        count: 1,
-      },
+      { ...call, mcp: null, reason: 'placeholder' },
+      { ...call, mcp: null, reason: 'mcp-read-only' },
+      { ...call, mcp: null },
+      { ...call, mcp: null, reason: 'placeholder' },
     ])
   })
 })

@@ -149,7 +149,7 @@ afterAll(async () => {
 
 describe('a run that failed in a block inside a loop', () => {
   it('is rerun from the loop, which run-from-block accepts where it refuses the block', async () => {
-    const input = { ...runInput(), useMockPayload: false }
+    const input = { ...runInput(), sample: false }
     const run = await settled(
       await executeManualWorkflowOperation.execute({ principal, input }),
       input.executionId

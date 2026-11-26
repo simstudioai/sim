@@ -1013,7 +1013,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'cli_workflows_operations_apply':
     case 'cli_workflows_state_replace':
-      if (stringArrayArg(args, 'args').includes('--dry-run')) {
+      if (stringArrayArg(args, 'args').includes('--dry')) {
         return 'Validating workflow changes'
       }
       return CLI_TOOL_TITLES[name] ?? humanizeToolName(name)

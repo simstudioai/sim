@@ -54,8 +54,8 @@ import { workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
-  DryRunOptions,
   ExecutionMetadata,
+  RunOverrides,
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
@@ -203,8 +203,8 @@ export interface ExecuteWorkflowServiceRun {
   paused?: RunPause | null
   /** What a dry run did with each write it reached; absent for any other run. */
   sideEffects?: SideEffectsSummary
-  /** A dry run's allowed and mocked blocks, which a rerun of it passes again; absent otherwise. */
-  dryRun?: DryRunOptions
+  /** A dry run's overrides, which a rerun of it passes again; absent otherwise. */
+  overrides?: RunOverrides
 }
 
 /** A run's result before the applied timeout is stamped onto it. */
@@ -759,7 +759,7 @@ export async function executeWorkflowService(
       allowLargeValueWorkflowScope: false,
       callChain,
       executionMode: 'sync',
-      ...(sideEffectPolicy ? { dryRun: sideEffectPolicy.runOptions() } : {}),
+      ...(sideEffectPolicy ? { overrides: sideEffectPolicy.overrides() } : {}),
     }
 
     const executionTimeoutMs = preprocessResult.executionTimeout?.[executionType] ?? 0
@@ -1018,12 +1018,12 @@ export async function executeWorkflowService(
     ): Promise<UnstampedTerminalResult> => {
       if (!sideEffectPolicy || !result.ok) return result
       const summary = sideEffectPolicy.summary()
-      const dryRun = sideEffectPolicy.runOptions()
+      const overrides = sideEffectPolicy.overrides()
       try {
         return {
           ...result,
           sideEffects: await compactServiceOutput(summary, compactionContext),
-          dryRun,
+          overrides,
         }
       } catch (error) {
         reqLogger.warn('Failed to compact dry-run side effects; returning them without requests', {
@@ -1035,7 +1035,7 @@ export async function executeWorkflowService(
             ...summary,
             stubbed: summary.stubbed.map((entry) => ({ ...entry, request: null })),
           },
-          dryRun,
+          overrides,
         }
       }
     }

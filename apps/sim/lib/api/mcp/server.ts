@@ -203,7 +203,7 @@ export function createSimMcpServer(
     {
       title: 'Write to Sim',
       description:
-        'Run a Sim API operation that needs write access: one that creates, changes, runs, or deletes something, or reaches out to another service, such as createTable, executeWorkflow, or deleteFile. Changes apply immediately and cannot be undone; the few operations that take dryRun, such as applyWorkflowSource and applyWorkspaceSource, can check a change first. A workflow run executes its blocks, which can call external services and use credits, so confirm deletions and runs with the user first.',
+        'Run a Sim API operation that needs write access: one that creates, changes, runs, or deletes something, or reaches out to another service, such as createTable, executeWorkflow, or deleteFile. Changes apply immediately and cannot be undone; the few operations that take dry, such as applyWorkflowSource and applyWorkspaceSource, can check a change first. A workflow run executes its blocks, which can call external services and use credits, so confirm deletions and runs with the user first.',
       inputSchema: callInput,
       annotations: {
         title: 'Write to Sim',

@@ -25,6 +25,7 @@ import {
   sourceStatus,
 } from '@sim/workspace-code/status'
 import type { Command } from 'commander'
+import type { NextStep } from '#sim-cli/output/next-step'
 import { profileFrom } from '../../context'
 import { setSoftExitCode } from '../../embed-context'
 import { SOURCE_STALE_EXIT_CODE } from '../../exit-codes'
@@ -55,7 +56,6 @@ import {
   type FileDiff,
   givenFilterPath,
   loginCommand,
-  type NextStep,
   nextStep,
   pathFilter,
   planFindings,
@@ -199,7 +199,7 @@ interface WorkspacePlanSummary {
   /** Resources changed on both sides: while any stands, an apply is refused as stale. */
   conflicts: number
   /**
-   * The errors and warnings its dry run reports (`apply --dry-run`, with `--allow-delete` when
+   * The errors and warnings its dry run reports (`apply --dry`, with `--allow-delete` when
    * `next` names it), the server changes the status lists by resource included: a conflict is an
    * error there (`E_APPLY_STALE`), a resource added on the server a warning (`W_UNDECLARED`).
    */
@@ -422,10 +422,10 @@ export function attachWorkspaceSourceStatus(source: Command): void {
                 )
               : []
           )
-          const dryRun = data ? dryRunFindings(data, byBase) : []
+          const dry = data ? dryRunFindings(data, byBase) : []
           // The server changes are listed by resource, so only the rest are printed as findings.
-          const planned = dryRun.filter((finding) => !isServerChangeFinding(finding.code))
-          const plan = data ? planSummary(dryRun, applyPlan, status.conflicts.length) : null
+          const planned = dry.filter((finding) => !isServerChangeFinding(finding.code))
+          const plan = data ? planSummary(dry, applyPlan, status.conflicts.length) : null
           const report: StatusReport<WorkspacePlanSummary> & { workspaceId: string | null } = {
             workspaceId,
             dir: options.dir,

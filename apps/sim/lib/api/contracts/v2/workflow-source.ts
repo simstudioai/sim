@@ -24,10 +24,10 @@ export const v2GetWorkflowSourceContract = defineRouteContract({
 
 const applyWorkflowSourceQuerySchema = z
   .object({
-    dryRun: booleanQueryFlagSchema
+    dry: booleanQueryFlagSchema
       .optional()
       .describe(
-        'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.'
+        'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.'
       ),
     allowDelete: booleanQueryFlagSchema
       .optional()
@@ -230,7 +230,7 @@ const applyWorkflowSourceDataSchema = z
   .object({
     workflowId: z.string().describe('Workflow id.'),
     workspaceId: z.string().describe('Workspace id.'),
-    dryRun: z.boolean().describe('True when nothing was written because `dryRun` was set.'),
+    dry: z.boolean().describe('True when nothing was written because `dry` was set.'),
     applied: z
       .boolean()
       .describe(

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { ChartBarIcon } from '@/components/icons'
-import { MODEL_PROVIDER_ACCESS_IDS } from '@/blocks/access-effect'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
+import { MODEL_PROVIDER_ACCESS_IDS } from '@/blocks/model-provider-access'
 import type { BlockConfig, ParamType } from '@/blocks/types'
 import {
   BEDROCK_SAVED_CREDENTIAL_INPUTS,

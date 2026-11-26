@@ -175,7 +175,7 @@ describe('a dry run on a hosted deployment', () => {
           input: {},
           mode: 'sync',
           requestHeaders: new Headers(),
-          useMockPayload: false,
+          sample: false,
           dry,
         },
       })) as ExecuteWorkflowServiceRun

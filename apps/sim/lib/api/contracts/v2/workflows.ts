@@ -1635,8 +1635,8 @@ export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
 export const EXECUTE_OPTION_CONSTRAINTS =
   'Input descriptions specify compatible modes; invalid combinations return `400`.'
 
-/** Blocks one run's `run.mocks` may answer. */
-const MAX_RUN_MOCKS = 50
+/** Blocks one run may name in each of `run.allow`, `run.mocks` and `run.mocksFrom.blocks`. */
+const MAX_RUN_OVERRIDES = 50
 
 /** Longest block selector a dry run resolves; a dotted one is tried at every dot. */
 const MAX_BLOCK_SELECTOR_LENGTH = 256
@@ -1654,14 +1654,14 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
     .strict(),
   z
     .object({
-      source: z.literal('manual').describe('Execute the current saved workflow state manually.'),
+      source: z.literal('draft').describe('Run the saved draft.'),
       entry: z
         .discriminatedUnion('type', [
           z
             .object({
               type: z
                 .literal('trigger')
-                .describe('Enter the manual run through a runnable trigger.'),
+                .describe('Enter the draft run through a runnable trigger.'),
               blockId: z
                 .string()
                 .min(1, 'run.entry.blockId cannot be empty')
@@ -1669,11 +1669,11 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
                 .describe(
                   'Runnable trigger block to enter through. Omit only when the saved workflow has exactly one runnable trigger.'
                 ),
-              useMockPayload: z
+              sample: z
                 .boolean()
                 .optional()
                 .describe(
-                  "Use the selected trigger's server-derived mock payload. Cannot be combined with `input`."
+                  "Run with the selected trigger's sample payload, which the server derives from the trigger, instead of `input`. Its writes are sent unless `dry`. Cannot be combined with `input`."
                 ),
             })
             .strict(),
@@ -1681,12 +1681,12 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
             .object({
               type: z
                 .literal('block')
-                .describe('Resume manual execution at a block using persisted upstream state.'),
+                .describe('Start the draft run at a block, using persisted upstream state.'),
               blockId: z
                 .string()
                 .min(1, 'run.entry.blockId cannot be empty')
                 .describe(
-                  'Saved workflow block at which manual execution should resume: its id, display name or reference key (the name lowercased, whitespace and dots removed).'
+                  'Saved workflow block at which the draft run starts: its id, display name or reference key (the name lowercased, whitespace and dots removed).'
                 ),
               sourceRunId: z
                 .string()
@@ -1699,7 +1699,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         ])
         .optional()
         .describe(
-          'Manual entry mode. Omit to enter through the workflow trigger; a block entry requires an exact source run.'
+          'Where the draft run enters. Omit to enter through the workflow trigger; a block entry requires an exact source run.'
         ),
       stopAfterBlockId: z
         .string()
@@ -1712,37 +1712,43 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .boolean()
         .optional()
         .describe(
-          "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls other than a GET, HEAD or OPTIONS without a method-override header, custom and MCP tools) is not sent; it returns a correctly shaped placeholder (a table row insert, upsert or update echoes the data it would have written, secrets masked) and is listed in `sideEffects.stubbed` with the request it would have sent, credentials, secrets and (when the workspace redacts it) PII redacted. Placeholder ids and values the request cannot determine are distinctive: strings shaped `dry_run_<kind>_<n>` and numbers above 900000000. A read (a `read` tool, an HTTP GET, HEAD or OPTIONS, or code's GET, HEAD or OPTIONS `fetch`) that would send one the run returned (such as a placeholder row's id or issue number in a URL, or free text quoting one) is not sent either: it gets a placeholder (code's `fetch` an empty 200) and is listed there with `dependsOnStub`. Every MCP call is stubbed, even one its server declares read-only, a claim Sim cannot verify: its entry carries `readOnlyHint`, and `allowBlocks` sends it. Other reads, model calls and credential resolution run for real, and so does code (a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes): JavaScript without imports sends its other GET, HEAD and OPTIONS `fetch` calls (an API that writes on a GET is not stubbed), while any other request, or one carrying a method-override header, gets an empty 200 response (header `x-sim-dry-run: stubbed`) and is listed in `sideEffects.stubbed` as tool `function_execute`; code in a remote sandbox (shell, Python, JavaScript with imports, a selected sandbox or files) has network the run cannot see and is listed in `sideEffects.unchecked`. Child workflows inherit it. Custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event and does not count as a run of the workflow. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`."
+          "Dry run: a call that could change something outside the run (a tool call not declared `read`, every MCP call, an HTTP request other than a GET, HEAD or OPTIONS without a method-override header) is not sent but answered with a correctly shaped placeholder, and the run returns what it held back in `sideEffects`, each list described there. Reads, model calls, credential resolution and code run for real. Child workflows inherit it; custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole, so the run never pauses. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event, does not count as a run of the workflow, and is logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`."
         ),
-      allowBlocks: z
+      allow: z
         .array(
           z
             .string()
-            .min(1, 'run.allowBlocks entries cannot be empty')
-            .max(MAX_BLOCK_SELECTOR_LENGTH, 'run.allowBlocks entries are at most 256 characters')
+            .min(1, 'run.allow entries cannot be empty')
+            .max(
+              MAX_BLOCK_SELECTOR_LENGTH,
+              `run.allow entries are at most ${MAX_BLOCK_SELECTOR_LENGTH} characters`
+            )
         )
-        .max(50)
+        .max(MAX_RUN_OVERRIDES, `run.allow names at most ${MAX_RUN_OVERRIDES} blocks`)
         .optional()
         .describe(
-          "Blocks whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. Name a block of this workflow by id, display name or reference key, or a block of a workflow it calls as `<workflow>.<block>` (the workflow's id or name, then the block's id, name or key), at most 256 characters. A selector holding a dot names a block of this workflow only by its exact id or display name; otherwise its workflow part is matched against the workflows its Workflow blocks call at any depth, then, for a child chosen as the run goes, a workflow of this workspace by id or exact name. A selector matching several blocks is refused with them. A child's entry applies wherever that workflow runs, at every depth. A Human in the loop or Wait block, a block that runs another workflow (a Workflow or custom block), a loop or parallel, a disabled block, or a block of a workflow reached only as a custom block's cannot be allowed. Allowing an Agent sends only its own tool calls: a workflow or custom block it calls stays stubbed. An entry the run never reaches is listed in `sideEffects.unused`."
+          `Blocks whose writes a dry run sends for real, listed in \`sideEffects.allowed\`. Requires \`dry\`. Name a block of this workflow by id, display name or reference key, or a block of a workflow it calls as \`<workflow>.<block>\` (the workflow's id or name, then the block's id, name or key), at most ${MAX_BLOCK_SELECTOR_LENGTH} characters. A selector holding a dot names a block of this workflow only by its exact id or display name; otherwise its workflow part is matched against the workflows its Workflow blocks call at any depth, then, for a child chosen as the run goes, a workflow of this workspace by id or exact name. A selector matching several blocks is refused with them. A child's entry applies wherever that workflow runs, at every depth. A Human in the loop or Wait block, a block that runs another workflow (a Workflow or custom block), a loop or parallel, a disabled block, or a block of a workflow reached only as a custom block's cannot be allowed. Allowing an Agent sends only its own tool calls: a workflow or custom block it calls stays stubbed. An entry the run never reaches is listed in \`sideEffects.unreached\`.`
         ),
       mocks: z
         .record(
           z
             .string()
-            .max(MAX_BLOCK_SELECTOR_LENGTH, 'run.mocks keys are at most 256 characters')
+            .max(
+              MAX_BLOCK_SELECTOR_LENGTH,
+              `run.mocks keys are at most ${MAX_BLOCK_SELECTOR_LENGTH} characters`
+            )
             .describe('Block selector.'),
           z
             .record(z.string(), z.unknown().describe('Output field.'))
             .describe('Output object that answers the block instead of its handler.')
         )
-        .refine((mocks) => Object.keys(mocks).length <= MAX_RUN_MOCKS, {
-          message: `run.mocks names at most ${MAX_RUN_MOCKS} blocks`,
+        .refine((mocks) => Object.keys(mocks).length <= MAX_RUN_OVERRIDES, {
+          message: `run.mocks names at most ${MAX_RUN_OVERRIDES} blocks`,
         })
-        .meta({ maxProperties: MAX_RUN_MOCKS })
+        .meta({ maxProperties: MAX_RUN_OVERRIDES })
         .optional()
         .describe(
-          'Blocks answered with this output object instead of running, to steer branches or give a stubbed write a realistic result, keyed like `allowBlocks` entries (a block of this workflow, or `<workflow>.<block>` of a workflow it calls). Requires `dry`. A locked block (or one inside a locked loop or parallel), a loop or parallel, and a disabled block cannot be mocked; a block of a locked workflow, or of one in a locked folder, returns `423`. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`), nor hold a large-value reference (an object with `__simLargeValueRef`). A field the block does not declare is listed in `sideEffects.undeclaredMockFields`, not refused. The run records only which blocks were mocked, so a rerun passes the outputs again; its log shows a mocked block’s output like any other block’s.'
+          'Blocks answered with this output object instead of running, to steer branches or give a stubbed write a realistic result, keyed like `allow` entries (a block of this workflow, or `<workflow>.<block>` of a workflow it calls). Requires `dry`. A locked block (or one inside a locked loop or parallel), a loop or parallel, and a disabled block cannot be mocked; a block of a locked workflow, or of one in a locked folder, returns `423`. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`), nor hold a large-value reference (an object with `__simLargeValueRef`). A field the block does not declare is listed in `sideEffects.mockFields`, not refused. The run records only which blocks were mocked, so a rerun passes the outputs again; its log shows a mocked block’s output like any other block’s.'
         ),
       mocksFrom: z
         .object({
@@ -1759,13 +1765,16 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
                 .min(1, 'run.mocksFrom.blocks entries cannot be empty')
                 .max(
                   MAX_BLOCK_SELECTOR_LENGTH,
-                  'run.mocksFrom.blocks entries are at most 256 characters'
+                  `run.mocksFrom.blocks entries are at most ${MAX_BLOCK_SELECTOR_LENGTH} characters`
                 )
             )
             .min(1, 'run.mocksFrom.blocks names at least one block')
-            .max(MAX_RUN_MOCKS)
+            .max(
+              MAX_RUN_OVERRIDES,
+              `run.mocksFrom.blocks names at most ${MAX_RUN_OVERRIDES} blocks`
+            )
             .describe(
-              'Blocks of this workflow only (id, display name or reference key; never a child’s) answered with the output each recorded in that run, redacted as the run shows it. Refused: a block the run did not execute; one inside a loop or parallel, unless that run mocked it; and, when that run was a test run, a block it answered with a placeholder rather than mocking or allowing it. Fields only a block sets (`cost`, `tokens`, `model`, `toolCalls`, child traces and the like, and fields starting with `_`) are left out and listed in `sideEffects.droppedMockFields`; an output holding a large-value reference is refused. Other refusals are those of `mocks`, and a block cannot be named here and in `mocks` both.'
+              "This workflow's blocks (not a child's; not inside a loop or parallel unless that run mocked it), by id, display name or reference key, answered with the output each recorded in that run, redacted as the run shows it. Refused: a block the run did not execute, and, when that run was a test run, a block it answered with a placeholder rather than mocking or allowing it. Fields a mock cannot set (see `mocks`) are left out and listed in `sideEffects.mockFields`; an output holding a large-value reference is refused. Other refusals are those of `mocks`, and a block cannot be named here and in `mocks` both."
             ),
         })
         .strict()
@@ -1781,7 +1790,7 @@ export type V2WorkflowRunSelection = z.input<typeof v2WorkflowRunSelectionSchema
 /**
  * Strict public execute body. Async is body-selected (`async: true`) — v2 has
  * no `X-Execution-Mode`/`X-Stream-Response` headers. `run` selects the public
- * deployment/manual behavior (a deployment run may name a version number),
+ * deployment/draft behavior (a deployment run may name a version number),
  * while internal executor facts (`triggerType`, `useDraftState`, deployment
  * version row ids, and source snapshots) remain trusted server-side options and
  * are NEVER wire fields.
@@ -1799,7 +1808,7 @@ export const v2ExecuteWorkflowBodySchema = z
     run: v2WorkflowRunSelectionSchema
       .optional()
       .describe(
-        'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.'
+        'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version, and `source: "draft"` the saved draft. A draft run requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.'
       ),
     async: z
       .boolean()
@@ -1896,17 +1905,17 @@ export const v2ExecuteWorkflowBodySchema = z
       { input: { ticketId: 'ticket_123' } },
       { input: { ticketId: 'ticket_123' }, async: true },
       { input: { ticketId: 'ticket_123' }, stream: true },
-      { run: { source: 'manual' } },
-      { run: { source: 'manual' }, waitTimeoutSeconds: 240 },
+      { run: { source: 'draft' } },
+      { run: { source: 'draft' }, waitTimeoutSeconds: 240 },
       {
         run: {
-          source: 'manual',
+          source: 'draft',
           entry: { type: 'block', blockId: 'block_123', sourceRunId: 'run_123' },
         },
       },
       {
         run: {
-          source: 'manual',
+          source: 'draft',
           entry: { type: 'block', blockId: 'block_123', sourceRunId: 'run_123' },
           stopAfterBlockId: 'block_123',
         },
@@ -2038,8 +2047,14 @@ const mcpCallTargetSchema = z
     server: z.string().describe('MCP server or managed connection id.'),
     tool: z.string().describe('MCP tool name.'),
   })
-  .nullable()
-  .describe("The MCP server and tool an MCP block's call named; null for any other call.")
+  .optional()
+  .describe("The MCP server and tool an MCP block's call named; absent for any other call.")
+
+const overrideBlockFields = {
+  workflowId: z.string().describe('Workflow of the block.'),
+  blockId: z.string().describe('Block id in that workflow.'),
+  block: z.string().describe('Block display name.'),
+}
 
 const v2RunSideEffectsSchema = z
   .object({
@@ -2063,20 +2078,16 @@ const v2RunSideEffectsSchema = z
             .record(z.string(), z.unknown().describe('Placeholder field.'))
             .describe('Placeholder output the block or tool call returned to the run instead.'),
           mcp: mcpCallTargetSchema,
-          dependsOnStub: z
-            .boolean()
+          reason: z
+            .enum(['placeholder', 'mcp-read-only'])
+            .optional()
             .describe(
-              'True for a read that was not sent because what it would send holds a placeholder the run returned earlier (a `dry_run_<kind>_<n>` string or a number above 900000000, such as a placeholder row id), so it depends on a call that was never sent.'
-            ),
-          readOnlyHint: z
-            .boolean()
-            .describe(
-              "True for an MCP call whose server declares the tool read-only and not destructive (`readOnlyHint`, not `destructiveHint`). That is the server's claim, which Sim cannot verify, so the call was not sent; name its block in `run.allowBlocks` to send it."
+              "Why a call that is not a plain write was held back; absent for a plain write. `placeholder`: a read whose request holds a placeholder the run returned earlier (a `dry_run_<kind>_<n>` string or a number above 900000000, such as a placeholder row's id in a URL, or free text quoting one), so it depends on a call that was never sent. `mcp-read-only`: an MCP call whose server declares the tool read-only and not destructive (`readOnlyHint`, not `destructiveHint`), a claim Sim cannot verify; name its block in `run.allow` to send it."
             ),
         })
       )
       .describe(
-        'Calls that were not sent, in the order the run reached them: writes, every MCP call (`readOnlyHint` marks one its server declares read-only), and reads that would send a placeholder (`dependsOnStub`).'
+        "Calls that were not sent, in the order the run reached them, each answered with a placeholder (a table row insert, upsert or update echoes the data it would have written, secrets masked; placeholder ids and values the request cannot determine are `dry_run_<kind>_<n>` strings and numbers above 900000000): writes, every MCP call, and reads that would send a placeholder (`reason`). Code run in the isolate (JavaScript without imports: a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes) sends its GET, HEAD and OPTIONS `fetch` calls (an API that writes on a GET is not stubbed); any other request, or one carrying a method-override header, gets an empty 200 (header `x-sim-dry-run: stubbed`) and is listed here as tool `function_execute`."
       ),
     allowed: z
       .array(
@@ -2087,7 +2098,7 @@ const v2RunSideEffectsSchema = z
         })
       )
       .describe(
-        "Writes sent for real because `run.allowBlocks` named their block, once per block and tool (an MCP block's per MCP tool)."
+        "Writes sent for real because `run.allow` named their block, once per block and tool (an MCP block's per MCP tool)."
       ),
     unchecked: z
       .array(
@@ -2106,84 +2117,63 @@ const v2RunSideEffectsSchema = z
         unchecked: z.number().int().nonnegative().describe('Blocks left out of `unchecked`.'),
       })
       .describe('Entries each list left out once it held 50.'),
-    unused: z
+    unreached: z
       .array(
         z.object({
-          workflowId: z.string().describe('Workflow of the block.'),
-          blockId: z.string().describe('Block id in that workflow.'),
-          block: z.string().describe('Block display name.'),
-          override: z
+          ...overrideBlockFields,
+          kind: z
             .enum(['allow', 'mock'])
             .describe(
-              'Whether `run.allowBlocks` or a mock (`run.mocks`, `run.mocksFrom`) named it.'
+              '`allow` for a `run.allow` entry, `mock` for `run.mocks` or `run.mocksFrom`.'
             ),
         })
       )
+      .optional()
       .describe(
-        'Allowed and mocked blocks the run never reached: on a branch it did not take, upstream of a block entry, or in a child it never called.'
+        'Allowed and mocked blocks the run never reached: on a branch it did not take, upstream of a block entry, or in a child it never called. Absent when none.'
       ),
-    undeclaredMockFields: z
+    mockFields: z
       .array(
         z.object({
-          workflowId: z.string().describe('Workflow of the block.'),
-          blockId: z.string().describe('Block id in that workflow.'),
-          block: z.string().describe('Block display name.'),
-          fields: z.array(z.string().describe('Output field.')).describe('Fields not declared.'),
+          ...overrideBlockFields,
+          undeclared: z
+            .array(z.string().describe('Output field.'))
+            .optional()
+            .describe(
+              'Top-level fields a passed mock sets that its block does not declare as outputs, likely misspelt. Agent and Function blocks, whose outputs the model or code decides, never have any.'
+            ),
+          dropped: z
+            .array(z.string().describe('Output field.'))
+            .optional()
+            .describe(
+              'Fields of an output read from a run (`run.mocksFrom`) that a mock cannot set (see `run.mocks`), so left out.'
+            ),
         })
       )
-      .describe(
-        'Passed mocks setting top-level fields their block does not declare as outputs, likely misspelt; a block reading one gets nothing. Agent and Function blocks, whose outputs the model or code decides, are never listed.'
-      ),
-    droppedMockFields: z
-      .array(
-        z.object({
-          workflowId: z.string().describe('Workflow of the block.'),
-          blockId: z.string().describe('Block id in that workflow.'),
-          block: z.string().describe('Block display name.'),
-          fields: z.array(z.string().describe('Output field.')).describe('Fields left out.'),
-        })
-      )
-      .describe(
-        'Mocks read from a run (`run.mocksFrom`) whose recorded output held fields only a block sets (`cost`, `tokens`, `model`, `toolCalls` and the like), which a mock cannot set and so were left out; a block reading one gets nothing.'
-      ),
+      .optional()
+      .describe('Mocks with fields a block reading them gets nothing from. Absent when none.'),
   })
   .meta({
     id: 'WorkflowRunSideEffects',
     title: 'Workflow run side effects',
-    description: 'What a dry run did with each write it reached.',
+    description:
+      'What a dry run did with each write it reached. `stubbed`, `allowed`, `unchecked` and `omitted` are always present; `unreached` and `mockFields` only when they hold an entry.',
   })
 
-const v2RunDryRunChildBlockSchema = z.object({
-  workflowId: z.string().describe('Workflow the run called.'),
-  blockId: z.string().describe('Block id in that workflow.'),
-})
-
-export const v2RunDryRunSchema = z
+export const v2RunOverridesSchema = z
   .object({
-    allowBlocks: z
-      .array(z.string().describe('Block id.'))
-      .describe('Blocks whose writes the run sent (`run.allowBlocks`), by id.'),
-    mockedBlocks: z
-      .array(z.string().describe('Block id.'))
+    allow: z
+      .array(z.string().describe('Block selector.'))
+      .describe('Blocks whose writes the run sent (`run.allow`).'),
+    mocks: z
+      .array(z.string().describe('Block selector.'))
       .describe(
-        'Blocks the run answered with fixed outputs (`run.mocks`), by id. Only the ids are recorded, so a rerun passes the outputs again.'
-      ),
-    childAllowBlocks: z
-      .array(v2RunDryRunChildBlockSchema)
-      .optional()
-      .describe(
-        'Blocks of workflows it calls whose writes the run sent; a rerun names each as `<workflowId>.<blockId>`. Absent when none.'
-      ),
-    childMockedBlocks: z
-      .array(v2RunDryRunChildBlockSchema)
-      .optional()
-      .describe(
-        'Blocks of workflows it calls that the run answered with fixed outputs (`run.mocks`); a rerun passes each output again as `<workflowId>.<blockId>`. Absent when none.'
+        'Blocks the run answered with outputs the caller passed (`run.mocks`). Only the blocks are recorded, so a rerun passes the outputs again.'
       ),
     mocksFrom: z
       .object({
         runId: z.string().describe('Run the outputs were read from.'),
-        blockIds: z.array(z.string().describe('Block id.')).describe('Blocks answered, by id.'),
+        blocks: z.array(z.string().describe('Block id.')).describe('Blocks answered, by id.'),
       })
       .optional()
       .describe(
@@ -2191,10 +2181,10 @@ export const v2RunDryRunSchema = z
       ),
   })
   .meta({
-    id: 'WorkflowDryRun',
-    title: 'Workflow dry run',
+    id: 'WorkflowRunOverrides',
+    title: 'Workflow run overrides',
     description:
-      'The blocks a dry run sent and mocked, by id, which a rerun of it names again; never a mock output.',
+      "A dry run's overrides as a rerun passes them again, never a mock output: each entry `<blockId>` for a block of this workflow, or `<workflowId>.<blockId>` for a block of a workflow it called.",
   })
 
 /**
@@ -2248,9 +2238,9 @@ export const v2ExecuteWorkflowDataSchema = z
       .describe(
         'What a dry run (`run.dry`) did with each write it reached, whatever its status; absent otherwise.'
       ),
-    dryRun: v2RunDryRunSchema
+    overrides: v2RunOverridesSchema
       .optional()
-      .describe("A dry run's allowed and mocked blocks (`run.dry`); absent for any other run."),
+      .describe("A dry run's overrides (`run.dry`); absent for any other run."),
   })
   .meta({
     id: 'WorkflowRunResult',
@@ -2344,7 +2334,7 @@ export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema
 export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
 
 export const v2ResumeWorkflowDataSchema = v2ExecuteWorkflowDataSchema
-  .omit({ executionTimeoutSeconds: true, sideEffects: true, dryRun: true })
+  .omit({ executionTimeoutSeconds: true, sideEffects: true, overrides: true })
   .extend({
     error: v2ExecutionErrorSchema
       .omit({ rerunFromBlockId: true })
@@ -2642,10 +2632,10 @@ export const v2WorkflowRunStatusSchema = z
       .describe(
         'Run-produced files when `includeOutput=true`, or null when not requested or execution data is hidden by organization permission groups.'
       ),
-    dryRun: v2RunDryRunSchema
+    overrides: v2RunOverridesSchema
       .nullable()
       .describe(
-        "A failed dry run's allowed and mocked blocks, by id, which a rerun of it names again; null for any other run, or when execution data is hidden by organization permission groups."
+        "A failed dry run's overrides, which a rerun of it passes again; null for any other run, or when execution data is hidden by organization permission groups."
       ),
   })
   .meta({
@@ -3745,9 +3735,9 @@ const v2WorkflowGraphWriteResultSchema = z
  * (`validateOnly`) both keep it outside the represented resource for the same
  * reason.
  */
-const v2GraphWriteDryRunQuerySchema = z
+const v2GraphWriteDryQuerySchema = z
   .object({
-    dryRun: booleanQueryFlagSchema
+    dry: booleanQueryFlagSchema
       .optional()
       .describe(
         'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.'
@@ -3758,7 +3748,7 @@ const v2GraphWriteDryRunQuerySchema = z
 export const v2ReplaceWorkflowStateDataSchema = v2WorkflowGraphWriteResultSchema
   .extend({
     lint: v2WorkflowLintSchema,
-    dryRun: z
+    dry: z
       .boolean()
       .describe(
         'Whether this request only validated. `true` means nothing was persisted; the findings describe what a committed write of the same body would produce.'
@@ -3860,7 +3850,7 @@ export const v2GetWorkflowOutlineContract = defineRouteContract({
 export const v2ReplaceWorkflowStateContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/workflows/[workflowId]/state',
-  query: v2GraphWriteDryRunQuerySchema,
+  query: v2GraphWriteDryQuerySchema,
   params: v2WorkflowIdParamsSchema,
   body: v2ReplaceWorkflowStateBodySchema,
   response: {
@@ -4466,7 +4456,7 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
       .describe(
         'Non-fatal notes about blocks and edges that were normalized or dropped before persistence and, when `lint` has findings, one line counting them by category, so a caller that reads only `warnings` still learns they exist. The findings themselves are in `lint`. Empty when there is nothing to report.'
       ),
-    dryRun: z
+    dry: z
       .boolean()
       .describe(
         'Whether this request only evaluated. `true` means nothing was persisted; the outcome describes what a committed apply of the same body would produce.'
@@ -4483,7 +4473,7 @@ export type V2ApplyWorkflowOperationsData = z.output<typeof v2ApplyWorkflowOpera
 export const v2ApplyWorkflowOperationsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[workflowId]/operations',
-  query: v2GraphWriteDryRunQuerySchema,
+  query: v2GraphWriteDryQuerySchema,
   params: v2WorkflowIdParamsSchema,
   body: v2ApplyWorkflowOperationsBodySchema,
   response: {

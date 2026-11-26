@@ -192,10 +192,10 @@ describe('sim workflows run --wait-timeout', () => {
       )
     )
 
-    await run(WORKFLOW_ID, '--manual', '--wait-timeout', '240')
+    await run(WORKFLOW_ID, '--draft', '--wait-timeout', '240')
 
     expect(requestRaw.mock.calls[0][1].body).toEqual({
-      run: { source: 'manual' },
+      run: { source: 'draft' },
       waitTimeoutSeconds: 240,
     })
     expect(request).not.toHaveBeenCalled()
@@ -224,7 +224,7 @@ describe('sim workflows run --wait-timeout', () => {
     requestRaw.mockResolvedValue(ndjsonResponse({ type: 'detached', data: receipt }))
     request.mockResolvedValue(runRecord('failed'))
 
-    await run(WORKFLOW_ID, '--manual', '--wait-timeout', '30')
+    await run(WORKFLOW_ID, '--draft', '--wait-timeout', '30')
 
     expect(JSON.parse(logged.join('\n'))).toMatchObject({ status: 'failed' })
     expect(process.exitCode).toBe(1)
@@ -239,14 +239,14 @@ describe('sim workflows run --wait-timeout', () => {
     )
     request.mockResolvedValue(runRecord('running'))
 
-    await run(WORKFLOW_ID, '--manual', '--wait-timeout', '30')
+    await run(WORKFLOW_ID, '--draft', '--wait-timeout', '30')
 
     expect(process.exitCode).toBe(4)
   })
 
   it('rounds a fractional wait up to whole seconds, and 0 waits until the run settles', async () => {
-    await run(WORKFLOW_ID, '--manual', '--wait-timeout', '1.5')
-    await run(WORKFLOW_ID, '--manual', '--wait-timeout', '0')
+    await run(WORKFLOW_ID, '--draft', '--wait-timeout', '1.5')
+    await run(WORKFLOW_ID, '--draft', '--wait-timeout', '0')
 
     expect(requestRaw.mock.calls[0][1].body.waitTimeoutSeconds).toBe(2)
     expect(requestRaw.mock.calls[1][1].body.waitTimeoutSeconds).toBe(0)
@@ -263,8 +263,8 @@ describe('sim workflows run --wait-timeout', () => {
     expect(requestRaw).not.toHaveBeenCalled()
   })
 
-  it('points a manual --async at --wait-timeout', async () => {
-    await expect(run(WORKFLOW_ID, '--manual', '--async')).rejects.toThrow('--wait-timeout')
+  it('points a draft --async at --wait-timeout', async () => {
+    await expect(run(WORKFLOW_ID, '--draft', '--async')).rejects.toThrow('--wait-timeout')
   })
 })
 
@@ -305,30 +305,30 @@ describe('sim workflows run --follow', () => {
     )
   })
 
-  it('lets --trigger and --mock-payload imply --manual', async () => {
+  it('lets --trigger and --sample imply --draft', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
     await run(WORKFLOW_ID, '--trigger', 'slack-trigger')
-    await run(WORKFLOW_ID, '--mock-payload')
+    await run(WORKFLOW_ID, '--sample')
 
     expect(request).not.toHaveBeenCalled()
     expect(requestRaw).toHaveBeenCalledTimes(2)
     expect(requestRaw.mock.calls[0][1].body).toEqual({
-      run: { source: 'manual', entry: { type: 'trigger', blockId: 'slack-trigger' } },
+      run: { source: 'draft', entry: { type: 'trigger', blockId: 'slack-trigger' } },
     })
     expect(requestRaw.mock.calls[1][1].body).toEqual({
-      run: { source: 'manual', entry: { type: 'trigger', useMockPayload: true } },
+      run: { source: 'draft', entry: { type: 'trigger', sample: true } },
     })
   })
 
-  it('lets --from-block imply manual and requires an exact source run', async () => {
+  it('lets --from-block imply a draft run and requires an exact source run', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
     await run(WORKFLOW_ID, '--from-block', 'agent-1', '--source-run', 'run-1')
 
     expect(requestRaw.mock.calls[0][1].body).toEqual({
       run: {
-        source: 'manual',
+        source: 'draft',
         entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
       },
     })
@@ -349,7 +349,7 @@ describe('sim workflows run --follow', () => {
 
     expect(requestRaw.mock.calls[0][1].body).toEqual({
       run: {
-        source: 'manual',
+        source: 'draft',
         entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
         stopAfterBlockId: 'agent-1',
       },
@@ -357,19 +357,19 @@ describe('sim workflows run --follow', () => {
     })
   })
 
-  it('lets --stop-after alone imply a manual run through the trigger', async () => {
+  it('lets --stop-after alone imply a draft run through the trigger', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
     await run(WORKFLOW_ID, '--stop-after', 'agent-1')
     await run(WORKFLOW_ID, '--trigger', 'start', '--stop-after', 'agent-1')
 
     expect(requestRaw.mock.calls[0][1].body).toEqual({
-      run: { source: 'manual', stopAfterBlockId: 'agent-1' },
+      run: { source: 'draft', stopAfterBlockId: 'agent-1' },
       selectedOutputs: ['agent-1'],
     })
     expect(requestRaw.mock.calls[1][1].body).toEqual({
       run: {
-        source: 'manual',
+        source: 'draft',
         entry: { type: 'trigger', blockId: 'start' },
         stopAfterBlockId: 'agent-1',
       },
@@ -423,7 +423,7 @@ describe('sim workflows run --follow', () => {
 
   it('refuses --stop-after with --async before sending anything', async () => {
     await expect(run(WORKFLOW_ID, '--stop-after', 'agent-1', '--async')).rejects.toThrow(
-      'Manual execution does not support --async'
+      'A draft run does not support --async'
     )
     expect(request).not.toHaveBeenCalled()
     expect(requestRaw).not.toHaveBeenCalled()
@@ -455,10 +455,10 @@ describe('sim workflows run --follow', () => {
   )
 
   it.each([
-    ['--manual'],
+    ['--draft'],
     ['--dry'],
     ['--trigger', 'slack-trigger'],
-    ['--mock-payload'],
+    ['--sample'],
     ['--stop-after', 'agent-1'],
     ['--from-block', 'agent-1', '--source-run', 'run-1'],
     ['--source-run', 'run-1'],
@@ -473,7 +473,7 @@ describe('sim workflows run --follow', () => {
   })
 
   it('selects a run only through its flags, not as raw JSON', async () => {
-    await expect(run(WORKFLOW_ID, '--run', '{"source":"manual"}')).rejects.toThrow(
+    await expect(run(WORKFLOW_ID, '--run', '{"source":"draft"}')).rejects.toThrow(
       "unknown option '--run'"
     )
     expect(requestRaw).not.toHaveBeenCalled()
@@ -499,14 +499,17 @@ describe('sim workflows run --follow', () => {
     )
     const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    await expect(run(WORKFLOW_ID, '--manual')).rejects.toThrow('Agent failed')
-    const next = JSON.parse(String(stdout.mock.calls[0][0])).next
-    expect(next).toBe(`sim workflows run ${WORKFLOW_ID} --from-block agent-1 --source-run run-1`)
+    await expect(run(WORKFLOW_ID, '--draft')).rejects.toThrow('Agent failed')
+    const { next } = JSON.parse(String(stdout.mock.calls[0][0]))
+    expect(next).toEqual({
+      command: `sim workflows run ${WORKFLOW_ID} --from-block agent-1 --source-run run-1`,
+      reason: expect.any(String),
+    })
 
-    await run(...next.split(' ').slice(3))
+    await run(...next.command.split(' ').slice(3))
     expect(requestRaw.mock.calls[1][1].body).toEqual({
       run: {
-        source: 'manual',
+        source: 'draft',
         entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
       },
     })
@@ -682,9 +685,6 @@ describe('sim workflows run --dry', () => {
         tool: 'table_upsert_row',
         request: { tableId: 'tbl_1', data: { email: 'a@b.co' } },
         returned: { row: { id: 'dry_run_row_1' } },
-        mcp: null,
-        dependsOnStub: false,
-        readOnlyHint: false,
       },
       {
         workflowId: WORKFLOW_ID,
@@ -694,8 +694,17 @@ describe('sim workflows run --dry', () => {
         request: { arguments: { path: '/q3.csv' } },
         returned: {},
         mcp: { server: 'mcp-files', tool: 'read_file' },
-        dependsOnStub: false,
-        readOnlyHint: true,
+        reason: 'mcp-read-only',
+      },
+      {
+        workflowId: 'wf_child',
+        blockId: 'blk_c',
+        block: 'Child docs',
+        tool: 'mcp_run_operation',
+        request: { arguments: { path: '/q4.csv' } },
+        returned: {},
+        mcp: { server: 'mcp-files', tool: 'read_file' },
+        reason: 'mcp-read-only',
       },
     ],
     allowed: [],
@@ -746,9 +755,9 @@ describe('sim workflows run --dry', () => {
     expect(requestRaw.mock.calls[0][1].body).toEqual({
       input: { email: 'a@b.co' },
       run: {
-        source: 'manual',
+        source: 'draft',
         dry: true,
-        allowBlocks: ['Save lead', 'log'],
+        allow: ['Save lead', 'log'],
         mocks: { Score: { content: 'spam', note: 'a=b' }, Router: { route: 'vip' } },
       },
     })
@@ -760,7 +769,7 @@ describe('sim workflows run --dry', () => {
     await run(WORKFLOW_ID, '--from-block', 'agent-1', '--source-run', 'run-1', '--dry')
 
     expect(requestRaw.mock.calls[0][1].body.run).toEqual({
-      source: 'manual',
+      source: 'draft',
       entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
       dry: true,
     })
@@ -781,7 +790,7 @@ describe('sim workflows run --dry', () => {
     )
 
     expect(requestRaw.mock.calls[0][1].body.run).toEqual({
-      source: 'manual',
+      source: 'draft',
       dry: true,
       mocks: { 'child.Router': { route: 'vip' } },
       mocksFrom: { runId: 'run-1', blocks: ['Score lead'] },
@@ -802,7 +811,7 @@ describe('sim workflows run --dry', () => {
       'names no output: pass <block>=<json|@file>, or add --mock-from <runId>'
     )
     await expect(run(WORKFLOW_ID, '--dry', '--mock', 'blk_2=<json>')).rejects.toThrow(
-      "replace <json> with the block's output"
+      'is not valid JSON'
     )
     await expect(run(WORKFLOW_ID, '--dry', '--mock-from', 'run_1')).rejects.toThrow(
       'name at least one'
@@ -837,9 +846,13 @@ describe('sim workflows run --dry', () => {
     stderr = []
     output.format = 'table'
     await run(WORKFLOW_ID, '--dry')
-    expect(stderr.join('')).toContain('Dry run: 2 not sent, 0 sent (allowed), 1 unchecked')
+    expect(stderr.join('')).toContain('Dry run: 3 not sent, 0 sent (allowed), 1 unchecked')
+    // The `--allow` names the block by id, a child's as `<workflowId>.<blockId>`, never by name.
     expect(stderr.join('')).toContain(
-      "not sent   Docs → read_file (server says read-only: --allow 'Docs' sends it)"
+      'not sent   Docs → read_file (server says read-only: --allow docs sends it)'
+    )
+    expect(stderr.join('')).toContain(
+      'not sent   Child docs → read_file (server says read-only: --allow wf_child.blk_c sends it)'
     )
   })
 
@@ -862,7 +875,7 @@ describe('sim workflows run --dry', () => {
 
     await run(WORKFLOW_ID, '--dry')
 
-    expect(stderr.join('')).toContain('Dry run: 62 not sent, 0 sent (allowed), 3 unchecked')
+    expect(stderr.join('')).toContain('Dry run: 63 not sent, 0 sent (allowed), 3 unchecked')
     expect(stderr.join('')).toContain('… 62 more')
   })
 })

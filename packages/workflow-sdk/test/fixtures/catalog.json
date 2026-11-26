@@ -10237,6 +10237,7 @@
         "container": null,
         "annotationOnly": false
       },
+      "effect": "write",
       "dynamicOutputs": {
         "source": "humanForm",
         "param": "inputFormat"

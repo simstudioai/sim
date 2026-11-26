@@ -306,3 +306,45 @@ describe('a deploy result read by a person', () => {
     })
   })
 })
+
+describe('a run record read by a person', () => {
+  const spec = CLI_CONTRACT.getWorkflowRun ?? {}
+  const lineOf = (label: string) => logged.find((line) => line.startsWith(`${label}:`)) ?? ''
+
+  it('chains the resumes of several waiting points so a pasted line runs each', () => {
+    const point = (contextId: string) => ({ contextId, kind: 'human', status: 'paused' })
+    renderResult(
+      'getWorkflowRun',
+      'table',
+      {
+        runId: 'run_1',
+        workflowId: 'wf_1',
+        status: 'paused',
+        paused: { runId: 'run_1', points: [point('a'), point('b')] },
+      },
+      spec
+    )
+    expect(lineOf('next')).toContain(
+      '--context a && sim workflows runs resume run_1 --workflow wf_1 --context b  # '
+    )
+  })
+
+  it('prints the note naming the mocks a rerun leaves out whole', () => {
+    const child = (n: number) => `00000000-0000-4000-8000-00000000000${n}.block_${n}`
+    const mocks = [child(1), child(2), child(3)]
+    renderResult(
+      'getWorkflowRun',
+      'table',
+      {
+        runId: 'run_9',
+        workflowId: 'wf_1',
+        status: 'failed',
+        trigger: 'test',
+        overrides: { allow: [], mocks },
+        error: { message: 'boom', blockId: 'blk_3', rerunFromBlockId: 'blk_3' },
+      },
+      spec
+    )
+    expect(lineOf('next note')).toContain(mocks.join(', '))
+  })
+})

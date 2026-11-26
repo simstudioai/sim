@@ -59,14 +59,14 @@ function printed(): Record<string, unknown> {
 }
 
 /** A dry run's answer: the plan's changes and findings. */
-function dryRun(
+function dry(
   plan: Array<Record<string, unknown>> = [],
   diagnostics: Array<Record<string, unknown>> = []
 ) {
   return {
     data: {
       workspaceId: WORKSPACE_ID,
-      dryRun: true,
+      dry: true,
       plan,
       applied: [],
       needBlobs: [],
@@ -124,7 +124,7 @@ afterEach(() => {
 
 describe('workspaces source status', () => {
   it('is clean, exit 0, when nothing changed on either side', async () => {
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run('status')
 
@@ -163,7 +163,7 @@ describe('workspaces source status', () => {
       key: 'ingest',
     }
     write('workflows/ingest/workflow.ts', INGEST.replace("'Ingest'", "'Ingest v2'"))
-    mockRequest.mockResolvedValue(dryRun([], [warning]))
+    mockRequest.mockResolvedValue(dry([], [warning]))
 
     await run('status')
 
@@ -180,7 +180,7 @@ describe('workspaces source status', () => {
 
   it('waits for no writer: a status while another command holds the directory exits 10, reading nothing', async () => {
     write('.sim/command.lock/owner.json', JSON.stringify({ pid: process.pid, host: hostname() }))
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     const busy = await run('status').then(
       () => null,
@@ -197,7 +197,7 @@ describe('workspaces source status', () => {
   })
 
   it('refuses a directory holding no workspace source, as an apply does, instead of calling it clean', async () => {
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
     const workspace = dir
     const refusal = async (command: 'status' | 'diff') =>
       run(command).then(
@@ -226,7 +226,7 @@ describe('workspaces source status', () => {
 
   it('reads a directory no one may write without its lock, rather than crashing on it', async () => {
     write('tables/leads.ts', `${LEADS}// edited\n`)
-    mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
+    mockRequest.mockResolvedValue(dry([{ kind: 'table', key: 'leads', action: 'update' }]))
     const folders = ['', '.sim', 'tables', 'workflows', 'workflows/ingest']
     for (const path of folders) chmodSync(join(dir, path), 0o555)
     try {
@@ -241,7 +241,7 @@ describe('workspaces source status', () => {
 
   it('refuses a written record a merge conflict broke, naming the get, rather than calling every file created', async () => {
     write('.sim/written.json', '<<<<<<< HEAD\n{"version":1,"files":{}}\n=======\n')
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     const refused = await run('status').then(
       () => null,
@@ -260,7 +260,7 @@ describe('workspaces source status', () => {
     unlinkSync(join(dir, 'tables/deals.ts'))
     write('skills/tone.md', '# Tone\n')
     mockRequest.mockResolvedValue(
-      dryRun([
+      dry([
         { kind: 'table', key: 'leads', action: 'update' },
         { kind: 'table', key: 'deals', action: 'delete' },
         { kind: 'skill', key: 'tone', action: 'create' },
@@ -300,7 +300,7 @@ describe('workspaces source status', () => {
 
   it('recommends commands scoped to the kinds the status was', async () => {
     write('tables/leads.ts', LEADS.replace('columns: {}', 'columns: { email: column.string() }'))
-    mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
+    mockRequest.mockResolvedValue(dry([{ kind: 'table', key: 'leads', action: 'update' }]))
 
     await run('status', '--only', 'tables')
 
@@ -310,21 +310,21 @@ describe('workspaces source status', () => {
     })
 
     mockRequest.mockResolvedValue(
-      dryRun(
+      dry(
         [{ kind: 'table', key: 'leads', action: 'update' }],
         [{ code: 'E_DECL_INVALID', severity: 'error', message: 'bad', kind: 'table', key: 'leads' }]
       )
     )
     await run('status', '--only', 'tables,workflow')
     expect(printed().next).toMatchObject({
-      command: `sim workspaces source apply --dir ${dir} --dry-run --only tables,workflows`,
+      command: `sim workspaces source apply --dir ${dir} --dry --only tables,workflows`,
     })
   })
 
   it('compares with the workspace the directory was read from, whatever the profile default', async () => {
     contextMockState.workspaceId = 'ws_other'
     write('tables/leads.ts', LEADS.replace('columns: {}', 'columns: { email: column.string() }'))
-    mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
+    mockRequest.mockResolvedValue(dry([{ kind: 'table', key: 'leads', action: 'update' }]))
 
     await run('status')
 
@@ -345,7 +345,7 @@ describe('workspaces source status', () => {
   it('recommends --allow-delete for an update that drops data, as applying it needs', async () => {
     write('tables/leads.ts', LEADS.replace("name: 'leads'", "name: 'leads', description: 'x'"))
     mockRequest.mockResolvedValue(
-      dryRun([
+      dry([
         {
           kind: 'table',
           key: 'leads',
@@ -366,7 +366,7 @@ describe('workspaces source status', () => {
 
   it('reports the files of a removed kind folder as deleted, as a get refuses to write them again', async () => {
     rmSync(join(dir, 'tables'), { recursive: true })
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run('status')
 
@@ -406,7 +406,7 @@ describe('workspaces source status', () => {
     )
     mkdirSync(join(dir, 'files'), { recursive: true })
     write('files/.gitkeep', '')
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run('status')
 
@@ -418,7 +418,7 @@ describe('workspaces source status', () => {
 
   it('leaves out a function file no codeFile() names, as an apply never sends it: clean, exit 0, naming it', async () => {
     write('workflows/ingest/functions/scratch.js', 'return 1\n')
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run('status')
 
@@ -443,7 +443,7 @@ describe('workspaces source status', () => {
       })
     )
     write('workflows/ingest/functions/scratch.js', 'return 1\n')
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run('status')
 
@@ -461,7 +461,7 @@ describe('workspaces source status', () => {
       JSON.stringify({ version: 1, blocks: { run: { id: 'b1', codeFile: 'functions/run.js' } } })
     )
     write('workflows/ingest/functions/run.js', 'return 1\n')
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run('status')
 
@@ -471,7 +471,7 @@ describe('workspaces source status', () => {
   })
 
   it('sends every workflow folder whole to the plan read, so it compares each with the stored workflow', async () => {
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run('status')
 
@@ -500,7 +500,7 @@ describe('workspaces source status', () => {
     )
     write('workflows/w7/workflow.ts', `${INGEST}// edited\n`)
     mockRequest.mockResolvedValue(
-      dryRun(
+      dry(
         [],
         [
           {
@@ -529,7 +529,7 @@ describe('workspaces source status', () => {
 
   it('reports drift when the server changed a resource left alone here, exit 12, and names a get', async () => {
     mockRequest.mockResolvedValue(
-      dryRun(
+      dry(
         [{ kind: 'workflow', key: 'ingest', action: 'noop' }],
         [
           {
@@ -569,7 +569,7 @@ describe('workspaces source status', () => {
 
   it('counts a drifted workflow left alone here as unchanged, as an apply sends it by its base', async () => {
     mockRequest.mockResolvedValue(
-      dryRun(
+      dry(
         [{ kind: 'workflow', key: 'ingest', action: 'update' }],
         [
           {
@@ -590,7 +590,7 @@ describe('workspaces source status', () => {
 
   it('leaves out lint findings on a workflow an apply sends by its base, as its dry run does', async () => {
     mockRequest.mockResolvedValue(
-      dryRun(
+      dry(
         [{ kind: 'workflow', key: 'ingest', action: 'noop' }],
         [
           {
@@ -613,7 +613,7 @@ describe('workspaces source status', () => {
 
   it('keeps a plan refusal about a workflow an apply sends by its base: status counts the error the apply refuses with', async () => {
     mockRequest.mockResolvedValue(
-      dryRun(
+      dry(
         [
           { kind: 'workflow', key: 'ingest', action: 'noop' },
           { kind: 'table', key: 'leads', action: 'delete' },
@@ -640,7 +640,7 @@ describe('workspaces source status', () => {
   it('keeps lint findings on a workflow edited here, which an apply sends whole', async () => {
     write('workflows/ingest/workflow.ts', INGEST.replace("'Ingest'", "'Ingest v2'"))
     mockRequest.mockResolvedValue(
-      dryRun(
+      dry(
         [{ kind: 'workflow', key: 'ingest', action: 'update' }],
         [
           {
@@ -661,7 +661,7 @@ describe('workspaces source status', () => {
 
   it('counts an edited workflow as the update its dry run plans', async () => {
     write('workflows/ingest/workflow.ts', INGEST.replace("'Ingest'", "'Ingest v2'"))
-    mockRequest.mockResolvedValue(dryRun([{ kind: 'workflow', key: 'ingest', action: 'update' }]))
+    mockRequest.mockResolvedValue(dry([{ kind: 'workflow', key: 'ingest', action: 'update' }]))
 
     await run('status')
 
@@ -671,7 +671,7 @@ describe('workspaces source status', () => {
   it('never reports a resource the get skipped as added on the server', async () => {
     write('.sim/skipped.json', JSON.stringify([{ kind: 'file', key: 'big.bin', reason: 'size' }]))
     mockRequest.mockResolvedValue(
-      dryRun(
+      dry(
         [],
         [{ code: 'W_UNDECLARED', severity: 'warning', message: 'm', kind: 'file', key: 'big.bin' }]
       )
@@ -685,7 +685,7 @@ describe('workspaces source status', () => {
   it('reports a conflict when a locally edited resource changed on the server, exit 12', async () => {
     write('tables/leads.ts', `${LEADS}// edited\n`)
     mockRequest.mockResolvedValue(
-      dryRun(
+      dry(
         [{ kind: 'table', key: 'leads', action: 'noop' }],
         [{ code: 'E_APPLY_STALE', severity: 'error', message: 'm', kind: 'table', key: 'leads' }]
       )
@@ -709,7 +709,7 @@ describe('workspaces source status', () => {
   it('says a conflict refuses the apply, never "0 error(s)" alone, for a person', async () => {
     write('tables/leads.ts', `${LEADS}// edited\n`)
     mockRequest.mockResolvedValue(
-      dryRun(
+      dry(
         [{ kind: 'table', key: 'leads', action: 'noop' }],
         [{ code: 'E_APPLY_STALE', severity: 'error', message: 'm', kind: 'table', key: 'leads' }]
       )
@@ -741,7 +741,7 @@ describe('workspaces source status', () => {
       server: 'unreachable',
       state: 'local',
       plan: null,
-      next: { command: `sim workspaces source apply --dir ${dir} --dry-run` },
+      next: { command: `sim workspaces source apply --dir ${dir} --dry` },
     })
     expect(report.note).toContain('Could not reach')
     expect(process.exitCode).toBe(11)
@@ -784,7 +784,7 @@ describe('workspaces source status', () => {
 
   it('prints one screen ending with the next command for a person', async () => {
     write('tables/leads.ts', `${LEADS}// edited\n`)
-    mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
+    mockRequest.mockResolvedValue(dry([{ kind: 'table', key: 'leads', action: 'update' }]))
     mockProfileFrom.mockReturnValue({
       ...mockedProfile(),
       workspaceId: WORKSPACE_ID,

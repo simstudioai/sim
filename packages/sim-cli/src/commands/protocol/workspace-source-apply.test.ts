@@ -81,7 +81,7 @@ function answer(overrides: Record<string, unknown> = {}) {
   return {
     data: {
       workspaceId: 'ws_local',
-      dryRun: false,
+      dry: false,
       plan: [],
       applied: [],
       needBlobs: [],
@@ -163,16 +163,16 @@ afterEach(() => {
 describe('workspaces source apply', () => {
   it('without --yes and nobody at a terminal, prints the plan, writes nothing and exits 14', async () => {
     request.mockResolvedValue(
-      answer({ dryRun: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+      answer({ dry: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
     )
 
     await apply('--allow-delete')
 
-    expect(request.mock.calls.map((call) => call[1].query?.dryRun === true)).toEqual([true])
+    expect(request.mock.calls.map((call) => call[1].query?.dry === true)).toEqual([true])
     expect(process.exitCode).toBe(14)
     const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     expect(printed).toMatchObject({
-      dryRun: true,
+      dry: true,
       created: [{ kind: 'table', key: 'leads' }],
       next: { command: `sim workspaces source apply --dir ${dir} --allow-delete --yes` },
     })
@@ -203,7 +203,7 @@ describe('workspaces source apply', () => {
     })
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'skill', key: 'tone', action: 'noop' },
           { kind: 'file', key: 'notes.txt', action: 'noop' },
@@ -216,7 +216,7 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
     expect(stderr).toContain('skills: 1 changed on the server')
@@ -240,9 +240,9 @@ describe('workspaces source apply', () => {
       kind: 'table',
       key: 'leads',
     }
-    request.mockResolvedValue(answer({ dryRun: true, diagnostics: [finding] }))
+    request.mockResolvedValue(answer({ dry: true, diagnostics: [finding] }))
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     const calls = vi.mocked(console.log).mock.calls
     expect(calls).toHaveLength(1)
@@ -410,7 +410,7 @@ describe('workspaces source apply', () => {
       return answer({ workspaceId: 'ws_prod', base: live })
     })
 
-    await apply('--to', 'ws_prod', '--only', 'tables', '--dry-run')
+    await apply('--to', 'ws_prod', '--only', 'tables', '--dry')
     expect(existsSync(join(dir, '.sim/targets/ws_prod.json'))).toBe(false)
     await apply('--to', 'ws_prod', '--only', 'tables', '--yes')
     expect(JSON.parse(readFileSync(join(dir, '.sim/targets/ws_prod.json'), 'utf8'))).toMatchObject({
@@ -430,7 +430,7 @@ describe('workspaces source apply', () => {
   it('counts the changes that delete data in a dry run, and says re-applying an older directory does not restore it', async () => {
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         plan: [
           {
             kind: 'table',
@@ -449,7 +449,7 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     expect(summary).toMatchObject({ deleted: 1, destructive: 2 })
@@ -463,7 +463,7 @@ describe('workspaces source apply', () => {
   it('prints a delete refused for want of --allow-delete as refused, not unchanged', async () => {
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'skill', key: 'tone', action: 'noop' },
           { kind: 'skill', key: 'brief', action: 'noop' },
@@ -480,7 +480,7 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
     expect(stderr).toContain('skills: 1 delete refused, 1 unchanged')
@@ -504,7 +504,7 @@ describe('workspaces source apply', () => {
       }
       return answer({
         workspaceId: 'ws_prod',
-        dryRun: true,
+        dry: true,
         plan: [{ kind: 'table', key: 'leads', action: 'create' }],
         diagnostics: [
           {
@@ -518,12 +518,12 @@ describe('workspaces source apply', () => {
       })
     })
 
-    await apply('--to', 'ws_prod', '--dry-run')
+    await apply('--to', 'ws_prod', '--dry')
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     expect(summary).toMatchObject({
       workspaceId: 'ws_prod',
-      dryRun: true,
+      dry: true,
       created: [{ kind: 'table', key: 'leads' }],
       diagnostics: [expect.objectContaining({ code: 'W_UNDECLARED', key: 'audit' })],
     })
@@ -574,7 +574,7 @@ describe('workspaces source apply', () => {
       }
       return answer({
         workspaceId: 'ws_prod',
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'table', key: 'gone', action: 'noop' },
           { kind: 'table', key: 'leads', action: 'noop' },
@@ -617,7 +617,7 @@ describe('workspaces source apply', () => {
       'tables',
       '--allow-delete',
       '--delete-target-only',
-      '--dry-run'
+      '--dry'
     )
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
@@ -684,7 +684,7 @@ describe('workspaces source apply', () => {
       sent.push(options.body)
       return answer({
         workspaceId: 'ws_prod',
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'table', key: 'leads', action: 'noop' },
           { kind: 'table', key: 'dropped', action: 'delete' },
@@ -703,7 +703,7 @@ describe('workspaces source apply', () => {
       })
     })
 
-    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--dry-run')
+    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--dry')
 
     const [body] = sent as Array<{ base: { resources: Record<string, unknown> } }>
     expect(Object.keys(body.base.resources).sort()).toEqual(['table:dropped', 'table:leads'])
@@ -807,12 +807,12 @@ describe('workspaces source apply', () => {
   })
 
   it('dry-runs a directory no one may write, and refuses to apply it with the reason, not a crash', async () => {
-    request.mockResolvedValue(answer({ dryRun: true }))
+    request.mockResolvedValue(answer({ dry: true }))
     for (const path of ['', '.sim', 'tables', 'workflows', 'workflows/ingest']) {
       chmodSync(join(dir, path), 0o555)
     }
     try {
-      await apply('--dry-run')
+      await apply('--dry')
       expect(request).toHaveBeenCalledTimes(1)
 
       const refused = await apply('--yes').then(
@@ -832,7 +832,7 @@ describe('workspaces source apply', () => {
   it('refuses a base a merge conflict broke, naming the way out, before sending anything', async () => {
     write('.sim/base.json', '<<<<<<< HEAD\n{"version":1}\n')
 
-    const refused = await apply('--dry-run').then(
+    const refused = await apply('--dry').then(
       () => null,
       (error: unknown) => error
     )
@@ -871,8 +871,8 @@ describe('workspaces source apply', () => {
     expect(Object.keys(record.files)).toContain('tools/lookup.ts')
     expect(Object.keys(record.files)).not.toContain('tools/lookup.js')
 
-    request.mockResolvedValue(answer({ dryRun: true }))
-    await apply('--dry-run')
+    request.mockResolvedValue(answer({ dry: true }))
+    await apply('--dry')
     expect(Object.keys(bodies()[1].files)).not.toContain('tools/lookup.js')
   })
 
@@ -1228,10 +1228,10 @@ describe('workspaces source apply', () => {
 
     it('marks the dry run, the apply and every staging call as safe to resend after a 429', async () => {
       request
-        .mockResolvedValueOnce(answer({ dryRun: true, needBlobs: ['files/a.bin'] }))
+        .mockResolvedValueOnce(answer({ dry: true, needBlobs: ['files/a.bin'] }))
         .mockResolvedValueOnce(answer())
 
-      await apply('--dry-run')
+      await apply('--dry')
       await apply('--yes')
 
       expect(request).toHaveBeenCalledTimes(2)
@@ -1292,7 +1292,7 @@ describe('workspaces source apply', () => {
       cached.stats['files/a.bin'].sha256 = recorded
       writeFileSync(statsPath, JSON.stringify(cached))
 
-      await apply('--dry-run')
+      await apply('--dry')
 
       expect(sentDigest()).toBe(recorded)
     })
@@ -1302,7 +1302,7 @@ describe('workspaces source apply', () => {
       write('files/a.bin', Buffer.from([7, 8, 9]))
       utimesSync(file(), 1000, 1000)
 
-      await apply('--dry-run')
+      await apply('--dry')
 
       expect(sentDigest()).toBe(sha([7, 8, 9]))
     })
@@ -1435,14 +1435,14 @@ describe('workspaces source apply', () => {
     expect(existsSync(join(repo, '.sim/downloads'))).toBe(false)
     git(repo, 'rm', '-q', 'files/b.txt')
     git(repo, 'commit', '-q', '-m', 'drop b')
-    request.mockResolvedValue(answer({ dryRun: true }))
+    request.mockResolvedValue(answer({ dry: true }))
 
-    await runWorkspaceSource('apply', repo, '--dry-run', '--allow-delete')
+    await runWorkspaceSource('apply', repo, '--dry', '--allow-delete')
 
     expect(bodies()[0].blobs?.map((blob) => blob.path)).toEqual(['files/a.txt'])
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         refuses: true,
         diagnostics: [
           {
@@ -1455,7 +1455,7 @@ describe('workspaces source apply', () => {
         ],
       })
     )
-    await runWorkspaceSource('apply', repo, '--dry-run')
+    await runWorkspaceSource('apply', repo, '--dry')
     expect(process.exitCode).toBe(5)
     rmSync(clone, { recursive: true, force: true })
   })
@@ -1542,13 +1542,13 @@ describe('workspaces source apply', () => {
   ])('exits on a refused dry run as a commit refusing %j would', async (codes, exitCode) => {
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         refuses: true,
         diagnostics: codes.map((code) => ({ code, severity: 'error', message: code })),
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     expect(process.exitCode).toBe(exitCode)
   })
@@ -1556,7 +1556,7 @@ describe('workspaces source apply', () => {
   it("takes a dry run's refusal from the server's answer alone, never from its findings", async () => {
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'table', key: 'leads', action: 'create', held: true },
           { kind: 'table', key: 'other', action: 'create' },
@@ -1565,7 +1565,7 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     expect(process.exitCode).toBe(15)
   })
@@ -1838,14 +1838,14 @@ describe('workspaces source apply', () => {
           key: 'draft-only',
           workflowId: 'wf_new',
           deployedVersion: null,
-          liveMatchesDraft: false,
+          needsRedeployment: false,
           live: 'not deployed',
         },
         {
           key: 'ingest',
           workflowId: 'wf_1',
           deployedVersion: 4,
-          liveMatchesDraft: true,
+          needsRedeployment: false,
           live: 'version 4, matches the draft',
         },
       ])
@@ -1873,7 +1873,8 @@ describe('workspaces source apply', () => {
         key: 'ingest',
         workflowId: 'wf_1',
         deployedVersion: 4,
-        liveMatchesDraft: false,
+        // As the deployment status reports it: false while version 5 activates; `live` says it is not live yet.
+        needsRedeployment: false,
         live: 'version 4 still serving; version 5 activating',
       })
     })
@@ -1897,7 +1898,7 @@ describe('workspaces source apply', () => {
             key: 'ingest',
             workflowId: 'wf_1',
             deployedVersion: null,
-            liveMatchesDraft: false,
+            needsRedeployment: false,
             live: 'not deployed',
           },
         ],
@@ -1916,8 +1917,8 @@ describe('workspaces source apply', () => {
       )
 
       request.mockReset()
-      request.mockResolvedValue({ data: { ...wrote.data, dryRun: true } })
-      await apply('--dry-run')
+      request.mockResolvedValue({ data: { ...wrote.data, dry: true } })
+      await apply('--dry')
       expect(request.mock.calls.map((call) => call[0])).not.toContain(
         '/api/v2/workflows/wf_1/deployment'
       )
@@ -1930,7 +1931,7 @@ describe('workspaces source apply', () => {
     vi.stubEnv('GITHUB_STEP_SUMMARY', summary)
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'table', key: 'leads', action: 'create' },
           { kind: 'workflow', key: 'ingest', action: 'update', fields: ['blocks'] },
@@ -1949,7 +1950,7 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     const markdown = readFileSync(summary, 'utf8')
     expect(markdown).toContain('### Sim workspace plan: ws_local')
@@ -1970,7 +1971,7 @@ describe('workspaces source apply', () => {
   it('carries --summary-file onto the apply it names next, quoted', async () => {
     const file = join(dir, 'my plan.md')
     request.mockResolvedValue(
-      answer({ dryRun: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+      answer({ dry: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
     )
 
     await apply('--summary-file', file)
@@ -1985,10 +1986,10 @@ describe('workspaces source apply', () => {
     const file = join(dir, 'plan.md')
     writeFileSync(file, 'an earlier run\n')
     request.mockResolvedValue(
-      answer({ dryRun: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+      answer({ dry: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
     )
 
-    await apply('--dry-run', '--summary-file', file)
+    await apply('--dry', '--summary-file', file)
 
     const markdown = readFileSync(file, 'utf8')
     expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/%]+ -->$/)
@@ -2000,9 +2001,9 @@ describe('workspaces source apply', () => {
   it('takes the summary file from SIM_SUMMARY_FILE', async () => {
     const file = join(dir, 'from-env.md')
     vi.stubEnv('SIM_SUMMARY_FILE', file)
-    request.mockResolvedValue(answer({ dryRun: true }))
+    request.mockResolvedValue(answer({ dry: true }))
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     expect(readFileSync(file, 'utf8')).toContain('### Sim workspace plan: ws_local')
   })
@@ -2051,7 +2052,7 @@ describe('workspaces source apply', () => {
     async (_case, others, exitCode) => {
       request.mockResolvedValue(
         answer({
-          dryRun: true,
+          dry: true,
           plan: [...others, { kind: 'workflow', key: 'ingest', action: 'create', held: true }],
           diagnostics: [
             {
@@ -2065,7 +2066,7 @@ describe('workspaces source apply', () => {
         })
       )
 
-      await apply('--dry-run')
+      await apply('--dry')
 
       expect(process.exitCode).toBe(exitCode)
     }
@@ -2074,7 +2075,7 @@ describe('workspaces source apply', () => {
   it('exits a dry run as refused when the server says it refuses, though its only error names a held change', async () => {
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         refuses: true,
         plan: [
           { kind: 'table', key: 'leads', action: 'create' },
@@ -2092,7 +2093,7 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     expect(process.exitCode).toBe(1)
   })

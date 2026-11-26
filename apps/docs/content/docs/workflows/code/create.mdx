@@ -13,14 +13,14 @@ Result: a new workflow created from a file, in the workspace you choose.
    sim workflows source create --dir ./lead-intake --workspace <workspaceId>
    ```
 
-   Without `--dry-run` or `--yes` this creates nothing. It writes a starter `workflow.ts` with that workspace's type declarations, `tsconfig.json` and `.sim/AGENTS.md`, and records the workspace in `.sim/starter.json`. The file starts with the `// @sim-sdk 1` line and default-exports one `workflow('Name', {}, () => { ... })`.
+   Without `--dry` or `--yes` this creates nothing. It writes a starter `workflow.ts` with that workspace's type declarations, `tsconfig.json` and `.sim/AGENTS.md`, and records the workspace in `.sim/starter.json`. The file starts with the `// @sim-sdk 1` line and default-exports one `workflow('Name', {}, () => { ... })`.
 
 2. Edit the starter and check it as in [Edit a workflow](/workflows/code/edit).
 
 3. Create the workflow:
 
    ```bash
-   sim workflows source create --dir ./lead-intake --workspace <workspaceId> --dry-run
+   sim workflows source create --dir ./lead-intake --workspace <workspaceId> --dry
    sim workflows source create --dir ./lead-intake --workspace <workspaceId> --yes
    ```
 

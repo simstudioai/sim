@@ -35,7 +35,7 @@ export const POST = defineV2JsonRoute({
     ...(body.description !== undefined ? { description: body.description } : {}),
     ...(body.folderPath !== undefined ? { folderPath: body.folderPath } : {}),
     ...(body.provenance ? { provenance: body.provenance } : {}),
-    ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
+    ...(query.dry !== undefined ? { dryRun: query.dry } : {}),
   }),
   useCase: withSourceSlot(createWorkflowFromSource, applyOrDryRunLane),
   present: (result) => ({ data: presentSourceOutcome(result) }),

@@ -81,7 +81,8 @@ interface TriggerCopilotRunInput extends BaseCopilotRunInput {
   triggerBlockId?: string
   workflowInput?: unknown
   hasWorkflowInput: boolean
-  useMockPayload: boolean
+  /** Run with the trigger's sample payload (the copilot tool's `sample` or `useMockPayload`). */
+  sample: boolean
   inputFromExecutionId?: string
 }
 
@@ -122,7 +123,7 @@ export type TriggerExecutionRequest = Pick<
   | 'triggerBlockId'
   | 'workflowInput'
   | 'hasWorkflowInput'
-  | 'useMockPayload'
+  | 'sample'
   | 'inputFromExecutionId'
 >
 
@@ -179,7 +180,7 @@ export async function resolveTriggerExecution(params: {
 
   const sourceCount =
     (params.input.hasWorkflowInput ? 1 : 0) +
-    (params.input.useMockPayload ? 1 : 0) +
+    (params.input.sample ? 1 : 0) +
     (params.input.inputFromExecutionId ? 1 : 0)
   if (sourceCount > 1) {
     throw new OrchestrationError(
@@ -187,7 +188,7 @@ export async function resolveTriggerExecution(params: {
       'Provide only one input source: workflow_input, useMockPayload: true, or inputFromExecutionId.'
     )
   }
-  if (params.input.useMockPayload) {
+  if (params.input.sample) {
     return { triggerBlockId: option.triggerBlockId, input: option.mockPayload }
   }
 

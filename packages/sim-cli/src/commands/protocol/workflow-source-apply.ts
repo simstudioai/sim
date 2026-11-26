@@ -3,6 +3,7 @@ import { SOURCE_ENTRY_FILE as ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import { publishSummary } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
+import type { NextStep } from '#sim-cli/output/next-step'
 import { setSoftExitCode } from '../../embed-context'
 import type {
   ApplyWorkflowSourceBody,
@@ -22,8 +23,8 @@ import {
 import { searchTasks } from '../search'
 import {
   type DeployedUrl,
-  deployedUrls,
   deployedUrlsText,
+  deploymentAfterDeploy,
   lockBlockNames,
   namedUrls,
 } from './deployed-urls'
@@ -66,7 +67,7 @@ import {
   type WriteMode,
   writeMode,
 } from './source-ui'
-import { type NextStep, runSourceWrite } from './source-write'
+import { runSourceWrite } from './source-write'
 import { storedEdgesWrite } from './stored-edges'
 import {
   createCommand,
@@ -82,7 +83,7 @@ type SourceApplyData = ApplyWorkflowSourceResponse['data']
 
 interface SourceWriteOptions {
   dir: string
-  dryRun?: boolean
+  dry?: boolean
   yes?: boolean
   allowDelete?: boolean
   verbose?: boolean
@@ -136,7 +137,7 @@ function diffSummary(data: SourceApplyData): string {
 
 /** Whether a write in `mode` only reads the directory: a dry run, or a plan that stops before writing. */
 function isReadOnly(mode: WriteMode): boolean {
-  return mode === 'dry-run' || mode === 'plan'
+  return mode === 'dry' || mode === 'plan'
 }
 
 type SourceWriteOperation = 'applyWorkflowSource' | 'createWorkflowFromSource'
@@ -167,10 +168,10 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   const { options, creating } = args
   assertSendableCodeFiles(args.body.files)
   /** Sends the write (or its dry run); a refusal prints its diagnostics and rethrows. */
-  const send = async (dryRun: boolean): Promise<SourceApplyData> => {
+  const send = async (dry: boolean): Promise<SourceApplyData> => {
     try {
       const query = {
-        ...(dryRun ? { dryRun: true } : {}),
+        ...(dry ? { dry: true } : {}),
         ...(options.allowDelete ? { allowDelete: true } : {}),
       }
       const response = await args.client.request<ApplyWorkflowSourceResponse>(args.operation, {
@@ -182,7 +183,7 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
       return response.data
     } catch (error) {
       return printRefusal(error, args.output, {
-        ...(dryRun ? {} : { ifAnswerLost: args.ifAnswerLost }),
+        ...(dry ? {} : { ifAnswerLost: args.ifAnswerLost }),
         verbose: options.verbose === true,
       })
     }
@@ -209,7 +210,6 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
       { ...result, ...findings.result(data.diagnostics) },
       {
         ...(result.created ? { created: createdText(result.created) } : {}),
-        ...(outcome.next ? { next: outcome.next.command } : {}),
         ...(outcome.urls?.length ? { urls: deployedUrlsText(outcome.urls) } : {}),
       }
     )
@@ -218,7 +218,7 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
     data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
   /** Whether a committed answer stored the write: not refused, and a create that applied. */
   const stored = (data: SourceApplyData) =>
-    !data.dryRun && !hasErrors(data) && (data.applied || !creating)
+    !data.dry && !hasErrors(data) && (data.applied || !creating)
   const { mode } = args
   const verb = creating ? 'create' : 'apply'
   const data = await runSourceWrite<SourceApplyData>({
@@ -271,7 +271,7 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
  */
 function planMarkdown(data: SourceApplyData, creating: boolean, live: string | undefined): string {
   const { blocks, edges } = data.diff
-  const [added, removed, modified] = data.dryRun
+  const [added, removed, modified] = data.dry
     ? ['to add', 'to remove', 'to modify']
     : ['added', 'removed', 'modified']
   const verb = creating ? 'create' : 'apply'
@@ -294,7 +294,7 @@ function planMarkdown(data: SourceApplyData, creating: boolean, live: string | u
   const errors = data.diagnostics.filter((finding) => finding.severity === 'error')
   const warnings = data.diagnostics.filter((finding) => finding.severity === 'warning').length
   return [
-    `### Sim workflow ${data.dryRun ? 'plan' : verb}: ${markdownCell(data.workflowId)}`,
+    `### Sim workflow ${data.dry ? 'plan' : verb}: ${markdownCell(data.workflowId)}`,
     '',
     data.diff.noop
       ? `No graph changes; ${errors.length} error(s), ${warnings} warning(s).`
@@ -403,7 +403,9 @@ async function deployStep(
     'this deploy',
     deployCommand
   )
-  const liveVersion = deployed.activeDeployment?.version ?? null
+  // What serves and whether the draft still differs, read back as the deployment status reports
+  // them (a pending version leaves `needsRedeployment` false); whether it is live yet is `live`'s.
+  const status = await deploymentAfterDeploy(client, data.workflowId)
   return {
     live,
     ...(next ? { next } : {}),
@@ -412,12 +414,14 @@ async function deployStep(
       isDeployed: deployed.isDeployed,
       ...(options.machine && deployed.warnings.length > 0 ? { warnings: deployed.warnings } : {}),
     },
-    deployedVersion: liveVersion,
-    // The draft is live only once the version this deploy admitted is the one serving.
-    needsRedeployment: deployed.version === undefined || liveVersion !== deployed.version,
-    ...(deployed.isDeployed
-      ? { urls: await deployedUrls(client, data.workflowId, lockBlockNames(data.lock)) }
-      : {}),
+    ...(status
+      ? {
+          deployedVersion: status.activeDeployment?.version ?? null,
+          needsRedeployment: status.needsRedeployment,
+          urls: namedUrls(status.webhooks, lockBlockNames(data.lock)),
+        }
+      : // Unread, so unknown: never the apply's own answer, read before the deploy.
+        { deployedVersion: undefined, needsRedeployment: undefined }),
   }
 }
 
@@ -438,11 +442,11 @@ function deployFailure(
   )
 }
 
-/** Refuses `--deploy` beside `--dry-run`: a dry run stores nothing to deploy. */
+/** Refuses `--deploy` beside `--dry`: a dry run stores nothing to deploy. */
 function assertDeployable(options: SourceWriteOptions): void {
-  if (options.deploy && options.dryRun) {
+  if (options.deploy && options.dry) {
     throw new CliUsageError(
-      '--deploy deploys what the write saves, and --dry-run saves nothing: drop one of them.'
+      '--deploy deploys what the write saves, and --dry saves nothing: drop one of them.'
     )
   }
 }
@@ -458,7 +462,7 @@ const DIR_DESCRIPTION =
  * defaults to the one `.sim/base.json` names; given, it must match it.
  *
  * Writing needs consent: on a terminal it shows the dry-run outcome and asks; anywhere else it
- * needs `--yes`. `--dry-run` writes nothing, so it never asks.
+ * needs `--yes`. `--dry` writes nothing, so it never asks.
  */
 export function attachWorkflowSourceApply(source: Command): void {
   const [command, connectApply] = apiCommand(source, 'apply', [
@@ -476,7 +480,7 @@ export function attachWorkflowSourceApply(source: Command): void {
       'Refuse unless .sim/base.json names this workflow (default: the workflowId there)'
     )
     .option('--dir <dir>', DIR_DESCRIPTION, '.')
-    .option('--dry-run', 'Check the source and show the outcome without saving or writing files')
+    .option('--dry', 'Check the source and show the outcome without saving or writing files')
     .option('-y, --yes', 'Apply without asking for confirmation')
     .option(
       '--deploy',
@@ -530,7 +534,7 @@ export function attachWorkflowSourceApply(source: Command): void {
               await writeBack(options.dir, data, lock, { write: edges ? [edges] : [] })
               await refreshWorkflowTsconfigs(options.dir, data)
             },
-            ifAnswerLost: `It may have been saved. Run \`sim workflows source apply ${workflowId} --dir ${options.dir} --dry-run\`: exit 5 (stale) means the draft changed since this directory was read, by this apply or by someone else. Run \`sim workflows source get ${workflowId} --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edit, \`sim workflows source get ${workflowId} --dir ${options.dir} --force\` brings this directory up to date; if not, reapply your edit in the fresh directory. Any other outcome means it was not saved: apply again.`,
+            ifAnswerLost: `It may have been saved. Run \`sim workflows source apply ${workflowId} --dir ${options.dir} --dry\`: exit 5 (stale) means the draft changed since this directory was read, by this apply or by someone else. Run \`sim workflows source get ${workflowId} --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edit, \`sim workflows source get ${workflowId} --dir ${options.dir} --force\` brings this directory up to date; if not, reapply your edit in the fresh directory. Any other outcome means it was not saved: apply again.`,
           })
         },
         { readOnly: isReadOnly(mode) }
@@ -564,9 +568,9 @@ export function attachWorkflowSourceCreate(source: Command): void {
   command
     .requiredOption(
       '--dir <dir>',
-      'Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry-run or --yes)'
+      'Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry or --yes)'
     )
-    .option('--dry-run', 'Check the source and show the outcome without creating anything')
+    .option('--dry', 'Check the source and show the outcome without creating anything')
     .option('--name <name>', "The workflow name (default: the source's)")
     .option('--folder <path>', 'The folder to create it in (default: the root)')
     .option('-y, --yes', 'Create without asking for confirmation')
@@ -584,9 +588,9 @@ export function attachWorkflowSourceCreate(source: Command): void {
         async () => {
           await assertSourceDirKind(options.dir, 'workflow')
           if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
-            if (options.dryRun || options.yes) {
+            if (options.dry || options.yes) {
               throw new SourceDirError(
-                `${options.dir} has no ${ENTRY_FILE}, so there is nothing to ${options.dryRun ? 'check' : 'create'}. Write ${ENTRY_FILE} there, or run \`sim workflows source create --dir ${options.dir}\` without --dry-run and --yes to write a starter.`
+                `${options.dir} has no ${ENTRY_FILE}, so there is nothing to ${options.dry ? 'check' : 'create'}. Write ${ENTRY_FILE} there, or run \`sim workflows source create --dir ${options.dir}\` without --dry and --yes to write a starter.`
               )
             }
             const { client, profile } = connectCreate()
@@ -665,7 +669,7 @@ function variablesChanged(variables: SourceApplyData['diff']['variables']): bool
  * workflow of a create, then each block added.
  */
 function createdResources(data: SourceApplyData, creating: boolean): CreatedResource[] {
-  const written = !data.dryRun && data.applied
+  const written = !data.dry && data.applied
   return [
     ...(creating ? [{ kind: 'workflow', ...(written ? { id: data.workflowId } : {}) }] : []),
     ...data.diff.blocks.added.map(({ key, id }) => ({
@@ -682,11 +686,11 @@ function createdResources(data: SourceApplyData, creating: boolean): CreatedReso
  * which prints them on stderr.
  */
 function summarize(data: SourceApplyData, creating: boolean, machine: boolean) {
-  const created = data.dryRun || data.applied ? createdResources(data, creating) : []
+  const created = data.dry || data.applied ? createdResources(data, creating) : []
   return {
     ...(creating && !data.applied ? {} : { workflowId: data.workflowId }),
     applied: data.applied,
-    dryRun: data.dryRun,
+    dry: data.dry,
     noop: data.diff.noop,
     ...(created.length > 0 ? { created } : {}),
     blocksAdded: data.diff.blocks.added.length,
@@ -710,6 +714,6 @@ function summarize(data: SourceApplyData, creating: boolean, machine: boolean) {
     fingerprint: data.base.fingerprint,
     deployedVersion: data.deployedVersion,
     needsRedeployment: data.needsRedeployment,
-    ...(creating && data.applied && !data.dryRun ? { guide: SOURCE_AGENTS_FILE } : {}),
+    ...(creating && data.applied && !data.dry ? { guide: SOURCE_AGENTS_FILE } : {}),
   }
 }

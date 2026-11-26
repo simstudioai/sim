@@ -153,9 +153,7 @@ describe('embedded request defaults', () => {
 
   it('asks a synchronous run for file references unless the caller wants inline bytes', async () => {
     const { requests, identity } = capture({ runId: 'run-1', status: 'completed', output: null })
-    expect((await runEmbeddedCli(['workflows', 'run', 'wf', '--manual'], identity)).exitCode).toBe(
-      0
-    )
+    expect((await runEmbeddedCli(['workflows', 'run', 'wf', '--draft'], identity)).exitCode).toBe(0)
     expect(
       (await runEmbeddedCli(['workflows', 'run', 'wf', '--include-file-base64'], identity)).exitCode
     ).toBe(0)
@@ -215,7 +213,7 @@ describe('resolveEmbeddedCliCommand', () => {
     [['--help']],
     [['workflows', 'no-such-command']],
     [['workflows', 'activate', 'create']],
-    [['workflows', 'activate', 'create', 'wf-1', '1', '--dry-run']],
+    [['workflows', 'activate', 'create', 'wf-1', '1', '--dry']],
     [['workflows', 'run', 'wf-1', '--help']],
   ])('reports no command for %j, and running it calls nothing', async (argv) => {
     expect(resolveEmbeddedCliCommand(argv)).toBeNull()

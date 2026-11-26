@@ -87,8 +87,8 @@ export interface ExecutionMetadata {
   allowLargeValueWorkflowScope?: boolean
   callChain?: string[]
   correlation?: AsyncExecutionCorrelation
-  /** A dry run's allowed and mocked blocks, recorded on its log so a rerun can name them again. */
-  dryRun?: DryRunOptions
+  /** A dry run's overrides, recorded on its log so a rerun can name them again. */
+  overrides?: RunOverrides
   executionMode?: 'sync' | 'stream' | 'async'
   /**
    * Deployed-chat thinking policy half of the SSE dual gate. Persisted so HITL
@@ -320,22 +320,18 @@ export interface ExecutionTestHooks {
   recordSpy(call: { blockId: string; input: unknown; output: unknown }): void
 }
 
-/** A block of a child workflow a dry run names. */
-interface DryRunChildBlock {
-  workflowId: string
-  blockId: string
-}
-
-/** A dry run's allowed and mocked blocks, by id; never a mock's output. */
-export interface DryRunOptions {
-  /** Blocks of the workflow it started whose writes it sent. */
-  allowBlocks: string[]
-  /** Blocks of the workflow it started answered with outputs the caller passed. */
-  mockedBlocks: string[]
-  childAllowBlocks?: DryRunChildBlock[]
-  childMockedBlocks?: DryRunChildBlock[]
+/**
+ * A dry run's overrides as a rerun names them again, never a mock's output: each entry a block
+ * selector, `<blockId>` for a block of the workflow it started and `<workflowId>.<blockId>` for one
+ * of a workflow it called.
+ */
+export interface RunOverrides {
+  /** Blocks whose writes it sent (`run.allow`). */
+  allow: string[]
+  /** Blocks answered with outputs the caller passed (`run.mocks`). */
+  mocks: string[]
   /** Blocks of the workflow it started answered with their outputs in another run. */
-  mocksFrom?: { runId: string; blockIds: string[] }
+  mocksFrom?: { runId: string; blocks: string[] }
 }
 
 /** Where a call that may change state outside the run was made: a block of one executing workflow. */
@@ -367,15 +363,17 @@ export interface ToolCallSite extends SideEffectSite {
   mcp: McpCallTarget | null
 }
 
+/**
+ * Why a dry run held back a call that is not a plain write: `placeholder`, a read whose request
+ * holds a placeholder an answer returned ({@link SideEffectPolicy.sendsPlaceholder}); `mcp-read-only`,
+ * an MCP call whose server declares the tool read-only and not destructive, a claim Sim cannot verify.
+ */
+export type StubReason = 'placeholder' | 'mcp-read-only'
+
 /** A tool call the run answers instead of sending, with the request it would have sent. */
 export interface StubbedToolCall extends ToolCallSite {
-  /**
-   * A read held back because what it sends holds a placeholder
-   * ({@link SideEffectPolicy.sendsPlaceholder}).
-   */
-  dependsOnStub: boolean
-  /** An MCP call whose server declares the tool read-only and not destructive, unverified. */
-  readOnlyHint: boolean
+  /** Why a call that is not a plain write was held back; unset for a plain write. */
+  reason?: StubReason
   /**
    * JSON Schemas of outputs the call learned beside the tool's declared ones, sampled into its
    * placeholder too: an MCP tool's discovered `outputSchema`, as `structuredContent`.
@@ -455,6 +453,11 @@ export interface SideEffectPolicy {
   codeNetwork(site: SideEffectSite): CodeNetworkPolicy
   /** Records a call that was not sent and returns the placeholder output answering it. */
   stubCall(call: StubbedToolCall): Record<string, unknown>
+  /**
+   * Whether the list {@link stubCall} records into is full, so a call's request would only be
+   * counted: building it is wasted work.
+   */
+  stubbedFull(): boolean
   /**
    * Whether `sent`, what a read would send, holds a value one of the run's placeholders returned
    * (a placeholder row's id): such a read depends on a write that was never sent, so it is answered

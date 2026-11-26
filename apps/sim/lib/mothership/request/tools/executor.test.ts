@@ -430,7 +430,7 @@ describe('executeToolAndReport provenance isolation', () => {
         request: {
           invocation: {
             kind: 'cli',
-            argv: ['workflows', 'run', 'workflow-1', '--manual'],
+            argv: ['workflows', 'run', 'workflow-1', '--draft'],
           },
         },
       },

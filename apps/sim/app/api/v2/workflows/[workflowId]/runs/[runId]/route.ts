@@ -62,7 +62,7 @@ export const GET = defineV2JsonRoute({
       blockOutputs: status.blockOutputs,
       files: status.files,
       // Only a failed dry run's: what a rerun of it names again.
-      dryRun: status.status === 'failed' ? status.dryRun : null,
+      overrides: status.status === 'failed' ? status.overrides : null,
     },
   }),
 })

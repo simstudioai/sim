@@ -633,6 +633,11 @@ export const v2BlockDetailSchema = v2BlockSummarySchema
       .string()
       .optional()
       .describe('Authored guidance on using the block correctly.'),
+    effect: v2ToolEffectSchema
+      .optional()
+      .describe(
+        "The block's effect: `write` when it runs tools its user chooses (an Agent's tools) or any of its tools writes, else `read`. Absent for a block with no tools."
+      ),
     inputSchema: z
       .array(v2BlockFieldSchema)
       .describe('Configuration fields that apply regardless of the selected operation.'),

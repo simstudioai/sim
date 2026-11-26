@@ -435,7 +435,7 @@ export type ApplyWorkflowOperationsParams = {
 }
 
 export type ApplyWorkflowOperationsQuery = {
-  dryRun?: boolean
+  dry?: boolean
 }
 
 type ApplyWorkflowOperationsBodyRef0 =
@@ -707,7 +707,7 @@ type ApplyWorkflowOperationsResponseRef3 = {
   mintedBlockIds: Record<string, string>
   previewBlockIds?: Record<string, string>
   lint: ApplyWorkflowOperationsResponseRef2
-  dryRun: boolean
+  dry: boolean
 }
 
 export type ApplyWorkflowOperationsResponse = {
@@ -720,7 +720,7 @@ export type ApplyWorkflowSourceParams = {
 }
 
 export type ApplyWorkflowSourceQuery = {
-  dryRun?: boolean
+  dry?: boolean
   allowDelete?: boolean
 }
 
@@ -778,7 +778,7 @@ export type ApplyWorkflowSourceResponse = {
   data: {
     workflowId: string
     workspaceId: string
-    dryRun: boolean
+    dry: boolean
     applied: boolean
     diff: {
       noop: boolean
@@ -1090,7 +1090,7 @@ export type ApplyWorkspaceSourceParams = {
 }
 
 export type ApplyWorkspaceSourceQuery = {
-  dryRun?: boolean
+  dry?: boolean
 }
 
 export type ApplyWorkspaceSourceBody = {
@@ -1170,7 +1170,7 @@ export type ApplyWorkspaceSourceBody = {
 export type ApplyWorkspaceSourceResponse = {
   data: {
     workspaceId: string
-    dryRun: boolean
+    dry: boolean
     plan: Array<{
       kind:
         | 'secret'
@@ -5236,7 +5236,7 @@ export type CreateWorkflowFromSourceParams = {
 }
 
 export type CreateWorkflowFromSourceQuery = {
-  dryRun?: boolean
+  dry?: boolean
   allowDelete?: boolean
 }
 
@@ -5258,7 +5258,7 @@ export type CreateWorkflowFromSourceResponse = {
   data: {
     workflowId: string
     workspaceId: string
-    dryRun: boolean
+    dry: boolean
     applied: boolean
     diff: {
       noop: boolean
@@ -7111,12 +7111,12 @@ export type ExecuteWorkflowBody = {
         version?: number
       }
     | {
-        source: 'manual'
+        source: 'draft'
         entry?:
           | {
               type: 'trigger'
               blockId?: string
-              useMockPayload?: boolean
+              sample?: boolean
             }
           | {
               type: 'block'
@@ -7125,7 +7125,7 @@ export type ExecuteWorkflowBody = {
             }
         stopAfterBlockId?: string
         dry?: boolean
-        allowBlocks?: Array<string>
+        allow?: Array<string>
         mocks?: Record<string, Record<string, unknown>>
         mocksFrom?: {
           runId: string
@@ -7172,22 +7172,21 @@ type ExecuteWorkflowResponseRef1 = {
     tool: string | null
     request: Record<string, unknown> | null
     returned: Record<string, unknown>
-    mcp: {
+    mcp?: {
       server: string
       tool: string
-    } | null
-    dependsOnStub: boolean
-    readOnlyHint: boolean
+    }
+    reason?: 'placeholder' | 'mcp-read-only'
   }>
   allowed: Array<{
     workflowId: string
     blockId: string | null
     block: string | null
     tool: string | null
-    mcp: {
+    mcp?: {
       server: string
       tool: string
-    } | null
+    }
   }>
   unchecked: Array<{
     workflowId: string
@@ -7200,40 +7199,27 @@ type ExecuteWorkflowResponseRef1 = {
     allowed: number
     unchecked: number
   }
-  unused: Array<{
+  unreached?: Array<{
     workflowId: string
     blockId: string
     block: string
-    override: 'allow' | 'mock'
+    kind: 'allow' | 'mock'
   }>
-  undeclaredMockFields: Array<{
+  mockFields?: Array<{
     workflowId: string
     blockId: string
     block: string
-    fields: Array<string>
-  }>
-  droppedMockFields: Array<{
-    workflowId: string
-    blockId: string
-    block: string
-    fields: Array<string>
+    undeclared?: Array<string>
+    dropped?: Array<string>
   }>
 }
 
 type ExecuteWorkflowResponseRef2 = {
-  allowBlocks: Array<string>
-  mockedBlocks: Array<string>
-  childAllowBlocks?: Array<{
-    workflowId: string
-    blockId: string
-  }>
-  childMockedBlocks?: Array<{
-    workflowId: string
-    blockId: string
-  }>
+  allow: Array<string>
+  mocks: Array<string>
   mocksFrom?: {
     runId: string
-    blockIds: Array<string>
+    blocks: Array<string>
   }
 }
 
@@ -7257,7 +7243,7 @@ type ExecuteWorkflowResponseRef3 = {
     }>
   } | null
   sideEffects?: ExecuteWorkflowResponseRef1
-  dryRun?: ExecuteWorkflowResponseRef2
+  overrides?: ExecuteWorkflowResponseRef2
 }
 
 type ExecuteWorkflowResponseRef4 = {
@@ -7655,6 +7641,7 @@ type GetBlockResponseRef6 = {
   docsLink?: string
   tags: Array<string>
   bestPractices?: string
+  effect?: 'read' | 'write'
   inputSchema: Array<GetBlockResponseRef0>
   operationInputSchema: Record<string, Array<GetBlockResponseRef0>>
   inputDefinitions: Record<
@@ -10433,19 +10420,11 @@ type GetWorkflowRunResponseRef3 = {
 }
 
 type GetWorkflowRunResponseRef4 = {
-  allowBlocks: Array<string>
-  mockedBlocks: Array<string>
-  childAllowBlocks?: Array<{
-    workflowId: string
-    blockId: string
-  }>
-  childMockedBlocks?: Array<{
-    workflowId: string
-    blockId: string
-  }>
+  allow: Array<string>
+  mocks: Array<string>
   mocksFrom?: {
     runId: string
-    blockIds: Array<string>
+    blocks: Array<string>
   }
 }
 
@@ -10485,7 +10464,7 @@ type GetWorkflowRunResponseRef5 = {
   output: unknown | null
   blockOutputs: Record<string, unknown> | null
   files: Array<GetWorkflowRunResponseRef3> | null
-  dryRun: GetWorkflowRunResponseRef4 | null
+  overrides: GetWorkflowRunResponseRef4 | null
 }
 
 export type GetWorkflowRunResponse = {
@@ -14541,7 +14520,7 @@ export type PlanWorkflowSourceResponse = {
   data: {
     workflowId: string
     workspaceId: string
-    dryRun: boolean
+    dry: boolean
     applied: boolean
     diff: {
       noop: boolean
@@ -14888,7 +14867,7 @@ export type PlanWorkspaceSourceBody = {
 export type PlanWorkspaceSourceResponse = {
   data: {
     workspaceId: string
-    dryRun: boolean
+    dry: boolean
     plan: Array<{
       kind:
         | 'secret'
@@ -17279,7 +17258,7 @@ export type ReplaceWorkflowStateParams = {
 }
 
 export type ReplaceWorkflowStateQuery = {
-  dryRun?: boolean
+  dry?: boolean
 }
 
 type ReplaceWorkflowStateBodyRef0 = {
@@ -17462,7 +17441,7 @@ type ReplaceWorkflowStateResponseRef1 = {
   warnings: Array<string>
   needsRedeployment: boolean
   lint: ReplaceWorkflowStateResponseRef0
-  dryRun: boolean
+  dry: boolean
 }
 
 export type ReplaceWorkflowStateResponse = {
@@ -20822,7 +20801,7 @@ export const V2_OPERATIONS = {
     summary: 'Apply workflow operations',
     workspaceKeyUnsupported: true,
     query: {
-      dryRun: {
+      dry: {
         kind: 'boolean',
         describe:
           'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.',
@@ -20859,10 +20838,10 @@ export const V2_OPERATIONS = {
     summary: 'Apply workflow source',
     workspaceKeyUnsupported: true,
     query: {
-      dryRun: {
+      dry: {
         kind: 'boolean',
         describe:
-          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.',
+          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.',
       },
       allowDelete: {
         kind: 'boolean',
@@ -20915,7 +20894,7 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Apply workspace source',
     query: {
-      dryRun: {
+      dry: {
         kind: 'boolean',
         describe:
           'Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.',
@@ -22541,10 +22520,10 @@ export const V2_OPERATIONS = {
     summary: 'Create workflow from source',
     workspaceKeyUnsupported: true,
     query: {
-      dryRun: {
+      dry: {
         kind: 'boolean',
         describe:
-          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.',
+          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.',
       },
       allowDelete: {
         kind: 'boolean',
@@ -23524,7 +23503,7 @@ export const V2_OPERATIONS = {
       run: {
         kind: 'unknown',
         describe:
-          'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
+          'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version, and `source: "draft"` the saved draft. A draft run requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
       },
       async: {
         kind: 'boolean',
@@ -28639,7 +28618,7 @@ export const V2_OPERATIONS = {
     summary: 'Replace workflow state',
     workspaceKeyUnsupported: true,
     query: {
-      dryRun: {
+      dry: {
         kind: 'boolean',
         describe:
           'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.',

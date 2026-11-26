@@ -15,7 +15,7 @@ import postgres from 'postgres'
 import type { EmbeddedCliIdentity, EmbeddedCliResult } from 'sim/embed'
 
 /**
- * Times the two CLI commands the chat agent issues most, `workflows run --manual`
+ * Times the two CLI commands the chat agent issues most, `workflows run --draft`
  * and `logs get --trace`, against a separately running local app over real HTTP.
  *
  * Each command runs through the embedded CLI (the same command tree, request
@@ -336,7 +336,7 @@ async function iterate(
 ) {
   const run = await timedCommand(
     runCli,
-    ['workflows', 'run', workflowId, '--manual', '--select-output', 'Summarize.result.count'],
+    ['workflows', 'run', workflowId, '--draft', '--select-output', 'Summarize.result.count'],
     resolve(directory, `run-${iteration}.json`)
   )
   const payload = record(JSON.parse(run.result.stdout))

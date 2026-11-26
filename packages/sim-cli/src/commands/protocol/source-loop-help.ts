@@ -20,7 +20,7 @@ whole ID after -w).`
 /** Where an author reads a run's result after running the workflow the source defines. */
 const RUN_LOGS_LINE = `Test a run: \`sim workflows run <workflowId> --dry\` runs the saved draft without sending its writes
 and lists each one, with the request it would have sent, under sideEffects (--allow <block> sends
-one block's for real; --manual runs everything for real). Debug it with \`sim logs list --workflow
+one block's for real; --draft runs everything for real). Debug it with \`sim logs list --workflow
 <workflowId>\` and \`sim logs get <runId> --trace --no-include-workflow-state\` (each block's
 resolved inputs and errors).`
 
@@ -43,7 +43,7 @@ ${loopRows([
 ])}
 Run those three as one chained command: a non-zero exit stops it at the first failure, and the next
 step fixes what it reported. Check also type-checks with TypeScript (installed once, on its first
-run; --no-types skips it). For review, \`apply --dry-run\` prints the plan and writes nothing.
+run; --no-types skips it). For review, \`apply --dry\` prints the plan and writes nothing.
 A new workflow: \`sim workflows source create --dir ./new --workspace <workspaceId>\` writes a
 starter that records its workspace; edit and check it, then \`create --dir ./new --yes\` creates the
 workflow there, and the loop above goes on from there.
@@ -68,8 +68,8 @@ ${loopRows([
 ])}
 Run those two as one chained command: a non-zero exit stops it at the first failure, and the next
 step fixes what it reported. Check also type-checks with TypeScript (installed once, on its first
-run; --no-types skips it). For review, \`apply --dry-run\` prints the plan and writes nothing.
-Promote dev to prod: \`sim workspaces source apply --dir ./ws --to <workspaceId> --dry-run\`, then
+run; --no-types skips it). For review, \`apply --dry\` prints the plan and writes nothing.
+Promote dev to prod: \`sim workspaces source apply --dir ./ws --to <workspaceId> --dry\`, then
 --yes.
 ${WORKSPACE_LINE}
 ${RUN_LOGS_LINE}

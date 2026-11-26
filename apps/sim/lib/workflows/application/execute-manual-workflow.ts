@@ -36,7 +36,8 @@ interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mod
 
 export interface ExecuteManualWorkflowInput extends ManualExecutionInput {
   triggerBlockId?: string
-  useMockPayload: boolean
+  /** Run with the selected trigger's sample payload instead of `input`. */
+  sample: boolean
 }
 
 export interface ExecuteManualWorkflowFromBlockInput extends ManualExecutionInput {
@@ -174,11 +175,8 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.executeManual,
   resolveContext: resolveContext<ExecuteManualWorkflowInput>,
   async execute({ principal, context, input }): Promise<ExecuteWorkflowServiceResult> {
-    if (input.useMockPayload && input.input !== undefined) {
-      throw new OrchestrationError(
-        'validation',
-        'input and run.entry.useMockPayload cannot be combined'
-      )
+    if (input.sample && input.input !== undefined) {
+      throw new OrchestrationError('validation', 'input and run.entry.sample cannot be combined')
     }
     const state = await loadManualState(context.workflowId)
     const options = resolveTriggerRunOptions(mergeSubblockStateWithValues(state.blocks))
@@ -211,7 +209,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
       input.stopAfterBlockId,
       selected.triggerBlockId
     )
-    const executionInput = input.useMockPayload ? selected.mockPayload : input.input
+    const executionInput = input.sample ? selected.mockPayload : input.input
     const validation = validateTriggerInput(selected, executionInput)
     if (!validation.ok) {
       if (!validation.error) throw new Error('Trigger input validation failed without an error')

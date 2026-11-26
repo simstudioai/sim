@@ -237,7 +237,7 @@ sim tables rows batch-delete tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --row row_2f81
 sim files delete wf_8Kd2NpVrY6zTfQa3XwBmS --yes
 ```
 
-Without confirmation, the command explains the consequence and stops. Commands that support a non-writing `--dry-run` do not require `--yes` for that preview.
+Without confirmation, the command explains the consequence and stops. Commands that support a non-writing `--dry` do not require `--yes` for that preview.
 
 <Callout type="warn">
 For row `batch-delete` and `batch-update`, `--limit` caps how many matching rows one call may change. It has no default: omission affects every matching row. `--limit 0` is rejected; use a whole number of at least 1. On `batch-delete`, an explicit `--row` list cannot be combined with this filter cap.

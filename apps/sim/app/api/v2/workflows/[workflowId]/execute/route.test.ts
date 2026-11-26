@@ -451,7 +451,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     })
 
     const response = await callExecute(
-      { run: { source: 'manual' }, input: { hello: 'world' } },
+      { run: { source: 'draft' }, input: { hello: 'world' } },
       { Accept: 'application/x-ndjson' }
     )
 
@@ -578,7 +578,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
     const res = await callExecute({
       input: { event: 'created' },
-      run: { source: 'manual', entry: { type: 'trigger', blockId: 'slack-trigger' } },
+      run: { source: 'draft', entry: { type: 'trigger', blockId: 'slack-trigger' } },
     })
 
     expect(res.status).toBe(200)
@@ -590,7 +590,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
           input: { event: 'created' },
           mode: 'sync',
           triggerBlockId: 'slack-trigger',
-          useMockPayload: false,
+          sample: false,
         }),
       })
     )
@@ -613,7 +613,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       keyExpiresAt: new Date('2099-01-01T00:00:00.000Z'),
     })
 
-    const response = await callOAuthExecute({ run: { source: 'manual' } })
+    const response = await callOAuthExecute({ run: { source: 'draft' } })
 
     expect(response.status).toBe(200)
     expect(mockExecuteManualTrigger).toHaveBeenCalledWith(
@@ -626,7 +626,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
   it('returns the typed workspace-key denial for manual execution', async () => {
     mockExecuteManualTrigger.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
 
-    const response = await callExecute({ run: { source: 'manual' } })
+    const response = await callExecute({ run: { source: 'draft' } })
 
     expect(response.status).toBe(403)
     expect((await response.json()).error.details.code).toBe('WORKSPACE_KEY_OPERATION_NOT_PERMITTED')
@@ -637,7 +637,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
     const res = await callExecute({
       run: {
-        source: 'manual',
+        source: 'draft',
         entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'source-run-1' },
       },
     })
@@ -665,7 +665,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       }),
     })
 
-    const response = await callExecute({ run: { source: 'manual' }, stream: true })
+    const response = await callExecute({ run: { source: 'draft' }, stream: true })
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toContain('text/event-stream')
@@ -763,19 +763,19 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
   it('rejects async manual execution and conflicting mock input before dispatch', async () => {
     authenticatePersonalKey()
 
-    const asyncResponse = await callExecute({ run: { source: 'manual' }, async: true })
+    const asyncResponse = await callExecute({ run: { source: 'draft' }, async: true })
     expect(asyncResponse.status).toBe(400)
     expect((await asyncResponse.json()).error.message).toBe(
-      'Manual execution does not support async mode'
+      'A draft run does not support async mode'
     )
 
     const conflictingInput = await callExecute({
       input: { event: 'created' },
-      run: { source: 'manual', entry: { type: 'trigger', useMockPayload: true } },
+      run: { source: 'draft', entry: { type: 'trigger', sample: true } },
     })
     expect(conflictingInput.status).toBe(400)
     expect((await conflictingInput.json()).error.message).toBe(
-      'input and run.entry.useMockPayload cannot be combined'
+      'input and run.entry.sample cannot be combined'
     )
     expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
   })
@@ -1036,11 +1036,11 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     dbChainMockFns.limit.mockReset()
     queuePublicWorkflowReads()
 
-    const response = await callPublicExecute({ run: { source: 'manual' } })
+    const response = await callPublicExecute({ run: { source: 'draft' } })
 
     expect(response.status).toBe(401)
     expect((await response.json()).error.message).toBe(
-      'Manual execution requires an OAuth access token or personal API key'
+      'A draft run requires an OAuth access token or personal API key'
     )
     expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
   })
@@ -1383,7 +1383,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       authenticatePersonalKey()
 
       const response = await callExecute({
-        run: { source: 'manual', stopAfterBlockId: 'agent-1' },
+        run: { source: 'draft', stopAfterBlockId: 'agent-1' },
         waitTimeoutSeconds: 30,
       })
 

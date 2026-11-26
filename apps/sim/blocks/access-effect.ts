@@ -1,18 +1,7 @@
+import { MODEL_PROVIDER_ACCESS_IDS } from '@/blocks/model-provider-access'
+import type { BlockConfig } from '@/blocks/types'
 import { getToolMetadata } from '@/tools/metadata'
 import type { ToolEffect } from '@/tools/types'
-
-/**
- * The `tools.access` of a block that calls a model (Agent, Router, Evaluator): one id per model
- * provider it may call, not a registered tool.
- */
-export const MODEL_PROVIDER_ACCESS_IDS: readonly string[] = [
-  'openai_chat',
-  'anthropic_chat',
-  'google_chat',
-  'xai_chat',
-  'deepseek_chat',
-  'deepseek_reasoner',
-]
 
 const MODEL_PROVIDER_ACCESS_ID_SET: ReadonlySet<string> = new Set(MODEL_PROVIDER_ACCESS_IDS)
 
@@ -24,4 +13,20 @@ const MODEL_PROVIDER_ACCESS_ID_SET: ReadonlySet<string> = new Set(MODEL_PROVIDER
  */
 export function accessIdEffect(id: string): ToolEffect {
   return getToolMetadata(id)?.effect ?? (MODEL_PROVIDER_ACCESS_ID_SET.has(id) ? 'read' : 'write')
+}
+
+/**
+ * A block's effect, the one rule every catalog reads: `write` when it runs tools its user chooses
+ * (a `tool-input` field, as an Agent has) or any of its access ids writes ({@link accessIdEffect}),
+ * else `read`. Undefined for a block with no tools at all.
+ */
+export function blockEffect(
+  block: Pick<BlockConfig, 'tools' | 'subBlocks'>
+): ToolEffect | undefined {
+  const access = block.tools?.access ?? []
+  const runsChosenTools = (block.subBlocks ?? []).some((subBlock) => subBlock.type === 'tool-input')
+  if (access.length === 0) return runsChosenTools ? 'write' : undefined
+  return !runsChosenTools && access.every((toolId) => accessIdEffect(toolId) === 'read')
+    ? 'read'
+    : 'write'
 }

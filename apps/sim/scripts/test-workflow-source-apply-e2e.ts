@@ -268,11 +268,11 @@ async function main() {
       const source = await readSource(workflowId)
       const { data } = await request(
         'POST',
-        `/api/v2/workflows/${workflowId}/source?dryRun=true`,
+        `/api/v2/workflows/${workflowId}/source?dry=true`,
         applyBody(source, edit(source.files, SCORE_CODE, 'return 1'))
       )
       assert.equal(record(data).applied, false)
-      assert.equal(record(data).dryRun, true)
+      assert.equal(record(data).dry, true)
       const blocks = await storedBlocks(workflowId)
       assert.equal(record(record(blocks[scoreId].subBlocks).code).value, SCORE_CODE)
     })
@@ -354,13 +354,13 @@ async function main() {
 
     await check('a dry-run create checks the source and creates nothing', async () => {
       const source = await readSource(workflowId)
-      const { data } = await request('POST', `${createPath}?dryRun=true`, {
+      const { data } = await request('POST', `${createPath}?dry=true`, {
         files: source.files,
         name: copyName,
       })
       const result = record(data)
       assert.equal(result.applied, false)
-      assert.equal(result.dryRun, true)
+      assert.equal(result.dry, true)
       await request('GET', `/api/v2/workflows/${String(result.workflowId)}/source`, undefined, 404)
     })
 
@@ -417,7 +417,7 @@ async function main() {
       const source = await readSource(workflowId)
       const body = await request(
         'POST',
-        `${createPath}?dryRun=true`,
+        `${createPath}?dry=true`,
         { files: source.files, name: copyName },
         409
       )

@@ -26,7 +26,7 @@ export const POST = defineV2JsonRoute({
   parseOptions: { maxBodyBytes: MAX_IMPORT_BODY_BYTES },
   mapInput: ({ params, query, body }) => ({
     workflowId: params.workflowId,
-    dryRun: query.dryRun,
+    dryRun: query.dry,
     operations: body.operations,
     atomic: body.atomic,
     layout: body.layout,
@@ -53,7 +53,7 @@ export const POST = defineV2JsonRoute({
       lint: presentWorkflowLint(result.lint),
       warnings: result.warnings,
       needsRedeployment: result.needsRedeployment,
-      dryRun: result.dryRun,
+      dry: result.dryRun,
     },
   }),
 })

@@ -23,6 +23,13 @@ const attempt = (version: number, status: string, error?: string, isCurrent = tr
 
 const STATUS = `sim workflows deployment status ${ID}  # shows when version 7 is live`
 
+/** A `next` written as the command, then why after `  # `, as the object the result carries. */
+function step(text: string | undefined) {
+  if (text === undefined) return undefined
+  const [command, reason] = text.split('  # ')
+  return { command, reason }
+}
+
 describe('withDeploymentLive after a deploy', () => {
   it.each([
     {
@@ -33,7 +40,8 @@ describe('withDeploymentLive after a deploy', () => {
         latestDeploymentAttempt: attempt(7, 'active'),
       },
       live: 'version 7, serving (this deploy)',
-      next: `sim workflows run ${ID}  # runs version 7, the live deployment; add --input '<json>' for its input, or --manual to run the draft`,
+      // Nothing follows a serving deploy: running it would send real writes.
+      next: undefined,
     },
     {
       name: 'the older version still serves while the new one activates',
@@ -110,7 +118,7 @@ describe('withDeploymentLive after a deploy', () => {
     const shown = withDeploymentLive('deployWorkflow', payload) as Record<string, unknown>
     expect(Object.keys(shown)[0]).toBe('live')
     expect(shown.live).toBe(live)
-    expect(shown.next).toBe(next)
+    expect(shown.next).toEqual(step(next))
   })
 
   it('names a rollback and an activation as what made the version live', () => {
@@ -127,6 +135,7 @@ describe('withDeploymentLive after a deploy', () => {
     expect(withDeploymentLive('activateWorkflowVersion', payload)).toMatchObject({
       live: 'version 5, serving (this activation)',
     })
+    expect(withDeploymentLive('rollbackWorkflow', payload)).not.toHaveProperty('next')
     // Only a deploy names itself as the retry of a failure.
     const failed = {
       ...payload,
@@ -189,7 +198,7 @@ describe('withDeploymentLive on a deployment status', () => {
     const payload = { id: ID, isDeployed: response.activeDeployment !== null, ...response }
     const shown = withDeploymentLive('getWorkflowDeployment', payload) as Record<string, unknown>
     expect(shown.live).toBe(live)
-    expect(shown.next).toBe(next)
+    expect(shown.next).toEqual(step(next))
   })
 
   it('leaves any other operation as it was', () => {

@@ -77,7 +77,7 @@ export async function runWorkflowForTest(
       workflowInput: input.workflowInput,
       hasWorkflowInput: true,
       ...(input.triggerBlockId ? { triggerBlockId: input.triggerBlockId } : {}),
-      useMockPayload: false,
+      sample: false,
     },
     workspaceId: context.workspaceId,
   })

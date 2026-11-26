@@ -7,7 +7,8 @@ import {
 } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { v2RunDryRunSchema } from '@/lib/api/contracts/v2/workflows'
+import { z } from 'zod'
+import { v2RunOverridesSchema } from '@/lib/api/contracts/v2/workflows'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
@@ -30,7 +31,7 @@ import { runFailureMessage } from '@/lib/workflows/executor/failure-message'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { namePausePoints, pauseBaseBlockId } from '@/lib/workflows/executor/pause-block-names'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
-import type { DryRunOptions } from '@/executor/execution/types'
+import type { RunOverrides } from '@/executor/execution/types'
 import type { PauseInputField, PausePoint, ResumeStatus } from '@/executor/types'
 import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
@@ -48,7 +49,7 @@ type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 interface ExecutionDataShape {
   finalOutput?: unknown
   traceSpans?: unknown
-  trigger?: { data?: { dryRun?: unknown; placeholdersRecorded?: unknown } }
+  trigger?: { data?: { overrides?: unknown; dryRun?: unknown; placeholdersRecorded?: unknown } }
 }
 
 function resolvePath(value: unknown, path: string[]): unknown {
@@ -270,14 +271,14 @@ export interface ProjectedWorkflowExecutionStatus {
    */
   failedBlock: FailedTraceBlock | null
   /**
-   * A dry run's allowed and mocked blocks, whatever its status, when the read loads execution data
+   * A dry run's overrides, whatever its status, when the read loads execution data
    * (a failed run, or one read with its output or selected block outputs); null otherwise, for any
    * other run, or when the viewer's group withholds execution data. The v2 run read returns only
    * a failed run's, and a `run.mocksFrom` read always selects block outputs.
    *
    * permission-group-enforced: logs.trace_spans
    */
-  dryRun: DryRunOptions | null
+  overrides: RunOverrides | null
   /**
    * The blocks named by `selectedOutputs` that a dry run answered, or a call of which it answered,
    * with a placeholder, so their outputs may hold made-up values; empty for any other run. Null
@@ -319,7 +320,7 @@ export async function getProjectedWorkflowExecutionStatus(
     stateExecutionId: resolved.stateExecutionId,
     pausePoints: resolved.pausePoints,
     failedBlock: projection.hideTraceSpans ? null : resolved.failedBlock,
-    dryRun: projection.hideTraceSpans ? null : resolved.dryRun,
+    overrides: projection.hideTraceSpans ? null : resolved.overrides,
     placeholderBlockIds: projection.hideTraceSpans ? null : resolved.placeholderBlockIds,
   }
 }
@@ -385,8 +386,8 @@ interface ResolvedExecutionStatus {
   pausePoints: unknown
   /** The failing block the recorded trace names, when the answered `error` is the run's own. */
   failedBlock: FailedTraceBlock | null
-  /** A dry run's allowed and mocked blocks, as its log's trigger recorded them, when execution data was read. */
-  dryRun: DryRunOptions | null
+  /** A dry run's overrides, as its log's trigger recorded them, when execution data was read. */
+  overrides: RunOverrides | null
   /**
    * The selected blocks a dry run answered, or a call of which it answered, with a placeholder;
    * null for a test run logged before its block states marked them.
@@ -481,7 +482,7 @@ async function readWorkflowExecutionStatus(
         stateExecutionId: executionId,
         pausePoints: null,
         failedBlock: null,
-        dryRun: null,
+        overrides: null,
         placeholderBlockIds: [],
       }
     }
@@ -510,7 +511,7 @@ async function readWorkflowExecutionStatus(
       stateExecutionId: executionId,
       pausePoints: null,
       failedBlock: null,
-      dryRun: null,
+      overrides: null,
       placeholderBlockIds: [],
     }
   }
@@ -529,7 +530,7 @@ async function readWorkflowExecutionStatus(
       pausePoints: run.pausePoints,
       failedBlock:
         status.status === 'failed' && run.status.status === 'failed' ? run.failedBlock : null,
-      dryRun: null,
+      overrides: null,
       placeholderBlockIds: [],
     }
   }
@@ -615,7 +616,7 @@ async function readWorkflowExecutionStatus(
       stateExecutionId: executionId,
       pausePoints: paused ? pausedRow?.pausePoints : null,
       failedBlock: null,
-      dryRun: null,
+      overrides: null,
       placeholderBlockIds: [],
     }
   }
@@ -651,7 +652,7 @@ async function readWorkflowExecutionStatus(
     stateExecutionId: executionId,
     pausePoints: paused ? pausedRow?.pausePoints : null,
     failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans, error) : null,
-    dryRun: logRow.trigger === TEST_TRIGGER ? readDryRun(executionData) : null,
+    overrides: logRow.trigger === TEST_TRIGGER ? readOverrides(executionData) : null,
     placeholderBlockIds:
       logRow.trigger !== TEST_TRIGGER || executionData?.trigger?.data?.placeholdersRecorded === true
         ? [...materialized.placeholderBlockIds]
@@ -659,14 +660,40 @@ async function readWorkflowExecutionStatus(
   }
 }
 
+const legacyChildBlockSchema = z.object({ workflowId: z.string(), blockId: z.string() })
+
 /**
- * A dry run's allowed and mocked blocks from its log's trigger, recovered with the rest of the
- * execution data however it was stored; null for a test run that recorded none (a workflow test)
- * or a record not in that shape.
+ * The only other shape a log holds overrides in: a dry run logged before they were named
+ * `overrides` listed its own blocks by id, a child's apart with its workflow id, and the blocks
+ * mocked from another run under `blockIds`.
  */
-function readDryRun(executionData: ExecutionDataShape | null): DryRunOptions | null {
-  const parsed = v2RunDryRunSchema.safeParse(executionData?.trigger?.data?.dryRun)
-  return parsed.success ? parsed.data : null
+const legacyDryRunSchema = z.object({
+  allowBlocks: z.array(z.string()),
+  mockedBlocks: z.array(z.string()),
+  childAllowBlocks: z.array(legacyChildBlockSchema).optional(),
+  childMockedBlocks: z.array(legacyChildBlockSchema).optional(),
+  mocksFrom: z.object({ runId: z.string(), blockIds: z.array(z.string()) }).optional(),
+})
+
+/**
+ * A dry run's overrides from its log's trigger, recovered with the rest of the execution data
+ * however it was stored, a log written before they were named `overrides` included; null for a
+ * test run that recorded none (a workflow test) or a record not in either shape.
+ */
+function readOverrides(executionData: ExecutionDataShape | null): RunOverrides | null {
+  const data = executionData?.trigger?.data
+  const parsed = v2RunOverridesSchema.safeParse(data?.overrides)
+  if (parsed.success) return parsed.data
+  const legacy = legacyDryRunSchema.safeParse(data?.dryRun)
+  if (!legacy.success) return null
+  const { allowBlocks, mockedBlocks, childAllowBlocks, childMockedBlocks, mocksFrom } = legacy.data
+  const childSelector = ({ workflowId, blockId }: { workflowId: string; blockId: string }) =>
+    `${workflowId}.${blockId}`
+  return {
+    allow: [...allowBlocks, ...(childAllowBlocks ?? []).map(childSelector)],
+    mocks: [...mockedBlocks, ...(childMockedBlocks ?? []).map(childSelector)],
+    ...(mocksFrom ? { mocksFrom: { runId: mocksFrom.runId, blocks: mocksFrom.blockIds } } : {}),
+  }
 }
 
 /**

@@ -157,7 +157,7 @@ describe('a refused source write in JSON output', () => {
     }
     try {
       const { stderr, exitCode } = await runAgainst(
-        ['--output', 'json', 'workflows', 'source', 'apply', workflowId, '--dir', dir, '--dry-run'],
+        ['--output', 'json', 'workflows', 'source', 'apply', workflowId, '--dir', dir, '--dry'],
         new Response(
           JSON.stringify({
             error: {
