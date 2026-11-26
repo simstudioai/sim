@@ -191,7 +191,8 @@ export const liveSearchInvolvingSchema = z
   .string()
   .transform(normalizeEmail)
   .refine((value) => value === 'me' || isValidEmailSyntax(value), {
-    message: 'involving must be "me" or an email address.',
+    message:
+      'involving takes "me" or an email address, not a name. Find the person\'s email first, or search without involving.',
   })
 
 /** Chunks a search asks for at first paint, and once the reader asks for more; both within `topK`'s bound. */
