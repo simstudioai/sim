@@ -1,0 +1,334 @@
+---
+slug: enterprise-ai-agent-platform-rfp-template
+title: 'Enterprise AI Agent Platform RFP Template'
+description: 'Use this enterprise AI agent platform RFP template to evaluate security, governance, integrations, deployment, proof of concept, and rollout readiness.'
+date: 2026-11-26
+updated: 2026-11-26
+authors:
+  - andrew
+readingTime: 13
+tags: [AI Agents, Enterprise, Procurement, Governance, Sim]
+ogImage: /library/enterprise-ai-agent-platform-rfp-template/cover.jpg
+draft: false
+faq:
+  - q: "What is the best enterprise AI agent platform?"
+    a: "The right enterprise AI agent platform is a qualified vendor that passes every mandatory control and provides the strongest evidence for the organization’s systems, deployment model, governance needs, and use cases. Sim fits teams that prioritize an open-source core, self-hosting, model choice, and separately licensed enterprise controls."
+  - q: "What are the best tools for building AI agents that integrate with our enterprise stack?"
+    a: "Sim, n8n, and platforms tied to major cloud, CRM, automation, and data ecosystems can fit enterprise integration requirements, but the right tool is the one that completes the buyer’s required transactions with approved authentication, governance, failure handling, and observability."
+  - q: "How many vendors should an enterprise invite to an AI agent platform RFP?"
+    a: "An enterprise should normally invite three to five credible AI agent platform vendors so the evaluation remains competitive without making demonstrations, security reviews, and evidence collection unmanageable."
+  - q: "Who should own an enterprise AI agent platform RFP?"
+    a: "The enterprise AI agent platform RFP should have one accountable business or technology owner supported by security, identity, architecture, data, legal, procurement, finance, operations, and representatives of the first adopting teams."
+  - q: "Should n8n be included in an enterprise AI agent platform RFP?"
+    a: "n8n should be included when self-hostable workflow automation, broad connectivity, and its source-available licensing terms fit the enterprise’s requirements, but it should be evaluated against the same mandatory controls and proof-of-concept tests as Sim and every other vendor."
+  - q: "Is open-source licensing mandatory when selecting an AI agent platform?"
+    a: "Open-source licensing is not mandatory for every enterprise AI agent platform purchase, but it can materially affect self-hosting rights, inspection, modification, portability, vendor dependence, and long-term operating options."
+  - q: "How long should an enterprise AI agent platform RFP process take?"
+    a: "An enterprise AI agent platform RFP should last only long enough to complete mandatory reviews and a representative proof of concept, with the schedule determined by security complexity, integration access, contracting, and stakeholder availability rather than an arbitrary fixed duration."
+  - q: "Should every department use the same AI agent platform?"
+    a: "One enterprise AI agent platform should serve as the governed default when it meets shared requirements, while documented exceptions should remain available for specialized use cases that the standard platform cannot safely or economically support."
+  - q: "Can an RFP evaluation compensate for a failed security requirement?"
+    a: "A favorable overall evaluation should never compensate for a failed mandatory security, legal, identity, data-residency, or critical-integration requirement unless an authorized risk owner approves a documented exception."
+  - q: "How should procurement handle vendor claims that depend on a future roadmap?"
+    a: "Procurement should treat an AI agent platform roadmap item as unavailable unless the contract contains a specific delivery commitment, acceptance criteria, remedy, and date that fit the buyer’s implementation schedule."
+  - q: "What should happen if two AI agent platforms appear equally suitable?"
+    a: "An enterprise should use predeclared factors such as mandatory-control strength, proof-of-concept results, total cost, implementation risk, portability, and reference evidence rather than adding subjective criteria after the evaluation."
+  - q: "How often should an enterprise reevaluate its selected AI agent platform?"
+    a: "An enterprise should reevaluate its selected AI agent platform at least annually and before major renewal, expansion, deployment, regulatory, pricing, ownership, or architecture changes."
+---
+
+## TL;DR
+
+An enterprise AI agent platform RFP should combine mandatory security gates, approximately 40 vendor questions, a proof-of-concept plan, a consistent evidence matrix, commercial assumptions, and a governed rollout checklist.
+
+Copy the questions and tables below into your procurement system, spreadsheet, or vendor questionnaire. Apply mandatory criteria as pass/fail gates before comparing qualified vendors. Avoid reducing the decision to a single numeric total, which can hide a failed control or unsupported claim.
+
+## Which criteria matter when standardizing on one enterprise AI agent platform?
+
+An enterprise standard should prioritize security and compliance, governance and access control, integrations, model choice, deployment flexibility, observability, cost controls, and support.
+
+The right shortlist depends on the operating model:
+
+- **Sim** fits enterprises that want the open-source AI workspace, a visual builder, self-hosting options, model choice, and separately licensed enterprise controls such as SSO, SCIM, access control, and audit logs.
+- **n8n** can fit when the incumbent requirement is broad workflow automation with a self-hostable, source-available product.
+- Other enterprise platforms may fit when a company is already committed to a specific cloud, CRM, automation suite, or data platform.
+
+For a wider vendor comparison, use [Best Enterprise AI Agent Platforms in 2026: SSO, SCIM, RBAC, and Audit Logs](https://www.sim.ai/library/best-ai-agent-platforms-for-enterprise-teams-2026).
+
+## What should an enterprise AI agent platform RFP include?
+
+An enterprise AI agent platform RFP should include company context, mandatory gates, 40 structured vendor questions, evidence requirements, proof-of-concept requirements, commercial terms, and rollout expectations.
+
+Start the RFP with this copyable summary:
+
+> Our organization is selecting one primary AI agent platform for use across multiple departments. The platform must support governed development, deployment, monitoring, and lifecycle management while integrating with our existing technology stack. Vendors must identify whether each capability is generally available, plan-dependent, separately licensed, or dependent on custom services. Responses must include supporting documentation and a live demonstration for mandatory controls.
+
+Ask every vendor to provide:
+
+1. A completed response to all questions below.
+2. A pass/fail response for every mandatory criterion.
+3. Documentation supporting security, deployment, licensing, and pricing claims.
+4. A complete three-year cost model based on the usage assumptions supplied in the RFP.
+5. A proof-of-concept plan using the buyer’s systems and representative workflows.
+6. Named owners for implementation, security escalation, and ongoing support.
+
+## What security and compliance questions should the RFP ask?
+
+An AI agent platform security review should establish how the vendor protects data, credentials, models, agent actions, and administrative access.
+
+1. Which security certifications, independent audits, and compliance attestations currently cover the service and its relevant subprocessors?
+2. How is customer data encrypted in transit and at rest, and who controls the encryption keys?
+3. Is customer data, prompt content, or agent output used to train vendor or third-party models, and how can that use be contractually disabled?
+4. How are credentials stored, scoped, rotated, revoked, and prevented from appearing in prompts, logs, traces, or outputs?
+5. What controls prevent prompt injection, unauthorized tool use, data exfiltration, and agents taking actions outside approved boundaries?
+
+Require evidence rather than a yes-or-no response. Acceptable evidence can include current audit reports, architecture documents, data-flow diagrams, penetration-test summaries, security documentation, and contractual commitments.
+
+## What governance and access-control questions should the RFP ask?
+
+An AI agent platform governance review should determine whether different departments can build and operate agents without receiving unnecessary access to data, credentials, or production environments.
+
+6. Does the platform support SAML or OIDC single sign-on, and which identity providers have documented configurations?
+7. Does the platform support SCIM provisioning and deprovisioning for users and groups?
+8. Which roles, permissions, workspace boundaries, and environment controls can administrators configure?
+9. Do audit logs record administrative changes, workflow edits, credential access, deployments, approvals, and production runs, and how can those logs be exported?
+10. Can administrators require human approval, separation of duties, or policy checks before high-risk actions and production deployment?
+
+The vendor should demonstrate the complete joiner, mover, and leaver lifecycle rather than showing only an SSO login screen. [Governing AI Agents Built by Different Teams in One Enterprise Workspace](https://www.sim.ai/library/govern-ai-agents-multiple-teams-enterprise-workspace) provides a deeper operating model.
+
+## What integration questions should the RFP ask?
+
+An AI agent platform integration review should test the specific systems, authentication methods, triggers, actions, and data volumes the enterprise plans to use.
+
+11. Which required systems have maintained native integrations, and which require HTTP, webhook, code, database, or MCP connections?
+12. Which authentication methods does each integration support, including OAuth, service accounts, API keys, managed identities, and short-lived credentials?
+13. Can administrators restrict integrations, actions, domains, credentials, and data sources by team, workspace, role, or environment?
+14. How does the platform handle rate limits, pagination, retries, duplicate events, idempotency, timeouts, and partial failures?
+15. What is the process and typical lead time for adding, reviewing, updating, and deprecating integrations?
+
+Create a required-integration appendix listing each system, operation, authentication method, expected volume, data classification, and owner. Do not compare vendors by connector count alone. Compare successful completion of representative transactions, using [Best AI Agent Platforms for Connecting Your Existing Tools](https://www.sim.ai/library/best-ai-agent-platforms-for-connecting-your-existing-tools) as a focused evaluation guide.
+
+## What model-choice questions should the RFP ask?
+
+An AI agent platform model review should measure provider choice, key ownership, routing controls, portability, and the ability to use approved local models where required.
+
+16. Which hosted, third-party, and local model providers can the platform use in each deployment model?
+17. Can the customer bring workspace-level or organization-level model-provider keys, and which plans or licenses are required?
+18. Can administrators allow or block models and providers by workspace, team, environment, data classification, or use case?
+19. Can builders change models without rebuilding the workflow, and how are model-specific prompts, tools, and structured outputs tested after a change?
+20. How does the platform report model usage, latency, errors, token consumption, and cost by agent, workflow, team, and provider?
+
+Require the proof of concept to run the same representative task on at least two approved models. Compare task success, latency, failure modes, and total cost rather than relying on a generic model benchmark.
+
+## What deployment questions should the RFP ask?
+
+An AI agent platform deployment review should establish where the platform, execution layer, data, credentials, and models can run.
+
+21. Which deployment options are supported, including vendor cloud, customer cloud, virtual private cloud, on-premises infrastructure, and isolated environments?
+22. Which components remain vendor-hosted in each deployment option, and what customer data or metadata leaves the selected environment?
+23. What infrastructure, orchestration, database, networking, storage, backup, and upgrade responsibilities belong to the customer?
+24. How are development, test, staging, and production environments separated, promoted, versioned, and rolled back?
+25. What disaster-recovery objectives, regional options, data-residency controls, high-availability configurations, and capacity limits apply?
+
+Ask vendors to supply a deployment architecture for the proposed configuration, not a generic reference architecture. [AI Agent Hosting: Where Should IT Run Production Agents?](https://www.sim.ai/library/ai-agent-hosting-models-production-agents) explains the tradeoffs among hosted, private, and self-hosted deployments.
+
+## What observability questions should the RFP ask?
+
+An AI agent platform observability review should show whether operators can reconstruct a run, diagnose failures, evaluate output quality, and alert the correct owner.
+
+26. Which prompts, model calls, tool calls, inputs, outputs, decisions, errors, latency measurements, and costs appear in a trace?
+27. Can sensitive fields be redacted, masked, excluded, or access-restricted in logs and traces?
+28. Can teams define automated evaluations, regression tests, quality thresholds, and production monitoring for agent behavior?
+29. How are failed, delayed, looping, or unusually expensive runs detected, alerted, retried, paused, or terminated?
+30. Can telemetry be retained for configurable periods and exported to the enterprise’s logging, SIEM, data, or observability systems?
+
+The proof of concept should deliberately trigger authentication failures, model errors, malformed outputs, timeouts, and downstream API failures. The vendor should demonstrate how an operator identifies the cause and safely recovers.
+
+## What cost-control questions should the RFP ask?
+
+An AI agent platform cost review should expose every billing unit, infrastructure expense, model charge, premium control, and scaling assumption over the contract term.
+
+31. What units drive platform charges, and how are retries, testing, failed runs, idle capacity, concurrency, and overages billed?
+32. Which security, governance, deployment, observability, and support capabilities require a higher plan, separate license, or professional-services engagement?
+33. Can administrators set budgets, quotas, provider restrictions, rate limits, concurrency limits, and alerts by organization, workspace, team, agent, or model?
+34. How are model-provider charges handled when the customer uses vendor-hosted keys, customer-owned keys, or local models?
+35. What would the complete one-year and three-year cost be under the buyer’s low, expected, and high usage scenarios?
+
+Require vendors to return the same pricing workbook. Include platform subscriptions, usage charges, model costs, infrastructure, implementation, support, training, migration, security add-ons, and expected internal staffing.
+
+## What support and vendor-viability questions should the RFP ask?
+
+An AI agent platform support review should confirm who responds to incidents, maintains critical integrations, supports upgrades, and remains accountable throughout the contract.
+
+36. Which support channels, hours, severity definitions, response targets, resolution targets, and escalation paths are included in the proposed plan?
+37. Who supports self-hosted deployments, model-provider incidents, third-party integrations, custom code, and customer-managed infrastructure?
+38. What implementation, architecture review, migration, training, and change-management services are included or available?
+39. How does the vendor communicate security incidents, breaking changes, deprecations, outages, maintenance, and roadmap changes?
+40. What contractual terms cover data export, workflow portability, termination assistance, service discontinuation, acquisition, and vendor failure?
+
+Ask the vendor to name the executive sponsor, implementation owner, support owner, and security escalation contact assigned to the account.
+
+## How should an enterprise compare qualified RFP responses?
+
+An enterprise should apply pass/fail gates first and then compare qualified platforms through a consistent evidence matrix. A single numeric total can create false precision and allow strengths in one area to obscure an unacceptable weakness in another.
+
+Use this decision record for each criterion:
+
+| Criterion | Mandatory gate | Vendor response | Evidence reviewed | Demonstration result | Material gaps | Risk owner and disposition |
+|---|---|---|---|---|---|---|
+| Security and compliance | Pass / Fail |  |  |  |  |  |
+| Governance and access control | Pass / Fail |  |  |  |  |  |
+| Integrations | Pass / Fail |  |  |  |  |  |
+| Model choice | Pass / Fail |  |  |  |  |  |
+| Deployment | Pass / Fail |  |  |  |  |  |
+| Observability | Pass / Fail |  |  |  |  |  |
+| Cost controls and total cost | Pass / Fail |  |  |  |  |  |
+| Support and vendor viability | Pass / Fail |  |  |  |  |  |
+
+Compare only vendors that pass every mandatory gate. Record the evidence supporting the provisional decision, the remaining risks, the owner of each risk, and any contractual commitment needed before award.
+
+## Which requirements should be must-haves versus nice-to-haves?
+
+An enterprise should classify controls that prevent unacceptable security, legal, operational, or integration risk as must-haves and treat differentiating conveniences as nice-to-haves.
+
+### What should be mandatory in an enterprise AI agent platform RFP?
+
+Enterprise AI agent platform mandatory requirements should reflect the buyer’s actual risk boundaries rather than a generic feature list.
+
+A typical mandatory gate list is:
+
+- Federated SSO for workforce access.
+- Automated deprovisioning where the identity lifecycle requires it.
+- Access controls and workspace or environment separation.
+- Exportable audit records for required administrative and production events.
+- Contractual restrictions on training with customer data.
+- Credential isolation, revocation, and rotation controls.
+- Support for every critical system in the integration appendix.
+- A deployment and data-residency model approved by security and legal teams.
+- A documented incident-response and escalation process.
+- Data and workflow export at contract termination.
+- A successful proof of concept using representative systems and controls.
+
+A failed mandatory gate should disqualify the response or require a formally approved exception with an owner and deadline.
+
+### What can be treated as a nice-to-have?
+
+Enterprise AI agent platform nice-to-haves should improve adoption or efficiency without compensating for a failed security or operational requirement.
+
+Possible nice-to-haves include:
+
+- Additional model providers beyond the approved minimum.
+- Prebuilt templates for lower-priority use cases.
+- Extra native connectors beyond the required-integration appendix.
+- Advanced collaboration conveniences.
+- Optional marketplace assets.
+- Additional training formats or community resources.
+- Accelerated support beyond the required service level.
+
+Move an item into the mandatory list whenever its absence would block a committed use case, regulatory duty, or operating model.
+
+## How do I assess AI agent platforms through a proof of concept and proof of value?
+
+An AI agent platform proof of concept should establish technical and control feasibility, while a proof of value should establish measurable business benefit and operating viability.
+
+Use the proof of concept to test:
+
+- SSO login and user deprovisioning.
+- Role, workspace, credential, and environment boundaries.
+- One low-risk and one high-risk workflow.
+- At least two required enterprise integrations.
+- At least two approved models where model portability matters.
+- Human approval before a consequential action.
+- Traceability from trigger through model and tool calls to final action.
+- Failure handling, retries, rollback, and incident diagnosis.
+- Deployment promotion from test to production-like environments.
+- Workflow and data export.
+
+Use the proof of value to measure:
+
+- Task completion rate and output quality.
+- Cycle-time reduction.
+- Human review and correction effort.
+- Cost per successful outcome.
+- Adoption by intended builders and operators.
+- Security and support workload.
+- Time required to deploy a second use case.
+
+Set thresholds before testing. A useful decision record includes the metric, baseline, target, observed result, evidence, owner, and disposition for every failed threshold. [How to Pilot an AI Agent Platform Through Security Review](https://www.sim.ai/library/pilot-ai-agent-platform-security-review) provides the detailed pilot process.
+
+## What rollout checklist should an enterprise use?
+
+An enterprise AI agent platform rollout should begin with ownership and identity controls, progress through limited production use, and expand only after security, operations, and business owners approve the evidence.
+
+### Phase 1: Establish ownership
+
+An enterprise AI agent platform needs named executive, product, security, identity, legal, procurement, data, and operations owners before rollout begins.
+
+- [ ] Name the executive sponsor and platform owner.
+- [ ] Create the steering group and escalation path.
+- [ ] Approve initial use cases and prohibited uses.
+- [ ] Complete legal, privacy, security, and procurement reviews.
+- [ ] Adopt an acceptable-use policy for employees and contractors.
+
+### Phase 2: Configure the control plane
+
+An enterprise AI agent platform should have identity, access, logging, credential, and environment controls configured before teams deploy production agents.
+
+- [ ] Configure SSO and test enforced login.
+- [ ] Configure provisioning and deprovisioning where required.
+- [ ] Define roles, groups, workspaces, and environment boundaries.
+- [ ] Establish credential ownership and rotation procedures.
+- [ ] Export audit and operational events to required systems.
+- [ ] Configure approved models, integrations, and data sources.
+- [ ] Document exception and access-request procedures.
+
+### Phase 3: Run a controlled pilot
+
+An enterprise AI agent platform pilot should use representative data and systems while limiting production impact.
+
+- [ ] Select two or three bounded workflows.
+- [ ] Establish technical, risk, adoption, and value thresholds.
+- [ ] Test normal operations and deliberate failure conditions.
+- [ ] Review traces, outputs, permissions, costs, and incidents.
+- [ ] Record security, legal, operations, and business approvals.
+
+### Phase 4: Expand with gates
+
+An enterprise AI agent platform should expand by use-case risk tier rather than opening unrestricted access to every team at once.
+
+- [ ] Approve the first production deployment.
+- [ ] Train builders, reviewers, administrators, and support teams.
+- [ ] Register production agents and assign business owners.
+- [ ] Set review dates for access, credentials, performance, and cost.
+- [ ] Require stronger approval for agents that change records, spend money, contact customers, or access sensitive data.
+- [ ] Review platform performance before onboarding another department.
+
+## How does Sim address enterprise RFP criteria?
+
+Sim fits teams that need the open-source AI workspace with a visual builder, self-hosting, model choice, workspace BYOK, and separately licensed enterprise identity, access, and audit capabilities.
+
+As of November 2026:
+
+- **SSO, SCIM, access control, and audit logs:** Sim’s SSO, SCIM, access control, access requests, audit logs, session policies, data retention, data drains, credential groups, and related enterprise code are in `apps/sim/ee` under the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Production use of that code requires an active Sim Enterprise subscription.
+- **Self-hosting and licensing:** [Sim’s core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while the enterprise capabilities above remain subject to the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+- **Local models:** Self-hosted Sim deployments can connect to Ollama, vLLM, LM Studio, or LiteLLM without requiring Enterprise, as documented in Sim’s [self-hosting guide](https://docs.sim.ai/platform/self-hosting/docker).
+- **Bring your own key:** Workspace BYOK keys work on every Sim Cloud plan. Organization-level keys require Pro for Teams, Max for Teams, or Enterprise, according to Sim’s [BYOK documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok).
+
+These capabilities should still be demonstrated against the organization’s identity provider, required systems, deployment architecture, and access model during the proof of concept.
+
+## What should procurement know about Sim and n8n?
+
+Procurement should compare Sim and n8n using their exact licenses, self-hosting terms, enterprise controls, and billing units rather than treating both products as identically open source.
+
+As of November 2026:
+
+- **Sim:** Sim’s core is Apache 2.0 and can be self-hosted, while `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Workspace BYOK is available on every Sim Cloud plan.
+- **n8n:** n8n offers a self-hosted Community Edition under its [Sustainable Use License](https://docs.n8n.io/n8n-community-license/), which n8n describes as fair-code rather than an open-source license. Its [cloud pricing](https://n8n.io/pricing/) uses monthly workflow executions as the primary billing unit.
+
+A license comparison is not a substitute for testing governance, support, integrations, and total cost.
+
+## How should procurement use this template?
+
+Copy the mandatory gates, 40 questions, evidence matrix, proof-of-concept plan, and rollout checklist into the procurement system. Add the organization’s required integrations, deployment constraints, data classifications, usage scenarios, contract terms, and approval owners before issuing the RFP.
+
+The final decision record should show which vendors passed the mandatory gates, what evidence was reviewed, what the proof of concept demonstrated, which material gaps remain, who owns each accepted risk, and which commitments belong in the contract.
