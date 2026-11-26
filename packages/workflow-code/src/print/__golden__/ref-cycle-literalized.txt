@@ -11,11 +11,10 @@ export default workflow('Fixture', {}, () => {
     messages: [{ role: 'system', content: 'See <beta.content>' }],
     model: 'm',
   })
+  start.to(alpha)
   const beta = agent('Beta', {
     messages: [{ role: 'system', content: t`See ${alpha.content}` }],
     model: 'm',
   })
-
-  start.to(alpha)
   alpha.to(beta)
 })

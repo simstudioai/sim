@@ -19,13 +19,12 @@ export default workflow(
       // tuned 2026-10
       temperature: 0.5,
     }) // see runbook
+    // Wiring
+    start.to(classify)
     /**
      * Final reply.
      */
     const done = response('Done', {})
-
-    // Wiring
-    start.to(classify)
     classify.to(done) // happy path
   }
 )

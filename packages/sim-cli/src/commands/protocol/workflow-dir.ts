@@ -265,6 +265,7 @@ Editing the \`workflow('…')\` name or description renames or redescribes the w
 
 ## Finding a builder and its types
 
+- \`sim workflows source find <block>\`: one block of this workflow by name, key or identifier, from the directory alone: its declaration with line numbers, its function file, its incoming and outgoing wiring and every block that reads its outputs, each as file:line. A part of a name prints every block it matches (\`find 'Fetch Policy'\`). Use it instead of searching a long \`${SOURCE_ENTRY_FILE}\`.
 - \`sim workflows source params <builder>\`: one builder's params (required first, enums, defaults) and outputs; a namespace (\`gmail\`) lists its builders; a miss names the closest. Builders are named for the service, not the block type: \`gmail_v2\` is \`gmail.*\`, \`workflow_input\` is \`runWorkflow\`, the HTTP request block is \`api\`, and \`legacy.*\` builders are old versions not to write.
 - \`${SDK_DIR}/core.d.ts\`: the SDK (\`workflow\`, \`t\`, \`env\`, \`credential\`, \`table\`, \`loop\`, \`parallel\`, \`BlockMeta\`).
 - \`${SDK_DIR}/blocks/<block type>.d.ts\`: the builders of a block the source uses, with their params and outputs (check adds the file of a block an edit starts using). Do not read them, or \`${SDK_DIR}/models.d.ts\`, whole: \`params\` prints the part you need, and \`grep\` finds a model id.

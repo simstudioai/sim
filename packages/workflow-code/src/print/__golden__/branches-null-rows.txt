@@ -4,10 +4,9 @@ import { condition, response, router, trigger, workflow } from '@sim/workflow-sd
 export default workflow('Fixture', {}, () => {
   const start = trigger.start('Start', { inputFormat: {} })
   const gate = condition('Gate', {})
-  const pick = router('Pick', { context: 'ctx', model: 'm', routes: {} })
-  const yes = response('Yes', {})
-
   start.to(gate)
+  const pick = router('Pick', { context: 'ctx', model: 'm', routes: {} })
   gate.if.to(pick)
+  const yes = response('Yes', {})
   pick.route0.to(yes)
 })

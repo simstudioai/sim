@@ -4,6 +4,7 @@ import type {
   ParamStorage,
   ResourceKind,
 } from '@sim/workflow-code'
+import { getOwn } from '@sim/workflow-code'
 import type { SubBlockConfig, SubBlockType } from '@/blocks/types'
 
 /**
@@ -86,6 +87,20 @@ const TYPE_RULES: Record<SubBlockType, TypeRule> = {
   text: { valueKind: 'none' },
   'model-fallback-list': { valueKind: 'array' },
   modal: { valueKind: 'none' },
+}
+
+/**
+ * Whether a field of `type` holds a JSON object or list natively: the editor writes the container,
+ * while the operations route and older editors may store the same container as JSON text, which
+ * the executor parses alike.
+ */
+export function holdsNativeContainer(type: string): boolean {
+  const rule = getOwn(TYPE_RULES, type)
+  return (
+    (rule?.valueKind === 'object' || rule?.valueKind === 'array') &&
+    rule.storage === undefined &&
+    rule.structured === undefined
+  )
 }
 
 /**

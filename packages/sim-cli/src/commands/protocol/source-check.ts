@@ -464,7 +464,7 @@ function declarationFindings(
  * `catalog`, checking env names against `envNames` (what `secrets.ts` declares) when given. Its
  * calls are untyped: {@link compiledWithChildResults} types them.
  */
-async function compileWorkflowDir(
+export async function compileWorkflowDir(
   dir: string,
   workspaceCatalog: BlockCatalog,
   envNames?: ReadonlySet<string>,

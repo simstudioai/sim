@@ -24,6 +24,5 @@ Line two without refs`,
       },
     }
   )
-
   start.to(writer)
 })

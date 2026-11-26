@@ -12,6 +12,5 @@ export default workflow('Fixture', {}, () => {
       },
     }
   )
-
   start.to(html)
 })

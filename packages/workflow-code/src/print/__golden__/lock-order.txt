@@ -4,8 +4,7 @@ import { api, t, todo, trigger, workflow } from '@sim/workflow-sdk'
 export default workflow('Fixture', {}, () => {
   const start = trigger.start('Start', { inputFormat: {} })
   const zeta = api('Zeta', { url: 'https://z.test', method: todo() })
+  start.to(zeta)
   const alpha = api('Alpha', { url: 'https://a.test', method: todo() })
   const mid = api('Mid', { url: t`https://m.test ${alpha.data}`, method: todo() })
-
-  start.to(zeta)
 })
