@@ -8,6 +8,11 @@ import {
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import {
+  PEOPLE_ID_MAX_LENGTH,
+  PEOPLE_SEARCH_MAX_LENGTH,
+  PEOPLE_SEARCH_MAX_TERMS,
+} from '@/lib/people/validation'
 
 export const organizationKnowledgeMcpContract = defineRouteContract({
   method: 'POST',
@@ -125,3 +130,35 @@ export const chatSearchMcpSchema = workspaceSearchFiltersSchema
       .describe('The chatId of an earlier chat answer, to ask a follow-up in that conversation.'),
   })
   .strict()
+
+export const searchPeopleMcpSchema = z
+  .object({
+    query: z
+      .string()
+      .trim()
+      .min(1)
+      .max(PEOPLE_SEARCH_MAX_LENGTH)
+      .optional()
+      .describe(
+        `Up to ${PEOPLE_SEARCH_MAX_TERMS} words from a name, email, title, department, or location; a person matches when every word appears in one of them.`
+      ),
+    personId: z
+      .string()
+      .min(1)
+      .max(PEOPLE_ID_MAX_LENGTH)
+      .optional()
+      .describe(
+        'A personId from an earlier result, to show that person with their managers and direct reports. Used instead of query.'
+      ),
+    cursor: z
+      .string()
+      .min(1)
+      .max(1024)
+      .optional()
+      .describe('nextCursor from the previous page of the same query.'),
+  })
+  .strict()
+  .refine((input) => !input.personId || (input.query === undefined && !input.cursor), {
+    path: ['personId'],
+    message: 'Pass either personId or a query with its cursor, not both.',
+  })

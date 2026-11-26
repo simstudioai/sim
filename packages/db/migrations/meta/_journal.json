@@ -3319,6 +3319,13 @@
       "when": 1795562373761,
       "tag": "0474_annual_seat_allowance",
       "breakpoints": true
+    },
+    {
+      "idx": 475,
+      "version": "7",
+      "when": 1795720476745,
+      "tag": "0475_search_mcp_people_tool",
+      "breakpoints": true
     }
   ]
 }

@@ -6549,7 +6549,9 @@ export const organizationSearchMcpInvocation = pgTable(
     /** Snapshots survive OAuth client deletion; names are client-declared, not verified branding. */
     oauthClientId: text('oauth_client_id'),
     clientName: text('client_name'),
-    toolName: text('tool_name').$type<'search' | 'read_document' | 'chat'>().notNull(),
+    toolName: text('tool_name')
+      .$type<'search' | 'read_document' | 'chat' | 'search_people'>()
+      .notNull(),
     outcome: text('outcome').$type<'success' | 'error' | 'cancelled' | 'rate_limited'>().notNull(),
     durationMs: integer('duration_ms').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -6572,7 +6574,7 @@ export const organizationSearchMcpInvocation = pgTable(
     userIdIdx: index('organization_search_mcp_invocation_user_idx').on(table.userId),
     toolNameCheck: check(
       'organization_search_mcp_invocation_tool_check',
-      sql`${table.toolName} IN ('search', 'read_document', 'chat')`
+      sql`${table.toolName} IN ('search', 'read_document', 'chat', 'search_people')`
     ),
     outcomeCheck: check(
       'organization_search_mcp_invocation_outcome_check',

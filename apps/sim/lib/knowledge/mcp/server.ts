@@ -22,6 +22,7 @@ import {
   recordOrganizationSearchMcpActivity,
   type SearchMcpActivityInput,
 } from '@/lib/knowledge/mcp/activity'
+import { registerSearchPeopleTool } from '@/lib/knowledge/mcp/people'
 import { shareReadBudget } from '@/lib/knowledge/mcp/read-budget'
 import {
   KNOWLEDGE_MCP_READ_ONLY,
@@ -158,6 +159,8 @@ interface KnowledgeMcpContext {
   organizationId: string
   request: NextRequest
   auth: V2ApiKeyAuthContext
+  /** Registers search_people, which its use cases authorize on every call. */
+  searchPeople?: boolean
 }
 
 /** A request owns its server; no credential or principal survives into another HTTP request. */
@@ -360,6 +363,9 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
         return projectResult(result, registry)
       })
   )
+
+  if (context.searchPeople)
+    registerSearchPeopleTool(server, { execute, principal, organizationId, request })
 
   return server
 }
