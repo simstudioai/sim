@@ -5,13 +5,8 @@
  */
 import type { BlockCatalog } from '@sim/workflow-code'
 import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { SDK_SPECIAL_BUILDERS } from '@sim/workflow-code/sdk'
-import {
-  builderSnippet,
-  describeBuilder,
-  referencedBuilders,
-  SDK_MAJOR,
-} from '@sim/workflow-sdk/codegen'
+import { SDK_MAJOR, SDK_SPECIAL_BUILDERS } from '@sim/workflow-code/sdk'
+import { builderSnippet, describeBuilder, referencedBuilders } from '@sim/workflow-sdk/codegen'
 import {
   RATE_LIMITED_EXIT_CODE,
   SOURCE_BUSY_EXIT_CODE,

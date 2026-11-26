@@ -62,9 +62,9 @@ async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<v
  * per catalog into the CLI's cache, which `tsconfig.full.json` includes, and the catalog itself is
  * ETag-cached), `.sim/sdk/workspace.d.ts` from the resource manifest, the tsconfig files, the
  * primer it writes atop `.sim/AGENTS.md` (not printed: the result names the edit loop instead),
- * the examples in `.sim/examples/` and the
- * `.gitattributes` lines that keep the source LF. Without `--dir` the generated handler runs unchanged. Commander offers
- * no way to read the action it holds, so it is captured and delegated to, as `runs get` does.
+ * the examples in `.sim/examples/` and the `.gitattributes` lines that keep the source LF. Without
+ * `--dir` the generated handler runs unchanged. Commander offers no way to read the action it
+ * holds, so it is captured and delegated to, as `runs get` does.
  */
 export function attachWorkflowSourceGet(source: Command): void {
   const get = source.commands.find((command) => command.name() === 'get')

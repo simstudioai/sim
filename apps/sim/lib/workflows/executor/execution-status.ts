@@ -7,7 +7,6 @@ import {
 } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { z } from 'zod'
 import { v2RunOverridesSchema } from '@/lib/api/contracts/v2/workflows'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
@@ -49,7 +48,7 @@ type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 interface ExecutionDataShape {
   finalOutput?: unknown
   traceSpans?: unknown
-  trigger?: { data?: { overrides?: unknown; dryRun?: unknown; placeholdersRecorded?: unknown } }
+  trigger?: { data?: { overrides?: unknown; placeholdersRecorded?: unknown } }
 }
 
 function resolvePath(value: unknown, path: string[]): unknown {
@@ -660,40 +659,14 @@ async function readWorkflowExecutionStatus(
   }
 }
 
-const legacyChildBlockSchema = z.object({ workflowId: z.string(), blockId: z.string() })
-
-/**
- * The only other shape a log holds overrides in: a dry run logged before they were named
- * `overrides` listed its own blocks by id, a child's apart with its workflow id, and the blocks
- * mocked from another run under `blockIds`.
- */
-const legacyDryRunSchema = z.object({
-  allowBlocks: z.array(z.string()),
-  mockedBlocks: z.array(z.string()),
-  childAllowBlocks: z.array(legacyChildBlockSchema).optional(),
-  childMockedBlocks: z.array(legacyChildBlockSchema).optional(),
-  mocksFrom: z.object({ runId: z.string(), blockIds: z.array(z.string()) }).optional(),
-})
-
 /**
  * A dry run's overrides from its log's trigger, recovered with the rest of the execution data
- * however it was stored, a log written before they were named `overrides` included; null for a
- * test run that recorded none (a workflow test) or a record not in either shape.
+ * however it was stored; null for a test run that recorded none (a workflow test) or a record
+ * not in that shape.
  */
 function readOverrides(executionData: ExecutionDataShape | null): RunOverrides | null {
-  const data = executionData?.trigger?.data
-  const parsed = v2RunOverridesSchema.safeParse(data?.overrides)
-  if (parsed.success) return parsed.data
-  const legacy = legacyDryRunSchema.safeParse(data?.dryRun)
-  if (!legacy.success) return null
-  const { allowBlocks, mockedBlocks, childAllowBlocks, childMockedBlocks, mocksFrom } = legacy.data
-  const childSelector = ({ workflowId, blockId }: { workflowId: string; blockId: string }) =>
-    `${workflowId}.${blockId}`
-  return {
-    allow: [...allowBlocks, ...(childAllowBlocks ?? []).map(childSelector)],
-    mocks: [...mockedBlocks, ...(childMockedBlocks ?? []).map(childSelector)],
-    ...(mocksFrom ? { mocksFrom: { runId: mocksFrom.runId, blocks: mocksFrom.blockIds } } : {}),
-  }
+  const parsed = v2RunOverridesSchema.safeParse(executionData?.trigger?.data?.overrides)
+  return parsed.success ? parsed.data : null
 }
 
 /**

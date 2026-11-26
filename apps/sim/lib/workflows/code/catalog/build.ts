@@ -9,7 +9,7 @@ import {
   type ExpandedBlockCatalog,
   stableStringify,
 } from '@sim/workflow-code'
-import { SDK_MAJOR } from '@sim/workflow-sdk/codegen'
+import { SDK_MAJOR } from '@sim/workflow-code/sdk'
 import { containerBlock, projectBlock, projectTrigger } from '@/lib/workflows/code/catalog/project'
 import {
   operationOptions,

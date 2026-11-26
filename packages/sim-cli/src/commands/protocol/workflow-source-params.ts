@@ -19,12 +19,12 @@ const PARAMS_HELP = `
 Prints a builder in brief (an example call, the required params with types, the optional ones by
 name, the gate field that picks which others apply, and the outputs), from the block catalog the
 last get, create or check cached. --full prints every param with its type, enum, default and doc.
-A legacy builder names the one that replaces it. No request is made. <builder> is the dotted builder path as source writes it: table.upsertRow,
-agent, trigger.schedule, slack.sendMessage (slack.tool.sendMessage names the same builder). A
-namespace (gmail, trigger.gmail) lists its builders; a block type prints the builder written for
-it (function is fn) or lists them (table_v2); a construct core.d.ts declares (loop, parallel, t,
-env) prints its declaration. Run it from a workflow or workspace source directory,
-or pass --dir.
+A legacy builder names the one that replaces it. No request is made.
+<builder> is the dotted builder path as source writes it: table.upsertRow, agent, trigger.schedule,
+slack.sendMessage (slack.tool.sendMessage names the same builder). A namespace (gmail,
+trigger.gmail) lists its builders; a block type prints the builder written for it (function is fn)
+or lists them (table_v2); a construct core.d.ts declares (loop, parallel, t, env) prints its
+declaration. Run it from a workflow or workspace source directory, or pass --dir.
 
 Exit codes: 0 printed; 1 no builder or namespace of that name (the closest one is named), or no
 cached catalog (run a get once).`

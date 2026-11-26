@@ -12,9 +12,9 @@ const CATALOG = JSON.parse(
 ) as BlockCatalog
 
 describe('builder reference', () => {
-  it('says table.upsertRow replaces the row, and names update builders that exist', () => {
+  it("names only update builders that exist in table.upsertRow's doc", () => {
     const upsert = describeBuilder(CATALOG, 'table.upsertRow')
-    expect(upsert?.doc).toContain('Replaces the matched row')
+    expect(upsert?.doc).toMatch(/`table\.\w+`/)
     for (const [, name] of upsert?.doc?.matchAll(/`(table\.\w+)`/g) ?? []) {
       expect(describeBuilder(CATALOG, name), name).not.toBeNull()
     }

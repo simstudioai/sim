@@ -148,7 +148,7 @@ export function errorOutputOf(
  * its block's first. Compile checks output paths and SDK codegen types a builder's outputs by
  * this one call, so a path compile accepts is one the SDK types.
  */
-export function builderOutputSchemas(
+function builderOutputSchemas(
   catalog: BlockCatalog,
   block: CatalogBlock,
   builder: CatalogBuilder | undefined
@@ -162,29 +162,33 @@ export function builderOutputSchemas(
 /**
  * The outputs a block declared through `builder` produces: {@link builderOutputSchemas}, narrowed
  * to the names its operation's tool returns when the catalog records them (`operationOutputs`),
- * as SDK codegen types them, so `table.queryRows` has `rows` and never the `row` of the insert
- * operations. An operation the catalog records nothing for, a block with no `operationOutputs`,
- * and a trigger keep every output: an output's `condition` is not read, since block conditions
- * can disagree with the tools behind them.
+ * so `table.queryRows` has `rows` and never the `row` of the insert operations, with the names
+ * among them that may be `null`. Compile and SDK codegen both read outputs here. An operation the
+ * catalog records nothing for, a block with no `operationOutputs`, and a trigger keep every
+ * output: an output's `condition` is not read, since block conditions can disagree with the tools
+ * behind them.
  */
 export function builderProducedOutputs(
   catalog: BlockCatalog,
   block: CatalogBlock,
   builder: CatalogBuilder | undefined
-): Record<string, CatalogOutput> {
+): { outputs: Record<string, CatalogOutput>; nullable: ReadonlySet<string> } {
   const outputs = builderOutputSchemas(catalog, block, builder)
   const operation = builder?.operation
   const returned =
     operation !== undefined && !builder?.triggerMode && outputs === block.outputs
       ? getOwn(block.operationOutputs ?? {}, operation)
       : undefined
-  if (!returned) return outputs
-  return Object.fromEntries(
-    returned.names.flatMap((name) => {
-      const output = getOwn(outputs, name)
-      return output ? [[name, output] as const] : []
-    })
-  )
+  if (!returned) return { outputs, nullable: new Set() }
+  return {
+    outputs: Object.fromEntries(
+      returned.names.flatMap((name) => {
+        const output = getOwn(outputs, name)
+        return output ? [[name, output] as const] : []
+      })
+    ),
+    nullable: new Set(returned.nullable ?? []),
+  }
 }
 
 /**

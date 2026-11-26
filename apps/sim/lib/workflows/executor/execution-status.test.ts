@@ -813,59 +813,6 @@ describe('getWorkflowExecutionStatus once a pause has settled', () => {
   })
 })
 
-describe('getProjectedWorkflowExecutionStatus overrides of a dry run logged before they were named', () => {
-  beforeEach(() => {
-    resetDbChainMock()
-    mockGetJob.mockResolvedValue(null)
-  })
-
-  it("keeps a child's blocks and the mocks read from another run, as a rerun names them", async () => {
-    queueTableRows(schemaMock.workflowExecutionLogs, [
-      {
-        executionId: 'execution-1',
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
-        status: 'failed',
-        level: 'error',
-        trigger: 'test',
-        startedAt: new Date('2026-08-05T12:00:00.000Z'),
-        endedAt: new Date('2026-08-05T12:00:01.000Z'),
-        totalDurationMs: 1000,
-        executionData: {},
-        costTotal: null,
-      },
-    ])
-    queueTableRows(schemaMock.resumeQueue, [])
-    queueTableRows(schemaMock.pausedExecutions, [])
-    mockMaterializeForDisplayWithBlockOutputs.mockResolvedValueOnce({
-      executionData: {
-        error: 'boom',
-        trigger: {
-          data: {
-            dryRun: {
-              allowBlocks: ['send'],
-              mockedBlocks: ['lookup'],
-              childAllowBlocks: [{ workflowId: 'child-1', blockId: 'notify' }],
-              childMockedBlocks: [{ workflowId: 'child-1', blockId: 'fetch' }],
-              mocksFrom: { runId: 'execution-0', blockIds: ['classify'] },
-            },
-          },
-        },
-      },
-      blockOutputs: new Map(),
-      placeholderBlockIds: new Set(),
-    })
-
-    const projected = await getProjectedWorkflowExecutionStatus(input)
-
-    expect(projected?.overrides).toEqual({
-      allow: ['send', 'child-1.notify'],
-      mocks: ['lookup', 'child-1.fetch'],
-      mocksFrom: { runId: 'execution-0', blocks: ['classify'] },
-    })
-  })
-})
-
 describe('readPausedRunPoints cap', () => {
   beforeEach(() => {
     resetDbChainMock()

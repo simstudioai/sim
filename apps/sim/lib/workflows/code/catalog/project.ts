@@ -522,10 +522,9 @@ function projectEffects(
   const effect = blockEffect(block)
   if (effect === undefined) return {}
   if (effect === 'read' || !operationTools) return { effect }
-  const access = new Set(block.tools.access)
   const operationEffects: NonNullable<CatalogBlock['operationEffects']> = {}
   for (const [operation, toolId] of operationTools) {
-    const operationEffect = access.has(toolId) ? accessIdEffect(toolId) : 'write'
+    const operationEffect = accessIdEffect(toolId)
     if (operationEffect !== effect) operationEffects[operation] = operationEffect
   }
   return Object.keys(operationEffects).length > 0 ? { effect, operationEffects } : { effect }

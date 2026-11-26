@@ -280,11 +280,7 @@ function buildDiagnostics(errors: string[]): string {
   const workflowMeaning = new Map(
     workflowRows.flatMap((row) => row.codes.map((code) => [code, row.meaning]))
   )
-  for (const [what, documented, exported] of [
-    ['SYNTAX.md Diagnostics', [...workflowMeaning.keys()], DIAGNOSTIC_CODES],
-  ] as const) {
-    errors.push(...codeDiff(what, documented, exported))
-  }
+  errors.push(...codeDiff('SYNTAX.md Diagnostics', [...workflowMeaning.keys()], DIAGNOSTIC_CODES))
 
   const { groups: workspace, undocumented } = parseWorkspaceDiagnostics()
   if (undocumented.length)
