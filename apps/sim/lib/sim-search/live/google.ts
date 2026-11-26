@@ -593,6 +593,10 @@ export async function searchCalendar(
   input: NativeSearchInput
 ): Promise<NativePage> {
   // Native project names a calendar ID. Without one, query the user's calendar list.
+  /** Events you organize or attend are on your primary calendar, so `me` searches only it. */
+  const onlyPrimary = input.involving === 'me' && !input.native?.project
+  /** One calendar is searched, so its page token continues the search. */
+  const oneCalendar = Boolean(input.native?.project) || onlyPrimary
   const calendars = input.native?.project
     ? { items: [{ id: input.native.project }] }
     : object(
@@ -607,8 +611,7 @@ export async function searchCalendar(
           ...(row.primary === true ? ['primary'] : []),
         ])
     )
-    // Events you organize or attend are on your primary calendar.
-    .filter((row) => input.involving !== 'me' || input.native?.project || row.primary === true)
+    .filter((row) => !onlyPrimary || row.primary === true)
     .slice(0, 20)
     .sort((left, right) => Number(right.primary === true) - Number(left.primary === true))
   const chronological = hasDateBounds(input.filters) || Boolean(dateSortDirection(input.filters))
@@ -653,9 +656,7 @@ export async function searchCalendar(
             ...(chronological ? { singleEvents: 'true', orderBy: 'startTime' } : {}),
             maxResults: String(input.limit),
             showDeleted: 'false',
-            ...(input.native?.cursor && input.native.project
-              ? { pageToken: input.native.cursor }
-              : {}),
+            ...(input.native?.cursor && oneCalendar ? { pageToken: input.native.cursor } : {}),
           },
         })
       )
@@ -682,7 +683,7 @@ export async function searchCalendar(
   const documents = chronological
     ? perCalendar.flat().sort((left, right) => eventStartTime(left) - eventStartTime(right))
     : interleaveByRank(perCalendar)
-  const single = input.native?.project ? searched[0] : undefined
+  const single = oneCalendar ? searched[0] : undefined
   return {
     documents,
     partial: Boolean(calendars.nextPageToken) || searched.length < rows.length,
