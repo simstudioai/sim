@@ -177,7 +177,7 @@
     "socket.io-parser": "4.2.7",
     "source-map-js": "1.2.2",
     "systeminformation": "5.33.16",
-    "ws": "8.22.1"
+    "ws": "8.23.0"
   },
   "optionalDependencies": {
     "@next/swc-darwin-arm64": "16.4.5",
