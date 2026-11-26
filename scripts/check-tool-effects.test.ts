@@ -124,6 +124,24 @@ const other = {
     ).toEqual([expect.stringMatching(/^other: sends GET/)])
   })
 
+  it('never lets an annotation justify a read that sends a write verb', () => {
+    const justifications = findToolEffectJustifications(
+      'tool.ts',
+      `export const tool = {
+  id: 'delete_read',
+  // tool-effect: the endpoint only reads despite DELETE
+  effect: 'read',
+}`
+    )
+
+    expect(
+      reasons({ delete_read: httpTool('delete_read', 'read', 'DELETE') }, justifications)
+    ).toEqual([
+      expect.stringMatching(/^delete_read: sends DELETE but declares effect 'read'/),
+      "delete_read: has a // tool-effect: annotation, which only justifies a 'write'; remove it",
+    ])
+  })
+
   it('rejects a stale annotation and one it cannot attribute to a tool', () => {
     const justifications = [
       ...findToolEffectJustifications(
@@ -146,7 +164,7 @@ const other = {
 
     expect(reasons({ stale: httpTool('stale', 'read', 'GET') }, justifications)).toEqual([
       'factory.ts:4: // tool-effect: annotation is not on the effect of a registered tool with a literal id',
-      'stale: has a // tool-effect: annotation but its verb agrees with its effect; remove it',
+      "stale: has a // tool-effect: annotation, which only justifies a 'write'; remove it",
     ])
   })
 })
