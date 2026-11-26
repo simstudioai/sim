@@ -1195,9 +1195,14 @@ async function readLinkedDocument(
   const providers = new Set(links.map((link) => link.provider))
   const sourceNames = [...providers].map(liveProviderName).join(' or ')
   const [accounts, policies] = await Promise.all([
-    measureSearchStage('live.resolve', () => listLiveAccounts(input, userId)),
+    measureSearchStage('live.resolve', () =>
+      waitWithAbort(listLiveAccounts(input, userId), signal)
+    ),
     measureSearchStage('live.policies', () => loadLiveSearchPolicies(input)),
-  ])
+  ]).catch((error: unknown) => {
+    /** Cancellation by the caller passes through unclassified. */
+    throw input.signal?.aborted ? error : liveReadFailure(error, links[0]?.provider ?? '', signal)
+  })
   const candidates = accounts
     .filter(
       (account) =>

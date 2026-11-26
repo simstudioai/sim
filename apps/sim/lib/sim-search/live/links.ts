@@ -6,7 +6,10 @@ import { notionResource } from '@/lib/sim-search/live/notion-mcp'
 import type { NativeClient, NativeDocument } from '@/lib/sim-search/live/types'
 
 /** The location fields a live document ID carries, as each provider's reader expects them. */
-export type LinkedReference = Pick<NativeDocument, 'id' | 'container' | 'kind' | 'threadId'>
+export type LinkedReference = Pick<
+  NativeDocument,
+  'id' | 'container' | 'kind' | 'revision' | 'threadId'
+>
 
 /**
  * A provider document a pasted link names, as far as the link alone can tell. Atlassian links
@@ -205,7 +208,7 @@ function gitlabLink(url: URL): DocumentLink | undefined {
     reference: { container: project, ...reference },
   })
   const iid = rest[0]
-  if (section === 'issues' || section === 'work_items' || section === 'merge_requests')
+  if (section === 'issues' || section === 'merge_requests')
     return iid && NUMERIC_ID.test(iid)
       ? link({ id: iid, kind: section === 'merge_requests' ? 'merge_requests' : 'issues' })
       : undefined
@@ -368,5 +371,7 @@ async function locateFile(
         ? string(row.full_name) || link.repository
         : string(row.path_with_namespace) || link.repository,
     kind: 'code',
+    /** GitLab sources pin their branch, and file IDs from a GitLab search name it. */
+    ...(link.provider === 'gitlab' ? { revision: branch } : {}),
   }
 }
