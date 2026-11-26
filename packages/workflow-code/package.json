@@ -22,6 +22,10 @@
       "types": "./src/diagnostics/codes.ts",
       "default": "./src/diagnostics/codes.ts"
     },
+    "./json-text": {
+      "types": "./src/json-text.ts",
+      "default": "./src/json-text.ts"
+    },
     "./code-files/references": {
       "types": "./src/code-files/references.ts",
       "default": "./src/code-files/references.ts"

@@ -1,4 +1,4 @@
-import { JSON_TEXT_CONTAINER_TYPES, parseJsonContainer } from '@sim/workflow-code'
+import { JSON_TEXT_CONTAINER_TYPES, parseJsonContainer } from '@sim/workflow-code/json-text'
 import {
   normalizedStringify,
   sanitizeInputFormat,

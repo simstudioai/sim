@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { JSON_TEXT_CONTAINER_TYPES } from '@sim/workflow-code/json-text'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
@@ -322,16 +323,19 @@ interface TemplateResolutionOptions {
   jsonText?: boolean
 }
 
-/** Whether `key` is a block input the editor stores as JSON text (a JSON code field). */
-function isJsonCodeInput(block: SerializedBlock | undefined, key: string): boolean {
+/**
+ * Whether `key` is a block input that may hold JSON text: a JSON code field, or a container field
+ * (`JSON_TEXT_CONTAINER_TYPES`) whose runtime parses text and objects alike.
+ */
+function isJsonTextInput(block: SerializedBlock | undefined, key: string): boolean {
   const blockType = block?.metadata?.id
   if (!blockType) return false
   return (
     getBlock(blockType)?.subBlocks.some(
       (subBlock) =>
-        subBlock.type === 'code' &&
-        subBlock.language === 'json' &&
-        (subBlock.id === key || subBlock.canonicalParamId === key)
+        (subBlock.id === key || subBlock.canonicalParamId === key) &&
+        ((subBlock.type === 'code' && subBlock.language === 'json') ||
+          JSON_TEXT_CONTAINER_TYPES.has(subBlock.type))
     ) ?? false
   )
 }
@@ -516,7 +520,7 @@ export class VariableResolver {
       resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block, {
         allowLargeValueRefs: this.canResolveInputToLargeValueRef(block, key),
         inputPath: [key],
-        jsonText: typeof value === 'string' && isJSONString(value) && isJsonCodeInput(block, key),
+        jsonText: typeof value === 'string' && isJSONString(value) && isJsonTextInput(block, key),
       })
     }
     return resolved

@@ -5,8 +5,9 @@ import { isConditionClause } from '../catalog/conditions'
 import type { CatalogBlock, CatalogCondition, CatalogSubBlock } from '../catalog/types'
 import { declarationsOf } from '../catalog/view'
 import { diagnostic } from '../diagnostics/factory'
+import { JSON_TEXT_CONTAINER_TYPES, parseJsonContainer } from '../json-text'
 import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
-import { parseJsonContainer, setOwn } from '../records'
+import { setOwn } from '../records'
 import { structuredCodec } from '../structured'
 import type { CanonContext } from './context'
 import { liftTools } from './tools'
@@ -59,18 +60,6 @@ export function surfaceDeclaration(
 function holdsJsonText(declaration: CatalogSubBlock): boolean {
   return declaration.structured !== undefined || declaration.storage === 'json-string'
 }
-
-/**
- * Field types whose runtime reads JSON text and the container it encodes alike: the workflow
- * handler and the tool runners parse a child workflow's `inputMapping` either way, and the
- * operations route stores either. Canonicalize decodes the text so it prints as the object source
- * can type, and deploy-change detection takes the two encodings as one value. Any other native
- * container field stays as stored, since its runtime reads only one form.
- */
-export const JSON_TEXT_CONTAINER_TYPES: ReadonlySet<string> = new Set([
-  'input-mapping',
-  'workflow-input-mapper',
-])
 
 /** A field of a {@link JSON_TEXT_CONTAINER_TYPES} type; text that does not parse stays a value. */
 function holdsNativeContainer(declaration: CatalogSubBlock): boolean {

@@ -11,6 +11,7 @@ import {
   fromCodeFile,
   LineIndex,
   referencedHeads,
+  type SourceSpan,
   type StoredEdgeRef,
 } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
@@ -35,6 +36,7 @@ incoming and outgoing edges, and every block that reads its outputs (a param, a 
 function file's $ref), each as file:line. <block> is a block name (Security Score), its key
 (securityscore) or its identifier (securityScore); with no exact match, every block whose name
 contains it is printed (at most ${MAX_FOUND}). Run it from a workflow source directory, or pass --dir.
+When the source does not compile, readers are left out (JSON output carries compiles: false).
 
 Exit codes: 0 printed; 1 no block matches (the closest name is suggested), or the
 directory is not a workflow source directory.`
@@ -132,7 +134,11 @@ function blockFields(block: CanonicalBlock): Array<{ field: string; texts: strin
  */
 function readersByKey(index: SourceIndex): Map<BlockKey, Reader[]> {
   const readers = new Map<BlockKey, Reader[]>()
+  const seen = new Set<string>()
   const add = (key: BlockKey, reader: Reader) => {
+    const id = JSON.stringify([key, reader.file, reader.line, reader.block, reader.field])
+    if (seen.has(id)) return
+    seen.add(id)
     const list = readers.get(key)
     if (list) list.push(reader)
     else readers.set(key, [reader])
@@ -184,14 +190,38 @@ function matchBlocks(index: SourceIndex, query: string): BlockKey[] {
     .filter((key) => key.includes(normalized) || index.nameOf(key).toLowerCase().includes(needle))
 }
 
-/** The refusal for a query no block matches, naming the closest block. */
+/**
+ * The refusal for a query no block matches, naming the closest block, and saying so when the
+ * source does not compile (a parse failure names no blocks at all).
+ */
 function unknownBlock(index: SourceIndex, query: string): CliUsageError {
   const names = index
     .keys()
     .map((key) => index.nameOf(key))
     .sort(compareStrings)
   const hint = didYouMean(query, names) ?? `It has ${names.length} blocks.`
-  return new CliUsageError(`No block is named ${query}. ${hint}`, { code: 'BLOCK_UNKNOWN' })
+  const compileNote =
+    index.compiled.workflow === null
+      ? ' The source does not compile: run `sim workflows source check`.'
+      : ''
+  return new CliUsageError(`No block is named ${query}. ${hint}${compileNote}`, {
+    code: 'BLOCK_UNKNOWN',
+  })
+}
+
+/**
+ * A wiring statement's text on one line, so a fan-out the printer wrapped reads whole. Only the
+ * line breaks are rewritten, so a raw handle's text is printed as written.
+ */
+function statementText(index: SourceIndex, span: SourceSpan): string {
+  const lines = index.linesOf(span.file)?.lines.slice(span.line - 1, span.endLine) ?? []
+  return lines
+    .map((line) => line.trim())
+    .reduce((joined, line) => {
+      if (joined === '') return line
+      if (line.startsWith(')')) return `${joined.replace(/,$/, '')}${line}`
+      return joined.endsWith('(') ? `${joined}${line}` : `${joined} ${line}`
+    }, '')
 }
 
 function describeBlock(
@@ -209,9 +239,7 @@ function describeBlock(
       port: ref.port,
       file: written?.file ?? SOURCE_ENTRY_FILE,
       line: written?.line ?? span?.line ?? 0,
-      statement: written
-        ? (index.linesOf(written.file)?.lines[written.line - 1]?.trim() ?? '')
-        : '',
+      statement: written ? statementText(index, written) : '',
     }
   }
   const ends = (side: 'from' | 'to', other: 'from' | 'to') =>
@@ -273,6 +301,9 @@ export function attachWorkflowSourceFind(source: Command): void {
       await assertSourceDirKind(options.dir, 'workflow')
       const catalog = await lookupCatalog(options.dir, profile)
       const { compiled, files } = await compileWorkflowDir(options.dir, catalog)
+      if (normalizeWorkflowBlockName(query) === '') {
+        throw new CliUsageError('Name a block.', { code: 'BLOCK_UNKNOWN' })
+      }
       const index = new SourceIndex(compiled, files)
       const keys = matchBlocks(index, query)
       if (keys.length === 0) throw unknownBlock(index, query)
@@ -283,7 +314,11 @@ export function attachWorkflowSourceFind(source: Command): void {
         .sort(byLine)
       const more = keys.length - found.length
       if (isMachine(profile.output)) {
-        printProtocolResult(profile.output, { blocks: found, ...(more > 0 ? { more } : {}) })
+        printProtocolResult(profile.output, {
+          blocks: found,
+          compiles: compiled.workflow !== null,
+          ...(more > 0 ? { more } : {}),
+        })
         return
       }
       if (compiled.workflow === null) {
