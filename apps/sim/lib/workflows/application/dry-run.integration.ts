@@ -2936,6 +2936,34 @@ describe('a dry run’s mocks from an earlier run, read as that run shows them',
     expect(replayed.status, JSON.stringify(replayed.error)).toBe('completed')
   })
 
+  it('mock from a workflow test’s run: read a block it ran, refuse one it answered with a placeholder', async () => {
+    const tableId = await createTable()
+    const name = `Dry test ${generateId()}`
+    const workflowId = await saveWorkflow(lookupThenSave(tableId, 'a@b.co').state, name)
+    const session = new WorkflowTestSession({
+      workspaceId,
+      principal,
+      version: 'draft',
+      only: null,
+      onProgress: async () => {},
+    })
+    let event = await session.start({ workflow: name, trigger: null, input: {}, targets: [] })
+    while (event.kind === 'waiting') event = await session.next(event.runId)
+    if (event.kind !== 'done') throw new Error(`The run ended with ${event.kind}`)
+
+    await expect(
+      run(workflowId, { dry: true, mocksFrom: { runId: event.executionId, blocks: ['save'] } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('with a placeholder'),
+    })
+    const replayed = await run(workflowId, {
+      dry: true,
+      mocksFrom: { runId: event.executionId, blocks: ['lookup'] },
+    })
+    expect(replayed.status, JSON.stringify(replayed.error)).toBe('completed')
+  })
+
   it('judge a block as the earlier run ran it, not as the draft has since been edited', async () => {
     const tableId = await createTable()
     const fixture = lookupThenSave(tableId, 'a@b.co')
