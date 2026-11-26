@@ -11,7 +11,7 @@ import { createLogger } from '@sim/logger'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
+import { AVERAGE_MONTH_MS, BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
 import { computeOrgOverageAmount, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
 import {
@@ -34,8 +34,6 @@ import type { DbOrTx } from '@/lib/db/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('BillingCycleClose')
-
-const AVERAGE_MONTH_MS = 30.44 * 24 * 60 * 60 * 1000
 
 /**
  * The usage a closed period included, from the period itself rather than the subscription's

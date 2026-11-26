@@ -9,6 +9,7 @@ import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { assertPersonalCheckoutAllowed } from '@/lib/billing/authorization'
 import { PRO_TRIAL_DAYS, PRO_TRIAL_USAGE_LIMIT_DOLLARS } from '@/lib/billing/constants'
 import { syncUsageLimitsFromSubscription, updateUserUsageLimit } from '@/lib/billing/core/usage'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
@@ -562,5 +563,23 @@ describe('the usage limit card', () => {
     })
 
     expect(card.action).toBe('increase_limit')
+  })
+})
+
+describe('a Team upgrade during a Pro trial', () => {
+  it('is refused while the personal Pro plan is still trialing', async () => {
+    const userId = await createUser()
+    await addSubscription(userId, { status: 'trialing', trialStart: new Date() })
+
+    await expect(assertPersonalCheckoutAllowed(userId, 'team_8000')).rejects.toMatchObject({
+      status: 'CONFLICT',
+    })
+  })
+
+  it('is allowed once the trial has converted to a paid plan', async () => {
+    const userId = await createUser()
+    await addSubscription(userId, { status: 'active' })
+
+    await expect(assertPersonalCheckoutAllowed(userId, 'team_8000')).resolves.toBeUndefined()
   })
 })

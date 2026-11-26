@@ -9,6 +9,7 @@ import { subscription, user, userStats, workflowSchedule, workspace } from '@sim
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
+import Stripe from 'stripe'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { endProTrial } from '@/lib/billing/application/pro-trial'
 import { HostedKeyRequiresPaidPlanError } from '@/lib/billing/core/hosted-key-access'
@@ -77,7 +78,11 @@ async function createWorkspace(ownerId: string): Promise<string> {
   return id
 }
 
-async function addSubscription(referenceId: string, status: string) {
+async function addSubscription(
+  referenceId: string,
+  status: string,
+  options: { cancelAtPeriodEnd?: boolean } = {}
+) {
   const stripeSubscriptionId = `sub_${generateId()}`
   const now = Date.now()
   await db.insert(subscription).values({
@@ -90,6 +95,7 @@ async function addSubscription(referenceId: string, status: string) {
     periodEnd: new Date(now + 13 * DAY_MS),
     trialStart: status === 'trialing' ? new Date(now - DAY_MS) : null,
     trialEnd: status === 'trialing' ? new Date(now + 13 * DAY_MS) : null,
+    cancelAtPeriodEnd: options.cancelAtPeriodEnd ?? false,
   })
   return stripeSubscriptionId
 }
@@ -170,9 +176,10 @@ describe('web search', () => {
     const response = await search(userId, workspaceId)
 
     expect(response.status).toBe(402)
-    expect((await response.json()).error).toBe(
-      new HostedKeyRequiresPaidPlanError('Web Search').message
-    )
+    const { error } = await response.json()
+    expect(error).toBe(new HostedKeyRequiresPaidPlanError('Web Search', { byok: false }).message)
+    // Search has no BYOK option, so the refusal must not offer one.
+    expect(error).not.toContain('BYOK')
   })
 
   it('lets a paid payer through to the search provider', async () => {
@@ -288,8 +295,31 @@ describe('endProTrial', () => {
 
     expect(stripeStub.subscriptions.update).toHaveBeenCalledWith(
       stripeSubscriptionId,
-      { trial_end: 'now' },
+      // A declined first charge must leave the trial running, not start a past-due plan.
+      { trial_end: 'now', payment_behavior: 'error_if_incomplete' },
       expect.anything()
+    )
+  })
+
+  it('refuses a trial already cancelled at period end', async () => {
+    const userId = await createUser()
+    await addSubscription(userId, 'trialing', { cancelAtPeriodEnd: true })
+
+    await expect(endProTrial.execute({ principal: asSession(userId), input: {} })).rejects.toThrow(
+      'There is no free trial to end'
+    )
+    expect(stripeStub.subscriptions.update).not.toHaveBeenCalled()
+  })
+
+  it('reports a declined card as a payer error and keeps the trial', async () => {
+    const userId = await createUser()
+    await addSubscription(userId, 'trialing')
+    stripeStub.subscriptions.update.mockRejectedValueOnce(
+      new Stripe.errors.StripeCardError({ type: 'card_error', message: 'Your card was declined.' })
+    )
+
+    await expect(endProTrial.execute({ principal: asSession(userId), input: {} })).rejects.toThrow(
+      'Your card could not be charged'
     )
   })
 

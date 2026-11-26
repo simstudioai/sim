@@ -14,7 +14,7 @@ import {
   assertNoUnresolvedEnterpriseIssuance,
   EnterpriseIssuanceInProgressError,
 } from '@/lib/billing/enterprise-outbox'
-import { isOrgPlan } from '@/lib/billing/plan-helpers'
+import { isOrgPlan, isPro } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('BillingAuthorization')
@@ -74,6 +74,21 @@ async function assertNotBilledThroughMarketplace(referenceId: string): Promise<v
   })
 }
 
+/** Refuse an organization-plan upgrade while the account's own Pro plan is still in its free trial. */
+async function assertNoPersonalTrial(userId: string): Promise<void> {
+  const trialing = await db
+    .select({ plan: subscription.plan })
+    .from(subscription)
+    .where(and(eq(subscription.referenceId, userId), eq(subscription.status, 'trialing')))
+  if (!trialing.some((row) => isPro(row.plan))) return
+
+  logger.warn('Blocking team upgrade - personal plan is in its free trial', { userId })
+  throw new APIError('CONFLICT', {
+    message:
+      'Your Pro free trial has to end before you can move to a Team plan. End the trial now from Settings > Billing, then upgrade.',
+  })
+}
+
 /**
  * Classify a `/subscription/upgrade` request as a personal checkout using
  * the same reference resolution as the Better Auth Stripe plugin
@@ -101,8 +116,10 @@ export function isPersonalCheckoutRequest(
  * Guard for personal (user-referenced) checkouts on `/subscription/upgrade`.
  *
  * Blocks an account AWS Marketplace bills, a bound, incomplete Stripe
- * subscription, and a member already covered by an entitled organization
- * subscription. Throws {@link APIError} with a user-facing message; the
+ * subscription, a member already covered by an entitled organization
+ * subscription, and a Team upgrade of a Pro free trial: Stripe keeps the trial
+ * across the price change, so the team would run free without the trial's
+ * capped allowance. Throws {@link APIError} with a user-facing message; the
  * checkout UI surfaces it as-is.
  *
  * Called from the Better Auth `hooks.before` middleware, NOT from
@@ -113,9 +130,12 @@ export function isPersonalCheckoutRequest(
  * Fails closed: when coverage cannot be determined, the checkout is
  * rejected rather than risking a duplicate subscription.
  */
-export async function assertPersonalCheckoutAllowed(userId: string): Promise<void> {
+export async function assertPersonalCheckoutAllowed(userId: string, plan?: unknown): Promise<void> {
   await assertNotBilledThroughMarketplace(userId)
   await assertNoBoundIncompleteSubscription(userId)
+  if (typeof plan === 'string' && isOrgPlan(plan)) {
+    await assertNoPersonalTrial(userId)
+  }
 
   const coverage = await getOrganizationCoverageForMember(userId)
 

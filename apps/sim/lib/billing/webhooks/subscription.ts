@@ -603,7 +603,7 @@ export async function handleSubscriptionDeleted(
           plan: subscription.plan ?? 'unknown',
           reference_id: subscription.referenceId,
         })
-        await sendPlanEndedEmail(subscription)
+        await sendPlanEndedEmail(subscription, cancelActorId)
 
         return { totalOverage, remainingOverage, restoredProCount, workspacesDetached }
       }

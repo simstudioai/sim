@@ -23,10 +23,16 @@ export function isHostedKeyPaidPlanFailure(message: string | null | undefined): 
 export class HostedKeyRequiresPaidPlanError extends HttpError {
   readonly statusCode = 402
 
-  /** @param subject - what asked for the key: a tool's name or a model id */
-  constructor(subject: string) {
+  /**
+   * @param subject - what asked for the key: a tool's name or a model id
+   * @param options.byok - whether the payer's own key can stand in; Web Search has none
+   */
+  constructor(subject: string, options: { byok?: boolean } = {}) {
+    const upgrade = `Upgrade your plan (Pro starts with a ${PRO_TRIAL_DAYS}-day free trial for new subscribers)`
     super(
-      `${subject} ${HOSTED_KEY_PAID_PLAN_PHRASE}. Upgrade your plan (Pro starts with a ${PRO_TRIAL_DAYS}-day free trial for new subscribers), or add your own API key under Settings > BYOK.`
+      options.byok === false
+        ? `${subject} ${HOSTED_KEY_PAID_PLAN_PHRASE}. ${upgrade}.`
+        : `${subject} ${HOSTED_KEY_PAID_PLAN_PHRASE}. ${upgrade}, or add your own API key under Settings > BYOK.`
     )
     this.name = 'HostedKeyRequiresPaidPlanError'
   }
@@ -35,8 +41,9 @@ export class HostedKeyRequiresPaidPlanError extends HttpError {
 /**
  * Whether a run may spend on Sim's hosted provider keys, for models and tools alike: only a payer
  * with paid access ({@link payerHasPaidAccess}) may. The payer is the run's admitted attribution,
- * or the workspace's payer for a surface that carries none; a workspace without a payer, or a free
- * payer whose credit balance cannot be read, is refused.
+ * or the workspace's payer for a surface that carries none; a workspace without a payer is refused.
+ * A free payer whose credit balance cannot be read throws, so the run fails as a fault and not as
+ * the payer's plan.
  */
 export async function mayUseHostedKey(
   workspaceId: string | null | undefined,
@@ -59,5 +66,5 @@ export async function mayUseHostedKey(
     }
   }
 
-  return payer !== null && payerHasPaidAccess(payer, { onBalanceUnavailable: 'deny' })
+  return payer !== null && payerHasPaidAccess(payer, { onBalanceUnavailable: 'throw' })
 }

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { organization, subscription as subscriptionTable, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { type AnyColumn, eq, sql } from 'drizzle-orm'
+import { type AnyColumn, eq, type SQL, sql } from 'drizzle-orm'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import {
@@ -31,6 +31,11 @@ interface SwitchedSubscription extends OrgAllowanceInput {
  * untouched limit lands on the new amount and never reads as on-demand usage nobody turned on. A
  * limit already at the new amount is untouched too: the Stripe webhook's floor sync can raise it
  * there first. An unlimited limit stays unlimited.
+ *
+ * `previous` is the pool read before Stripe applied the change ({@link readPoolUsageSnapshot}).
+ * Given it, the headroom comes from that limit and that credit balance, so neither a webhook that
+ * raised the live limit first nor credit granted meanwhile changes the headroom the payer chose;
+ * a snapshot predates any webhook, so a limit in it at the new amount is chosen headroom.
  */
 export async function rebaseUsageLimit(
   params: {
@@ -38,15 +43,22 @@ export async function rebaseUsageLimit(
     previousIncluded: number
     nextIncluded: number
     headroomScale?: number
+    previous?: PoolUsageSnapshot
   },
   executor: DbOrTx = db
 ): Promise<void> {
-  const { pool, previousIncluded, nextIncluded, headroomScale = 1 } = params
+  const { pool, previousIncluded, nextIncluded, headroomScale = 1, previous } = params
+  const covered = (included: number, credit: SQL) =>
+    sql`(${toDecimal(included).toString()}::numeric + ${credit})`
   const rebased = (limit: AnyColumn, creditBalance: AnyColumn) => {
-    const previousCovered = sql`(${toDecimal(previousIncluded).toString()}::numeric + ${creditBalance})`
-    const nextCovered = sql`(${toDecimal(nextIncluded).toString()}::numeric + ${creditBalance})`
-    const headroom = sql`case when ${limit} = ${nextCovered} then 0 else greatest(0, coalesce(${limit}, ${previousCovered}) - ${previousCovered}) end`
-    return sql`case when ${limit} >= ${ON_DEMAND_UNLIMITED} then ${limit} else ${nextCovered} + ${headroom} * ${headroomScale}::numeric end`
+    const before = previous ? sql`${previous.limit}::numeric` : sql`${limit}`
+    const creditBefore = previous ? sql`${previous.creditBalance}::numeric` : sql`${creditBalance}`
+    const previousCovered = covered(previousIncluded, creditBefore)
+    const chosen = sql`greatest(0, coalesce(${before}, ${previousCovered}) - ${previousCovered})`
+    const headroom = previous
+      ? chosen
+      : sql`case when ${limit} = ${covered(nextIncluded, sql`${creditBalance}`)} then 0 else ${chosen} end`
+    return sql`case when ${before} >= ${ON_DEMAND_UNLIMITED} then ${before} else round(${covered(nextIncluded, sql`${creditBalance}`)} + ${headroom} * ${headroomScale}::numeric, 2) end`
   }
 
   if (pool.type === 'organization') {
@@ -69,24 +81,86 @@ export async function rebaseUsageLimit(
 }
 
 /**
+ * Whether a subscription still holds the plan and billing interval a switch was computed from.
+ * Read under the switch's admission claim: a switch that finished between this request's first
+ * read and its claim moved the plan, and computing from the stale read would count the new
+ * allowance as headroom the payer chose.
+ */
+export async function isSwitchBasisCurrent(basis: SwitchedSubscription): Promise<boolean> {
+  const [row] = await db
+    .select({
+      plan: subscriptionTable.plan,
+      billingInterval: subscriptionTable.billingInterval,
+      metadata: subscriptionTable.metadata,
+    })
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.id, basis.id))
+    .limit(1)
+  return (
+    row !== undefined &&
+    row.plan === basis.plan &&
+    resolveBillingInterval(row) === resolveBillingInterval(basis)
+  )
+}
+
+/** A usage pool's limit and prepaid credit as stored, read together before a plan switch. */
+export interface PoolUsageSnapshot {
+  limit: string | null
+  creditBalance: string
+}
+
+/** Reads a pool's {@link PoolUsageSnapshot} before a plan switch, for {@link rebaseUsageLimit}. */
+export async function readPoolUsageSnapshot(pool: {
+  type: 'user' | 'organization'
+  id: string
+}): Promise<PoolUsageSnapshot | undefined> {
+  const [row] =
+    pool.type === 'organization'
+      ? await db
+          .select({ limit: organization.orgUsageLimit, creditBalance: organization.creditBalance })
+          .from(organization)
+          .where(eq(organization.id, pool.id))
+          .limit(1)
+      : await db
+          .select({ limit: userStats.currentUsageLimit, creditBalance: userStats.creditBalance })
+          .from(userStats)
+          .where(eq(userStats.userId, pool.id))
+          .limit(1)
+  return row
+}
+
+/**
  * Records a tier or billing-interval change Stripe has already applied: the plan, the interval,
  * and the payer's usage limit.
  *
  * The limit moves with the plan's included usage ({@link rebaseUsageLimit}): an untouched limit
  * left at a pricier allowance would read as on-demand usage nobody turned on. A personal trial
  * keeps its fixed allowance.
+ *
+ * An interval change also restarts Stripe's period, which `period` carries from the update. It is
+ * written with the interval: until the subscription webhook lands, the old period with the new
+ * interval would price a year of usage against a month's allowance, and threshold billing would
+ * collect overage the old year's close then finds it never owed.
  */
 export async function recordPlanSwitch(params: {
   subscription: SwitchedSubscription
   targetPlanName: string
   targetInterval: 'month' | 'year'
   orgScoped: boolean
+  period?: { start: Date; end: Date }
+  previous?: PoolUsageSnapshot
 }): Promise<void> {
-  const { subscription, targetPlanName, targetInterval, orgScoped } = params
+  const { subscription, targetPlanName, targetInterval, orgScoped, period, previous } = params
 
   const trialing = !orgScoped && isTrialingSubscription(subscription)
   const previousInterval = resolveBillingInterval(subscription)
-  const target = { ...subscription, plan: targetPlanName, billingInterval: targetInterval }
+  const restartedPeriod = previousInterval !== targetInterval ? period : undefined
+  const target = {
+    ...subscription,
+    plan: targetPlanName,
+    billingInterval: targetInterval,
+    ...(restartedPeriod ? { periodStart: restartedPeriod.start } : {}),
+  }
   const previousBase = orgScoped
     ? getOrgIncludedUsageDollars(subscription)
     : getPlanPricing(subscription).basePrice
@@ -97,10 +171,15 @@ export async function recordPlanSwitch(params: {
   // One transaction: a retry of a half-recorded switch finds the plan already matching and would
   // never rebase the limit.
   await db.transaction(async (tx) => {
-    if (subscription.plan !== targetPlanName) {
+    if (subscription.plan !== targetPlanName || restartedPeriod) {
       await tx
         .update(subscriptionTable)
-        .set({ plan: targetPlanName })
+        .set({
+          plan: targetPlanName,
+          ...(restartedPeriod
+            ? { periodStart: restartedPeriod.start, periodEnd: restartedPeriod.end }
+            : {}),
+        })
         .where(eq(subscriptionTable.id, subscription.id))
     }
     await writeBillingInterval(subscription.id, targetInterval, tx)
@@ -113,6 +192,7 @@ export async function recordPlanSwitch(params: {
         previousIncluded: previousBase,
         nextIncluded: nextBase,
         headroomScale,
+        previous,
       },
       tx
     )

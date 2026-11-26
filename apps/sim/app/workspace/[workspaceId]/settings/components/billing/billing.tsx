@@ -19,7 +19,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/client'
-import { ANNUAL_DISCOUNT_RATE, ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
+import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import {
   getCoveredUsage,
@@ -28,6 +28,7 @@ import {
   isOnDemandOffDisabled,
 } from '@/lib/billing/on-demand'
 import {
+  formatMonthlyPlanPrice,
   getDisplayPlanName,
   getPlanTierDollars,
   isEnterprise,
@@ -82,13 +83,6 @@ const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
   open: { variant: 'amber', label: 'Open' },
   uncollectible: { variant: 'red', label: 'Uncollectible' },
   void: { variant: 'gray', label: 'Void' },
-}
-
-/** A plan's effective monthly price: the annual price spread over twelve months on annual billing. */
-function formatMonthlyPrice(plan: string, billingInterval: string | undefined): string {
-  const monthly =
-    getPlanTierDollars(plan) * (billingInterval === 'year' ? 1 - ANNUAL_DISCOUNT_RATE : 1)
-  return `$${Number.isInteger(monthly) ? monthly : monthly.toFixed(2)}`
 }
 
 function getPeriodEndLabel(isCancelledAtPeriodEnd: boolean, isTrialing: boolean): string {
@@ -498,7 +492,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
         ? 'Choose a new plan for this organization'
         : subscription.isEnterprise
           ? 'Custom pricing'
-          : `${formatMonthlyPrice(subscription.plan, billingInterval)}${isOrganizationScope ? ' per user' : ''}/month, ${billingPeriod}`
+          : `${formatMonthlyPlanPrice(getPlanTierDollars(subscription.plan), billingInterval === 'year')}${isOrganizationScope ? ' per user' : ''}/month, ${billingPeriod}`
 
   const periodEnd = isOrganizationScope
     ? (organizationBilling?.billingPeriodEnd ?? null)

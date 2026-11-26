@@ -11,7 +11,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
-import { recordPlanSwitch } from '@/lib/billing/core/plan-switch'
+import { isSwitchBasisCurrent, recordPlanSwitch } from '@/lib/billing/core/plan-switch'
 import { getOrgUsageLimit, syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { closeElapsedBillingPeriod } from '@/lib/billing/cycle-close'
 import { syncAnnualPlanUsageLimits } from '@/lib/billing/organization'
@@ -375,6 +375,75 @@ describe('recordPlanSwitch', () => {
     expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS * 12)
   })
 
+  it('keeps headroom chosen before the switch when the webhook raised the limit first', async () => {
+    // $10 of on-demand headroom over the monthly plan; the webhook then raised it to the annual floor.
+    const userId = await createUser(PRO_MONTHLY_DOLLARS * 12)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'year',
+      orgScoped: false,
+      previous: { limit: String(PRO_MONTHLY_DOLLARS + 10), creditBalance: '0' },
+    })
+
+    expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS * 12 + 120)
+  })
+
+  it('keeps chosen headroom when credit is granted while the switch is in flight', async () => {
+    // $70 of headroom over Pro before the switch; $50 of credit landed (raising the limit) since.
+    const userId = await createUser(100 + 50, 50)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_25000',
+      targetInterval: 'month',
+      orgScoped: false,
+      previous: { limit: '100', creditBalance: '0' },
+    })
+
+    expect(await readLimit(userId)).toBe(MAX_MONTHLY_DOLLARS + 50 + 70)
+  })
+
+  it('keeps headroom a payer chose that happens to equal the new plan allowance', async () => {
+    // Raised to Max's allowance on Pro before the switch: that is chosen headroom, not a webhook's.
+    const userId = await createUser(MAX_MONTHLY_DOLLARS)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_25000',
+      targetInterval: 'month',
+      orgScoped: false,
+      previous: { limit: String(MAX_MONTHLY_DOLLARS), creditBalance: '0' },
+    })
+
+    expect(await readLimit(userId)).toBe(
+      MAX_MONTHLY_DOLLARS + (MAX_MONTHLY_DOLLARS - PRO_MONTHLY_DOLLARS)
+    )
+  })
+
+  it('records the period Stripe restarted with an interval switch, before the webhook', async () => {
+    const userId = await createUser(PRO_MONTHLY_DOLLARS * 12)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'year' })
+    const start = new Date(Date.UTC(2026, 10, 20))
+    const end = new Date(Date.UTC(2026, 11, 20))
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'month',
+      orgScoped: false,
+      period: { start, end },
+    })
+
+    const [row] = await db.select().from(subscription).where(eq(subscription.id, sub.id))
+    expect(row?.periodStart?.getTime()).toBe(start.getTime())
+    expect(row?.periodEnd?.getTime()).toBe(end.getTime())
+  })
+
   it('keeps an unlimited limit unlimited', async () => {
     const userId = await createUser(ON_DEMAND_UNLIMITED)
     const sub = await addSubscription(userId, { plan: 'pro_25000', billingInterval: 'month' })
@@ -419,5 +488,37 @@ describe('recordPlanSwitch', () => {
     })
 
     expect(await readLimit(userId)).toBe(10)
+  })
+})
+
+describe('isSwitchBasisCurrent', () => {
+  it('refuses a switch computed from a plan another switch has since moved', async () => {
+    const userId = await createUser(PRO_MONTHLY_DOLLARS)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+    expect(await isSwitchBasisCurrent(sub)).toBe(true)
+
+    // A concurrent request switched to Max after this one read the subscription.
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_25000',
+      targetInterval: 'month',
+      orgScoped: false,
+    })
+
+    expect(await isSwitchBasisCurrent(sub)).toBe(false)
+  })
+
+  it('refuses a switch computed from an interval another switch has since moved', async () => {
+    const userId = await createUser(PRO_MONTHLY_DOLLARS)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'year',
+      orgScoped: false,
+    })
+
+    expect(await isSwitchBasisCurrent(sub)).toBe(false)
   })
 })

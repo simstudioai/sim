@@ -1,10 +1,16 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { APIError } from 'better-auth/api'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import {
+  type CheckoutAdmissionClaim,
+  claimCheckoutAdmission,
+  releaseCheckoutAdmission,
+} from '@/lib/billing/checkout-admission'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getOrganizationSubscription, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
@@ -12,7 +18,11 @@ import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import { recordPlanSwitch } from '@/lib/billing/core/plan-switch'
+import {
+  isSwitchBasisCurrent,
+  readPoolUsageSnapshot,
+  recordPlanSwitch,
+} from '@/lib/billing/core/plan-switch'
 import { getPlanTierCredits, getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -42,6 +52,7 @@ const logger = createLogger('SwitchPlan')
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
+  let admission: CheckoutAdmissionClaim | null = null
 
   try {
     if (!session?.user?.id) {
@@ -120,6 +131,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
+    // One plan change or checkout per billing reference at a time, each computed from the plan
+    // as it stands once admitted: a second switch must not snapshot the first one's new allowance.
+    try {
+      admission = await claimCheckoutAdmission(sub.referenceId)
+    } catch (error) {
+      if (!(error instanceof APIError)) throw error
+      return NextResponse.json(
+        { error: 'A plan change is already in progress. Please wait a moment and try again.' },
+        { status: 409 }
+      )
+    }
+    if (!(await isSwitchBasisCurrent(sub))) {
+      return NextResponse.json(
+        { error: 'Your plan just changed. Refresh the page and try again.' },
+        { status: 409 }
+      )
+    }
+
     const stripe = requireStripeClient()
     const stripeSubscription = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId)
 
@@ -178,10 +207,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       targetPriceId,
     })
 
+    const orgScoped = await isSubscriptionOrgScoped(sub)
+    // Read before Stripe applies the switch, since its webhook can move the live limit first. A
+    // retry finds Stripe already switched, so it has no pre-switch reading to take.
+    const previous = alreadyOnStripePrice
+      ? undefined
+      : await readPoolUsageSnapshot({
+          type: orgScoped ? 'organization' : 'user',
+          id: sub.referenceId,
+        })
+    // The item's period after the switch: Stripe's response, or the retrieved item on a retry
+    // that finds Stripe already on the target price.
+    let switchedItem: typeof subscriptionItem | undefined = subscriptionItem
     if (!alreadyOnStripePrice) {
       const currentQuantity = subscriptionItem.quantity ?? 1
 
-      await stripe.subscriptions.update(sub.stripeSubscriptionId, {
+      const updated = await stripe.subscriptions.update(sub.stripeSubscriptionId, {
         items: [
           {
             id: subscriptionItem.id,
@@ -191,13 +232,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         ],
         proration_behavior: 'always_invoice',
       })
+      switchedItem = updated.items.data.find((item) => item.id === subscriptionItem.id)
     }
+    const period = switchedItem
+      ? {
+          start: new Date(switchedItem.current_period_start * 1000),
+          end: new Date(switchedItem.current_period_end * 1000),
+        }
+      : undefined
 
     await recordPlanSwitch({
       subscription: sub,
       targetPlanName,
       targetInterval: targetInterval as 'month' | 'year',
-      orgScoped: await isSubscriptionOrgScoped(sub),
+      orgScoped,
+      period,
+      previous,
     })
 
     logger.info('Subscription switched successfully', {
@@ -248,5 +298,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { error: getErrorMessage(error, 'Failed to switch plan') },
       { status: 500 }
     )
+  } finally {
+    if (admission) await releaseCheckoutAdmission(admission)
   }
 })

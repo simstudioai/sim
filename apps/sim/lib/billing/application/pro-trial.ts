@@ -1,3 +1,4 @@
+import Stripe from 'stripe'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { isTrialingSubscription } from '@/lib/billing/subscriptions/utils'
@@ -40,15 +41,31 @@ export const endProTrial: OperationUseCase<
       !subscription ||
       subscription.referenceId !== userId ||
       !isTrialingSubscription(subscription) ||
-      !subscription.stripeSubscriptionId
+      !subscription.stripeSubscriptionId ||
+      subscription.cancelAtPeriodEnd
     ) {
       throw new OrchestrationError('conflict', 'There is no free trial to end on this account')
     }
-    await requireStripeClient().subscriptions.update(
-      subscription.stripeSubscriptionId,
-      { trial_end: 'now' },
-      { idempotencyKey: `end-trial-early:${subscription.stripeSubscriptionId}` }
-    )
+    try {
+      // A failed first charge leaves the trial running instead of starting a past-due plan. The
+      // key absorbs a double click but not a retry a minute later, since Stripe replays a stored
+      // decline for a day and the payer may have just fixed their card.
+      await requireStripeClient().subscriptions.update(
+        subscription.stripeSubscriptionId,
+        { trial_end: 'now', payment_behavior: 'error_if_incomplete' },
+        {
+          idempotencyKey: `end-trial-early:${subscription.stripeSubscriptionId}:${Math.floor(Date.now() / 60_000)}`,
+        }
+      )
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeCardError) {
+        throw new OrchestrationError(
+          'conflict',
+          'Your card could not be charged. Update your payment method, then try again.'
+        )
+      }
+      throw error
+    }
     return { success: true }
   },
 }

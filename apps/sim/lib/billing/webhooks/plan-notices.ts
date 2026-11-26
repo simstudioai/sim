@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { member, subscription, user } from '@sim/db/schema'
+import { subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getDisplayPlanName, isPaid } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -91,8 +91,10 @@ export async function handleTrialWillEnd(
     'trial-ending-reminder',
     `${stripeSubscription.id}:${trialEnd}`,
     async () => {
-      const recipient = await readRecipient(recorded.referenceId)
-      const price = await readRenewalCharge(stripeSubscription)
+      const [recipient, price] = await Promise.all([
+        readRecipient(recorded.referenceId),
+        readRenewalCharge(stripeSubscription),
+      ])
       if (!recipient || !price) return { sent: false }
 
       const { getTrialEndingSubject, renderTrialEndingEmail } = await import('@/components/emails')
@@ -119,30 +121,21 @@ export async function handleTrialWillEnd(
   )
 }
 
-/** The account a plan's emails go to: the user on a personal plan, the owner on an organization's. */
-async function resolvePlanOwnerId(referenceId: string): Promise<string> {
-  const [owner] = await db
-    .select({ userId: member.userId })
-    .from(member)
-    .where(and(eq(member.organizationId, referenceId), eq(member.role, 'owner')))
-    .limit(1)
-  return owner?.userId ?? referenceId
-}
-
 /**
  * Tells a payer whose paid plan just ended that Sim-hosted models, tools, and Chat stopped, and
  * how to keep workflows running. Skipped when the owner is still covered by another paid plan, such
  * as an organization's or a restored personal Pro. Never throws: a missed notice must not fail
  * the deletion webhook that settles the final invoice.
+ *
+ * @param ownerId - the account the plan's emails go to: the user on a personal plan, the owner on
+ *   an organization's
  */
-export async function sendPlanEndedEmail(ended: {
-  id: string
-  plan: string | null
-  referenceId: string
-}) {
+export async function sendPlanEndedEmail(
+  ended: { id: string; plan: string | null; referenceId: string },
+  ownerId: string
+) {
   try {
     if (!isPaid(ended.plan)) return
-    const ownerId = await resolvePlanOwnerId(ended.referenceId)
     const current = await getHighestPrioritySubscription(ownerId, { onError: 'throw' })
     const stillPaid =
       current &&
