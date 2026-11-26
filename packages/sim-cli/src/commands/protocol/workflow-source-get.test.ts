@@ -201,6 +201,29 @@ describe('sim workflows source get <name>', () => {
     )
   })
 
+  it('reads every page of substring hits before deciding, so an exact match after the first is found', async () => {
+    const hits = Array.from({ length: 100 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, '1')}`,
+      name: `Lead Scorer ${index}`,
+      folderPath: '',
+    }))
+    serve({
+      [LIST_PATH]: () => {
+        const cursor = callsTo(LIST_PATH).at(-1)?.[1].query?.cursor
+        return cursor
+          ? { data: [{ id: WORKFLOW_ID, name: 'Lead Scorer', folderPath: '' }], nextCursor: null }
+          : { data: hits, nextCursor: 'page-2' }
+      },
+    })
+
+    expect(await getNamed('Lead Scorer')).toBeNull()
+
+    expect(callsTo(LIST_PATH)).toHaveLength(2)
+    expect(JSON.parse(readFileSync(join(outDir, '.sim/base.json'), 'utf8')).workflowId).toBe(
+      WORKFLOW_ID
+    )
+  })
+
   it.each([
     [
       'several workflows hold the name',

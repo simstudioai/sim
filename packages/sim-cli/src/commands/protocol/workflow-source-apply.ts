@@ -21,6 +21,7 @@ import {
   liveDeploymentStatus,
 } from '../../runtime/deployment-live'
 import { runFailureMessage } from '../../runtime/execute'
+import { withRunNext } from '../../runtime/run-next'
 import { searchTasks } from '../search'
 import {
   type DeployedUrl,
@@ -184,6 +185,11 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   ifAnswerLost: string
   /** This write as a command, without `--yes`: what a `plan` run names next with it. */
   command: string
+  /**
+   * The write to run again once this one is saved, without `--yes`: an apply's own command; a
+   * create's is an apply of the workflow it created, whose name a second create finds taken.
+   */
+  savedCommand: string
 }): Promise<void> {
   const { options, creating } = args
   assertSendableCodeFiles(args.body.files)
@@ -302,14 +308,14 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
     if (record.status !== 'completed') {
       await printRunFailureSite(options.dir, data.workflowId, record.error)
       const next = {
-        command: `${args.command} --yes`,
+        command: `${args.savedCommand} --yes`,
         reason: 'applies your fix and tests it again',
       }
       report(data, { next }, run)
       const why =
         runFailureMessage('executeWorkflow', record) ?? `it ended ${String(record.status)}`
       throw new SimApiError(
-        `The ${verb} was saved into ${options.dir}, but the test run ${String(record.status)}: ${why}${options.deploy ? ' Nothing was deployed.' : ''} Fix the source, then run the same command again.`,
+        `The ${verb} was saved into ${options.dir}, but the test run ${String(record.status)}: ${why}${options.deploy ? ' Nothing was deployed.' : ''} Fix the source, then run \`${args.savedCommand} --yes\`.`,
         0
       )
     }
@@ -321,7 +327,9 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
       machine: findings.machine,
       // Read only without --deploy: an untested draft's next names the tested deploy too.
       testedDeploy:
-        run === undefined && !creating ? `${args.command} --yes --run '{…}' --deploy` : undefined,
+        run === undefined && !creating
+          ? `${args.savedCommand} --yes --run '{…}' --deploy`
+          : undefined,
     })
   )
   report(data, deployment, run)
@@ -334,19 +342,23 @@ interface TestRun {
   error?: unknown
   output: unknown
   sideEffects?: unknown
+  next?: unknown
 }
 
 /**
  * A `--run` record as the write's result shows it: the run id, status, error message, the
- * workflow's output and the side effects the dry run held back.
+ * workflow's output, the side effects the dry run held back and, for a run that failed in a
+ * block, the dry rerun from where the server says a rerun can start (none when it names none).
  */
 function testRunResult(record: Record<string, unknown>): TestRun {
+  const { next } = toRecord(withRunNext('executeWorkflow', record))
   return {
     runId: record.runId,
     status: record.status,
     ...(record.error ? { error: toRecord(record.error).message ?? record.error } : {}),
     output: record.output,
     ...(record.sideEffects ? { sideEffects: record.sideEffects } : {}),
+    ...(next ? { next } : {}),
   }
 }
 
@@ -568,6 +580,11 @@ function deployFailure(
   )
 }
 
+/** `sim workflows source apply` with the write flags `options` holds, without `--yes`. */
+function applyCommand(options: SourceWriteOptions): string {
+  return `sim workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`
+}
+
 /** Refuses `--deploy` or `--run` beside `--dry`: a dry run stores nothing to deploy or run. */
 function assertNotDry(options: SourceWriteOptions): void {
   if (!options.dry) return
@@ -658,7 +675,8 @@ export function attachWorkflowSourceApply(source: Command): void {
             mode,
             creating: false,
             question: `Apply these changes to workflow ${workflowId}?`,
-            command: `sim workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
+            command: applyCommand(options),
+            savedCommand: applyCommand(options),
             output: profile.output,
             client,
             workspaceId: base.workspaceId,
@@ -776,6 +794,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
             creating: true,
             question: 'Create this workflow?',
             command: `${createCommand(shellWord(options.dir), workspaceId)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
+            savedCommand: applyCommand(options),
             output: profile.output,
             client,
             operation: 'createWorkflowFromSource',

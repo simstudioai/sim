@@ -30,9 +30,12 @@ with -P, --profile, or SIM_PROFILE.
 A command's workspace is, first to last: -w <id>, SIM_WORKSPACE, the source
 directory at or above the working directory whose .sim/base.json or
 .sim/starter.json names one (a workflow folder counts as its workspace's), then
-the profile's. A source command acts on what its --dir names and refuses a -w or
-SIM_WORKSPACE naming another workspace (SOURCE_OTHER_WORKSPACE); a starter takes
-theirs over its own. In a script, export SIM_WORKSPACE=<id> once, or keep only
+the profile's. A source command acts on what its --dir names: a workflow
+directory on the workflow its .sim/base.json names, a workspace directory on the
+workspace its base names (refusing a -w or SIM_WORKSPACE naming another,
+SOURCE_OTHER_WORKSPACE), and a starter, until \`source create\` creates its
+workflow, on the workspace .sim/starter.json names unless -w or SIM_WORKSPACE
+names another. In a script, export SIM_WORKSPACE=<id> once, or keep only
 the ID in a variable and write -w "$WS" (one holding "--workspace <id>" is a
 single argument).
 

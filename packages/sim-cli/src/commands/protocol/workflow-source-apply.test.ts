@@ -1864,6 +1864,37 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     }
   })
 
+  it('after a create whose test run fails, names the apply of the created workflow, not a second create', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const starter = join(dir, 'new')
+    answerStarterAndCreate()
+    await create('--dir', starter)
+    vi.mocked(console.log).mockClear()
+    contextMockFns.mockRequestRaw.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            workflowId: WORKFLOW_ID,
+            runId: 'run-1',
+            status: 'failed',
+            error: { message: 'bad' },
+          },
+        }),
+        { headers: { 'content-type': 'application/json' } }
+      )
+    )
+
+    await expect(create('--dir', starter, '--yes', '--run', '{}', '--deploy')).rejects.toThrow(
+      `run \`sim workflows source apply --dir ${starter} --run '{}' --deploy --yes\``
+    )
+
+    expect(existsSync(join(starter, '.sim/base.json'))).toBe(true)
+    expect(stdoutJson()).toMatchObject({
+      next: { command: `sim workflows source apply --dir ${starter} --run '{}' --deploy --yes` },
+    })
+  })
+
   it.each(['--dry', '--yes'])('refuses %s instead of scaffolding', async (flag) => {
     setTerminal(false)
     vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))

@@ -315,7 +315,8 @@ const LINT_GRAPH_FACTS: ReadonlySet<string> = new Set(['sources', 'sinks'])
  * `sim workflows outline` prints.
  */
 function withLintFindingsOnly(data: unknown): unknown {
-  if (!isRecordLike(data) || !isRecordLike(data.lint)) return data
+  if (!isRecordLike(data) || !('lint' in data)) return data
+  if (!isRecordLike(data.lint)) return data.lint === null ? omit(data, ['lint']) : data
   const findings = Object.entries(data.lint).filter(
     ([key, value]) =>
       !LINT_GRAPH_FACTS.has(key) && value !== null && !(Array.isArray(value) && value.length === 0)

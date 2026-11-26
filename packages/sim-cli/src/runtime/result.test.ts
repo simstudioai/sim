@@ -268,7 +268,7 @@ describe('a deploy result read by a person', () => {
     manualRunIssue: null,
     notes: [],
   }
-  const deployed = (lint: Record<string, unknown>) => ({
+  const deployed = (lint: Record<string, unknown> | null) => ({
     id: 'wf-1',
     isDeployed: true,
     version: 7,
@@ -303,6 +303,11 @@ describe('a deploy result read by a person', () => {
     const shown = JSON.parse(logged.join('\n'))
     expect(shown).not.toHaveProperty('lint')
     expect(Object.keys(shown).at(-1)).toBe('live')
+
+    // A deploy that lints nothing answers `lint: null`: no report, so no field either.
+    logged = []
+    renderResult('deployWorkflow', 'json', deployed(null), CLI_CONTRACT.deployWorkflow ?? {})
+    expect(JSON.parse(logged.join('\n'))).not.toHaveProperty('lint')
   })
 })
 

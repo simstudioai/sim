@@ -49,14 +49,14 @@ ${PATTERNS_HEADING} (\`.sim/examples/\`, indexed atop \`cookbook.ts\`; any build
   - Tables: \`table.queryRows\` outputs \`rows\` (\`recent.rows[0].data.status\`), not \`row\`; \`table.upsertRow\` takes \`conflictColumn: 'orderId'\`.
   - Rejoin: before one \`response\`, a Function picks the branch that ran with \`??\`.${extra.patterns ?? ''}
 - **Credentials**: \`sim credentials connect <provider> --name "<Name>"\`, send the owner its link, then \`credential('<key>')\`.
-- **Run**: \`sim workflows run <workflowId>\` runs the active deployment (\`--deployment-version <n>\`: that version); \`--draft\` runs the draft for real (use test resources); \`--dry\` runs it stubbing writes and MCP tools (even read-only: \`mcp-read-only\`), listed in \`sideEffects\` (\`dry_run_*\` placeholders; a read given one too: \`placeholder\`); GET \`api\` calls and plain-JS GET fetches run; sandboxed code (Python, shell, imports): \`unchecked\`. \`--allow <block>\` sends its writes; \`--mock <block>='{…}'\` fixes its output (bare, with \`--mock-from <runId>\`: that run's); a child's block: \`<workflow>.<block>\`.
+- **Run**: \`sim workflows run <workflowId>\` runs the active deployment (\`--deployment-version <n>\`: that version); \`--draft\` runs the draft for real (use test resources); \`--dry\` runs it stubbing writes and MCP tools (even read-only: \`mcp-read-only\`), listed in \`sideEffects\` (\`dry_run_*\` placeholders; a read given one too: \`placeholder\`); GET \`api\` calls and plain-JS GET fetches run; sandboxed code (Python, shell, imports): \`unchecked\`. \`--allow <block>\` sends its writes (use test resources); \`--mock <block>='{…}'\` fixes its output (bare, with \`--mock-from <runId>\`: that run's); a child's block: \`<workflow>.<block>\`.
 - **Debug**: \`--dir .\` maps a failure to file:line; \`sim logs get <runId> --trace --no-include-workflow-state\`; rows: \`sim tables rows list <table>\`; rerun: \`--from-block <block> --source-run <runId>\`; \`--stop-after <block>\`.
 - **Exit codes**: 0 ok, 1 errors, ${SOURCE_STALE_EXIT_CODE} stale (redo in a fresh \`${group} get\`), ${RATE_LIMITED_EXIT_CODE} rate limited, ${SOURCE_BUSY_EXIT_CODE} busy, ${SOURCE_LOCAL_CHANGES_EXIT_CODE}/${SOURCE_DRIFT_EXIT_CODE} \`status\`: your edits / the server changed.`
 }
 
 const WORKFLOW_PRIMER = `# Sim workflow source: primer
 
-\`${SOURCE_ENTRY_FILE}\` is a Sim workflow as TypeScript; the server compiles it statically and nothing in it runs. Commands here (table ones too) act on the workflow \`${SOURCE_BASE_FILE}\` names and its workspace (a starter's \`${SOURCE_STARTER_FILE}\` names the workspace; its loop ends in \`sim workflows source create --dir . --yes\`).
+\`${SOURCE_ENTRY_FILE}\` is a Sim workflow as TypeScript; the server compiles it statically and nothing in it runs. Commands here (table ones too) act on the workflow \`${SOURCE_BASE_FILE}\` names and its workspace (a starter's \`${SOURCE_STARTER_FILE}\` names the workspace, and its loop runs \`create\` where the loop below runs \`apply\`: no workflow exists until then).
 
 **Edit loop**: write every file, then run one chained command; fix what it reports: \`sim workflows source check --dir . && sim workflows source apply --dir . --yes --run '{…}' --deploy\` applies, dry-runs that input on the draft, and deploys only if the run completed (no \`--deploy\`: stays a draft). \`check\` also type-checks (no \`tsc\`). Apply re-checks (\`apply --dry\` only plans) and rewrites \`${SOURCE_ENTRY_FILE}\`: reread it before the next edit.
 
@@ -101,7 +101,7 @@ export function agentsPointer(kind: PrimerKind): string {
 
 ${kind === 'workflow' ? '`workflow.ts` is a Sim workflow as TypeScript that Sim compiles' : 'This directory is a Sim workspace as files that Sim applies'}; nothing in it runs. Read \`${SOURCE_AGENTS_FILE}\` before editing: the rules, the edit loop, patterns and exit codes.
 
-Loop: write every file, then one chained command: \`${group} check --dir . && ${group} apply --dir . --yes${kind === 'workflow' ? " --run '{…}' --deploy" : ''}\`; fix what it reports next.
+Loop: write every file, then one chained command: \`${group} check --dir . && ${group} apply --dir . --yes${kind === 'workflow' ? " --run '{…}' --deploy" : ''}\`; fix what it reports next.${kind === 'workflow' ? ` A starter (\`${SOURCE_STARTER_FILE}\`, no workflow yet) runs \`create\` in place of \`apply\`.` : ''}
 Exit codes: 0 ok, 1 errors, ${SOURCE_STALE_EXIT_CODE} stale (get a fresh copy and redo the edit), ${SOURCE_DRIFT_EXIT_CODE} \`status\`: the server changed.
 `
 }

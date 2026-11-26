@@ -57,8 +57,7 @@ async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<v
   )
 }
 
-/** How many workflows a name lookup reads, and names when none or several match. */
-const NAME_LOOKUP_LIMIT = 100
+/** How many candidates a refused name lookup names. */
 const NAMED_CANDIDATES = 10
 
 /**
@@ -72,13 +71,10 @@ async function resolveWorkflow(
 ): Promise<string> {
   if (isValidUuid(workflow)) return workflow
   const workspaceId = client.requireWorkspace()
+  // Every page: an exact match or a second one can sort after the first page of substring hits.
   const found = await client.requestAllPages<ListWorkflowsResponse['data'][number]>(
     'listWorkflows',
-    {
-      query: { workspaceId, search: workflow },
-      pageSize: DEFAULT_PAGE_SIZE,
-      limit: NAME_LOOKUP_LIMIT,
-    }
+    { query: { workspaceId, search: workflow }, pageSize: DEFAULT_PAGE_SIZE }
   )
   const exact = found.filter(({ name }) => name === workflow)
   if (exact.length === 1) return exact[0].id
