@@ -28,7 +28,13 @@ import {
   MothershipStreamV1EventType,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { TitleRequest } from '@/lib/mothership/generated/protocol'
+import {
+  CopilotRequestCancelReason,
+  CopilotTransport,
+} from '@/lib/mothership/observability/trace-attribute-values'
+import { startCopilotOtelRoot } from '@/lib/mothership/request/otel'
 import { isExplicitStopReason } from '@/lib/mothership/request/session/abort-reason'
+import { RequestTraceOutcome } from '@/lib/mothership/request/trace'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const {
@@ -621,6 +627,11 @@ describe('createSSEStream terminal error handling', () => {
       contentBlocks: [],
       toolCalls: [],
     })
+    const otelRoot = startCopilotOtelRoot({
+      requestId: 'req-cancelled',
+      transport: CopilotTransport.Stream,
+    })
+    const finish = vi.spyOn(otelRoot, 'finish')
 
     const stream = createSSEStream({
       requestPayload: { message: 'hello' },
@@ -633,6 +644,7 @@ describe('createSSEStream terminal error handling', () => {
       titleModel: 'gpt-5.4',
       requestId: 'req-cancelled',
       orchestrateOptions: { userId: 'user-1' },
+      otelRoot,
     })
 
     await drainStream(stream)
@@ -653,6 +665,13 @@ describe('createSSEStream terminal error handling', () => {
     expect(getMockLogger('CopilotChatStreaming').error).not.toHaveBeenCalledWith(
       'Stream cancelled with unknown abort reason',
       expect.anything()
+    )
+    await vi.waitFor(() =>
+      expect(finish).toHaveBeenCalledWith(
+        RequestTraceOutcome.cancelled,
+        undefined,
+        CopilotRequestCancelReason.ExplicitStop
+      )
     )
   })
 
