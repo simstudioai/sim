@@ -165,6 +165,67 @@ afterEach(() => {
   rmSync(rootDir, { recursive: true, force: true })
 })
 
+describe('sim workflows source get <name>', () => {
+  const LIST_PATH = '/api/v2/workflows'
+  const OTHER_ID = '00000000-0000-4000-8000-00000000000c'
+  const listed =
+    (...workflows: Array<{ id: string; name: string; folderPath?: string }>) =>
+    () => ({
+      data: workflows.map((workflow) => ({ folderPath: '', ...workflow })),
+      nextCursor: null,
+    })
+
+  async function getNamed(name: string): Promise<unknown> {
+    return program()
+      .parseAsync(['node', 'sim', 'workflows', 'source', 'get', name, '--dir', outDir])
+      .then(
+        () => null,
+        (error: unknown) => error
+      )
+  }
+
+  it('gets the one workflow whose name matches exactly, not one that only contains it', async () => {
+    serve({
+      [LIST_PATH]: listed(
+        { id: OTHER_ID, name: 'Lead Scorer v2' },
+        { id: WORKFLOW_ID, name: 'Lead Scorer' }
+      ),
+    })
+
+    expect(await getNamed('Lead Scorer')).toBeNull()
+
+    expect(callsTo(LIST_PATH)[0][1].query).toMatchObject({ search: 'Lead Scorer' })
+    expect(callsTo(SOURCE_PATH)).toHaveLength(1)
+    expect(JSON.parse(readFileSync(join(outDir, '.sim/base.json'), 'utf8')).workflowId).toBe(
+      WORKFLOW_ID
+    )
+  })
+
+  it.each([
+    [
+      'several workflows hold the name',
+      [
+        { id: WORKFLOW_ID, name: 'Lead Scorer', folderPath: 'sales' },
+        { id: OTHER_ID, name: 'Lead Scorer', folderPath: 'ops' },
+      ],
+      'WORKFLOW_NAME_AMBIGUOUS',
+    ],
+    ['none holds it exactly', [{ id: OTHER_ID, name: 'Lead Scorer v2' }], 'WORKFLOW_NOT_FOUND'],
+  ])(
+    'refuses when %s, naming each candidate with its id, and reads no source',
+    async (_case, workflows, code) => {
+      serve({ [LIST_PATH]: listed(...workflows) })
+
+      const error = await getNamed('Lead Scorer')
+
+      expect(error).toMatchObject({ code })
+      for (const { id } of workflows) expect(String((error as Error).message)).toContain(id)
+      expect(callsTo(SOURCE_PATH)).toHaveLength(0)
+      expect(existsSync(join(outDir, '.sim/base.json'))).toBe(false)
+    }
+  )
+})
+
 describe('sim workflows source get --dir', () => {
   it('writes the source, lock, base, an agent guide and the declarations of the blocks it uses', async () => {
     serve({

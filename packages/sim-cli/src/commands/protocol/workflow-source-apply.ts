@@ -20,6 +20,7 @@ import {
   liveAgainstDraft,
   liveDeploymentStatus,
 } from '../../runtime/deployment-live'
+import { runFailureMessage } from '../../runtime/execute'
 import { searchTasks } from '../search'
 import {
   type DeployedUrl,
@@ -31,6 +32,7 @@ import {
 import { gitProvenance } from './git-provenance'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
+import { printRunFailureSite } from './run-source-location'
 import { folderChildResults } from './source-check'
 import {
   absoluteDirOption,
@@ -78,6 +80,7 @@ import {
   writeSourceDirectory,
   writeSourceScaffold,
 } from './workflow-dir'
+import { dryRunDraft, printSideEffects } from './workflow-run-follow'
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 
@@ -88,7 +91,15 @@ interface SourceWriteOptions {
   allowDelete?: boolean
   verbose?: boolean
   deploy?: boolean
+  /** `--run [input]`: the test run's input as `--input` takes it, or `true` for none. */
+  run?: string | true
   summaryFile?: string
+}
+
+/** The `--run` flag as written in a next command. */
+function runFlag(run: SourceWriteOptions['run']): string {
+  if (run === undefined) return ''
+  return run === true ? ' --run' : ` --run ${shellWord(run)}`
 }
 
 /**
@@ -114,24 +125,29 @@ function variableChangeList(variables: SourceApplyData['diff']['variables']): st
   ]
 }
 
+type BlockDiff = SourceApplyData['diff']['blocks']
+
+/** An added or removed block as a person and a JSON result name it: `key (type)`. */
+const typedBlock = ({ key, type }: BlockDiff['added'][number]) => `${key} (${type})`
+
+/** A modified block and the fields that changed: `key (field, …)`. */
+const modifiedBlock = ({ key, fields }: BlockDiff['modified'][number]) =>
+  `${key} (${fields.join(', ')})`
+
+/** How many blocks a diff adds, removes, renames and modifies, as one clause. */
+function blockCounts(blocks: BlockDiff): string {
+  return `${blocks.added.length} added, ${blocks.removed.length} removed, ${blocks.renamed.length} renamed, ${blocks.modified.length} modified`
+}
+
 /** One line naming what the apply changes, shown before asking to confirm it. */
 function diffSummary(data: SourceApplyData): string {
   const { blocks, edges, variables } = data.diff
   if (data.diff.noop) return 'No graph changes (names, order or comments may still be saved).'
-  const parts = [
-    `${blocks.added.length} added`,
-    `${blocks.removed.length} removed`,
-    `${blocks.renamed.length} renamed`,
-    `${blocks.modified.length} modified`,
-  ]
   const variableChanges = variableChangeList(variables)
-  const modified = blocks.modified.map(({ key, fields }) => `${key} (${fields.join(', ')})`)
-  const typed = (list: ReadonlyArray<{ key: string; type: string }>) =>
-    list.map(({ key, type }) => `${key} (${type})`).join('; ')
-  return `Blocks: ${parts.join(', ')}. Connections: +${edges.added} -${edges.removed}.${
-    blocks.added.length > 0 ? `\nAdded: ${typed(blocks.added)}` : ''
-  }${blocks.removed.length > 0 ? `\nRemoved: ${typed(blocks.removed)}` : ''}${
-    modified.length > 0 ? `\nModified: ${modified.join('; ')}` : ''
+  return `Blocks: ${blockCounts(blocks)}. Connections: +${edges.added} -${edges.removed}.${
+    blocks.added.length > 0 ? `\nAdded: ${blocks.added.map(typedBlock).join('; ')}` : ''
+  }${blocks.removed.length > 0 ? `\nRemoved: ${blocks.removed.map(typedBlock).join('; ')}` : ''}${
+    blocks.modified.length > 0 ? `\nModified: ${blocks.modified.map(modifiedBlock).join('; ')}` : ''
   }${variableChanges.length > 0 ? `\nVariables: ${variableChanges.join('; ')}` : ''}`
 }
 
@@ -153,7 +169,11 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   mode: WriteMode
   creating: boolean
   question: string
-  client: OperationClient<Operation | 'deployWorkflow' | 'getWorkflowDeployment'>
+  client: OperationClient<
+    Operation | 'deployWorkflow' | 'getWorkflowDeployment' | 'executeWorkflow'
+  >
+  /** The workspace the write is in, for the `--run` test run's request. */
+  workspaceId: string
   operation: Operation
   params: Record<string, string>
   body: ApplyWorkflowSourceBody | CreateWorkflowFromSourceBody
@@ -190,32 +210,43 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   }
   const findings = findingsOutput(args.output, options.verbose, options.dir)
   const notes = new Set<string>()
-  const report = (data: SourceApplyData, deployment: DeployOutcome = {}) => {
-    const { live: deployedLive, deployed, ...outcome } = deployment
+  /**
+   * Prints the result: a one-line `summary` first and `errors`, `warnings`, `live` and `next`
+   * last, so both `| head` and `| tail` of a long result (findings, many blocks) show the outcome.
+   */
+  const report = (data: SourceApplyData, deployment: DeployOutcome = {}, run?: TestRun) => {
+    const { live: deployedLive, deployed, next, ...outcome } = deployment
     const live = deployedLive ?? liveAgainstDraft(data.deployedVersion, data.needsRedeployment)
     publishSummary(() => planMarkdown(data, creating, live), {
       file: options.summaryFile,
       marker: summaryMarker(options.dir),
     })
+    const details = summarize(data, creating, findings.machine)
+    const errors = countOf(data, 'error')
+    const warnings = countOf(data, 'warning')
     // `deployed.version` is the version the deploy admitted, which may not be live yet: a person
     // reads `live` instead, and a machine result keeps the record.
     const result = {
-      ...(live ? { live } : {}),
-      ...summarize(data, creating, findings.machine),
+      summary: summaryLine(data, creating, { errors, warnings, run, live }),
+      ...details,
+      ...(run ? { run } : {}),
       ...(deployed && findings.machine ? { deployed } : {}),
       ...outcome,
+      ...findings.result(data.diagnostics),
+      errors,
+      warnings,
+      ...(live ? { live } : {}),
+      ...(next ? { next } : {}),
     }
-    printProtocolResult(
-      args.output,
-      { ...result, ...findings.result(data.diagnostics) },
-      {
-        ...(result.created ? { created: createdText(result.created) } : {}),
-        ...(outcome.urls?.length ? { urls: deployedUrlsText(outcome.urls) } : {}),
-      }
-    )
+    printProtocolResult(args.output, result, {
+      ...(details.created ? { created: createdText(details.created) } : {}),
+      ...(outcome.urls?.length ? { urls: deployedUrlsText(outcome.urls) } : {}),
+    })
+    if (run?.sideEffects && !findings.machine) {
+      printSideEffects(run.sideEffects, undefined, data.workflowId)
+    }
   }
-  const hasErrors = (data: SourceApplyData) =>
-    data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+  const hasErrors = (data: SourceApplyData) => countOf(data, 'error') > 0
   /** Whether a committed answer stored the write: not refused, and a create that applied. */
   const stored = (data: SourceApplyData) =>
     !data.dry && !hasErrors(data) && (data.applied || !creating)
@@ -248,21 +279,111 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   if (!data) return
 
   if (mode === 'write' && stored(data) && !findings.machine) printError(diffSummary(data))
-  let deployment: DeployOutcome = {}
-  if (stored(data)) {
+  if (!stored(data)) {
+    report(data)
+    return
+  }
+  let run: TestRun | undefined
+  /** Runs a step after the stored write; a failure prints the write's result first: it stands. */
+  const afterWrite = async <T>(step: () => Promise<T>): Promise<T> => {
     try {
-      deployment = await deployStep(args.client, data, {
-        ...options,
-        verb,
-        machine: findings.machine,
-      })
+      return await step()
     } catch (error) {
-      // The write stands: its result prints before the deploy's failure.
-      report(data)
+      report(data, {}, run)
       throw error
     }
   }
-  report(data, deployment)
+  if (options.run !== undefined) {
+    const input = options.run === true ? undefined : options.run
+    const record = await afterWrite(() =>
+      dryRunDraft(args.client, data.workflowId, input, args.workspaceId)
+    )
+    run = testRunResult(record)
+    if (record.status !== 'completed') {
+      await printRunFailureSite(options.dir, data.workflowId, record.error)
+      const next = {
+        command: `${args.command} --yes`,
+        reason: 'applies your fix and tests it again',
+      }
+      report(data, { next }, run)
+      const why =
+        runFailureMessage('executeWorkflow', record) ?? `it ended ${String(record.status)}`
+      throw new SimApiError(
+        `The ${verb} was saved into ${options.dir}, but the test run ${String(record.status)}: ${why}${options.deploy ? ' Nothing was deployed.' : ''} Fix the source, then run the same command again.`,
+        0
+      )
+    }
+  }
+  const deployment = await afterWrite(() =>
+    deployStep(args.client, data, {
+      ...options,
+      verb,
+      machine: findings.machine,
+      // Read only without --deploy: the next an untested draft gets is this write, tested, deployed.
+      testedDeploy:
+        run === undefined && !creating
+          ? `${args.command} --yes --run '<input json>' --deploy`
+          : undefined,
+    })
+  )
+  report(data, deployment, run)
+}
+
+/** What a write's result shows of its `--run` test run. */
+interface TestRun {
+  runId: unknown
+  status: unknown
+  error?: unknown
+  output: unknown
+  sideEffects?: unknown
+}
+
+/**
+ * A `--run` record as the write's result shows it: the run id, status, error message, the
+ * workflow's output and the side effects the dry run held back.
+ */
+function testRunResult(record: Record<string, unknown>): TestRun {
+  return {
+    runId: record.runId,
+    status: record.status,
+    ...(record.error ? { error: toRecord(record.error).message ?? record.error } : {}),
+    output: record.output,
+    ...(record.sideEffects ? { sideEffects: record.sideEffects } : {}),
+  }
+}
+
+/** How many of a write's findings have `severity`. */
+function countOf(data: SourceApplyData, severity: 'error' | 'warning'): number {
+  return data.diagnostics.filter((diagnostic) => diagnostic.severity === severity).length
+}
+
+/**
+ * The write's outcome in one line: what it did (or would do), its findings, the test run and
+ * what is live, so the first line of a long result already answers whether it worked.
+ */
+function summaryLine(
+  data: SourceApplyData,
+  creating: boolean,
+  outcome: { errors: number; warnings: number; run?: TestRun; live?: string }
+): string {
+  const { blocks, edges } = data.diff
+  const changes = data.diff.noop
+    ? 'no graph changes'
+    : `${blockCounts(blocks)}, connections +${edges.added} -${edges.removed}`
+  return [
+    `${writeOutcome(data, creating, outcome.errors)}: ${changes}`,
+    `${outcome.errors} error(s), ${outcome.warnings} warning(s)`,
+    ...(outcome.run ? [`test run ${String(outcome.run.status)}`] : []),
+    ...(outcome.live ? [`live: ${outcome.live}`] : []),
+  ].join('; ')
+}
+
+/** What a write did, in a word or two. */
+function writeOutcome(data: SourceApplyData, creating: boolean, errors: number): string {
+  if (data.dry) return 'plan'
+  if (errors > 0) return 'refused'
+  if (!data.applied) return 'not applied'
+  return creating ? 'created' : 'applied'
 }
 
 /**
@@ -292,7 +413,7 @@ function planMarkdown(data: SourceApplyData, creating: boolean, live: string | u
   ]
   const variableChanges = variableChangeList(data.diff.variables)
   const errors = data.diagnostics.filter((finding) => finding.severity === 'error')
-  const warnings = data.diagnostics.filter((finding) => finding.severity === 'warning').length
+  const warnings = countOf(data, 'warning')
   return [
     `### Sim workflow ${data.dry ? 'plan' : verb}: ${markdownCell(data.workflowId)}`,
     '',
@@ -340,12 +461,27 @@ interface DeployOutcome {
 async function deployStep(
   client: OperationClient<'deployWorkflow' | 'getWorkflowDeployment'>,
   data: SourceApplyData,
-  options: { deploy?: boolean; dir: string; verb: string; machine: boolean }
+  options: {
+    deploy?: boolean
+    dir: string
+    verb: string
+    machine: boolean
+    /** The write again with a test run before its deploy, while the draft is untested. */
+    testedDeploy?: string
+  }
 ): Promise<DeployOutcome> {
   // Pinned to the draft this write stored, as `--deploy` is: an edit made since is never deployed.
   const deployCommand = `sim workflows deploy ${data.workflowId} --expected-draft-fingerprint ${data.base.fingerprint}`
   if (!options.deploy) {
     if (!data.needsRedeployment) return {}
+    if (options.testedDeploy) {
+      return {
+        next: {
+          command: options.testedDeploy,
+          reason: `The workflow is deployed and its draft now differs from the live version: this tests the saved draft with that input and deploys it only if the run completes (\`${deployCommand}\` deploys it untested).`,
+        },
+      }
+    }
     return {
       next: {
         command: deployCommand,
@@ -442,13 +578,32 @@ function deployFailure(
   )
 }
 
-/** Refuses `--deploy` beside `--dry`: a dry run stores nothing to deploy. */
-function assertDeployable(options: SourceWriteOptions): void {
-  if (options.deploy && options.dry) {
+/** Refuses `--deploy` or `--run` beside `--dry`: a dry run stores nothing to deploy or run. */
+function assertNotDry(options: SourceWriteOptions): void {
+  if (!options.dry) return
+  if (options.deploy) {
     throw new CliUsageError(
       '--deploy deploys what the write saves, and --dry saves nothing: drop one of them.'
     )
   }
+  if (options.run !== undefined) {
+    throw new CliUsageError(
+      '--run test-runs what the write saves, and --dry saves nothing: drop one of them.'
+    )
+  }
+}
+
+/** `--run [input]` and `--deploy` on a write: test the saved draft, then deploy it. */
+function runAndDeployOptions(command: Command): Command {
+  return command
+    .option(
+      '--run [input]',
+      'After the write is saved, dry-run the draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it): a run that does not complete exits 1 and deploys nothing'
+    )
+    .option(
+      '--deploy',
+      'After the write is saved (and a --run completed), deploy the workflow (as `sim workflows deploy <workflowId>` does)'
+    )
 }
 
 const DIR_DESCRIPTION =
@@ -470,6 +625,7 @@ export function attachWorkflowSourceApply(source: Command): void {
     'deployWorkflow',
     'getWorkflowDeployment',
     'getSourceResources',
+    'executeWorkflow',
   ])
   absoluteDirOption(command)
   verboseFlag(command)
@@ -482,10 +638,8 @@ export function attachWorkflowSourceApply(source: Command): void {
     .option('--dir <dir>', DIR_DESCRIPTION, '.')
     .option('--dry', 'Check the source and show the outcome without saving or writing files')
     .option('-y, --yes', 'Apply without asking for confirmation')
-    .option(
-      '--deploy',
-      'After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does)'
-    )
+
+  runAndDeployOptions(command)
     .option(
       '--allow-delete',
       'Delete blocks and variables the source no longer declares; without it, an apply that deletes one is refused'
@@ -498,7 +652,7 @@ export function attachWorkflowSourceApply(source: Command): void {
       await withSourceCommandLock(
         options.dir,
         async () => {
-          assertDeployable(options)
+          assertNotDry(options)
           await assertSourceDirKind(options.dir, 'workflow')
           const { client, profile } = connectApply()
           const lock = await readLock(options.dir)
@@ -514,9 +668,10 @@ export function attachWorkflowSourceApply(source: Command): void {
             mode,
             creating: false,
             question: `Apply these changes to workflow ${workflowId}?`,
-            command: `sim workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
+            command: `sim workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
             output: profile.output,
             client,
+            workspaceId: base.workspaceId,
             operation: 'applyWorkflowSource',
             params: { workflowId },
             body: {
@@ -555,6 +710,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
     'getSourceResources',
     'deployWorkflow',
     'getWorkflowDeployment',
+    'executeWorkflow',
   ])
   absoluteDirOption(command)
   verboseFlag(command)
@@ -574,10 +730,8 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .option('--name <name>', "The workflow name (default: the source's)")
     .option('--folder <path>', 'The folder to create it in (default: the root)')
     .option('-y, --yes', 'Create without asking for confirmation')
-    .option(
-      '--deploy',
-      'After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does)'
-    )
+
+  runAndDeployOptions(command)
     .allowExcessArguments(false)
     .description('Create a workflow from a workflow source directory')
     .addHelpText('after', sourceExitCodesHelp('workflows source create'))
@@ -610,7 +764,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
             })
             return
           }
-          assertDeployable(options)
+          assertNotDry(options)
           const { client, profile } = connectCreate()
           // A directory is bound to the workspace it records: a starter to the one its types were
           // written for (--workspace still chooses another), a workspace folder to its workspace.
@@ -631,11 +785,12 @@ export function attachWorkflowSourceCreate(source: Command): void {
             mode,
             creating: true,
             question: 'Create this workflow?',
-            command: `${createCommand(shellWord(options.dir), workspaceId)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
+            command: `${createCommand(shellWord(options.dir), workspaceId)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
             output: profile.output,
             client,
             operation: 'createWorkflowFromSource',
             params: { workspaceId },
+            workspaceId,
             ifAnswerLost: `It may have been created. Run this command again: a SOURCE_NAME_TAKEN refusal means it was, so find its id with \`sim workflows list\` and run \`sim workflows source get <workflowId> --dir ${options.dir} --force\`.`,
             save: async (data) => {
               await writeSourceDirectory(client, options.dir, data, [], childResults)
@@ -693,23 +848,22 @@ function summarize(data: SourceApplyData, creating: boolean, machine: boolean) {
     dry: data.dry,
     noop: data.diff.noop,
     ...(created.length > 0 ? { created } : {}),
+    // One string per block (`key (type)`, `key (field, …)`): a line each in a JSON result.
     blocksAdded: data.diff.blocks.added.length,
     ...(data.diff.blocks.added.length > 0 && {
-      added: data.diff.blocks.added.map(({ key, type }) => ({ block: key, type })),
+      added: data.diff.blocks.added.map(typedBlock),
     }),
     blocksRemoved: data.diff.blocks.removed.length,
     ...(data.diff.blocks.removed.length > 0 && {
-      removed: data.diff.blocks.removed.map(({ key, type }) => ({ block: key, type })),
+      removed: data.diff.blocks.removed.map(typedBlock),
     }),
     blocksModified: data.diff.blocks.modified.length,
     ...(data.diff.blocks.modified.length > 0 && {
-      modified: data.diff.blocks.modified.map(({ key, fields }) => ({ block: key, fields })),
+      modified: data.diff.blocks.modified.map(modifiedBlock),
     }),
     edgesAdded: data.diff.edges.added,
     edgesRemoved: data.diff.edges.removed,
     ...(variablesChanged(data.diff.variables) && { variables: data.diff.variables }),
-    errors: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
-    warnings: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
     notes: machine ? data.notes : data.notes.length,
     fingerprint: data.base.fingerprint,
     deployedVersion: data.deployedVersion,

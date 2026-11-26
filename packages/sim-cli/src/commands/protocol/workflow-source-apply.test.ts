@@ -11,6 +11,7 @@ import {
 import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { toRecord } from '@sim/utils/object'
+import { escapeRegExp } from '@sim/utils/string'
 import { compileWorkflow } from '@sim/workflow-code'
 import { fingerprintOf } from '@sim/workspace-code'
 import { Command } from 'commander'
@@ -135,6 +136,7 @@ let stderrTty: boolean | undefined
 beforeEach(() => {
   contextMockState.output = 'json'
   request.mockReset()
+  contextMockFns.mockRequestRaw.mockReset()
   prompt.question.mockReset()
   stdinTty = process.stdin.isTTY
   stderrTty = process.stderr.isTTY
@@ -621,7 +623,7 @@ describe('sim workflows source apply', () => {
     const printed = vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? ''
     expect(JSON.parse(printed)).toMatchObject({
       blocksModified: 1,
-      modified: [{ block: 'eachticket', fields: ['subflow'] }],
+      modified: ['eachticket (subflow)'],
     })
   })
 
@@ -640,8 +642,8 @@ describe('sim workflows source apply', () => {
     expect(stderrLines().some((line) => line.includes('Removed: boom (function)'))).toBe(true)
     const printed = vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? ''
     expect(JSON.parse(printed)).toMatchObject({
-      added: [{ block: 'bang', type: 'function' }],
-      removed: [{ block: 'boom', type: 'function' }],
+      added: ['bang (function)'],
+      removed: ['boom (function)'],
     })
   })
 
@@ -679,7 +681,7 @@ describe('sim workflows source apply', () => {
 
     const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
     expect(lines.find((line) => line.startsWith('modified\t'))).toBe(
-      'modified\t[{"block":"eachticket","fields":["subflow"]}]'
+      'modified\teachticket (subflow)'
     )
   })
 
@@ -1075,6 +1077,79 @@ describe('sim workflows source apply', () => {
       )
     })
 
+    describe('--run', () => {
+      const RUN_PATH = `/api/v2/workflows/${WORKFLOW_ID}/execute`
+      const runAnswer = (record: Record<string, unknown>) =>
+        new Response(
+          JSON.stringify({ data: { workflowId: WORKFLOW_ID, runId: 'run-1', ...record } }),
+          {
+            headers: { 'content-type': 'application/json' },
+          }
+        )
+      const serveDeploy = () =>
+        request.mockImplementation(async (path: string) =>
+          path === DEPLOY_PATH ? deployed : path === STATUS_PATH ? liveStatus : outcome()
+        )
+
+      it('applies, dry-runs the saved draft with the input, then deploys, in one result', async () => {
+        setTerminal(false)
+        serveDeploy()
+        contextMockFns.mockRequestRaw.mockResolvedValue(
+          runAnswer({ status: 'completed', output: { tier: 'A' } })
+        )
+
+        await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{"email":"a@b.co"}', '--deploy')
+
+        const [path, sent] = contextMockFns.mockRequestRaw.mock.calls[0]
+        expect(path).toBe(RUN_PATH)
+        expect(sent.body).toMatchObject({
+          input: { email: 'a@b.co' },
+          run: { source: 'draft', dry: true },
+        })
+        expect(request.mock.calls.map((call) => call[0])).toEqual([
+          APPLY_PATH,
+          DEPLOY_PATH,
+          STATUS_PATH,
+        ])
+        const result = stdoutJson()
+        expect(result).toMatchObject({
+          applied: true,
+          run: { runId: 'run-1', status: 'completed', output: { tier: 'A' } },
+          live: 'version 4, serving (this deploy)',
+        })
+        expect(String(result.summary)).toContain('test run completed')
+      })
+
+      it('deploys nothing when the test run fails, exits 1, and keeps the saved draft', async () => {
+        setTerminal(false)
+        serveDeploy()
+        contextMockFns.mockRequestRaw.mockResolvedValue(
+          runAnswer({ status: 'failed', error: { message: 'score is not a number' } })
+        )
+
+        const failure = apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{}', '--deploy')
+
+        await expect(failure).rejects.toThrow(
+          /test run failed: score is not a number.*Nothing was deployed/
+        )
+        expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
+        expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
+        expect(stdoutJson()).toMatchObject({
+          applied: true,
+          run: { status: 'failed', error: 'score is not a number' },
+          next: { command: `sim workflows source apply --dir ${dir} --run '{}' --deploy --yes` },
+        })
+      })
+
+      it('refuses beside --dry, before sending anything', async () => {
+        await expect(apply(WORKFLOW_ID, '--dir', dir, '--dry', '--run', '{}')).rejects.toThrow(
+          /--run test-runs what the write saves, and --dry saves nothing/
+        )
+        expect(request).not.toHaveBeenCalled()
+        expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
+      })
+    })
+
     it('deploys through the deploy operation once the apply is saved', async () => {
       setTerminal(false)
       request.mockImplementation(async (path: string) =>
@@ -1166,19 +1241,24 @@ describe('sim workflows source apply', () => {
       ])
     })
 
-    it('without --deploy, names the deploy command when the deployed workflow now differs', async () => {
+    it('without --deploy, names the tested deploy when the deployed workflow now differs', async () => {
       setTerminal(false)
       request.mockResolvedValue(outcome())
 
       await apply(WORKFLOW_ID, '--dir', dir, '--yes')
 
       expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
-      expect(stdoutJson()).toMatchObject({
+      const result = stdoutJson()
+      expect(result).toMatchObject({
         needsRedeployment: true,
         next: {
-          command: `sim workflows deploy ${WORKFLOW_ID} --expected-draft-fingerprint sf1:b`,
+          command: `sim workflows source apply --dir ${dir} --yes --run '<input json>' --deploy`,
         },
       })
+      // The untested deploy stays one copy away, pinned to the draft this apply stored.
+      expect(toRecord(result.next).reason).toContain(
+        `sim workflows deploy ${WORKFLOW_ID} --expected-draft-fingerprint sf1:b`
+      )
     })
 
     it.each([
@@ -1200,7 +1280,9 @@ describe('sim workflows source apply', () => {
         vi.mocked(console.log).mockClear()
         contextMockState.output = 'text'
         await apply(WORKFLOW_ID, '--dir', dir, '--yes')
-        expect(vi.mocked(console.log).mock.calls[0].join(' ')).toBe(`live\t${live}`)
+        const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
+        expect(lines[0]).toMatch(new RegExp(`^summary\tapplied: .*; live: ${escapeRegExp(live)}$`))
+        expect(lines).toContain(`live\t${live}`)
       }
     )
 
@@ -1262,7 +1344,11 @@ describe('sim workflows source apply', () => {
       contextMockState.output = 'text'
       await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
       const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
-      expect(lines[0]).toBe('live\tversion 3 still serving; version 4 activating')
+      expect(lines[0]).toMatch(/; live: version 3 still serving; version 4 activating$/)
+      expect(lines.slice(-2)).toEqual([
+        'live\tversion 3 still serving; version 4 activating',
+        `next\tsim workflows deployment status ${WORKFLOW_ID}  # shows when version 4 is live`,
+      ])
       // The admitted version is never printed as if it were deployed.
       expect(lines.some((line) => line.startsWith('deployed\t'))).toBe(false)
     })

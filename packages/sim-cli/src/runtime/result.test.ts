@@ -282,7 +282,7 @@ describe('a deploy result read by a person', () => {
     lint,
   })
 
-  it('opens with what is live, and keeps only the lint findings', () => {
+  it('ends with what is live, and keeps only the lint findings', () => {
     const orphan = ref('b-3', 'Stray', 'function')
     renderResult(
       'deployWorkflow',
@@ -290,20 +290,19 @@ describe('a deploy result read by a person', () => {
       deployed({ ...clean, orphanBlocks: [orphan] }),
       CLI_CONTRACT.deployWorkflow ?? {}
     )
-    expect(logged[0]).toBe('live\tversion 7, serving (this deploy)')
+    expect(logged.at(-1)).toBe('live\tversion 7, serving (this deploy)')
     expect(logged).toContain(`lint\t${JSON.stringify({ orphanBlocks: [orphan] })}`)
   })
 
-  it('drops a report whose only entries are the graph sources and sinks, and keeps it whole for a machine', () => {
+  it('drops a report whose only entries are the graph sources and sinks, for a machine too', () => {
     renderResult('deployWorkflow', 'text', deployed(clean), CLI_CONTRACT.deployWorkflow ?? {})
     expect(logged.some((line) => line.startsWith('lint\t'))).toBe(false)
 
     logged = []
     renderResult('deployWorkflow', 'json', deployed(clean), CLI_CONTRACT.deployWorkflow ?? {})
-    expect(JSON.parse(logged.join('\n'))).toMatchObject({
-      live: 'version 7, serving (this deploy)',
-      lint: clean,
-    })
+    const shown = JSON.parse(logged.join('\n'))
+    expect(shown).not.toHaveProperty('lint')
+    expect(Object.keys(shown).at(-1)).toBe('live')
   })
 })
 

@@ -184,9 +184,9 @@ function deploymentState(payload: Record<string, unknown>): DeploymentState | nu
 }
 
 /**
- * A deployment response with `live` first (the first line a person reads) and, when one follows,
- * `next` last: for a deploy, rollback or activation, {@link liveAfterActivation}; for the status
- * read, {@link liveDeploymentStatus}. Any other payload comes back as it was.
+ * A deployment response with `live` and, when one follows, `next` last, so the outcome survives a
+ * `| tail` of a long response: for a deploy, rollback or activation, {@link liveAfterActivation};
+ * for the status read, {@link liveDeploymentStatus}. Any other payload comes back as it was.
  */
 export function withDeploymentLive(operation: V2OperationName, payload: unknown): unknown {
   if (!isRecordLike(payload) || typeof payload.id !== 'string') return payload
@@ -209,5 +209,5 @@ export function withDeploymentLive(operation: V2OperationName, payload: unknown)
             ? `sim workflows deploy ${shellArgument(payload.id)}`
             : undefined
         )
-  return { live, ...payload, ...(next ? { next } : {}) }
+  return { ...payload, live, ...(next ? { next } : {}) }
 }

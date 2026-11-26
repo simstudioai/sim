@@ -309,10 +309,10 @@ const LINT_GRAPH_FACTS: ReadonlySet<string> = new Set(['sources', 'sinks'])
 
 /**
  * A record whose `lint` (the workflow lint report a deploy or a graph write returns) keeps only
- * its findings, for the human formats: the report lists every category, almost all empty, plus
- * every workflow's source and sink blocks, and the one JSON line that made pushed the rest of the
- * result off a short terminal or a `| tail`. Without a finding the field is dropped. Machine
- * formats keep the report whole, as the API sent it.
+ * its findings, in every format: the report lists every category, almost all empty, plus every
+ * source and sink block of the graph, which grows with the workflow and pushes the outcome off a
+ * short terminal or a `| tail`. Without a finding the field is dropped. The graph's shape is what
+ * `sim workflows outline` prints.
  */
 function withLintFindingsOnly(data: unknown): unknown {
   if (!isRecordLike(data) || !isRecordLike(data.lint)) return data
@@ -474,12 +474,13 @@ export function renderResult(
 
   // The single-key unwrap exists for the human table: `{ mcpServer: {...} }` rendered as-is
   // printed nothing. Machine formats print the API's data as the OpenAPI shape the docs and the
-  // agent reference card are generated from, plus the fields the CLI adds for a run or deploy:
-  // `live`, and `next` with `{ command, reason }` (a person reads it as the command, then why).
+  // agent reference card are generated from, except a lint report's graph facts, plus the fields
+  // the CLI adds for a run or deploy: `live`, and `next` with `{ command, reason }` (a person
+  // reads it as the command, then why).
   const machine = format === 'json' || format === 'yaml'
   const added = withRunNext(
     operation,
-    withDeploymentLive(operation, machine ? raw : withLintFindingsOnly(unwrapResource(raw)))
+    withDeploymentLive(operation, withLintFindingsOnly(machine ? raw : unwrapResource(raw)))
   )
   const data = machine ? added : withNextText(added)
   if (spec.itemsPath) {
