@@ -47,6 +47,7 @@ import type { MailgunRegion } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import { MONACO_API_BASE, monacoHeaders } from '@/tools/monaco/utils'
 import { getNerdGraphEndpoint, NEW_RELIC_REGIONS, newRelicHeaders } from '@/tools/new_relic/utils'
+import { ODDS_API_IO_BASE_URL } from '@/tools/odds_api_io/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
 import {
@@ -1747,6 +1748,15 @@ export const validateSmartleadServiceAccount = tokenCheckValidator({
   serviceLabel: 'Smartlead',
   request: ({ apiToken }) => ({
     url: `https://server.smartlead.ai/api/v1/email-accounts/?api_key=${encodeURIComponent(apiToken)}&offset=0&limit=1`,
+    headers: { Accept: 'application/json' },
+  }),
+})
+
+/** Odds-API.io answers 401 for an invalid key; the key's own bookmaker selection is the cheapest authenticated read. */
+export const validateOddsApiIoServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Odds-API.io',
+  request: ({ apiToken }) => ({
+    url: `${ODDS_API_IO_BASE_URL}/bookmakers/selected?apiKey=${encodeURIComponent(apiToken)}`,
     headers: { Accept: 'application/json' },
   }),
 })

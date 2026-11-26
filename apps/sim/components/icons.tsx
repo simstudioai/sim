@@ -126,6 +126,18 @@ export function HiggsfieldIcon(props: HiggsfieldIconProps) {
   )
 }
 
+export function OddsApiIoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <rect x='4' y='15' width='6' height='18' rx='3' fill='currentColor' opacity='0.5' />
+      <rect x='13' y='11' width='6' height='26' rx='3' fill='currentColor' opacity='0.75' />
+      <rect x='22' y='5' width='6' height='38' rx='3' fill='currentColor' />
+      <rect x='31' y='11' width='6' height='26' rx='3' fill='currentColor' opacity='0.75' />
+      <rect x='40' y='15' width='6' height='18' rx='3' fill='currentColor' opacity='0.5' />
+    </svg>
+  )
+}
+
 export function EnrichmentIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

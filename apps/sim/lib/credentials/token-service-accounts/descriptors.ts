@@ -196,6 +196,7 @@ export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
+export const ODDS_API_IO_SERVICE_ACCOUNT_PROVIDER_ID = 'odds-api-io-service-account' as const
 export const THRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'thrive-service-account' as const
 export const PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID = 'planetscale-service-account' as const
 export const GONG_SERVICE_ACCOUNT_PROVIDER_ID = 'gong-service-account' as const
@@ -343,6 +344,7 @@ export type TokenServiceAccountProviderId =
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ODDS_API_IO_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof THRIVE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GONG_SERVICE_ACCOUNT_PROVIDER_ID
@@ -853,6 +855,24 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Create an API key in the Higgsfield Console (console.higgsfield.ai). Paste its key ID and secret joined by a colon.',
     invalidCredentialsHelp:
       'Higgsfield rejected this key. Paste both parts as KEY_ID:KEY_SECRET and check that the key has not been disabled or deleted.',
+  },
+  [ODDS_API_IO_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ODDS_API_IO_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Odds-API.io',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Odds-API.io API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/odds_api_io',
+    helpText: 'Find the key in your Odds-API.io dashboard (odds-api.io/dashboard).',
+    invalidCredentialsHelp:
+      'Odds-API.io rejected this key. Copy the API key from the dashboard and check that the subscription is active.',
   },
   [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
