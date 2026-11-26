@@ -1334,12 +1334,17 @@ describe('authorized live retrieval', () => {
       displayName: id,
     })
 
-    it('reads a Google Doc link and names it by an ID that reads back', async () => {
-      const result = await read('https://docs.google.com/document/d/1AbcDEFghijKLmn/edit')
+    it('reads a Drive link and names it by the ID search mints, which reads back', async () => {
+      mocks.read.mockResolvedValue({
+        ...document,
+        id: '1AbcDEFghijKLmn',
+        kind: 'application/vnd.google-apps.document',
+      })
+      const result = await read('https://drive.google.com/file/d/1AbcDEFghijKLmn/view')
       expect(mocks.read).toHaveBeenCalledWith(
         'google_drive',
         expect.anything(),
-        { id: '1AbcDEFghijKLmn', kind: 'application/vnd.google-apps.document' },
+        { id: '1AbcDEFghijKLmn' },
         expect.anything()
       )
       expect(decodeLiveReference(result.documentId)).toEqual({
@@ -1371,6 +1376,7 @@ describe('authorized live retrieval', () => {
       mocks.json
         .mockResolvedValueOnce([{ id: 'cloud-a', url: 'https://a.atlassian.net' }])
         .mockResolvedValueOnce([{ id: 'cloud-b', url: 'https://b.atlassian.net' }])
+      mocks.read.mockResolvedValue({ ...document, id: '12345', kind: 'page', container: 'cloud-b' })
       const result = await read('https://b.atlassian.net/wiki/spaces/ENG/pages/12345/Launch')
       expect(mocks.read).toHaveBeenCalledOnce()
       expect(mocks.read).toHaveBeenCalledWith(

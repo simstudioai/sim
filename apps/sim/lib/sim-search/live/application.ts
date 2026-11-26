@@ -1201,7 +1201,7 @@ async function readLinkedDocument(
   const candidates = accounts
     .filter(
       (account) =>
-        providers.has(account.provider) &&
+        links.some((link) => link.provider === account.provider) &&
         (!input.filters?.source || input.filters.source === account.provider)
     )
     .slice(0, MAX_LINK_ACCOUNTS)
@@ -1235,7 +1235,16 @@ async function readLinkedDocument(
         })
       )
       if (!read) continue
-      const reference = { account: account.id, provider: account.provider, ...read.reference }
+      /** The reader's own location fields, so the ID matches the one a search of the account mints. */
+      const { id, container, kind } = read.document
+      const reference = {
+        account: account.id,
+        provider: account.provider,
+        ...read.reference,
+        ...(id ? { id } : {}),
+        ...(container ? { container } : {}),
+        ...(kind ? { kind } : {}),
+      }
       return {
         documentId: encodeLiveReference(reference, owner),
         reference,

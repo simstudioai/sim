@@ -229,7 +229,7 @@ export const LIVE_SEARCH_PROVIDERS = {
     },
     search: searchGitHub,
     read: (client, reference) =>
-      readGitHub(client, reference.id, reference.container, reference.kind, reference.revision),
+      readGitHub(client, reference.id, reference.container, reference.kind),
   },
   jama: {
     guide: {

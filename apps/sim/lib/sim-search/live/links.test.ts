@@ -61,11 +61,12 @@ describe('parseDocumentLinks', () => {
       { provider: 'github', reference: { container: 'acme/api', id: 'abc1234', kind: 'commits' } },
     ],
     [
-      'a file on a branch',
-      'https://github.com/acme/api/blob/release/src/index.ts#L10',
+      'a file, whose branch and path the repository tells apart',
+      'https://github.com/acme/api/blob/release/2026/src/index.ts#L10',
       {
         provider: 'github',
-        reference: { container: 'acme/api', id: 'src/index.ts', kind: 'code', revision: 'release' },
+        repository: 'acme/api',
+        blob: ['release', '2026', 'src', 'index.ts'],
       },
     ],
     [
@@ -194,6 +195,20 @@ describe('locateDocumentLink', () => {
     await expect(
       locateDocumentLink(link, { client: null, origin: 'https://git.acme.dev' })
     ).resolves.toEqual({ container: 'team/api', id: '3', kind: 'issues' })
+  })
+
+  it('reads a file link on the default branch, whose name may hold slashes, and only there', async () => {
+    const [link] =
+      parseDocumentLinks('https://github.com/acme/api/blob/release/2026/src/a.ts') ?? []
+    if (!link) throw new Error('Expected a link')
+    const origin = 'https://api.github.com'
+    const repository = (branch: string) => client({ full_name: 'Acme/api', default_branch: branch })
+    await expect(
+      locateDocumentLink(link, { client: repository('release/2026'), origin })
+    ).resolves.toEqual({ id: 'src/a.ts', container: 'Acme/api', kind: 'code' })
+    await expect(locateDocumentLink(link, { client: repository('main'), origin })).rejects.toThrow(
+      'default branch (main)'
+    )
   })
 
   it('refuses a Linear key that names an issue in another workspace', async () => {

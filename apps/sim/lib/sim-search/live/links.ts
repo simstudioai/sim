@@ -1,20 +1,19 @@
 import { parseGitHubRepository } from '@/lib/oauth/github-repository'
 import { atlassianSiteId } from '@/lib/sim-search/live/atlassian'
+import { NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
 import { linearIssueReference } from '@/lib/sim-search/live/linear'
 import { notionResource } from '@/lib/sim-search/live/notion-mcp'
 import type { NativeClient, NativeDocument } from '@/lib/sim-search/live/types'
 
 /** The location fields a live document ID carries, as each provider's reader expects them. */
-export type LinkedReference = Pick<
-  NativeDocument,
-  'id' | 'container' | 'kind' | 'revision' | 'threadId'
->
+export type LinkedReference = Pick<NativeDocument, 'id' | 'container' | 'kind' | 'threadId'>
 
 /**
  * A provider document a pasted link names, as far as the link alone can tell. Atlassian links
  * name their site by host rather than by the cloud ID reads take, GitLab links name a host that
- * must be the account's own, and Linear links name an issue by its key rather than its UUID, so
- * those finish against the account that reads them.
+ * must be the account's own, Linear links name an issue by its key rather than its UUID, and a
+ * file link's branch and path share one run of segments, so those finish against the account that
+ * reads them.
  */
 export type DocumentLink =
   | {
@@ -34,6 +33,14 @@ export type DocumentLink =
       reference: LinkedReference
     }
   | { provider: 'linear'; workspace: string; issueKey: string }
+  | {
+      provider: 'github' | 'gitlab'
+      /** The host a GitLab link names; GitHub links are always github.com. */
+      host?: string
+      repository: string
+      /** The segments after `blob`: a branch, which may itself contain slashes, then the path. */
+      blob: string[]
+    }
 
 /** Providers whose links {@link parseDocumentLinks} recognizes, for the caller's error message. */
 export const LINKABLE_SOURCES =
@@ -133,12 +140,21 @@ function slackLink(url: URL): DocumentLink | undefined {
   return { provider: 'slack', reference: { id: file, kind: 'file' } }
 }
 
-/** A repository file at a revision: the first segment after `blob` names it, the rest the path. */
-function blobReference(rest: string[]): LinkedReference | undefined {
-  const [revision, ...path] = rest
-  if (!revision || !path.length || path.some((part) => part === '.' || part === '..'))
+/**
+ * The path of a file link on `branch`, or undefined when the link names another branch or commit.
+ * Reads and their source checks cover the default branch only, as search does.
+ */
+function pathOnBranch(blob: string[], branch: string): string | undefined {
+  const branchParts = branch.split('/')
+  const path = blob.slice(branchParts.length)
+  if (
+    !branch ||
+    !path.length ||
+    branchParts.some((part, index) => blob[index] !== part) ||
+    path.some((part) => part === '.' || part === '..')
+  )
     return undefined
-  return { id: path.join('/'), kind: 'code', revision }
+  return path.join('/')
 }
 
 function githubRepository(owner: string, name: string): string | undefined {
@@ -165,10 +181,7 @@ function githubLink(url: URL): DocumentLink | undefined {
     return commit ? githubCommit(commit, link) : link({ id: rest[0] ?? '', kind: 'issues' })
   }
   if (section === 'commit') return githubCommit(rest[0], link)
-  if (section === 'blob') {
-    const blob = blobReference(rest)
-    return blob && link(blob)
-  }
+  if (section === 'blob') return { provider: 'github', repository, blob: rest }
   return undefined
 }
 
@@ -196,10 +209,8 @@ function gitlabLink(url: URL): DocumentLink | undefined {
     return iid && NUMERIC_ID.test(iid)
       ? link({ id: iid, kind: section === 'merge_requests' ? 'merge_requests' : 'issues' })
       : undefined
-  if (section === 'blob') {
-    const blob = blobReference(rest)
-    return blob && link(blob)
-  }
+  if (section === 'blob')
+    return { provider: 'gitlab', host: url.host, repository: project, blob: rest }
   if (section === 'wikis' && rest.length) return link({ id: rest.join('/'), kind: 'wiki' })
   return undefined
 }
@@ -309,6 +320,7 @@ export async function locateDocumentLink(
   link: DocumentLink,
   account: { client: NativeClient | null; origin: string }
 ): Promise<LinkedReference | undefined> {
+  if ('blob' in link) return locateFile(link, account)
   switch (link.provider) {
     case 'jira':
     case 'confluence': {
@@ -324,5 +336,37 @@ export async function locateDocumentLink(
         : undefined
     default:
       return link.reference
+  }
+}
+
+/** A file link's path on the repository's default branch, read from the account's own API. */
+async function locateFile(
+  link: Extract<DocumentLink, { blob: string[] }>,
+  account: { client: NativeClient | null; origin: string }
+): Promise<LinkedReference | undefined> {
+  if (!account.client) return undefined
+  if (link.provider === 'gitlab' && new URL(account.origin).host !== link.host) return undefined
+  const row = object(
+    await account.client.json(
+      link.provider === 'github'
+        ? `/repos/${link.repository}`
+        : `/api/v4/projects/${segment(link.repository)}`,
+      { memo: true }
+    )
+  )
+  const branch = string(row.default_branch)
+  const path = pathOnBranch(link.blob, branch)
+  if (!path)
+    throw new NativeSearchError(
+      'unavailable',
+      `Sim reads repository files on the default branch (${branch || 'unknown'}), and this link names another branch or commit. Open the file on the default branch, or search for it.`
+    )
+  return {
+    id: path,
+    container:
+      link.provider === 'github'
+        ? string(row.full_name) || link.repository
+        : string(row.path_with_namespace) || link.repository,
+    kind: 'code',
   }
 }

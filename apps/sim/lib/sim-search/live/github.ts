@@ -368,8 +368,7 @@ export async function readGitHub(
   client: NativeClient,
   id: string,
   repository?: string,
-  kind?: string,
-  revision?: string
+  kind?: string
 ): Promise<NativeDocument> {
   if (
     !repository ||
@@ -382,9 +381,7 @@ export async function readGitHub(
     if (id.split('/').some((part) => part === '..' || part === '.'))
       throw new NativeSearchError('unavailable', 'Invalid file path.')
     const row = object(
-      await client.json(`${path}/contents/${id.split('/').map(segment).join('/')}`, {
-        ...(revision ? { query: { ref: revision } } : {}),
-      })
+      await client.json(`${path}/contents/${id.split('/').map(segment).join('/')}`)
     )
     if (row.encoding !== 'base64')
       throw new NativeSearchError(
@@ -395,7 +392,6 @@ export async function readGitHub(
       id,
       container: repository,
       kind,
-      ...(revision ? { revision } : {}),
       title: string(row.name),
       url: string(row.html_url),
       content: Buffer.from(string(row.content), 'base64').toString('utf8'),
