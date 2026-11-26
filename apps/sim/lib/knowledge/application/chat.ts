@@ -37,7 +37,11 @@ import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
 import {
   acquirePendingChatStream,
+  cleanupAbortMarker,
+  registerActiveStream,
   releasePendingChatStream,
+  startAbortPoller,
+  unregisterActiveStream,
 } from '@/lib/mothership/request/session/abort'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import {
@@ -159,17 +163,18 @@ export const organizationSearchChat: OperationUseCase<
         'The question contains protected content. Rephrase it.'
       )
     }
+    const resumed = input.chatId !== undefined
+    const existing =
+      input.chatId === undefined
+        ? undefined
+        : await findConversation(input.chatId, userId, organizationId)
+    if (resumed && !existing) throw new OrchestrationError('not_found', CONVERSATION_NOT_FOUND)
     const billingAttribution = await resolveOrganizationBillingAttribution({
       actorUserId: userId,
       organizationId,
     })
     input.signal?.throwIfAborted()
-    const resumed = input.chatId !== undefined
-    const chat =
-      input.chatId === undefined
-        ? await createConversation(userId, organizationId, query)
-        : await findConversation(input.chatId, userId, organizationId)
-    if (!chat) throw new OrchestrationError('not_found', CONVERSATION_NOT_FOUND)
+    const chat = existing ?? (await createConversation(userId, organizationId, query))
 
     const chatId = chat.id
     const messageId = generateId()
@@ -177,6 +182,7 @@ export const organizationSearchChat: OperationUseCase<
     let running = false
     let persisted = false
     let explicitAbort: Promise<void> | undefined
+    let lockPoller: ReturnType<typeof setInterval> | undefined
     const abort = () => {
       controller.abort(new DOMException('Search chat cancelled', 'AbortError'))
       if (running && !explicitAbort) {
@@ -199,6 +205,9 @@ export const organizationSearchChat: OperationUseCase<
           'conflict',
           'This conversation is still answering an earlier question. Wait for that answer, then ask again.'
         )
+      /** Renews the chat lock for the whole turn and lets Stop in the app cancel it. */
+      registerActiveStream(messageId, controller)
+      lockPoller = startAbortPoller(messageId, controller, { chatId })
       controller.signal.throwIfAborted()
       running = true
       const payload = await buildCopilotRequestPayload({
@@ -284,6 +293,11 @@ export const organizationSearchChat: OperationUseCase<
       clearTimeout(timeout)
       input.signal?.removeEventListener('abort', abort)
       await explicitAbort
+      if (lockPoller) {
+        clearInterval(lockPoller)
+        unregisterActiveStream(messageId)
+        await cleanupAbortMarker(messageId)
+      }
       await releasePendingChatStream(chatId, messageId)
       /**
        * Retain run diagnostics, but keep an unsuccessful empty conversation this turn created out
