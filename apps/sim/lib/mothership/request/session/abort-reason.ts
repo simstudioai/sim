@@ -28,12 +28,6 @@ export const AbortReason = {
    * 250ms poller's next tick) rather than by the polling timer.
    */
   MarkerObservedAtBodyClose: 'redis_abort_marker:body_close',
-  /**
-   * The turn's cancelled verdict came from the worker's terminal, which it sends only for a
-   * Stop, while this node's signal never fired: the Stop reached the worker another way.
-   * Classification only; nothing aborts with it.
-   */
-  WorkerTerminalStop: 'worker_terminal:cancelled',
   /** Internal timeout on the outbound explicit-abort fetch to the worker. */
   ExplicitAbortFetchTimeout: 'timeout:explicit_abort_fetch',
 } as const
@@ -53,7 +47,6 @@ export function isExplicitStopReason(reason: unknown): boolean {
   return (
     reason === AbortReason.UserStop ||
     reason === AbortReason.RedisPoller ||
-    reason === AbortReason.MarkerObservedAtBodyClose ||
-    reason === AbortReason.WorkerTerminalStop
+    reason === AbortReason.MarkerObservedAtBodyClose
   )
 }
