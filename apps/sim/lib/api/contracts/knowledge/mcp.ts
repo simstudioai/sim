@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
+import {
+  liveSearchInvolvingSchema,
+  workspaceSearchFiltersSchema,
+} from '@/lib/api/contracts/knowledge/search'
 import { mcpJsonRpcMessageSchema } from '@/lib/api/contracts/mcp'
 import {
   readDocumentInputSchema,
@@ -53,6 +56,11 @@ const mcpDateFilterFields = {
 export const liveSearchMcpSchema = searchWorkspaceInputFieldsSchema
   .extend({
     ...mcpDateFilterFields,
+    involving: liveSearchInvolvingSchema
+      .optional()
+      .describe(
+        'Only items this person took part in: "me" (you) or a colleague\'s email. Each source applies its own meaning (sent, authored, owns, assigned, attended) and sources that cannot filter by person are skipped. Use for activity questions such as what someone worked on or what is assigned to them; with an empty query and a date range it lists that person\'s activity.'
+      ),
     topK: searchWorkspaceInputFieldsSchema.shape.topK
       .unwrap()
       .optional()

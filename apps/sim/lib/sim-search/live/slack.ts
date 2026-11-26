@@ -184,12 +184,19 @@ export async function searchSlack(
       'Reconnect your Slack account to grant permission to search.'
     )
   const pages = input.native || input.filters?.source === 'slack' ? MAX_SLACK_SEARCH_PAGES : 1
-  const first = await searchSlackPage(client, input, input.native?.cursor, input.limit)
+  const person = await slackPersonModifier(client, input)
+  const first = await searchSlackPage(client, input, input.native?.cursor, input.limit, person)
   const documents = [...first.documents]
   let nextCursor = first.nextCursor
   for (let page = 1; page < pages && nextCursor && documents.length < input.limit; page++) {
     try {
-      const more = await searchSlackPage(client, input, nextCursor, input.limit - documents.length)
+      const more = await searchSlackPage(
+        client,
+        input,
+        nextCursor,
+        input.limit - documents.length,
+        person
+      )
       documents.push(...more.documents)
       nextCursor = more.nextCursor
     } catch (error) {
@@ -211,11 +218,41 @@ export async function searchSlack(
   return { documents, nextCursor, message: first.message }
 }
 
+/**
+ * The modifier limiting a search to a person's messages: Slack resolves `me` itself, and anyone
+ * else is looked up by email, which needs users:read.email.
+ */
+async function slackPersonModifier(
+  client: NativeClient,
+  input: NativeSearchInput
+): Promise<string | undefined> {
+  if (!input.involving) return undefined
+  if (input.involving === 'me') return 'from:me'
+  if (!input.scopes.includes('users:read.email'))
+    throw new NativeSearchError(
+      'reconnect',
+      'Reconnect Slack to grant users:read.email, which finding a member by email requires.'
+    )
+  const data = object(
+    await client.json('/api/users.lookupByEmail', {
+      query: { email: input.involving },
+      memo: true,
+    })
+  )
+  if (string(data.error) === 'users_not_found')
+    throw new NativeSearchError('unavailable', 'No Slack member has this email.')
+  const id = string(object(slackResult(data).user).id)
+  if (!/^[UW][A-Z0-9]+$/.test(id))
+    throw new NativeSearchError('unavailable', 'Slack returned no member for this email.')
+  return `from:<@${id}>`
+}
+
 async function searchSlackPage(
   client: NativeClient,
   input: NativeSearchInput,
   cursor: string | undefined,
-  limit: number
+  limit: number,
+  person: string | undefined
 ): Promise<NativePage> {
   const channels = [
     ['public_channel', 'search:read.public'],
@@ -236,13 +273,16 @@ async function searchSlackPage(
   ]
     .filter(Boolean)
     .join(' ')
-  const modifiers = [input.native?.modifiers, dateModifiers].filter(Boolean).join(' ')
-  /** Channels match on name, topic and purpose, so only a query with text lists them, once. */
-  const listChannels = Boolean(nativeText(input)) && !cursor
+  const modifiers = [input.native?.modifiers, person, dateModifiers].filter(Boolean).join(' ')
+  /**
+   * Channels match on name, topic and purpose, so only a query with text lists them, once; a
+   * person's messages are never a channel.
+   */
+  const listChannels = Boolean(nativeText(input)) && !cursor && !person
   const data = slackResult(
     await client.json('/api/assistant.search.context', {
       body: {
-        query: [nativeText(input) || dateModifiers, input.native?.modifiers]
+        query: [nativeText(input) || dateModifiers, input.native?.modifiers, person]
           .filter(Boolean)
           .join(' '),
         channel_types: channels,

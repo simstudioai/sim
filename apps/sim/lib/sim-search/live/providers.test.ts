@@ -105,6 +105,38 @@ describe('native search endpoints', () => {
       '(launch) repo:org/repo is:pull-request updated:2026-09-20T00:00:00.000Z..2026-09-24T00:00:00.000Z',
     ])
   })
+  it('refuses a person filter beside a native involves: that GitHub would OR into a wider search', async () => {
+    const api = client()
+    await expect(
+      searchGitHub(api, {
+        ...input,
+        involving: 'me',
+        native: { provider: 'github', query: 'repo:org/repo involves:octocat', kind: 'issues' },
+      })
+    ).rejects.toThrow('ORs repeated involves:')
+    expect(api.json.mock.calls.some(([path]) => path.startsWith('/search/'))).toBe(false)
+  })
+  it('keeps only calendar events a person organizes or attends without declining', async () => {
+    const api = client()
+    const event = (id: string, extra: Record<string, unknown>) => ({
+      id,
+      summary: id,
+      start: { dateTime: '2026-09-24T09:00:00Z' },
+      ...extra,
+    })
+    api.json
+      .mockResolvedValueOnce({ items: [{ id: 'primary', primary: true }] })
+      .mockResolvedValueOnce({
+        items: [
+          event('organized', { organizer: { self: true } }),
+          event('attended', { attendees: [{ self: true, responseStatus: 'accepted' }] }),
+          event('declined', { attendees: [{ self: true, responseStatus: 'declined' }] }),
+          event('others', { attendees: [{ email: 'jane@example.com' }] }),
+        ],
+      })
+    const result = await searchCalendar(api, { ...input, query: '', involving: 'me' })
+    expect(result.documents.map(({ id }) => id)).toEqual(['organized', 'attended'])
+  })
   it('bounds GitHub commit search dates to one author-date range', async () => {
     const api = client()
     api.json.mockResolvedValue({ items: [], total_count: 0 })

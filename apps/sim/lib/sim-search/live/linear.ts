@@ -95,8 +95,14 @@ export async function searchLinear(
   const bounds = nativeDateBounds(input)
   const direction = dateSortDirection(input.filters)
   const backwards = direction === 'asc'
+  const person = input.involving
+    ? input.involving === 'me'
+      ? { isMe: { eq: true } }
+      : { email: { eqIgnoreCase: input.involving } }
+    : undefined
   const filter: Record<string, unknown> = {
     ...(input.native?.project ? { project: { id: { eq: input.native.project } } } : {}),
+    ...(person ? { or: [{ assignee: person }, { creator: person }] } : {}),
     ...(bounds.start || bounds.end
       ? {
           updatedAt: {

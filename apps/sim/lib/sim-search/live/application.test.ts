@@ -66,6 +66,7 @@ vi.mock('@/lib/sim-search/live/accounts', () => ({
   }),
 }))
 vi.mock('@/lib/sim-search/live/providers', () => ({
+  filtersByPerson: (provider: string) => provider !== 'notion',
   liveSearchGuidance: (providers: string[]) => `Live coverage: ${[...new Set(providers)]}`,
   searchNativeProvider: mocks.search,
   readNativeProvider: mocks.read,
@@ -1060,6 +1061,47 @@ describe('authorized live retrieval', () => {
       input: { ...input, filters: { source: 'slack' } },
     })
     expect(mocks.resolveAccount).not.toHaveBeenCalled()
+  })
+  describe('person filter', () => {
+    const notion = {
+      ...account,
+      id: 'notion-account',
+      provider: 'notion' as const,
+      providerId: 'mcp:notion',
+      type: 'managed_mcp' as const,
+      displayName: 'Notion',
+    }
+    it('never searches a source that cannot filter by person, so no result is unfiltered', async () => {
+      mocks.accounts.mockResolvedValue([account, notion])
+      const result = await searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, involving: 'jane@example.com' },
+      })
+      expect(mocks.resolveAccount).toHaveBeenCalledTimes(1)
+      expect(mocks.mcpCall).not.toHaveBeenCalled()
+      expect(result.live?.accounts).toContainEqual(
+        expect.objectContaining({
+          accountId: 'notion-account',
+          status: 'unavailable',
+          message: expect.stringContaining('cannot filter by person'),
+        })
+      )
+      expect(result.live?.guidance).toBe('Live coverage: google_drive')
+      expect(result.retrieval.status).toBe('partial')
+    })
+    it('hands each provider search the normalized person', async () => {
+      await searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, involving: ' Jane@Example.com ' },
+      })
+      expect(mocks.search.mock.calls[0]?.[2]).toMatchObject({ involving: 'jane@example.com' })
+    })
+    it('rejects a person that is neither me nor an email before any account is opened', async () => {
+      await expect(
+        searchLiveKnowledge.execute({ principal, input: { ...input, involving: 'Jane Doe' } })
+      ).rejects.toThrow()
+      expect(mocks.resolveAccount).not.toHaveBeenCalled()
+    })
   })
   it('rechecks revoked account access on every document read', async () => {
     const search = await searchLiveKnowledge.execute({ principal, input })

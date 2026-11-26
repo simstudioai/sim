@@ -142,6 +142,45 @@ interface SitePage {
   ranking?: 'relevance' | 'unavailable'
 }
 
+/**
+ * The JQL or CQL clause limiting a search to a person: issues they are assigned or reported, or
+ * pages they created or edited. Jira finds anyone else by email (Atlassian account IDs span
+ * sites); Confluence has no email lookup, so it filters only to the connected user.
+ */
+async function atlassianPersonClause(
+  client: NativeClient,
+  provider: 'jira' | 'confluence',
+  involving: string | undefined,
+  sites: Record<string, unknown>[]
+): Promise<string | undefined> {
+  if (!involving) return undefined
+  if (provider === 'confluence') {
+    if (involving !== 'me')
+      throw new NativeSearchError(
+        'unavailable',
+        'Confluence filters only to you (involving: me); for anyone else, search their name.'
+      )
+    return 'contributor = currentUser()'
+  }
+  let user = 'currentUser()'
+  if (involving !== 'me') {
+    const found = array(
+      await client.json(`/ex/jira/${segment(string(sites[0]?.id))}/rest/api/3/user/search`, {
+        query: { query: involving, maxResults: '2' },
+        memo: true,
+      })
+    )
+    // Jira hides most email addresses, so a lone match for an email query is that person.
+    const exact = found.filter((row) => string(row.emailAddress).toLowerCase() === involving)
+    const users = exact.length ? exact : found
+    const accountId = string(users[0]?.accountId)
+    if (users.length !== 1 || !/^[\w:-]+$/.test(accountId))
+      throw new NativeSearchError('unavailable', 'No single Jira user has this email.')
+    user = JSON.stringify(accountId)
+  }
+  return `(assignee = ${user} OR reporter = ${user})`
+}
+
 export async function searchAtlassian(
   client: NativeClient,
   provider: 'jira' | 'confluence',
@@ -173,9 +212,11 @@ export async function searchAtlassian(
       : undefined
   const dates = nativeDateBounds(input)
   const field = provider === 'jira' ? 'updated' : 'lastmodified'
+  const person = await atlassianPersonClause(client, provider, input.involving, selected)
   const scope =
     [
       policyScope,
+      person,
       dates.start
         ? `${field} >= "${new Date(Date.parse(dates.start) - 86400000).toISOString().slice(0, 10)}"`
         : '',

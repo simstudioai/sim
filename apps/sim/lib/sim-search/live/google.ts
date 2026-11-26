@@ -50,12 +50,14 @@ export async function searchDrive(
   const query =
     input.native?.query ||
     (text ? `fullText contains '${escapeDriveLiteral(text)}'` : 'trashed = false')
+  const person = input.involving && `'${escapeDriveLiteral(input.involving)}'`
   const dates = nativeDateBounds(input)
   const data = object(
     await client.json('/drive/v3/files', {
       query: {
         q: [
           `trashed = false and (${query})`,
+          ...(person ? [`(${person} in owners or ${person} in writers)`] : []),
           ...(dates.start ? [`modifiedTime >= '${dates.start}'`] : []),
           ...(dates.end ? [`modifiedTime <= '${dates.end}'`] : []),
         ].join(' and '),
@@ -250,14 +252,25 @@ function gmailDocument(row: Record<string, unknown>): NativeDocument {
   }
 }
 
+/**
+ * Mail a person took part in. Nearly every message in your own mailbox is addressed to you, so
+ * `me` means mail you sent; anyone else's mail includes what was sent or copied to them.
+ */
+function gmailPersonClause(involving: string | undefined): string {
+  if (!involving) return ''
+  return involving === 'me' ? 'from:me' : `{from:${involving} to:${involving} cc:${involving}}`
+}
+
 export async function searchGmail(
   client: NativeClient,
   input: NativeSearchInput
 ): Promise<NativePage> {
   const dates = nativeDateBounds(input)
   const text = nativeText(input)
+  const person = gmailPersonClause(input.involving)
   const query = [
-    text ? (dates.start || dates.end ? `(${text})` : text) : '',
+    text ? (dates.start || dates.end || person ? `(${text})` : text) : '',
+    person,
     dates.start ? `after:${Math.floor(Date.parse(dates.start) / 1000) - 1}` : '',
     dates.end ? `before:${Math.ceil(Date.parse(dates.end) / 1000) + 1}` : '',
   ]
@@ -554,6 +567,22 @@ function calendarOccurrenceKey(row: Record<string, unknown>): string {
   ])
 }
 
+/**
+ * Whether a person organizes or attends an event without having declined it: `me` is the
+ * calendar owner, anyone else is matched by email. Always true without a person.
+ */
+function attendedBy(event: Record<string, unknown>, involving: string | undefined): boolean {
+  if (!involving) return true
+  const isPerson = (party: Record<string, unknown>) =>
+    involving === 'me' ? party.self === true : string(party.email).toLowerCase() === involving
+  return (
+    isPerson(object(event.organizer)) ||
+    array(event.attendees).some(
+      (attendee) => isPerson(attendee) && attendee.responseStatus !== 'declined'
+    )
+  )
+}
+
 /** Events without a resolvable start sort after every scheduled one. */
 function eventStartTime(document: NativeDocument): number {
   const time = Date.parse(document.eventStartAt ?? '')
@@ -579,16 +608,20 @@ export async function searchCalendar(
           ...(row.primary === true ? ['primary'] : []),
         ])
     )
+    // Events you organize or attend are on your primary calendar.
+    .filter((row) => input.involving !== 'me' || input.native?.project || row.primary === true)
     .slice(0, 20)
     .sort((left, right) => Number(right.primary === true) - Number(left.primary === true))
   const chronological = hasDateBounds(input.filters) || Boolean(dateSortDirection(input.filters))
+  /** Without text, another person's email narrows the search to events they are invited to. */
+  const q = nativeText(input) || (input.involving === 'me' ? undefined : input.involving)
   const pages = await mapWithConcurrency(rows, 4, async (row) => {
     const calendarId = string(row.id)
     try {
       const data = object(
         await client.json(`/calendar/v3/calendars/${segment(calendarId)}/events`, {
           query: {
-            ...(nativeText(input) ? { q: nativeText(input) } : {}),
+            ...(q ? { q } : {}),
             ...(input.filters?.startDate
               ? {
                   timeMin: new Date(
@@ -627,7 +660,7 @@ export async function searchCalendar(
     )
   const perCalendar = searched.map(({ data, calendarId, timeZone }) =>
     array(data.items)
-      .filter((event) => event.status !== 'cancelled')
+      .filter((event) => event.status !== 'cancelled' && attendedBy(event, input.involving))
       .map((event) => ({
         ...eventDocument(event, calendarId, input.policy?.includeAttendees, timeZone),
         dedupeKey: calendarOccurrenceKey(event),
