@@ -1,9 +1,10 @@
 import { parseGitHubRepository } from '@/lib/oauth/github-repository'
 import { atlassianSiteId } from '@/lib/sim-search/live/atlassian'
-import { NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
+import { NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import { linearIssueReference } from '@/lib/sim-search/live/linear'
 import { notionResource } from '@/lib/sim-search/live/notion-mcp'
 import type { NativeClient, NativeDocument } from '@/lib/sim-search/live/types'
+import { encodeGitLabResourceId } from '@/tools/gitlab/utils'
 
 /** The location fields a live document ID carries, as each provider's reader expects them. */
 export type LinkedReference = Pick<
@@ -199,7 +200,8 @@ function githubCommit(
 function gitlabLink(url: URL): DocumentLink | undefined {
   const parts = pathSegments(url)
   const separator = parts.indexOf('-')
-  if (separator < 1) return undefined
+  if (separator < 1 || parts.slice(0, separator).some((part) => part === '.' || part === '..'))
+    return undefined
   const project = parts.slice(0, separator).join('/')
   const [section, ...rest] = parts.slice(separator + 1)
   const link = (reference: LinkedReference): DocumentLink => ({
@@ -353,7 +355,7 @@ async function locateFile(
     await account.client.json(
       link.provider === 'github'
         ? `/repos/${link.repository}`
-        : `/api/v4/projects/${segment(link.repository)}`,
+        : `/api/v4/projects/${encodeGitLabResourceId(link.repository)}`,
       { memo: true }
     )
   )
