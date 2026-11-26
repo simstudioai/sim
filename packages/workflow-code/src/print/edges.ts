@@ -102,7 +102,7 @@ function identExpr(ctx: PrintContext, key: BlockKey): Expr {
 }
 
 /** One wiring statement, with its comment anchor and the blocks it names. */
-export interface WiringStatement {
+export interface PrintedWiring {
   expr: Expr
   anchor: AnchorKey
   source: BlockKey
@@ -110,8 +110,8 @@ export interface WiringStatement {
 }
 
 /** The wiring statements of one scope. */
-export function wiringStatements(ctx: PrintContext, scope: BlockKey | null): WiringStatement[] {
-  const statements: WiringStatement[] = []
+export function wiringStatements(ctx: PrintContext, scope: BlockKey | null): PrintedWiring[] {
+  const statements: PrintedWiring[] = []
   const keys = (edges: CanonicalEdge[]) => edges.map((edge) => edge.to)
   const byTarget = (a: CanonicalEdge, b: CanonicalEdge) =>
     (ctx.position.get(a.to) ?? 0) - (ctx.position.get(b.to) ?? 0) ||

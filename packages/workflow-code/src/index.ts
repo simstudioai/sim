@@ -2,7 +2,6 @@ export { decodeAnchor, encodeAnchor } from './anchors'
 export { babelErrorShape, babelMessage } from './babel'
 export { type CanonicalizeResult, canonicalize, canonicalizeUnderLock } from './canonicalize'
 export { toolModes } from './canonicalize/modes'
-export { JSON_TEXT_CONTAINER_TYPES } from './canonicalize/params'
 export {
   builderProducedOutputs,
   executableInactiveParams,
@@ -89,6 +88,7 @@ export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export { readsIterationOutOfScope, type ScopeNode } from './iteration-scope'
 export { type ChildResultFields, parseJsonField } from './json-fields'
+export { parseJsonContainer } from './json-text'
 export {
   type DefinedField,
   fieldNames,
@@ -131,7 +131,7 @@ export type {
 export { isResourceKind } from './model'
 export { assignIdentifiers, printWorkflow, referencedHeads } from './print'
 export { hasSuspiciousCharacter, printKey, printNumber, quoteString } from './print/strings'
-export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
+export { getOwn, invertRecord, setOrDelete, setOwn } from './records'
 export {
   calledWorkflowKey,
   calledWorkflowKeys,

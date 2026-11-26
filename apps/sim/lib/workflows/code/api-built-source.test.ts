@@ -168,3 +168,26 @@ describe('a child workflow call whose input mapping the operations route stored 
     expect(typeCheckAgainstSdk(workDir, 'edited', [file])).toBe('')
   }, 120_000)
 })
+
+describe('a child workflow call whose input mapping is one whole reference', () => {
+  it('stores an object written over the reference natively, not as JSON text', () => {
+    const stored = builtWorkflow()
+    const call = createBlockFromParams('call-block', {
+      type: 'workflow_input',
+      name: 'Record Audit',
+      inputs: { workflowId: 'child-workflow', inputMapping: '<start.input>' },
+    })
+    stored.blocks[call.id] = { ...call, position: { x: 800, y: 0 } }
+    const written = getThenApply(stored, (text) =>
+      text.replace(
+        'inputMapping: start.input,',
+        "inputMapping: { ticketId: start.input, source: 'api' },"
+      )
+    )
+    expect(written.errors).toEqual([])
+    expect(written.state.blocks['call-block']?.subBlocks.inputMapping?.value).toEqual({
+      ticketId: '<start.input>',
+      source: 'api',
+    })
+  })
+})

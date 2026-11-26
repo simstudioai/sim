@@ -60,7 +60,7 @@ beforeEach(() => {
   writeFileSync(join(dir, 'workflow.ts'), WORKFLOW_TS)
   writeFileSync(
     join(dir, 'functions/score.js'),
-    "const s = 1\nreturn $ref.fetchpolicy.data\nconst tag = '<fetchpolicy.status>'\n"
+    "const s = 1\nreturn $ref.fetchpolicy.data ?? $ref.fetchpolicy.status\nconst tag = '<fetchpolicy.status>'\n"
   )
   writeFileSync(join(dir, 'functions/audit.py'), 'import json\nprint(<fetchpolicy.data>)\n')
   vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
@@ -127,5 +127,30 @@ describe('sim workflows source find', () => {
       code: 'BLOCK_UNKNOWN',
       message: expect.stringContaining('Did you mean Fetch Policy?'),
     })
+  })
+
+  it('says the source does not compile instead of only that no block matches', async () => {
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      WORKFLOW_TS.replace("api('Fetch Policy', {", "api('Fetch Policy', {{")
+    )
+    await expect(find('Fetch Policy')).rejects.toMatchObject({
+      code: 'BLOCK_UNKNOWN',
+      message: expect.stringContaining('does not compile'),
+    })
+  })
+
+  it('reads a wiring statement the printer wrapped as one statement', async () => {
+    const wrapped = WORKFLOW_TS.replace('fetchPolicy.to(audit)', 'fetchPolicy.to(\n    audit,\n  )')
+    writeFileSync(join(dir, 'workflow.ts'), wrapped)
+    await find('Audit')
+    const [block] = stdoutJson().blocks
+    expect(block.incoming).toMatchObject([
+      { block: 'Fetch Policy', statement: 'fetchPolicy.to(audit)' },
+    ])
+  })
+
+  it('refuses an empty name rather than matching every block', async () => {
+    await expect(find(' ')).rejects.toMatchObject({ code: 'BLOCK_UNKNOWN' })
   })
 })

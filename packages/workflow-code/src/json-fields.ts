@@ -25,6 +25,7 @@ import type { BlockCatalog, CatalogOutput } from './catalog/types'
 import { catalogBlock } from './catalog/view'
 import { ENV_VAR_NAME, parseStoredPath, type RefSegment } from './code-files/ref-path'
 import { referencedResultKind } from './compile/function-returns'
+import { parseJsonContainer } from './json-text'
 import {
   type BlockKey,
   type CanonicalBlock,
@@ -33,7 +34,7 @@ import {
   isSimNode,
   type Value,
 } from './model'
-import { getOwn, parseJsonContainer, setOwn } from './records'
+import { getOwn, setOwn } from './records'
 
 /** A reference at a leaf of a JSON field: the stored token, and whether the text quotes it. */
 export class JsonRef {

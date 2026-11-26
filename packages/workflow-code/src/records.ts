@@ -1,3 +1,5 @@
+import { parseJsonContainer } from './json-text'
+
 /**
  * Prototype-safe writes for records keyed by stored or authored data. A plain `record[key] = v`
  * with `key === '__proto__'` replaces the prototype instead of adding a key, so every write whose
@@ -66,22 +68,6 @@ export function deepEqual(left: unknown, right: unknown): boolean {
   return leftEntries.every(
     ([key, member]) => Object.hasOwn(rightRecord, key) && deepEqual(member, rightRecord[key])
   )
-}
-
-/**
- * JSON text that holds an object or array, decoded; `undefined` for blank text, text that does not
- * parse, and a scalar, which callers keep as the text it is.
- */
-export function parseJsonContainer(text: string): Record<string, unknown> | unknown[] | undefined {
-  if (text.trim() === '') return undefined
-  try {
-    const parsed: unknown = JSON.parse(text)
-    return typeof parsed === 'object' && parsed !== null
-      ? (parsed as Record<string, unknown> | unknown[])
-      : undefined
-  } catch {
-    return undefined
-  }
 }
 
 /** A stored list, native or as JSON text; `undefined` for anything else. */
