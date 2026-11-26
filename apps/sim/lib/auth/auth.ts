@@ -1221,7 +1221,7 @@ export const auth = betterAuth({
               const checkoutAdmissionClaim = await claimCheckoutAdmission(referenceId)
               try {
                 if (isPersonalCheckoutRequest(requestBody, sessionUserId)) {
-                  await assertPersonalCheckoutAllowed(sessionUserId)
+                  await assertPersonalCheckoutAllowed(sessionUserId, requestBody.plan)
                 }
               } catch (error) {
                 await releaseCheckoutAdmission(checkoutAdmissionClaim)

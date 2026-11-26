@@ -3,7 +3,8 @@ import { member, organization, subscription as subscriptionTable, user } from '@
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { AVERAGE_MONTH_MS } from '@/lib/billing/constants'
 import { isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { rebaseUsageLimit } from '@/lib/billing/core/plan-switch'
 import { getOrganizationIdForSubscriptionReference } from '@/lib/billing/core/subscription'
@@ -581,8 +582,6 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
 /** Annual subscriptions read per page of the hourly sweep. */
 const ANNUAL_SWEEP_PAGE_SIZE = 200
 
-const AVERAGE_MONTH_MS = 30.44 * 24 * 60 * 60 * 1000
-
 /** Months left in a period at `now`, as a fraction: what Stripe prorates a seat change against. */
 function monthsRemaining(periodEnd: Date | null, now: Date): number {
   if (!periodEnd) return 12
@@ -639,10 +638,13 @@ export async function syncAnnualPlanUsageLimits(): Promise<number> {
         if (annual.billingInterval !== 'year') {
           // Older checkouts kept the interval only in metadata; readers of the column alone (the
           // billing attribution snapshot) then priced the plan as monthly.
+          // Only an unset column: a switch to monthly committed since the re-read must stand.
           await db
             .update(subscriptionTable)
             .set({ billingInterval: 'year' })
-            .where(eq(subscriptionTable.id, annual.id))
+            .where(
+              and(eq(subscriptionTable.id, annual.id), isNull(subscriptionTable.billingInterval))
+            )
         }
         await syncSubscriptionUsageLimits({ ...annual, billingInterval: 'year' })
         synced++
@@ -711,22 +713,47 @@ async function reconcileAnnualSeatMonths(
   const previousIncluded = getOrgIncludedUsageDollars(annual)
   const nextIncluded = getOrgIncludedUsageDollars(next)
 
-  // One transaction: a limit left unrebased after the count advanced would never be retried.
-  await db.transaction(async (tx) => {
-    await tx
+  // One transaction: a limit left unrebased after the count advanced would never be retried. The
+  // count advances only from the one it was computed from, because the rebase moves the limit
+  // relative to its live value: a concurrent seat sync, webhook, or sweep that read the same count
+  // would otherwise apply the same delta twice.
+  const advanced = await db.transaction(async (tx) => {
+    const [claimed] = await tx
       .update(subscriptionTable)
       .set({
         allowancePeriodStart: next.allowancePeriodStart,
         allowanceSeats: next.allowanceSeats,
         allowanceSeatMonths: next.allowanceSeatMonths,
       })
-      .where(eq(subscriptionTable.id, annual.id))
+      .where(
+        and(
+          eq(subscriptionTable.id, annual.id),
+          annual.allowancePeriodStart === null
+            ? isNull(subscriptionTable.allowancePeriodStart)
+            : eq(subscriptionTable.allowancePeriodStart, annual.allowancePeriodStart),
+          annual.allowanceSeats === null
+            ? isNull(subscriptionTable.allowanceSeats)
+            : eq(subscriptionTable.allowanceSeats, annual.allowanceSeats),
+          annual.allowanceSeatMonths === null
+            ? isNull(subscriptionTable.allowanceSeatMonths)
+            : eq(subscriptionTable.allowanceSeatMonths, annual.allowanceSeatMonths)
+        )
+      )
+      .returning({ id: subscriptionTable.id })
+    if (!claimed) return false
     if (previousIncluded !== nextIncluded) {
       await rebaseUsageLimit(
         { pool: { type: 'organization', id: organizationId }, previousIncluded, nextIncluded },
         tx
       )
     }
+    return true
   })
-  return next
+  if (advanced) return next
+  const [current] = await db
+    .select()
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.id, annual.id))
+    .limit(1)
+  return current ?? null
 }

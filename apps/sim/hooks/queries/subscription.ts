@@ -228,7 +228,7 @@ export function useEndProTrial() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => requestJson(billingEndTrialContract, { body: {} }),
-    onSettled: () =>
+    onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.all }),
         invalidateWorkspaceUsage(queryClient),

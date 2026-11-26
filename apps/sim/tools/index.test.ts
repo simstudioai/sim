@@ -8107,7 +8107,7 @@ describe('Hosted Key Injection', () => {
       expect(result.success).toBe(false)
       expect(result.error).toContain('available on paid plans')
       expect(mockPayerHasPaidAccess).toHaveBeenCalledWith(TEST_BILLING_ATTRIBUTION, {
-        onBalanceUnavailable: 'deny',
+        onBalanceUnavailable: 'throw',
       })
       expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
       expect(request).not.toHaveBeenCalled()
@@ -8160,7 +8160,7 @@ describe('Hosted Key Injection', () => {
           billingEntity: { type: 'organization', id: 'org-1' },
           payerSubscription: { plan: 'team' },
         },
-        { onBalanceUnavailable: 'deny' }
+        { onBalanceUnavailable: 'throw' }
       )
       expect(request).toHaveBeenCalledTimes(1)
     })

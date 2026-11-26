@@ -127,3 +127,6 @@ export const USAGE_UNAVAILABLE_MESSAGE =
  * contracts, and the overage, true-up, and final invoices billed on top of them.
  */
 export const INVOICE_DAYS_UNTIL_DUE = 30
+
+/** Average calendar month in milliseconds, for pricing a billing period by its months. */
+export const AVERAGE_MONTH_MS = 30.44 * 24 * 60 * 60 * 1000

@@ -137,30 +137,31 @@ async function findOrgUsageLimit(
   subscription: OrgLimitSubscription,
   executor: DbClient = db
 ): Promise<OrgUsageLimitResult | null> {
-  const [orgData] = await executor
-    .select({ orgUsageLimit: organization.orgUsageLimit })
-    .from(organization)
-    .where(eq(organization.id, organizationId))
-    .limit(1)
-
-  if (!orgData) return null
-
   const needsRecordedAllowance =
     subscription.id !== undefined &&
     subscription.allowanceSeatMonths === undefined &&
     isTeam(subscription.plan) &&
     resolveBillingInterval(subscription) === 'year'
-  const [recordedAllowance] = needsRecordedAllowance
-    ? await executor
-        .select({
-          periodStart: subscriptionTable.periodStart,
-          allowancePeriodStart: subscriptionTable.allowancePeriodStart,
-          allowanceSeatMonths: subscriptionTable.allowanceSeatMonths,
-        })
-        .from(subscriptionTable)
-        .where(eq(subscriptionTable.id, subscription.id ?? ''))
-        .limit(1)
-    : []
+  const [[orgData], [recordedAllowance]] = await Promise.all([
+    executor
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1),
+    needsRecordedAllowance
+      ? executor
+          .select({
+            periodStart: subscriptionTable.periodStart,
+            allowancePeriodStart: subscriptionTable.allowancePeriodStart,
+            allowanceSeatMonths: subscriptionTable.allowanceSeatMonths,
+          })
+          .from(subscriptionTable)
+          .where(eq(subscriptionTable.id, subscription.id ?? ''))
+          .limit(1)
+      : Promise.resolve([]),
+  ])
+
+  if (!orgData) return null
 
   return calculateOrgUsageLimit(
     organizationId,

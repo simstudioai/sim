@@ -22,5 +22,5 @@ export const SCHEDULE_DISABLE_REASON_COPY: Record<ScheduleDisableReason, string>
   workflow_not_found: 'The workflow could not be found.',
   invalid_schedule: 'The schedule is no longer valid.',
   paid_plan_required:
-    "It uses Sim's hosted models or tools, which need a paid plan. Add your own API key under Settings > BYOK or upgrade, then turn the schedule back on.",
+    "It uses Sim's hosted models or tools, which need a paid plan. Upgrade, or add your own API key under Settings > BYOK where the block supports one, then turn the schedule back on.",
 }

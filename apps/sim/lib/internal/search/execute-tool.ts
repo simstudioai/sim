@@ -30,7 +30,7 @@ export const executeSearchTool: InternalToolOperationHandler = async ({
 
   // Search always runs on Sim's own key, so it is reserved for paid payers like every hosted tool.
   if (!(await mayUseHostedKey(context.workspaceId, context.billingAttribution))) {
-    const refusal = new HostedKeyRequiresPaidPlanError('Web Search')
+    const refusal = new HostedKeyRequiresPaidPlanError('Web Search', { byok: false })
     return Response.json({ success: false, error: refusal.message }, { status: refusal.statusCode })
   }
 

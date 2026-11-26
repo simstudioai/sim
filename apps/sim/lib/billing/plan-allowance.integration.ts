@@ -375,6 +375,41 @@ describe('recordPlanSwitch', () => {
     expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS * 12)
   })
 
+  it('keeps headroom chosen before the switch when the webhook raised the limit first', async () => {
+    // $10 of on-demand headroom over the monthly plan; the webhook then raised it to the annual floor.
+    const userId = await createUser(PRO_MONTHLY_DOLLARS * 12)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'year',
+      orgScoped: false,
+      previousLimit: String(PRO_MONTHLY_DOLLARS + 10),
+    })
+
+    expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS * 12 + 120)
+  })
+
+  it('records the period Stripe restarted with an interval switch, before the webhook', async () => {
+    const userId = await createUser(PRO_MONTHLY_DOLLARS * 12)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'year' })
+    const start = new Date(Date.UTC(2026, 10, 20))
+    const end = new Date(Date.UTC(2026, 11, 20))
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'month',
+      orgScoped: false,
+      period: { start, end },
+    })
+
+    const [row] = await db.select().from(subscription).where(eq(subscription.id, sub.id))
+    expect(row?.periodStart?.getTime()).toBe(start.getTime())
+    expect(row?.periodEnd?.getTime()).toBe(end.getTime())
+  })
+
   it('keeps an unlimited limit unlimited', async () => {
     const userId = await createUser(ON_DEMAND_UNLIMITED)
     const sub = await addSubscription(userId, { plan: 'pro_25000', billingInterval: 'month' })

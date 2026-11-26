@@ -11,9 +11,10 @@ interface PaidAccessOptions {
   /**
    * The verdict for a free payer whose credit balance cannot be read. Chat admits, because a
    * database blip must not lock a paying customer out and every turn is bounded by the usage
-   * check that follows. A hosted key denies, because nothing after acquisition bounds it.
+   * check that follows. A hosted key throws: nothing after acquisition bounds it, and a refusal
+   * would read as the payer's plan, which disables a schedule at once.
    */
-  onBalanceUnavailable: 'admit' | 'deny'
+  onBalanceUnavailable: 'admit' | 'throw'
 }
 
 /**
@@ -44,7 +45,8 @@ export async function payerHasPaidAccess(
       verdict: options.onBalanceUnavailable,
       error: getErrorMessage(error),
     })
-    return options.onBalanceUnavailable === 'admit'
+    if (options.onBalanceUnavailable === 'throw') throw error
+    return true
   }
 }
 

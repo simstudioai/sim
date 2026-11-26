@@ -12,7 +12,7 @@ import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import { recordPlanSwitch } from '@/lib/billing/core/plan-switch'
+import { readPoolUsageLimit, recordPlanSwitch } from '@/lib/billing/core/plan-switch'
 import { getPlanTierCredits, getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -178,10 +178,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       targetPriceId,
     })
 
+    const orgScoped = await isSubscriptionOrgScoped(sub)
+    // Read before Stripe applies the switch: its webhook can move the live limit first.
+    const previousLimit = await readPoolUsageLimit({
+      type: orgScoped ? 'organization' : 'user',
+      id: sub.referenceId,
+    })
+    let period: { start: Date; end: Date } | undefined
     if (!alreadyOnStripePrice) {
       const currentQuantity = subscriptionItem.quantity ?? 1
 
-      await stripe.subscriptions.update(sub.stripeSubscriptionId, {
+      const updated = await stripe.subscriptions.update(sub.stripeSubscriptionId, {
         items: [
           {
             id: subscriptionItem.id,
@@ -191,13 +198,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         ],
         proration_behavior: 'always_invoice',
       })
+      const switchedItem = updated.items.data.find((item) => item.id === subscriptionItem.id)
+      if (switchedItem) {
+        period = {
+          start: new Date(switchedItem.current_period_start * 1000),
+          end: new Date(switchedItem.current_period_end * 1000),
+        }
+      }
     }
 
     await recordPlanSwitch({
       subscription: sub,
       targetPlanName,
       targetInterval: targetInterval as 'month' | 'year',
-      orgScoped: await isSubscriptionOrgScoped(sub),
+      orgScoped,
+      period,
+      previousLimit,
     })
 
     logger.info('Subscription switched successfully', {
