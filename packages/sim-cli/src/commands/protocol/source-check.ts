@@ -916,6 +916,7 @@ export function reportCheck(
   // line as the failure reads the mistake, never a notice (the TypeScript install's) or a warning.
   const first = findings.find((finding) => finding.severity === 'error')
   if (first) printError(`Error: ${findingLine(first)}`)
+  else if (errors > 0) printError(`Error: ${errors} errors past the findings a check lists.`)
 }
 
 /** The catalog a cache read found, or a refusal naming `get`, the command that caches one. */

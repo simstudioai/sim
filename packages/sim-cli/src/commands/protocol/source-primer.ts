@@ -59,7 +59,7 @@ export const PATTERNS_HEADING = '- **Patterns**'
 function sharedRules(
   extra: { renames?: string; patterns?: string; debug?: string } = {}
 ): string {
-  return `- **Renames**: rename any number of blocks' display names (first argument) or consts, with other edits: \`${SOURCE_LOCK_FILE}\` keeps each block and apply rewrites every reference, \`$ref.<key>\` too. Changing both on one block keeps it only if its settings or neighbours match, else a delete (\`E_APPLY_BLOCK_DELETE\`). One workflow variable per apply.${extra.renames ?? ''}
+  return `- **Renames**: rename blocks' display names (first argument) or consts, with other edits: \`${SOURCE_LOCK_FILE}\` keeps each block and apply rewrites every reference, \`$ref.<key>\` too. Changing both on one block keeps it only if its settings or neighbours match, else a delete (\`E_APPLY_BLOCK_DELETE\`). One workflow variable per apply.${extra.renames ?? ''}
 - **References**: \`${SOURCE_ENTRY_FILE}\` reads \`x.content\`, text as \`\` t\`…\` \`\`, env as \`env.NAME\`. A function file (\`codeFile('./functions/x.js')\`) reads \`$ref.<key>.<path>\` (key: display name lowercased, no spaces or dots), \`$ref.loop.currentItem\` / \`.index\` in a body (\`parallel\` too), \`$env.NAME\`; \`.py\`/\`.sh\` files \`<key.path>\`, \`{{NAME}}\`. A block that never ran reads \`null\` (\`''\` in text).
 ${PATTERNS_HEADING} (\`.sim/examples/\`, indexed atop \`cookbook.ts\`; any builder: \`${PARAMS_COMMAND} <builder>\`):
   - Condition: keys test in order, first true wins, \`else: true\` last; wire \`route.high.to(alert)\`.
@@ -70,7 +70,7 @@ ${PATTERNS_HEADING} (\`.sim/examples/\`, indexed atop \`cookbook.ts\`; any build
   - Tables: \`table.queryRows\` outputs \`rows\` (\`recent.rows[0].data.status\`), not \`row\`; \`table.upsertRow\` takes \`conflictColumn: 'orderId'\`.
   - Rejoin: before one \`response\`, a Function picks the branch that ran with \`??\`.${extra.patterns ?? ''}
 - **Credentials**: \`sim credentials connect <provider> --name "<Name>"\`, send the owner its link, then \`credential('<key>')\`.
-- **Run**: \`sim workflows run <workflowId>\` runs the active deployment; \`--draft\` runs the draft for real (use test resources); \`--dry\` runs it stubbing writes and MCP tools (even read-only: \`mcp-read-only\`), listed in \`sideEffects\` (\`dry_run_*\` placeholders; a read given one too: \`placeholder\`); GET \`api\` calls and plain-JS GET fetches run; sandboxed code (Python, shell, imports): \`unchecked\`. \`--allow <block>\` sends its writes; \`--mock <block>='{…}'\` fixes its output (bare, with \`--mock-from <runId>\`: that run's); a child's block: \`<workflow>.<block>\`.
+- **Run**: \`sim workflows run <workflowId>\` runs the active deployment; \`--draft\` runs the draft for real (use test resources); \`--dry\` runs it stubbing writes and MCP tools (even read-only: \`mcp-read-only\`), listed in \`sideEffects\` (\`dry_run_*\` placeholders); GET \`api\` calls and plain-JS GET fetches run; sandboxed code (Python, shell, imports): \`unchecked\`. \`--allow <block>\` sends its writes; \`--mock <block>='{…}'\` fixes its output (bare, with \`--mock-from <runId>\`: that run's); a child's block: \`<workflow>.<block>\`.
 - **Debug**: \`--dir <dir>\` maps a failure to file:line; \`sim logs get <runId> --trace --no-include-workflow-state\`; rows: \`sim tables rows list <table>\`; rerun: \`--from-block <block> --source-run <runId>\`; \`--stop-after <block>\`.${extra.debug ?? ''}
 - **Exit codes**: 0 ok, 1 errors, ${SOURCE_STALE_EXIT_CODE} stale (redo in a fresh get), ${RATE_LIMITED_EXIT_CODE} rate limited, ${SOURCE_BUSY_EXIT_CODE} busy, ${SOURCE_LOCAL_CHANGES_EXIT_CODE}/${SOURCE_DRIFT_EXIT_CODE} \`status\`: your edits / the server changed.`
 }
@@ -95,7 +95,7 @@ const APPLY_REWRITES = `\`check\` also type-checks (no \`tsc\`). Apply re-checks
  */
 const WORKFLOW_EDIT_LOOP: Record<PrimerSurface, string> = {
   cli: `${EDIT_LOOP_LEAD}; fix what it reports: \`${WORKFLOW_LOOP}${RUN_AND_DEPLOY}\` applies, dry-runs that input, and deploys only if it completed (no \`--deploy\`: stays a draft). ${APPLY_REWRITES}`,
-  chat: `${EDIT_LOOP_LEAD} in run_code's shell; fix what it reports: \`${WORKFLOW_LOOP}\`. ${APPLY_REWRITES} Test the draft with sim_cli (the shell refuses synchronous runs): \`workflows run <workflowId> --dry --input '{…}' --dir <dir>\` (from /home/user); once it completes, \`workflows deploy <workflowId>\`.`,
+  chat: `${EDIT_LOOP_LEAD} in run_code's shell; fix what it reports: \`${WORKFLOW_LOOP}\`. ${APPLY_REWRITES} Test the draft with sim_cli (the shell refuses sync runs): \`workflows run <workflowId> --dry --input '{…}' --dir <dir>\` (from /home/user); once it passes, \`workflows deploy <workflowId> --expected-draft-fingerprint <fingerprint>\` (from \`.sim/base.json\`).`,
 }
 
 function workflowPrimer(surface: PrimerSurface): string {

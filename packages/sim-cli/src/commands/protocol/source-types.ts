@@ -11,7 +11,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname, join, posix } from 'node:path'
+import { dirname, join, posix, resolve } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -166,7 +166,8 @@ function npmReason(stderr: string): string {
 async function installedTsc(): Promise<string> {
   const preinstalled = process.env[TYPESCRIPT_DIR_ENV]?.trim()
   if (preinstalled) {
-    const tsc = tscPath(releaseRoot(preinstalled))
+    // Resolved here: tsc runs from the source directory, not the caller's.
+    const tsc = tscPath(releaseRoot(resolve(preinstalled)))
     if (existsSync(tsc)) return tsc
   }
   const root = typescriptRoot()

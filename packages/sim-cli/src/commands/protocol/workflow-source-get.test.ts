@@ -493,7 +493,9 @@ describe('sim workflows source get --dir', () => {
     expect(chat).not.toMatch(/ --run(?![\w-])/)
     expect(chat).not.toMatch(/&& sim workflows run\b/)
     expect(chat).toMatch(/sim_cli[^\n]*`workflows run <workflowId> --dry\b/)
-    expect(chat).toContain('`workflows deploy <workflowId>`')
+    expect(chat).toContain(
+      '`workflows deploy <workflowId> --expected-draft-fingerprint <fingerprint>`'
+    )
     expect(sourcePrimer('workflow', 'cli')).toContain("--run '{…}' --deploy")
   })
 

@@ -114,14 +114,14 @@ jobs:
             echo "tag=$TAG"
           } >> "$GITHUB_OUTPUT"
 
-      # `./embed` and the `#sim-cli/*` imports point at TypeScript source, which
+      # `./embed`, `./host` and the `#sim-cli/*` imports point at TypeScript source, which
       # only the monorepo's own Next.js app consumes (it transpiles the package).
       # The tarball ships `dist` alone, so published they would be dead entry
       # points; the smoke test below fails on any export that does not exist.
       - name: Drop source-only entry points
         working-directory: packages/sim-cli
         run: |
-          jq 'del(.imports, .exports["./embed"])' package.json > "$RUNNER_TEMP/package.json"
+          jq 'del(.imports, .exports["./embed"], .exports["./host"])' package.json > "$RUNNER_TEMP/package.json"
           mv "$RUNNER_TEMP/package.json" package.json
 
       # Bun packs because it rewrites `workspace:` ranges to real versions,

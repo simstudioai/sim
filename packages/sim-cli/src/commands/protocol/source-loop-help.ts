@@ -67,7 +67,8 @@ ${GET_LINE}
   edit every file, then: ${WORKFLOW_LOOP}
 then test the saved draft with sim_cli (the shell refuses a synchronous run):
   workflows run <workflowId> --dry --input '{…}' --dir ./wf
-and once it completes, deploy it with sim_cli: workflows deploy <workflowId>.
+and once it completes, deploy that draft with sim_cli:
+  workflows deploy <workflowId> --expected-draft-fingerprint <fingerprint in ./wf/.sim/base.json>
 ${CHAIN_STOPS} check
 compiles and type-checks (--no-types skips it); apply re-checks, saves the draft and rewrites the
 files.`,

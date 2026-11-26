@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { fingerprintOf } from '@sim/workspace-code'
 import { knowledgeCodec } from '@sim/workspace-code/kinds/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1385,7 +1385,7 @@ describe('the type check of workspaces source check', () => {
     expect(env).not.toContain('sk-sim-secret')
   })
 
-  it('type-checks with the release SIM_TYPESCRIPT_DIR holds, installing nothing', async () => {
+  it('type-checks with the release a relative SIM_TYPESCRIPT_DIR holds, installing nothing', async () => {
     serve({ 'tables/leads.ts': LEADS })
     await get()
     writeInserting(
@@ -1400,7 +1400,8 @@ describe('the type check of workspaces source check', () => {
     })
     vi.stubEnv('PATH', `${bin}:${process.env.PATH}`)
     provideTypescriptIn(join(rootDir, 'preinstalled'))
-    vi.stubEnv('SIM_TYPESCRIPT_DIR', join(rootDir, 'preinstalled'))
+    // Relative to the caller, as an env var usually is; tsc itself runs from the source directory.
+    vi.stubEnv('SIM_TYPESCRIPT_DIR', relative(process.cwd(), join(rootDir, 'preinstalled')))
 
     await runWorkspaceSource('check', dir)
 
