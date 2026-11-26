@@ -121,16 +121,23 @@ export const isCopilotToolPermissionsEnabled = isTruthy(env.COPILOT_TOOL_PERMISS
 export const isMothershipBenchmarkEnabled = isTruthy(env.MOTHERSHIP_BENCHMARK_ENABLED)
 
 /**
- * Is billing enforcement enabled.
- *
- * Server code reads `BILLING_ENABLED`. The browser never sees that variable and
- * takes the server's answer from the deployment-shape projection on `<html>`
- * (`./deployment-projection`); a document without one reads it as off.
+ * A server-only switch: `serverValue` on the server; in the browser, which never
+ * sees server variables, the server's answer from the deployment-shape projection
+ * on `<html>` (`./deployment-projection`), off on a document without one.
  */
-export const isBillingEnabled =
-  typeof window === 'undefined'
-    ? isTruthy(env.BILLING_ENABLED)
-    : (readProjectedBoolean('billingEnabled') ?? false)
+function resolveServerSwitch(
+  serverValue: Parameters<typeof isTruthy>[0],
+  projectedKey: string
+): boolean {
+  return typeof window === 'undefined'
+    ? isTruthy(serverValue)
+    : (readProjectedBoolean(projectedKey) ?? false)
+}
+
+/**
+ * Is billing enforcement enabled (`BILLING_ENABLED`).
+ */
+export const isBillingEnabled = resolveServerSwitch(env.BILLING_ENABLED, 'billingEnabled')
 
 /**
  * Is email verification enabled
@@ -296,15 +303,14 @@ export const isAppConfigEnabled =
  * off there until review lands; a self-hosted deployment pointing at its own
  * (unlisted) Slack app can opt in.
  *
- * Server code reads `SLACK_EXTENDED_SCOPES`; the browser reads the server's answer
- * from the deployment-shape projection (see {@link isBillingEnabled}). The server
- * value decides the grant; the browser value only decides what the credential
- * pickers advertise and treat as missing.
+ * Read from `SLACK_EXTENDED_SCOPES`. The server value decides the grant; the
+ * browser value only decides what the credential pickers advertise and treat as
+ * missing.
  */
-export const isSlackExtendedScopesEnabled =
-  typeof window === 'undefined'
-    ? isTruthy(env.SLACK_EXTENDED_SCOPES)
-    : (readProjectedBoolean('slackExtendedScopes') ?? false)
+export const isSlackExtendedScopesEnabled = resolveServerSwitch(
+  env.SLACK_EXTENDED_SCOPES,
+  'slackExtendedScopes'
+)
 
 /**
  * Is Trigger.dev enabled for async job processing
@@ -553,33 +559,24 @@ export const isAzureConfigured = isTruthy(getEnv('NEXT_PUBLIC_AZURE_CONFIGURED')
 export const isCohereConfigured = isTruthy(getEnv('NEXT_PUBLIC_COHERE_CONFIGURED'))
 
 /**
- * Are workspace invitations disabled for every user (`DISABLE_INVITATIONS`). The
- * browser reads the server's answer from the deployment-shape projection.
+ * Are workspace invitations disabled for every user (`DISABLE_INVITATIONS`).
  */
-export const isInvitationsDisabled =
-  typeof window === 'undefined'
-    ? isTruthy(env.DISABLE_INVITATIONS)
-    : (readProjectedBoolean('invitationsDisabled') ?? false)
+export const isInvitationsDisabled = resolveServerSwitch(
+  env.DISABLE_INVITATIONS,
+  'invitationsDisabled'
+)
 
 /**
  * Is public API access disabled for every workspace (`DISABLE_PUBLIC_API`): the
- * public API toggle is hidden and public API access is blocked. The browser reads
- * the server's answer from the deployment-shape projection.
+ * public API toggle is hidden and public API access is blocked.
  */
-export const isPublicApiDisabled =
-  typeof window === 'undefined'
-    ? isTruthy(env.DISABLE_PUBLIC_API)
-    : (readProjectedBoolean('publicApiDisabled') ?? false)
+export const isPublicApiDisabled = resolveServerSwitch(env.DISABLE_PUBLIC_API, 'publicApiDisabled')
 
 /**
  * Is the E2B code-execution provider switched on (`E2B_ENABLED`). Pi's cloud modes
- * run in an E2B sandbox and stay hidden without it. The browser reads the server's
- * answer from the deployment-shape projection.
+ * run in an E2B sandbox and stay hidden without it.
  */
-export const isE2bEnabled =
-  typeof window === 'undefined'
-    ? isTruthy(env.E2B_ENABLED)
-    : (readProjectedBoolean('e2bEnabled') ?? false)
+export const isE2bEnabled = resolveServerSwitch(env.E2B_ENABLED, 'e2bEnabled')
 
 /**
  * Is Google OAuth login disabled

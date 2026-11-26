@@ -141,6 +141,26 @@ describe('seeded server shape', () => {
     expect(apiKeyFieldShown('custom/model')).toBe(true)
   })
 
+  it('takes a reseed that changes any top-level switch', () => {
+    const switches = (Object.keys(HOSTED) as (keyof DeploymentShape)[]).filter(
+      (key) => typeof HOSTED[key] === 'boolean'
+    )
+    expect(switches.length).toBeGreaterThan(0)
+    for (const key of switches) {
+      seedDeploymentShape(HOSTED)
+      const changed = { ...HOSTED, [key]: !HOSTED[key] }
+      seedDeploymentShape(changed)
+      expect(getDeploymentShape(), key).toBe(changed)
+    }
+  })
+
+  it('keeps the current seed for an equal shape', () => {
+    seedDeploymentShape(HOSTED)
+    seedDeploymentShape({ ...HOSTED, features: { ...HOSTED.features } })
+
+    expect(getDeploymentShape()).toBe(HOSTED)
+  })
+
   it('is ignored when the server predates deployment projection', () => {
     seedDeploymentShape(undefined)
 
