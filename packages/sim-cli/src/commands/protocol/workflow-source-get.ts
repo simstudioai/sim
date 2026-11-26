@@ -12,9 +12,11 @@ import {
   absoluteDirOption,
   assertPrintedSourcePaths,
   assertSourceDirKind,
+  directoryWorkspace,
   locallyEditedFiles,
   readPreviousLock,
   readSourceJson,
+  recordedWorkspace,
   withSourceCommandLock,
 } from './source-dir'
 import { sourceExitCodesHelp } from './source-exit-codes'
@@ -67,10 +69,12 @@ const NAMED_CANDIDATES = 10
  */
 async function resolveWorkflow(
   client: OperationClient<'listWorkflows'>,
-  workflow: string
+  workflow: string,
+  /** The workspace to look in when not the command's own: a directory's recorded one. */
+  inWorkspace?: string
 ): Promise<string> {
   if (isValidUuid(workflow)) return workflow
-  const workspaceId = client.requireWorkspace()
+  const workspaceId = client.requireWorkspace(inWorkspace)
   // Every page: an exact match or a second one can sort after the first page of substring hits.
   const found = await client.requestAllPages<ListWorkflowsResponse['data'][number]>(
     'listWorkflows',
@@ -148,7 +152,18 @@ export function attachWorkflowSourceGet(source: Command): void {
       const force = flags[FORCE_FLAG] === true
       await assertSourceDirKind(dir, 'workflow')
       const { client, profile } = connectGet()
-      const workflowId = await resolveWorkflow(client, workflow)
+      // A name is looked up in the workspace the directory was read from, as its other commands
+      // act on it; --force gets into it from the command's own workspace instead.
+      const recorded = force
+        ? null
+        : directoryWorkspace(
+            dir,
+            await recordedWorkspace(dir, profile),
+            profile,
+            (_from, _named, setting) =>
+              `Drop ${setting}, or pass --force to replace it with a workflow from ${setting}.`
+          )
+      const workflowId = await resolveWorkflow(client, workflow, recorded ?? undefined)
       if (!force) await assertSameWorkflow(dir, workflowId)
       const request = await buildRequest(
         'getWorkflowSource',

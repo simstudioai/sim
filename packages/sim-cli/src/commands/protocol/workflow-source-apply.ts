@@ -759,7 +759,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
             const workspaceId = client.requireWorkspace()
             const tree = await writeSourceScaffold(client, options.dir, workspaceId)
             const next: NextStep = {
-              command: `${createCommand(shellWord(options.dir), workspaceId)} --yes${summaryFileFlag(options.summaryFile)}`,
+              command: `${createCommand(shellWord(options.dir), workspaceId)} --yes${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
               reason: `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, check it, then create it.`,
             }
             const machine = isMachine(profile.output)

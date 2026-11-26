@@ -224,6 +224,25 @@ describe('sim workflows source get <name>', () => {
     )
   })
 
+  it("looks a name up in the workspace the directory was read from, not the profile's", async () => {
+    mkdirSync(join(outDir, '.sim'), { recursive: true })
+    writeFileSync(
+      join(outDir, '.sim/base.json'),
+      JSON.stringify({
+        version: 1,
+        workflowId: WORKFLOW_ID,
+        workspaceId: WORKSPACE_ID,
+        fingerprint: 'sf1:a',
+        catalogHash: 'h',
+      })
+    )
+    serve({ [LIST_PATH]: listed({ id: WORKFLOW_ID, name: 'Lead Scorer' }) })
+
+    expect(await getNamed('Lead Scorer')).toBeNull()
+
+    expect(callsTo(LIST_PATH)[0][1].query).toMatchObject({ workspaceId: WORKSPACE_ID })
+  })
+
   it.each([
     [
       'several workflows hold the name',
