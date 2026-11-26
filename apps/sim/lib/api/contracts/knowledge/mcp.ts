@@ -113,5 +113,11 @@ export const chatSearchMcpSchema = workspaceSearchFiltersSchema
   .extend({
     ...mcpDateFilterFields,
     query: z.string().trim().min(1, 'A question is required').max(8192),
+    chatId: z
+      .string()
+      .min(1)
+      .max(64)
+      .optional()
+      .describe('The chatId of an earlier chat answer, to ask a follow-up in that conversation.'),
   })
   .strict()

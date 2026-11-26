@@ -2,10 +2,10 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
+import { generateId, isValidUuid } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { and, eq, isNull, notExists } from 'drizzle-orm'
+import { and, eq, isNull, notExists, sql } from 'drizzle-orm'
 import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
@@ -23,6 +23,7 @@ import {
 } from '@/lib/knowledge/application/chat-citations'
 import { organizationSearchChatOperation } from '@/lib/knowledge/application/chat-operations'
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
+import { conversationModeSelection } from '@/lib/mothership/chat/intent'
 import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import {
@@ -34,6 +35,10 @@ import {
 } from '@/lib/mothership/chat/persisted-message'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
+import {
+  acquirePendingChatStream,
+  releasePendingChatStream,
+} from '@/lib/mothership/request/session/abort'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import {
   isResolvedSecretModelContentUnchanged,
@@ -48,6 +53,8 @@ const SEARCH_CHAT_TIMEOUT_MS = 180_000
 export interface OrganizationSearchChatInput {
   organizationId: string
   query: string
+  /** A conversation this caller started here earlier, continued with its history. */
+  chatId?: string
   filters?: WorkspaceSearchFilters
   resultSecretRegistry: ResolvedSecretTraceRegistry
   signal?: AbortSignal
@@ -80,7 +87,54 @@ async function authorize(principal: Principal, organizationId: string) {
   return context
 }
 
-/** Runs the existing organization Assistant in a new private conversation for this caller. */
+const CONVERSATION_NOT_FOUND =
+  'Conversation not found. Ask without chatId to start a new conversation.'
+
+/**
+ * The caller's own live Assistant conversation in this organization, as {@link createConversation}
+ * makes them, or undefined. Another member's chat, a deleted one, and an Agent or Plan chat, whose
+ * turns need permissions this surface does not grant, are all not found alike.
+ */
+async function findConversation(chatId: string, userId: string, organizationId: string) {
+  if (!isValidUuid(chatId)) return undefined
+  const [chat] = await db
+    .select({ id: copilotChats.id })
+    .from(copilotChats)
+    .where(
+      and(
+        eq(copilotChats.id, chatId),
+        eq(copilotChats.userId, userId),
+        eq(copilotChats.organizationId, organizationId),
+        eq(copilotChats.type, 'mothership'),
+        isNull(copilotChats.deletedAt),
+        sql`${conversationModeSelection} = 'assistant'`
+      )
+    )
+    .limit(1)
+  return chat
+}
+
+async function createConversation(userId: string, organizationId: string, query: string) {
+  const [chat] = await db
+    .insert(copilotChats)
+    .values({
+      userId,
+      organizationId,
+      type: 'mothership',
+      model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
+      title: truncate(query.replace(/\s+/g, ' '), 80),
+      lastSeenAt: new Date(),
+    })
+    .returning({ id: copilotChats.id })
+  if (!chat) throw new OrchestrationError('internal', 'Unable to create a Search conversation')
+  return chat
+}
+
+/**
+ * Runs the existing organization Assistant for this caller: in a new private conversation, or as
+ * a follow-up in one of the caller's own conversations, whose earlier turns the Assistant reads.
+ * One question at a time holds a conversation; a follow-up sent while it answers is refused.
+ */
 export const organizationSearchChat: OperationUseCase<
   typeof organizationSearchChatOperation,
   OrganizationSearchChatInput,
@@ -110,21 +164,19 @@ export const organizationSearchChat: OperationUseCase<
       organizationId,
     })
     input.signal?.throwIfAborted()
-    const [chat] = await db
-      .insert(copilotChats)
-      .values({
-        userId,
-        organizationId,
-        type: 'mothership',
-        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
-        title: truncate(query.replace(/\s+/g, ' '), 80),
-        lastSeenAt: new Date(),
-      })
-      .returning({ id: copilotChats.id })
-    if (!chat) throw new OrchestrationError('internal', 'Unable to create a Search conversation')
+    const resumed = input.chatId !== undefined
+    const chat = resumed
+      ? await findConversation(input.chatId ?? '', userId, organizationId)
+      : await createConversation(userId, organizationId, query)
+    if (!chat) throw new OrchestrationError('not_found', CONVERSATION_NOT_FOUND)
 
     const chatId = chat.id
     const messageId = generateId()
+    if (!(await acquirePendingChatStream(chatId, messageId, 0)))
+      throw new OrchestrationError(
+        'conflict',
+        'This conversation is still answering an earlier question. Wait for that answer, then ask again.'
+      )
     const controller = new AbortController()
     let running = false
     let persisted = false
@@ -228,7 +280,9 @@ export const organizationSearchChat: OperationUseCase<
       clearTimeout(timeout)
       input.signal?.removeEventListener('abort', abort)
       await explicitAbort
-      if (!persisted) {
+      await releasePendingChatStream(chatId, messageId)
+      /** A resumed conversation keeps its history whatever this turn did. */
+      if (!persisted && !resumed) {
         /** Retain run diagnostics, but keep an unsuccessful empty conversation out of history. */
         try {
           await db.transaction(async (tx) => {
