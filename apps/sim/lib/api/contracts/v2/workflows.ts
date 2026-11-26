@@ -1638,6 +1638,9 @@ export const EXECUTE_OPTION_CONSTRAINTS =
 /** Blocks one run's `run.mocks` may answer. */
 const MAX_RUN_MOCKS = 50
 
+/** Longest block selector a dry run resolves; a dotted one is tried at every dot. */
+const MAX_BLOCK_SELECTOR_LENGTH = 256
+
 export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
   z
     .object({
@@ -1712,15 +1715,23 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
           "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls other than a GET, HEAD or OPTIONS without a method-override header, custom and MCP tools) is not sent; it returns a correctly shaped placeholder (a table row insert, upsert or update echoes the data it would have written, secrets masked) and is listed in `sideEffects.stubbed` with the request it would have sent, credentials, secrets and (when the workspace redacts it) PII redacted. Placeholder ids and values the request cannot determine are distinctive: strings shaped `dry_run_<kind>_<n>` and numbers above 900000000. A read (a `read` tool, an HTTP GET, HEAD or OPTIONS, or code's GET, HEAD or OPTIONS `fetch`) that would send one the run returned (such as a placeholder row's id or issue number in a URL, or free text quoting one) is not sent either: it gets a placeholder (code's `fetch` an empty 200) and is listed there with `dependsOnStub`. Every MCP call is stubbed, even one its server declares read-only, a claim Sim cannot verify: its entry carries `readOnlyHint`, and `allowBlocks` sends it. Other reads, model calls and credential resolution run for real, and so does code (a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes): JavaScript without imports sends its other GET, HEAD and OPTIONS `fetch` calls (an API that writes on a GET is not stubbed), while any other request, or one carrying a method-override header, gets an empty 200 response (header `x-sim-dry-run: stubbed`) and is listed in `sideEffects.stubbed` as tool `function_execute`; code in a remote sandbox (shell, Python, JavaScript with imports, a selected sandbox or files) has network the run cannot see and is listed in `sideEffects.unchecked`. Child workflows inherit it. Custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event and does not count as a run of the workflow. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`."
         ),
       allowBlocks: z
-        .array(z.string().min(1, 'run.allowBlocks entries cannot be empty'))
+        .array(
+          z
+            .string()
+            .min(1, 'run.allowBlocks entries cannot be empty')
+            .max(MAX_BLOCK_SELECTOR_LENGTH, 'run.allowBlocks entries are at most 256 characters')
+        )
         .max(50)
         .optional()
         .describe(
-          'Blocks (id, display name or reference key) of this workflow whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block, or a block that runs another workflow (a Workflow or custom block), cannot be allowed. Allowing an Agent sends only its own tool calls: a workflow or custom block it calls stays stubbed.'
+          "Blocks whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. Name a block of this workflow by id, display name or reference key, or a block of a workflow it calls as `<workflow>.<block>` (the workflow's id or name, then the block's id, name or key), at most 256 characters. A selector holding a dot names a block of this workflow only by its exact id or display name; otherwise its workflow part is matched against the workflows its Workflow blocks call at any depth, then, for a child chosen as the run goes, a workflow of this workspace by id or exact name. A selector matching several blocks is refused with them. A child's entry applies wherever that workflow runs, at every depth. A Human in the loop or Wait block, a block that runs another workflow (a Workflow or custom block), a loop or parallel, a disabled block, or a block of a workflow reached only as a custom block's cannot be allowed. Allowing an Agent sends only its own tool calls: a workflow or custom block it calls stays stubbed. An entry the run never reaches is listed in `sideEffects.unused`."
         ),
       mocks: z
         .record(
-          z.string(),
+          z
+            .string()
+            .max(MAX_BLOCK_SELECTOR_LENGTH, 'run.mocks keys are at most 256 characters')
+            .describe('Block selector.'),
           z
             .record(z.string(), z.unknown().describe('Output field.'))
             .describe('Output object that answers the block instead of its handler.')
@@ -1731,7 +1742,36 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .meta({ maxProperties: MAX_RUN_MOCKS })
         .optional()
         .describe(
-          'Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`. A locked block (or one inside a locked loop or parallel) cannot be mocked. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`). The run records only which blocks were mocked, so a rerun passes the outputs again; its log shows a mocked block’s output like any other block’s.'
+          'Blocks answered with this output object instead of running, to steer branches or give a stubbed write a realistic result, keyed like `allowBlocks` entries (a block of this workflow, or `<workflow>.<block>` of a workflow it calls). Requires `dry`. A locked block (or one inside a locked loop or parallel), a loop or parallel, and a disabled block cannot be mocked; a block of a locked workflow, or of one in a locked folder, returns `423`. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`), nor hold a large-value reference (an object with `__simLargeValueRef`). A field the block does not declare is listed in `sideEffects.undeclaredMockFields`, not refused. The run records only which blocks were mocked, so a rerun passes the outputs again; its log shows a mocked block’s output like any other block’s.'
+        ),
+      mocksFrom: z
+        .object({
+          runId: z
+            .string()
+            .min(1, 'run.mocksFrom.runId cannot be empty')
+            .describe(
+              'Run of this workflow whose recorded block outputs answer the blocks. An unknown or expired run returns `404`; one still running, or whose log is not written yet, `409`; reading it needs what reading the run does, and a permission group that hides execution data returns `403`.'
+            ),
+          blocks: z
+            .array(
+              z
+                .string()
+                .min(1, 'run.mocksFrom.blocks entries cannot be empty')
+                .max(
+                  MAX_BLOCK_SELECTOR_LENGTH,
+                  'run.mocksFrom.blocks entries are at most 256 characters'
+                )
+            )
+            .min(1, 'run.mocksFrom.blocks names at least one block')
+            .max(MAX_RUN_MOCKS)
+            .describe(
+              'Blocks of this workflow only (id, display name or reference key; never a child’s) answered with the output each recorded in that run, redacted as the run shows it. Refused: a block the run did not execute; one inside a loop or parallel, unless that run mocked it; and, when that run was a test run, a block it answered with a placeholder rather than mocking or allowing it. Fields only a block sets (`cost`, `tokens`, `model`, `toolCalls`, child traces and the like, and fields starting with `_`) are left out and listed in `sideEffects.droppedMockFields`; an output holding a large-value reference is refused. Other refusals are those of `mocks`, and a block cannot be named here and in `mocks` both.'
+            ),
+        })
+        .strict()
+        .optional()
+        .describe(
+          'Answer blocks with their outputs in an earlier run of this workflow. Requires `dry`. The run records the source run and blocks, so a rerun names them again.'
         ),
     })
     .strict(),
@@ -2066,12 +2106,57 @@ const v2RunSideEffectsSchema = z
         unchecked: z.number().int().nonnegative().describe('Blocks left out of `unchecked`.'),
       })
       .describe('Entries each list left out once it held 50.'),
+    unused: z
+      .array(
+        z.object({
+          workflowId: z.string().describe('Workflow of the block.'),
+          blockId: z.string().describe('Block id in that workflow.'),
+          block: z.string().describe('Block display name.'),
+          override: z
+            .enum(['allow', 'mock'])
+            .describe(
+              'Whether `run.allowBlocks` or a mock (`run.mocks`, `run.mocksFrom`) named it.'
+            ),
+        })
+      )
+      .describe(
+        'Allowed and mocked blocks the run never reached: on a branch it did not take, upstream of a block entry, or in a child it never called.'
+      ),
+    undeclaredMockFields: z
+      .array(
+        z.object({
+          workflowId: z.string().describe('Workflow of the block.'),
+          blockId: z.string().describe('Block id in that workflow.'),
+          block: z.string().describe('Block display name.'),
+          fields: z.array(z.string().describe('Output field.')).describe('Fields not declared.'),
+        })
+      )
+      .describe(
+        'Passed mocks setting top-level fields their block does not declare as outputs, likely misspelt; a block reading one gets nothing. Agent and Function blocks, whose outputs the model or code decides, are never listed.'
+      ),
+    droppedMockFields: z
+      .array(
+        z.object({
+          workflowId: z.string().describe('Workflow of the block.'),
+          blockId: z.string().describe('Block id in that workflow.'),
+          block: z.string().describe('Block display name.'),
+          fields: z.array(z.string().describe('Output field.')).describe('Fields left out.'),
+        })
+      )
+      .describe(
+        'Mocks read from a run (`run.mocksFrom`) whose recorded output held fields only a block sets (`cost`, `tokens`, `model`, `toolCalls` and the like), which a mock cannot set and so were left out; a block reading one gets nothing.'
+      ),
   })
   .meta({
     id: 'WorkflowRunSideEffects',
     title: 'Workflow run side effects',
     description: 'What a dry run did with each write it reached.',
   })
+
+const v2RunDryRunChildBlockSchema = z.object({
+  workflowId: z.string().describe('Workflow the run called.'),
+  blockId: z.string().describe('Block id in that workflow.'),
+})
 
 export const v2RunDryRunSchema = z
   .object({
@@ -2082,6 +2167,27 @@ export const v2RunDryRunSchema = z
       .array(z.string().describe('Block id.'))
       .describe(
         'Blocks the run answered with fixed outputs (`run.mocks`), by id. Only the ids are recorded, so a rerun passes the outputs again.'
+      ),
+    childAllowBlocks: z
+      .array(v2RunDryRunChildBlockSchema)
+      .optional()
+      .describe(
+        'Blocks of workflows it calls whose writes the run sent; a rerun names each as `<workflowId>.<blockId>`. Absent when none.'
+      ),
+    childMockedBlocks: z
+      .array(v2RunDryRunChildBlockSchema)
+      .optional()
+      .describe(
+        'Blocks of workflows it calls that the run answered with fixed outputs (`run.mocks`); a rerun passes each output again as `<workflowId>.<blockId>`. Absent when none.'
+      ),
+    mocksFrom: z
+      .object({
+        runId: z.string().describe('Run the outputs were read from.'),
+        blockIds: z.array(z.string().describe('Block id.')).describe('Blocks answered, by id.'),
+      })
+      .optional()
+      .describe(
+        'Blocks the run answered with their outputs in another run (`run.mocksFrom`), which a rerun reads again. Absent when none.'
       ),
   })
   .meta({

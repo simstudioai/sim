@@ -316,14 +316,20 @@ export function wasExecutionFinalizedByCore(error: unknown, executionId?: string
 }
 
 /**
- * What a run records on its log's trigger: its correlation, and a dry run's allowed and mocked
- * blocks, which a rerun of it reads back.
+ * What a run records on its log's trigger: its correlation, a dry run's allowed and mocked blocks,
+ * which a rerun of it reads back, and, for any run with a side-effect policy (a dry run or a
+ * workflow test), `placeholdersRecorded`, which says its block states mark each block it answered
+ * with a placeholder (a run logged before they did has no marks).
  */
-function logTriggerData(metadata: ExecutionMetadata): Record<string, unknown> | undefined {
-  if (!metadata.correlation && !metadata.dryRun) return undefined
+function logTriggerData(
+  metadata: ExecutionMetadata,
+  sideEffects: SideEffectPolicy | undefined
+): Record<string, unknown> | undefined {
+  if (!metadata.correlation && !metadata.dryRun && !sideEffects) return undefined
   return {
     ...(metadata.correlation ? { correlation: metadata.correlation } : {}),
     ...(metadata.dryRun ? { dryRun: metadata.dryRun } : {}),
+    ...(sideEffects ? { placeholdersRecorded: true } : {}),
   }
 }
 
@@ -907,7 +913,7 @@ async function executeWorkflowCoreImpl(
       billingAttribution: metadata.billingAttribution,
       workspaceId: providedWorkspaceId,
       variables,
-      triggerData: logTriggerData(metadata),
+      triggerData: logTriggerData(metadata, sideEffects),
       skipLogCreation,
       deploymentVersionId,
       workflowState: loadedWorkflow && {
@@ -1465,7 +1471,7 @@ async function executeWorkflowCoreImpl(
         billingAttribution: metadata.billingAttribution,
         workspaceId: providedWorkspaceId,
         variables: {},
-        triggerData: logTriggerData(metadata),
+        triggerData: logTriggerData(metadata, sideEffects),
         skipLogCreation,
         deploymentVersionId,
       })

@@ -97,6 +97,8 @@ export interface TraceStoreReadContext {
 export interface DisplayExecutionDataWithBlockOutputs {
   executionData: Record<string, unknown>
   blockOutputs: Map<string, unknown>
+  /** The requested blocks a dry run answered, or a call of which it answered, with a placeholder. */
+  placeholderBlockIds: Set<string>
 }
 
 /**
@@ -440,7 +442,7 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
   const materialized = await materializeExecutionData(executionData, context)
   const displayData = await projectExecutionDataForDisplay(materialized, context)
   if (blockIds.length === 0) {
-    return { executionData: displayData, blockOutputs: new Map() }
+    return { executionData: displayData, blockOutputs: new Map(), placeholderBlockIds: new Set() }
   }
 
   const executionState = readRecord(materialized.executionState)
@@ -449,7 +451,7 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
     if (materialized.executionDataTruncated === true) {
       throw new FunctionalOutputsUnavailableError()
     }
-    return { executionData: displayData, blockOutputs: new Map() }
+    return { executionData: displayData, blockOutputs: new Map(), placeholderBlockIds: new Set() }
   }
 
   const runImport = await importStoredDisplayEnvelope(
@@ -460,11 +462,13 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
   const provenanceFaults = new Map<string, StoredDisplayFault>()
   if (runImport.fault) provenanceFaults.set('run', runImport.fault)
   const blockOutputs = new Map<string, unknown>()
+  const placeholderBlockIds = new Set<string>()
   const projectionStore = createReadOnlyProjectionStore(context)
 
   for (const blockId of new Set(blockIds)) {
     const blockState = readRecord(blockStates[blockId])
     if (!blockState || blockState.output === undefined) continue
+    if (blockState.answeredWithPlaceholder === true) placeholderBlockIds.add(blockId)
 
     let registry = runImport.registry
     if (Object.hasOwn(blockState, RESOLVED_SECRET_PROVENANCE_KEY)) {
@@ -502,7 +506,7 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
   }
   reportStoredDisplayProvenanceFaults('traceStore.blockOutputs', context, provenanceFaults)
 
-  return { executionData: displayData, blockOutputs }
+  return { executionData: displayData, blockOutputs, placeholderBlockIds }
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {

@@ -144,17 +144,22 @@ export class ExecutionState implements BlockStateController {
     blockId: string,
     output: NormalizedBlockOutput,
     executionTime = 0,
-    resolvedSecretTraceProvenance?: BlockState['resolvedSecretTraceProvenance']
+    resolvedSecretTraceProvenance?: BlockState['resolvedSecretTraceProvenance'],
+    answeredWithPlaceholder = false
   ): void {
     const existingState = this.blockStates.get(blockId)
+    const sameOutput = existingState?.output === output
     const effectiveProvenance =
       resolvedSecretTraceProvenance ??
-      (existingState?.output === output ? existingState.resolvedSecretTraceProvenance : undefined)
+      (sameOutput ? existingState.resolvedSecretTraceProvenance : undefined)
+    const placeholder =
+      answeredWithPlaceholder || (sameOutput && existingState.answeredWithPlaceholder === true)
     this.blockStates.set(blockId, {
       output,
       executed: true,
       executionTime,
       ...(effectiveProvenance ? { resolvedSecretTraceProvenance: effectiveProvenance } : {}),
+      ...(placeholder ? { answeredWithPlaceholder: true as const } : {}),
     })
     this.executedBlocks.add(blockId)
   }

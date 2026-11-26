@@ -320,10 +320,22 @@ export interface ExecutionTestHooks {
   recordSpy(call: { blockId: string; input: unknown; output: unknown }): void
 }
 
-/** A dry run's allowed and mocked blocks of the workflow it started, by id; never a mock's output. */
+/** A block of a child workflow a dry run names. */
+interface DryRunChildBlock {
+  workflowId: string
+  blockId: string
+}
+
+/** A dry run's allowed and mocked blocks, by id; never a mock's output. */
 export interface DryRunOptions {
+  /** Blocks of the workflow it started whose writes it sent. */
   allowBlocks: string[]
+  /** Blocks of the workflow it started answered with outputs the caller passed. */
   mockedBlocks: string[]
+  childAllowBlocks?: DryRunChildBlock[]
+  childMockedBlocks?: DryRunChildBlock[]
+  /** Blocks of the workflow it started answered with their outputs in another run. */
+  mocksFrom?: { runId: string; blockIds: string[] }
 }
 
 /** Where a call that may change state outside the run was made: a block of one executing workflow. */
@@ -451,6 +463,11 @@ export interface SideEffectPolicy {
   sendsPlaceholder(sent: unknown): boolean
   /** Whether this block is answered with {@link answerBlock} instead of running its handler. */
   answersBlock(block: SideEffectBlockSite): boolean
+  /**
+   * Whether the run has answered this block, or a call it made, with a placeholder (its mock is
+   * not one), so its output may hold made-up values.
+   */
+  answeredWithPlaceholder(block: SideEffectBlockSite): boolean
   /** The output answering a block that does not run: its mock, or a recorded placeholder. */
   answerBlock(call: AnsweredBlockCall): Promise<NormalizedBlockOutput>
 }
@@ -606,7 +623,8 @@ export interface BlockStateWriter {
     blockId: string,
     output: NormalizedBlockOutput,
     executionTime?: number,
-    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
+    answeredWithPlaceholder?: boolean
   ): void
   setBlockState(blockId: string, state: BlockState): void
   deleteBlockState(blockId: string): void

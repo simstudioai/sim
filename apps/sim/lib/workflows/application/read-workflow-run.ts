@@ -95,6 +95,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         pausePoints: loadedPausePoints,
         failedBlock,
         dryRun,
+        placeholderBlockIds,
       } = projected
 
       /**
@@ -197,6 +198,9 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         failedBlock,
         rerunFromBlockId,
         dryRun,
+        placeholderBlockIds,
+        /** Whether the viewer's group withheld `blockOutputs` and `finalOutput`. */
+        outputsHidden: projection.hideTraceSpans,
       }
     } catch (error) {
       if (error instanceof FunctionalOutputsUnavailableError) {

@@ -48,7 +48,7 @@ type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 interface ExecutionDataShape {
   finalOutput?: unknown
   traceSpans?: unknown
-  trigger?: { data?: { dryRun?: unknown } }
+  trigger?: { data?: { dryRun?: unknown; placeholdersRecorded?: unknown } }
 }
 
 function resolvePath(value: unknown, path: string[]): unknown {
@@ -270,12 +270,23 @@ export interface ProjectedWorkflowExecutionStatus {
    */
   failedBlock: FailedTraceBlock | null
   /**
-   * A failed dry run's allowed and mocked blocks, which a rerun of it names again; null for any
-   * other run, or when the viewer's group withholds execution data.
+   * A dry run's allowed and mocked blocks, whatever its status, when the read loads execution data
+   * (a failed run, or one read with its output or selected block outputs); null otherwise, for any
+   * other run, or when the viewer's group withholds execution data. The v2 run read returns only
+   * a failed run's, and a `run.mocksFrom` read always selects block outputs.
    *
    * permission-group-enforced: logs.trace_spans
    */
   dryRun: DryRunOptions | null
+  /**
+   * The blocks named by `selectedOutputs` that a dry run answered, or a call of which it answered,
+   * with a placeholder, so their outputs may hold made-up values; empty for any other run. Null
+   * when unknown: a test run logged before its block states marked them, or a viewer whose group
+   * withholds execution data.
+   *
+   * permission-group-enforced: logs.trace_spans
+   */
+  placeholderBlockIds: string[] | null
 }
 
 /**
@@ -309,6 +320,7 @@ export async function getProjectedWorkflowExecutionStatus(
     pausePoints: resolved.pausePoints,
     failedBlock: projection.hideTraceSpans ? null : resolved.failedBlock,
     dryRun: projection.hideTraceSpans ? null : resolved.dryRun,
+    placeholderBlockIds: projection.hideTraceSpans ? null : resolved.placeholderBlockIds,
   }
 }
 
@@ -373,8 +385,13 @@ interface ResolvedExecutionStatus {
   pausePoints: unknown
   /** The failing block the recorded trace names, when the answered `error` is the run's own. */
   failedBlock: FailedTraceBlock | null
-  /** A failed dry run's allowed and mocked blocks, as its log's trigger recorded them. */
+  /** A dry run's allowed and mocked blocks, as its log's trigger recorded them, when execution data was read. */
   dryRun: DryRunOptions | null
+  /**
+   * The selected blocks a dry run answered, or a call of which it answered, with a placeholder;
+   * null for a test run logged before its block states marked them.
+   */
+  placeholderBlockIds: string[] | null
 }
 
 async function readWorkflowExecutionStatus(
@@ -465,6 +482,7 @@ async function readWorkflowExecutionStatus(
         pausePoints: null,
         failedBlock: null,
         dryRun: null,
+        placeholderBlockIds: [],
       }
     }
   }
@@ -493,6 +511,7 @@ async function readWorkflowExecutionStatus(
       pausePoints: null,
       failedBlock: null,
       dryRun: null,
+      placeholderBlockIds: [],
     }
   }
 
@@ -511,6 +530,7 @@ async function readWorkflowExecutionStatus(
       failedBlock:
         status.status === 'failed' && run.status.status === 'failed' ? run.failedBlock : null,
       dryRun: null,
+      placeholderBlockIds: [],
     }
   }
 
@@ -596,6 +616,7 @@ async function readWorkflowExecutionStatus(
       pausePoints: paused ? pausedRow?.pausePoints : null,
       failedBlock: null,
       dryRun: null,
+      placeholderBlockIds: [],
     }
   }
 
@@ -630,8 +651,11 @@ async function readWorkflowExecutionStatus(
     stateExecutionId: executionId,
     pausePoints: paused ? pausedRow?.pausePoints : null,
     failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans, error) : null,
-    dryRun:
-      status === 'failed' && logRow.trigger === TEST_TRIGGER ? readDryRun(executionData) : null,
+    dryRun: logRow.trigger === TEST_TRIGGER ? readDryRun(executionData) : null,
+    placeholderBlockIds:
+      logRow.trigger !== TEST_TRIGGER || executionData?.trigger?.data?.placeholdersRecorded === true
+        ? [...materialized.placeholderBlockIds]
+        : null,
   }
 }
 

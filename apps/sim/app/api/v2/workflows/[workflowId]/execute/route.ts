@@ -554,6 +554,7 @@ export const POST = withRouteHandler(
               dry: manualRun.dry,
               allowBlocks: manualRun.allowBlocks,
               mocks: manualRun.mocks,
+              mocksFrom: manualRun.mocksFrom,
             },
             request: req,
           })
@@ -570,6 +571,7 @@ export const POST = withRouteHandler(
               dry: manualRun.dry,
               allowBlocks: manualRun.allowBlocks,
               mocks: manualRun.mocks,
+              mocksFrom: manualRun.mocksFrom,
             },
             request: req,
           })

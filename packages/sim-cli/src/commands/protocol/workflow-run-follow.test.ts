@@ -766,6 +766,28 @@ describe('sim workflows run --dry', () => {
     })
   })
 
+  it('sends bare --mock blocks as the blocks --mock-from answers, beside passed mocks', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(
+      WORKFLOW_ID,
+      '--dry',
+      '--mock-from',
+      'run-1',
+      '--mock',
+      'Score lead',
+      '--mock',
+      'child.Router={"route":"vip"}'
+    )
+
+    expect(requestRaw.mock.calls[0][1].body.run).toEqual({
+      source: 'manual',
+      dry: true,
+      mocks: { 'child.Router': { route: 'vip' } },
+      mocksFrom: { runId: 'run-1', blocks: ['Score lead'] },
+    })
+  })
+
   it('refuses combinations a dry run cannot honour before sending anything', async () => {
     await expect(run(WORKFLOW_ID, '--allow', 'Save lead')).rejects.toThrow('add --dry')
     await expect(run(WORKFLOW_ID, '--mock', 'Score={"content":"spam"}')).rejects.toThrow(
@@ -777,7 +799,16 @@ describe('sim workflows run --dry', () => {
     )
     await expect(run(WORKFLOW_ID, '--dry', '--async')).rejects.toThrow('drop --async')
     await expect(run(WORKFLOW_ID, '--dry', '--mock', '{"content":"spam"}')).rejects.toThrow(
-      'must be <block>=<json|@file>'
+      'names no output: pass <block>=<json|@file>, or add --mock-from <runId>'
+    )
+    await expect(run(WORKFLOW_ID, '--dry', '--mock', 'blk_2=<json>')).rejects.toThrow(
+      "replace <json> with the block's output"
+    )
+    await expect(run(WORKFLOW_ID, '--dry', '--mock-from', 'run_1')).rejects.toThrow(
+      'name at least one'
+    )
+    await expect(run(WORKFLOW_ID, '--mock-from', 'run_1', '--mock', 'Score')).rejects.toThrow(
+      '--mock-from answers a block during a dry run'
     )
     await expect(run(WORKFLOW_ID, '--dry', '--mock', 'Score=spam')).rejects.toThrow(
       'is not valid JSON'

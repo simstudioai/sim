@@ -17464,9 +17464,107 @@
             "required": ["stubbed", "allowed", "unchecked"],
             "additionalProperties": false,
             "description": "Entries each list left out once it held 50."
+          },
+          "unused": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow of the block."
+                },
+                "blockId": {
+                  "type": "string",
+                  "description": "Block id in that workflow."
+                },
+                "block": {
+                  "type": "string",
+                  "description": "Block display name."
+                },
+                "override": {
+                  "type": "string",
+                  "enum": ["allow", "mock"],
+                  "description": "Whether `run.allowBlocks` or a mock (`run.mocks`, `run.mocksFrom`) named it."
+                }
+              },
+              "required": ["workflowId", "blockId", "block", "override"],
+              "additionalProperties": false
+            },
+            "description": "Allowed and mocked blocks the run never reached: on a branch it did not take, upstream of a block entry, or in a child it never called."
+          },
+          "undeclaredMockFields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow of the block."
+                },
+                "blockId": {
+                  "type": "string",
+                  "description": "Block id in that workflow."
+                },
+                "block": {
+                  "type": "string",
+                  "description": "Block display name."
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "description": "Output field."
+                  },
+                  "description": "Fields not declared."
+                }
+              },
+              "required": ["workflowId", "blockId", "block", "fields"],
+              "additionalProperties": false
+            },
+            "description": "Passed mocks setting top-level fields their block does not declare as outputs, likely misspelt; a block reading one gets nothing. Agent and Function blocks, whose outputs the model or code decides, are never listed."
+          },
+          "droppedMockFields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow of the block."
+                },
+                "blockId": {
+                  "type": "string",
+                  "description": "Block id in that workflow."
+                },
+                "block": {
+                  "type": "string",
+                  "description": "Block display name."
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "description": "Output field."
+                  },
+                  "description": "Fields left out."
+                }
+              },
+              "required": ["workflowId", "blockId", "block", "fields"],
+              "additionalProperties": false
+            },
+            "description": "Mocks read from a run (`run.mocksFrom`) whose recorded output held fields only a block sets (`cost`, `tokens`, `model`, `toolCalls` and the like), which a mock cannot set and so were left out; a block reading one gets nothing."
           }
         },
-        "required": ["stubbed", "allowed", "unchecked", "omitted"],
+        "required": [
+          "stubbed",
+          "allowed",
+          "unchecked",
+          "omitted",
+          "unused",
+          "undeclaredMockFields",
+          "droppedMockFields"
+        ],
         "additionalProperties": false,
         "title": "Workflow run side effects",
         "description": "What a dry run did with each write it reached."
@@ -17489,6 +17587,64 @@
               "description": "Block id."
             },
             "description": "Blocks the run answered with fixed outputs (`run.mocks`), by id. Only the ids are recorded, so a rerun passes the outputs again."
+          },
+          "childAllowBlocks": {
+            "description": "Blocks of workflows it calls whose writes the run sent; a rerun names each as `<workflowId>.<blockId>`. Absent when none.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow the run called."
+                },
+                "blockId": {
+                  "type": "string",
+                  "description": "Block id in that workflow."
+                }
+              },
+              "required": ["workflowId", "blockId"],
+              "additionalProperties": false
+            }
+          },
+          "childMockedBlocks": {
+            "description": "Blocks of workflows it calls that the run answered with fixed outputs (`run.mocks`); a rerun passes each output again as `<workflowId>.<blockId>`. Absent when none.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow the run called."
+                },
+                "blockId": {
+                  "type": "string",
+                  "description": "Block id in that workflow."
+                }
+              },
+              "required": ["workflowId", "blockId"],
+              "additionalProperties": false
+            }
+          },
+          "mocksFrom": {
+            "description": "Blocks the run answered with their outputs in another run (`run.mocksFrom`), which a rerun reads again. Absent when none.",
+            "type": "object",
+            "properties": {
+              "runId": {
+                "type": "string",
+                "description": "Run the outputs were read from."
+              },
+              "blockIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "Block id."
+                },
+                "description": "Blocks answered, by id."
+              }
+            },
+            "required": ["runId", "blockIds"],
+            "additionalProperties": false
           }
         },
         "required": ["allowBlocks", "mockedBlocks"],
@@ -17829,19 +17985,22 @@
                     "type": "boolean"
                   },
                   "allowBlocks": {
-                    "description": "Blocks (id, display name or reference key) of this workflow whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block, or a block that runs another workflow (a Workflow or custom block), cannot be allowed. Allowing an Agent sends only its own tool calls: a workflow or custom block it calls stays stubbed.",
+                    "description": "Blocks whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. Name a block of this workflow by id, display name or reference key, or a block of a workflow it calls as `<workflow>.<block>` (the workflow's id or name, then the block's id, name or key), at most 256 characters. A selector holding a dot names a block of this workflow only by its exact id or display name; otherwise its workflow part is matched against the workflows its Workflow blocks call at any depth, then, for a child chosen as the run goes, a workflow of this workspace by id or exact name. A selector matching several blocks is refused with them. A child's entry applies wherever that workflow runs, at every depth. A Human in the loop or Wait block, a block that runs another workflow (a Workflow or custom block), a loop or parallel, a disabled block, or a block of a workflow reached only as a custom block's cannot be allowed. Allowing an Agent sends only its own tool calls: a workflow or custom block it calls stays stubbed. An entry the run never reaches is listed in `sideEffects.unused`.",
                     "maxItems": 50,
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "maxLength": 256
                     }
                   },
                   "mocks": {
-                    "description": "Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`. A locked block (or one inside a locked loop or parallel) cannot be mocked. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`). The run records only which blocks were mocked, so a rerun passes the outputs again; its log shows a mocked block’s output like any other block’s.",
+                    "description": "Blocks answered with this output object instead of running, to steer branches or give a stubbed write a realistic result, keyed like `allowBlocks` entries (a block of this workflow, or `<workflow>.<block>` of a workflow it calls). Requires `dry`. A locked block (or one inside a locked loop or parallel), a loop or parallel, and a disabled block cannot be mocked; a block of a locked workflow, or of one in a locked folder, returns `423`. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`), nor hold a large-value reference (an object with `__simLargeValueRef`). A field the block does not declare is listed in `sideEffects.undeclaredMockFields`, not refused. The run records only which blocks were mocked, so a rerun passes the outputs again; its log shows a mocked block’s output like any other block’s.",
                     "type": "object",
                     "propertyNames": {
-                      "type": "string"
+                      "type": "string",
+                      "maxLength": 256,
+                      "description": "Block selector."
                     },
                     "additionalProperties": {
                       "type": "object",
@@ -17854,6 +18013,30 @@
                       "description": "Output object that answers the block instead of its handler."
                     },
                     "maxProperties": 50
+                  },
+                  "mocksFrom": {
+                    "description": "Answer blocks with their outputs in an earlier run of this workflow. Requires `dry`. The run records the source run and blocks, so a rerun names them again.",
+                    "type": "object",
+                    "properties": {
+                      "runId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Run of this workflow whose recorded block outputs answer the blocks. An unknown or expired run returns `404`; one still running, or whose log is not written yet, `409`; reading it needs what reading the run does, and a permission group that hides execution data returns `403`."
+                      },
+                      "blocks": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "description": "Blocks of this workflow only (id, display name or reference key; never a child’s) answered with the output each recorded in that run, redacted as the run shows it. Refused: a block the run did not execute; one inside a loop or parallel, unless that run mocked it; and, when that run was a test run, a block it answered with a placeholder rather than mocking or allowing it. Fields only a block sets (`cost`, `tokens`, `model`, `toolCalls`, child traces and the like, and fields starting with `_`) are left out and listed in `sideEffects.droppedMockFields`; an output holding a large-value reference is refused. Other refusals are those of `mocks`, and a block cannot be named here and in `mocks` both."
+                      }
+                    },
+                    "required": ["runId", "blocks"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["source"],

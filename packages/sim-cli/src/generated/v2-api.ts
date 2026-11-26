@@ -7127,6 +7127,10 @@ export type ExecuteWorkflowBody = {
         dry?: boolean
         allowBlocks?: Array<string>
         mocks?: Record<string, Record<string, unknown>>
+        mocksFrom?: {
+          runId: string
+          blocks: Array<string>
+        }
       }
   async?: boolean
   executionTimeoutSeconds?: number
@@ -7196,11 +7200,41 @@ type ExecuteWorkflowResponseRef1 = {
     allowed: number
     unchecked: number
   }
+  unused: Array<{
+    workflowId: string
+    blockId: string
+    block: string
+    override: 'allow' | 'mock'
+  }>
+  undeclaredMockFields: Array<{
+    workflowId: string
+    blockId: string
+    block: string
+    fields: Array<string>
+  }>
+  droppedMockFields: Array<{
+    workflowId: string
+    blockId: string
+    block: string
+    fields: Array<string>
+  }>
 }
 
 type ExecuteWorkflowResponseRef2 = {
   allowBlocks: Array<string>
   mockedBlocks: Array<string>
+  childAllowBlocks?: Array<{
+    workflowId: string
+    blockId: string
+  }>
+  childMockedBlocks?: Array<{
+    workflowId: string
+    blockId: string
+  }>
+  mocksFrom?: {
+    runId: string
+    blockIds: Array<string>
+  }
 }
 
 type ExecuteWorkflowResponseRef3 = {
@@ -10401,6 +10435,18 @@ type GetWorkflowRunResponseRef3 = {
 type GetWorkflowRunResponseRef4 = {
   allowBlocks: Array<string>
   mockedBlocks: Array<string>
+  childAllowBlocks?: Array<{
+    workflowId: string
+    blockId: string
+  }>
+  childMockedBlocks?: Array<{
+    workflowId: string
+    blockId: string
+  }>
+  mocksFrom?: {
+    runId: string
+    blockIds: Array<string>
+  }
 }
 
 type GetWorkflowRunResponseRef5 = {

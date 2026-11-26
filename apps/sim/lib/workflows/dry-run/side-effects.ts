@@ -83,6 +83,35 @@ interface UncheckedSideEffect extends RecordedSite {
   reason: string
 }
 
+/** A block a dry run's `run.allowBlocks` or `run.mocks` names: a block of the run's workflow or a child's. */
+export interface DryRunOverride {
+  workflowId: string
+  blockId: string
+  /** Its display name, which {@link SideEffectsSummary.unused} reports. */
+  block: string
+}
+
+/** A block a dry run answers with a fixed output instead of running it. */
+export interface DryRunMock extends DryRunOverride {
+  output: NormalizedBlockOutput
+  /** The run the output was read from (`run.mocksFrom`); unset for an output the caller passed. */
+  sourceRunId?: string
+  /** Top-level fields of the output the block does not declare, which the summary reports. */
+  undeclaredFields: string[]
+  /** Fields of the recorded output only its handler may set, left out of a mock read from a run. */
+  droppedFields: string[]
+}
+
+/** An allowed or mocked block the run never reached. */
+interface UnusedOverride extends DryRunOverride {
+  override: 'allow' | 'mock'
+}
+
+/** Fields of a mock: ones its block does not declare, or ones left out of a recorded output. */
+interface MockFields extends DryRunOverride {
+  fields: string[]
+}
+
 /** What a dry run did with each write it reached; each list holds at most {@link MAX_RECORDED}. */
 export interface SideEffectsSummary {
   stubbed: StubbedSideEffect[]
@@ -90,6 +119,14 @@ export interface SideEffectsSummary {
   unchecked: UncheckedSideEffect[]
   /** Entries each list left out once it was full. */
   omitted: { stubbed: number; allowed: number; unchecked: number }
+  unused: UnusedOverride[]
+  undeclaredMockFields: MockFields[]
+  droppedMockFields: MockFields[]
+}
+
+/** The key an allowed or mocked block is matched by: its workflow and block id. */
+export function overrideKey(site: { workflowId: string; blockId: string | null }): string {
+  return `${site.workflowId}:${site.blockId}`
 }
 
 function recordedSite(site: SideEffectSite): RecordedSite {
@@ -162,45 +199,47 @@ class RecordedList<T> {
  * other request is answered with an empty 200 and recorded like a write, while code in a remote
  * sandbox, whose network the run cannot see, is listed unchecked. Custom blocks and
  * {@link PAUSING_BLOCK_TYPES} are answered whole, as is a block that acts outside the tool seam
- * unless it is allowed, and `blockMocks` answers its blocks with fixed outputs. Allowed and mocked
- * blocks are blocks of the workflow the run started, never of a child it calls, and an allowed
- * Agent's own tool calls are sent, not a workflow or custom block it calls.
+ * unless it is allowed, and `blockMocks` answers its blocks with fixed outputs. An allowed or
+ * mocked block is keyed by its workflow and block id, so one of a child applies wherever that
+ * child runs, at every depth, and an allowed Agent's own tool calls are sent, not a workflow or
+ * custom block it calls.
  */
 export class WriteStubPolicy implements SideEffectPolicy {
   private readonly stubbed = new RecordedList<StubbedSideEffect>()
   private readonly allowed = new RecordedList<AllowedSideEffect>()
   private readonly unchecked = new RecordedList<UncheckedSideEffect>()
-  private readonly allowBlockIds: ReadonlySet<string>
-  private readonly blockMocks: ReadonlyMap<string, NormalizedBlockOutput>
+  private readonly allowBlocks: ReadonlyMap<string, DryRunOverride>
+  private readonly blockMocks: ReadonlyMap<string, DryRunMock>
+  /** Keys of the allowed and mocked blocks the run reached. */
+  private readonly reached = new Set<string>()
   private readonly placeholders = new PlaceholderTokens()
+  /** Keys of the blocks answered, or with a call answered, with a placeholder. */
+  private readonly answeredSites = new Set<string>()
 
   constructor(
     private readonly options: {
       /** The workflow the run started. */
       workflowId: string
-      /** Its blocks whose writes are sent. */
-      allowBlockIds?: ReadonlySet<string>
-      /** Its blocks answered with these outputs instead of running. */
-      blockMocks?: ReadonlyMap<string, NormalizedBlockOutput>
+      /** Blocks whose writes are sent. */
+      allowBlocks?: readonly DryRunOverride[]
+      /** Blocks answered with these outputs instead of running. */
+      blockMocks?: readonly DryRunMock[]
     }
   ) {
-    this.allowBlockIds = options.allowBlockIds ?? new Set()
-    this.blockMocks = options.blockMocks ?? new Map()
-  }
-
-  /** The block's id when it is a block of the workflow the run started. */
-  private runBlockId(site: SideEffectSite): string | null {
-    return site.workflowId === this.options.workflowId ? site.blockId : null
+    this.allowBlocks = new Map(
+      (options.allowBlocks ?? []).map((entry) => [overrideKey(entry), entry])
+    )
+    this.blockMocks = new Map(
+      (options.blockMocks ?? []).map((entry) => [overrideKey(entry), entry])
+    )
   }
 
   private allows(site: SideEffectSite): boolean {
-    const blockId = this.runBlockId(site)
-    return blockId !== null && this.allowBlockIds.has(blockId)
+    return site.blockId !== null && this.allowBlocks.has(overrideKey(site))
   }
 
   private mockOf(site: SideEffectSite): NormalizedBlockOutput | undefined {
-    const blockId = this.runBlockId(site)
-    return blockId === null ? undefined : this.blockMocks.get(blockId)
+    return site.blockId === null ? undefined : this.blockMocks.get(overrideKey(site))?.output
   }
 
   /**
@@ -253,6 +292,7 @@ export class WriteStubPolicy implements SideEffectPolicy {
           )
           return 'send'
         }
+        this.answeredSites.add(overrideKey(site))
         this.stubbed.add({
           ...recordedSite(site),
           tool: CODE_TOOL_ID,
@@ -270,6 +310,7 @@ export class WriteStubPolicy implements SideEffectPolicy {
   stubCall(call: StubbedToolCall): Record<string, unknown> {
     const returned = sampleToolOutput(call.toolId, call.echoed, call.discoveredOutputs)
     this.placeholders.register(returned, call.echoed)
+    this.answeredSites.add(overrideKey(call))
     this.stubbed.add({
       ...recordedSite(call),
       tool: call.toolId,
@@ -287,6 +328,8 @@ export class WriteStubPolicy implements SideEffectPolicy {
   }
 
   answersBlock(block: SideEffectBlockSite): boolean {
+    const key = overrideKey(block)
+    if (this.allowBlocks.has(key) || this.blockMocks.has(key)) this.reached.add(key)
     if (this.mockOf(block)) return true
     if (PAUSING_BLOCK_TYPES.has(block.blockType)) return true
     if (isCustomBlockType(block.blockType)) return true
@@ -299,12 +342,17 @@ export class WriteStubPolicy implements SideEffectPolicy {
     return false
   }
 
+  answeredWithPlaceholder(block: SideEffectBlockSite): boolean {
+    return this.answeredSites.has(overrideKey(block))
+  }
+
   async answerBlock(call: AnsweredBlockCall): Promise<NormalizedBlockOutput> {
     const mock = this.mockOf(call)
     if (mock) return structuredClone(mock)
     const input = await call.input()
     const returned = sampleBlockOutput({ type: call.blockType, params: input ?? {} })
     this.placeholders.register(returned)
+    this.answeredSites.add(overrideKey(call))
     this.stubbed.add({
       ...recordedSite(call),
       tool: null,
@@ -319,11 +367,38 @@ export class WriteStubPolicy implements SideEffectPolicy {
 
   /**
    * The allowed and mocked blocks, by id, which the run's log records so a rerun of this run passes
-   * them again. Never the mock outputs, which a rerun passes again: the log shows a mocked block's
-   * output only as that block's output, redacted like any other.
+   * them again; a child's are listed apart with its workflow id, and a mock read from another run
+   * by that run's id. Never the mock outputs, which a rerun passes again: the log shows a mocked
+   * block's output only as that block's output, redacted like any other.
    */
   runOptions(): DryRunOptions {
-    return { allowBlocks: [...this.allowBlockIds], mockedBlocks: [...this.blockMocks.keys()] }
+    const own = (entry: DryRunOverride) => entry.workflowId === this.options.workflowId
+    const ref = ({ workflowId, blockId }: DryRunOverride) => ({ workflowId, blockId })
+    const allowed = [...this.allowBlocks.values()]
+    const passed = [...this.blockMocks.values()].filter((mock) => mock.sourceRunId === undefined)
+    const read = [...this.blockMocks.values()].filter((mock) => mock.sourceRunId !== undefined)
+    const childAllowBlocks = allowed.filter((entry) => !own(entry)).map(ref)
+    const childMockedBlocks = passed.filter((entry) => !own(entry)).map(ref)
+    return {
+      allowBlocks: allowed.filter(own).map((entry) => entry.blockId),
+      mockedBlocks: passed.filter(own).map((entry) => entry.blockId),
+      ...(childAllowBlocks.length > 0 ? { childAllowBlocks } : {}),
+      ...(childMockedBlocks.length > 0 ? { childMockedBlocks } : {}),
+      ...(read[0]?.sourceRunId
+        ? { mocksFrom: { runId: read[0].sourceRunId, blockIds: read.map((mock) => mock.blockId) } }
+        : {}),
+    }
+  }
+
+  private mockFields(fieldsOf: (mock: DryRunMock) => string[]): MockFields[] {
+    return [...this.blockMocks.values()]
+      .filter((mock) => fieldsOf(mock).length > 0)
+      .map((mock) => ({
+        workflowId: mock.workflowId,
+        blockId: mock.blockId,
+        block: mock.block,
+        fields: fieldsOf(mock),
+      }))
   }
 
   summary(): SideEffectsSummary {
@@ -336,6 +411,20 @@ export class WriteStubPolicy implements SideEffectPolicy {
         allowed: this.allowed.omitted,
         unchecked: this.unchecked.omitted,
       },
+      unused: [
+        ...[...this.allowBlocks.values()].map((entry) => ({
+          ...entry,
+          override: 'allow' as const,
+        })),
+        ...[...this.blockMocks.values()].map(({ workflowId, blockId, block }) => ({
+          workflowId,
+          blockId,
+          block,
+          override: 'mock' as const,
+        })),
+      ].filter((entry) => !this.reached.has(overrideKey(entry))),
+      undeclaredMockFields: this.mockFields((mock) => mock.undeclaredFields),
+      droppedMockFields: this.mockFields((mock) => mock.droppedFields),
     }
   }
 }

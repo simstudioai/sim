@@ -50,19 +50,80 @@ function isTestRun(record: Record<string, unknown>): boolean {
   return record.trigger === 'test' || toRecordOrNull(record.dryRun) !== null
 }
 
+/** `<workflowId>.<blockId>` for a child block a dry run recorded; null when either id is not issued. */
+function childSelector(entry: unknown): string | null {
+  const { workflowId, blockId } = toRecordOrNull(entry) ?? {}
+  return issuedId(workflowId) && issuedId(blockId) ? `${workflowId}.${blockId}` : null
+}
+
+/**
+ * The run's own mocked blocks it reached, so recorded an output for: every mocked block of this
+ * workflow its `sideEffects.unused` does not list. None when the record carries no such list (a run
+ * read back later, which keeps no side effects), so no `--mock-from` names an output never recorded.
+ */
+function reachedMocks(record: Record<string, unknown>): Set<unknown> {
+  const unused = toRecordOrNull(record.sideEffects)?.unused
+  if (!Array.isArray(unused)) return new Set()
+  const unreached = new Set(
+    unused.flatMap((entry) =>
+      isRecordLike(entry) && entry.override === 'mock' && entry.workflowId === record.workflowId
+        ? [entry.blockId]
+        : []
+    )
+  )
+  const mocked = toArray(toRecordOrNull(record.dryRun)?.mockedBlocks)
+  return new Set(mocked.filter((blockId) => !unreached.has(blockId)))
+}
+
 /**
  * The flags that keep a rerun of a test run a test: `--dry`, with a dry run's own `--allow`
- * blocks (`dryRun.allowBlocks`), so following `next` never sends what the run held back. A
- * workflow test's run has no `dryRun` but held its writes back all the same. A dry run records
- * only which blocks were mocked, not their outputs, so `next` cannot repeat its `--mock` flags;
- * the caller passes them again. Null when a block id is not in the format the server issues.
+ * blocks (`dryRun.allowBlocks`, and a child's as `<workflowId>.<blockId>`), so following `next`
+ * never sends what the run held back. A workflow test's run has no `dryRun` but held its writes
+ * back all the same. A mock is recorded only by block, never its output, so `next` reads it again
+ * from a run: the run it was read from (`--mock-from`), or, for a mock the caller passed to this
+ * workflow's block, this run itself, which recorded the output the block answered with if the run
+ * reached it ({@link reachedMocks}). Only one run can be read from, and a child's block never is,
+ * so a passed mock left over holds a `<json>` placeholder the caller replaces with the output.
+ * Null when an id is not in the format the server issues.
  */
 function dryRerunFlags(record: Record<string, unknown>): string | null {
   if (!isTestRun(record)) return ''
+  const dryRun = toRecordOrNull(record.dryRun)
   const flags = [' --dry']
-  for (const blockId of toArray(toRecordOrNull(record.dryRun)?.allowBlocks)) {
+  for (const blockId of toArray(dryRun?.allowBlocks)) {
     if (!issuedId(blockId)) return null
     flags.push(` --allow ${shellArgument(blockId)}`)
+  }
+  for (const entry of toArray(dryRun?.childAllowBlocks)) {
+    const selector = childSelector(entry)
+    if (selector === null) return null
+    flags.push(` --allow ${shellArgument(selector)}`)
+  }
+  const mocksFrom = toRecordOrNull(dryRun?.mocksFrom)
+  const passed = toArray(dryRun?.mockedBlocks)
+  const reached = reachedMocks(record)
+  const [readFrom, read, unread] = mocksFrom
+    ? [mocksFrom.runId, toArray(mocksFrom.blockIds), passed]
+    : [
+        record.runId,
+        passed.filter((blockId) => reached.has(blockId)),
+        passed.filter((blockId) => !reached.has(blockId)),
+      ]
+  if (read.length > 0) {
+    if (!issuedId(readFrom)) return null
+    flags.push(` --mock-from ${shellArgument(readFrom)}`)
+    for (const blockId of read) {
+      if (!issuedId(blockId)) return null
+      flags.push(` --mock ${shellArgument(blockId)}`)
+    }
+  }
+  const placeholders = [
+    ...unread.map((blockId) => (issuedId(blockId) ? blockId : null)),
+    ...toArray(dryRun?.childMockedBlocks).map(childSelector),
+  ]
+  for (const selector of placeholders) {
+    if (selector === null) return null
+    flags.push(` --mock ${shellArgument(`${selector}=<json>`)}`)
   }
   return flags.join('')
 }
