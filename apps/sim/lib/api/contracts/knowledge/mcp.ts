@@ -75,7 +75,6 @@ export function liveSearchMcpDefaultTopK(input: z.output<typeof liveSearchMcpSch
 /** Documents one read_document call may read; each counts as one read against the rate limit. */
 const MAX_MCP_READ_DOCUMENTS = 10
 
-/** A document ID from search, or a link to the source document that a read resolves. */
 const mcpDocumentIdSchema = readDocumentInputSchema.shape.documentId.describe(
   'A document ID returned by search, or a link to the document in its source.'
 )

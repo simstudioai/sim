@@ -1334,7 +1334,7 @@ describe('authorized live retrieval', () => {
       displayName: id,
     })
 
-    it('reads a link from the account holding it and names it by an ID that reads back', async () => {
+    it('reads a Google Doc link and names it by an ID that reads back', async () => {
       const result = await read('https://docs.google.com/document/d/1AbcDEFghijKLmn/edit')
       expect(mocks.read).toHaveBeenCalledWith(
         'google_drive',
@@ -1393,14 +1393,14 @@ describe('authorized live retrieval', () => {
       )
     })
 
-    it('reports the reason an account gave over another account not holding the link', async () => {
-      mocks.accounts.mockResolvedValue([confluence('site-a'), confluence('site-b')])
+    it('reports one account’s specific reason over another account not finding the link', async () => {
+      mocks.accounts.mockResolvedValue([confluence('site-a'), confluence('site-a-2')])
       mocks.json
         .mockResolvedValueOnce([{ id: 'cloud-a', url: 'https://a.atlassian.net' }])
-        .mockResolvedValueOnce([{ id: 'cloud-b', url: 'https://b.atlassian.net' }])
-      mocks.read.mockRejectedValue(
-        new NativeSearchError('reconnect', 'The provider denied access.')
-      )
+        .mockResolvedValueOnce([{ id: 'cloud-a', url: 'https://a.atlassian.net' }])
+      mocks.read
+        .mockRejectedValueOnce(new NativeSearchError('unavailable', 'Gone', undefined, 404))
+        .mockRejectedValueOnce(new NativeSearchError('reconnect', 'The provider denied access.'))
       await expect(read('https://a.atlassian.net/wiki/spaces/ENG/pages/7')).rejects.toMatchObject({
         code: 'unauthorized',
         message: expect.stringContaining('Reconnect Confluence'),
