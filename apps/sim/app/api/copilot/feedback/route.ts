@@ -1,12 +1,18 @@
 import { db } from '@sim/db'
 import { copilotFeedback } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { submitCopilotFeedbackContract } from '@/lib/api/contracts'
-import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalJsonPresenters,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { submitChatFeedback } from '@/lib/mothership/chat/application/submit-feedback'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -17,104 +23,32 @@ import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CopilotFeedbackAPI')
 
-/**
- * POST /api/copilot/feedback
- * Submit feedback for a copilot interaction
- */
-export const POST = withRouteHandler(async (req: NextRequest) => {
-  const tracker = createRequestTracker()
-
-  try {
-    // Authenticate user using the same pattern as other copilot routes
-    const { userId: authenticatedUserId, isAuthenticated } =
-      await authenticateCopilotRequestSessionOnly()
-
-    if (!isAuthenticated || !authenticatedUserId) {
-      return createUnauthorizedResponse()
-    }
-
-    const parsed = await parseRequest(
-      submitCopilotFeedbackContract,
-      req,
-      {},
-      {
-        invalidJson: 'throw',
-        validationErrorResponse: (error) => {
-          logger.error('Validation error:', {
-            requestId: tracker.requestId,
-            duration: tracker.getDuration(),
-            errors: error.issues,
-          })
-          return validationErrorResponse(error, 'Invalid request data')
-        },
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const { chatId, userQuery, agentResponse, isPositiveFeedback, feedback, workflowYaml } =
-      parsed.data.body
-
-    logger.info('Processing copilot feedback submission', {
-      requestId: tracker.requestId,
-      userId: authenticatedUserId,
-      chatId,
-      isPositiveFeedback,
-      userQueryLength: userQuery.length,
-      agentResponseLength: agentResponse.length,
-      hasFeedback: !!feedback,
-      hasWorkflowYaml: !!workflowYaml,
-      workflowYamlLength: workflowYaml?.length || 0,
+/** Records the caller's rating of an assistant reply in one of their own chats. */
+export const POST = defineInternalJsonRoute({
+  contract: submitCopilotFeedbackContract,
+  operation: submitChatFeedback.operation,
+  auth: internalSessionAuth,
+  rateLimit: internalRateLimits.none({
+    reason: 'Each rated reply in the caller’s own chat adds one feedback row.',
+  }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  mapInput: ({ body }) => ({
+    chatId: body.chatId,
+    userQuery: body.userQuery,
+    agentResponse: body.agentResponse,
+    isPositive: body.isPositiveFeedback,
+    feedback: body.feedback,
+    workflowYaml: body.workflowYaml,
+  }),
+  useCase: submitChatFeedback,
+  present: internalJsonPresenters.withSuccess,
+  onSuccess: ({ principal, input }) => {
+    captureServerEvent(principal.userId, 'copilot_feedback_submitted', {
+      is_positive: input.isPositive,
+      has_text_feedback: !!input.feedback,
+      has_workflow_yaml: !!input.workflowYaml,
     })
-
-    // Insert feedback into the database
-    const [feedbackRecord] = await db
-      .insert(copilotFeedback)
-      .values({
-        userId: authenticatedUserId,
-        chatId,
-        userQuery,
-        agentResponse,
-        isPositive: isPositiveFeedback,
-        feedback: feedback || null,
-        workflowYaml: workflowYaml || null,
-      })
-      .returning()
-
-    logger.info('Successfully saved copilot feedback', {
-      requestId: tracker.requestId,
-      feedbackId: feedbackRecord.feedbackId,
-      userId: authenticatedUserId,
-      isPositive: isPositiveFeedback,
-      duration: tracker.getDuration(),
-    })
-
-    captureServerEvent(authenticatedUserId, 'copilot_feedback_submitted', {
-      is_positive: isPositiveFeedback,
-      has_text_feedback: !!feedback,
-      has_workflow_yaml: !!workflowYaml,
-    })
-
-    return NextResponse.json({
-      success: true,
-      feedbackId: feedbackRecord.feedbackId,
-      message: 'Feedback submitted successfully',
-      metadata: {
-        requestId: tracker.requestId,
-        duration: tracker.getDuration(),
-      },
-    })
-  } catch (error) {
-    const duration = tracker.getDuration()
-
-    logger.error('Error submitting copilot feedback:', {
-      requestId: tracker.requestId,
-      duration,
-      error: getErrorMessage(error, 'Unknown error'),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
-
-    return createInternalServerErrorResponse('Failed to submit feedback')
-  }
+  },
 })
 
 /**

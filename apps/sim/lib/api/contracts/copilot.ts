@@ -290,11 +290,6 @@ export const submitCopilotFeedbackContract = defineRouteContract({
     schema: z.object({
       success: z.literal(true),
       feedbackId: z.string(),
-      message: z.string(),
-      metadata: z.object({
-        requestId: z.string(),
-        duration: z.number(),
-      }),
     }),
   },
 })
