@@ -138,11 +138,17 @@ export function storedEdgesWrite(
 
 /**
  * The findings of a printed source's compile that the server's read does not report and that fail
- * a run reaching them after the block ran: an output path no block produces. `prefix` goes before
+ * a run reaching them after the block ran: an output path no block produces, and one
+ * `I_FINDINGS_TRUNCATED` counting those the compile's warning caps left out. `prefix` goes before
  * each file path (`workflows/<key>/` in a workspace directory).
  */
 export function runFailingFindings(compiled: CompileResult | null, prefix = ''): Diagnostic[] {
-  return (compiled?.diagnostics ?? [])
+  if (!compiled) return []
+  const left = compiled.omitted.reduce(
+    (sum, omitted) => (omitted.code === 'W_UNKNOWN_OUTPUT_PATH' ? sum + omitted.count : sum),
+    0
+  )
+  const listed: Diagnostic[] = compiled.diagnostics
     .filter((diagnostic) => diagnostic.code === 'W_UNKNOWN_OUTPUT_PATH')
     .map(({ code, severity, message, hint, blockKey, span, frame }) => ({
       code,
@@ -155,6 +161,16 @@ export function runFailingFindings(compiled: CompileResult | null, prefix = ''):
       line: span.line,
       column: span.column,
     }))
+  if (left === 0) return listed
+  return [
+    ...listed,
+    {
+      code: 'I_FINDINGS_TRUNCATED',
+      severity: 'info',
+      message: `${left} more output paths no block produces${prefix ? ` in ${prefix}` : ''} are left out.`,
+      hint: 'Fix the ones listed, then get again to see the rest.',
+    },
+  ]
 }
 
 /** The workflow folders a workspace answer's files hold, by key, each as a printed source. */

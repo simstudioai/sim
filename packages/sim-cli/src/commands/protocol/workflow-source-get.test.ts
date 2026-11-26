@@ -260,6 +260,45 @@ describe('sim workflows source get --dir', () => {
     ])
   })
 
+  it('says how many output paths no block produces the warning cap left out', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { codeFile, fn, table, trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('Invoices', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const lookup = table.queryRows('Lookup Customer', { tableId: table('customers') })",
+      "  const discount = fn('Apply Discount', { code: codeFile('./functions/apply-discount.js') })",
+      '  start.to(lookup)',
+      '  lookup.to(discount)',
+      '})',
+      '',
+    ].join('\n')
+    const reads = Array.from({ length: 22 }, (_, index) => `$ref.lookupcustomer.row${index}`)
+    serve({
+      [SOURCE_PATH]: () =>
+        source(
+          {
+            'workflow.ts': workflow,
+            'functions/apply-discount.js': `return [${reads.join(', ')}]\n`,
+          },
+          ['function', 'start_trigger', 'table_v2']
+        ),
+    })
+
+    await get('--dir', outDir)
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    const codes = printed.diagnostics.map((finding: { code: string }) => finding.code)
+    expect(codes.filter((code: string) => code === 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(20)
+    expect(printed.diagnostics.at(-1)).toEqual(
+      expect.objectContaining({
+        code: 'I_FINDINGS_TRUNCATED',
+        message: expect.stringContaining('2 more'),
+      })
+    )
+  })
+
   it('writes a root AGENTS.md pointing at the guide, and never replaces one it did not write', async () => {
     serve({ [SOURCE_PATH]: () => source() })
 

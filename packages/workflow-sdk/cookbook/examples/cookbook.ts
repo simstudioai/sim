@@ -55,7 +55,7 @@ export default workflow('Cookbook', { description: 'One example of each common b
 
   // Agent: structured output via responseFormat; its fields become outputs (check.risk).
   // apiKey: needed on self-hosted Sim; hosted Sim supplies one. Retry is block meta, the third
-  // argument of any builder: a failed run of the block is tried again, up to maxTries in all.
+  // argument (not on a trigger, human, loop or parallel): a failed run is tried up to maxTries.
   const check = agent(
     'Check Order',
     {
