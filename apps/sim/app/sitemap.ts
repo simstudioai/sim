@@ -78,6 +78,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/knowledge`,
     },
     {
+      url: `${baseUrl}/search`,
+    },
+    {
       url: `${baseUrl}/tables`,
     },
     {
