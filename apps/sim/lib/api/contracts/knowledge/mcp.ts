@@ -8,7 +8,11 @@ import {
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { PEOPLE_ID_MAX_LENGTH, PEOPLE_SEARCH_MAX_LENGTH } from '@/lib/people/validation'
+import {
+  PEOPLE_ID_MAX_LENGTH,
+  PEOPLE_SEARCH_MAX_LENGTH,
+  PEOPLE_SEARCH_MAX_TERMS,
+} from '@/lib/people/validation'
 
 export const organizationKnowledgeMcpContract = defineRouteContract({
   method: 'POST',
@@ -136,7 +140,7 @@ export const searchPeopleMcpSchema = z
       .max(PEOPLE_SEARCH_MAX_LENGTH)
       .optional()
       .describe(
-        'Words from a name, email, title, department, or location; a person matches when every word appears in one of them.'
+        `Up to ${PEOPLE_SEARCH_MAX_TERMS} words from a name, email, title, department, or location; a person matches when every word appears in one of them.`
       ),
     personId: z
       .string()

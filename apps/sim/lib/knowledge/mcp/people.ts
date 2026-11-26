@@ -62,7 +62,7 @@ function reportFacts(report: PersonSummary & { department: string | null; report
   return {
     ...summaryFacts(report),
     ...(report.department ? { department: report.department } : {}),
-    ...(report.reportCount ? { directReports: report.reportCount } : {}),
+    directReports: report.reportCount,
   }
 }
 

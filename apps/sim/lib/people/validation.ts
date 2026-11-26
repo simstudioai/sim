@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 export const PEOPLE_SEARCH_MAX_LENGTH = 200
+/** Words a people search matches; later words are ignored. */
+export const PEOPLE_SEARCH_MAX_TERMS = 8
 export const PEOPLE_ID_MAX_LENGTH = 255
 export const PEOPLE_DEPARTMENT_KEY_PATTERN = /^[0-9a-f]{64}$/
 export const PROFILE_TEXT_MAX_LENGTH = 200

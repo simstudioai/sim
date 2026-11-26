@@ -24,7 +24,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { acquireAdvisoryXactLock, withLockTimeout } from '@/lib/db/advisory-locks'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import type { PeopleImportMember } from '@/lib/people/import'
-import type { MemberProfileFields } from '@/lib/people/validation'
+import { type MemberProfileFields, PEOPLE_SEARCH_MAX_TERMS } from '@/lib/people/validation'
 
 const PAGE_SIZE = 50
 /** A search matches people whose name, email, title, department, or location holds every word. */
@@ -35,7 +35,6 @@ const SEARCHED_COLUMNS = [
   sql`p.department`,
   sql`p.location`,
 ]
-const MAX_SEARCH_TERMS = 8
 const MAX_CHAIN_DEPTH = 25
 const PROFILE_LOCK_TIMEOUT_MS = 5_000
 /** Eight bound parameters a row keeps a chunk far below Postgres's 65,535-parameter limit. */
@@ -181,7 +180,7 @@ export async function listPeople(
     : department
       ? eq(sql`p.department`, department)
       : undefined
-  const terms = search?.trim().split(/\s+/).filter(Boolean).slice(0, MAX_SEARCH_TERMS) ?? []
+  const terms = search?.trim().split(/\s+/).filter(Boolean).slice(0, PEOPLE_SEARCH_MAX_TERMS) ?? []
   const where = and(
     ...terms.map((term) => or(...SEARCHED_COLUMNS.map((column) => searchFilter(column, term)))),
     departmentFilter,
