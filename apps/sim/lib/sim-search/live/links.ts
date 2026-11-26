@@ -1,3 +1,4 @@
+import { parseGitHubRepository } from '@/lib/oauth/github-repository'
 import { atlassianSiteId } from '@/lib/sim-search/live/atlassian'
 import { linearIssueReference } from '@/lib/sim-search/live/linear'
 import { notionResource } from '@/lib/sim-search/live/notion-mcp'
@@ -46,7 +47,6 @@ const GOOGLE_EDITOR_KINDS: Record<string, string> = {
 }
 const JIRA_KEY = /^[A-Z][A-Z\d_]*-\d+$/
 const NUMERIC_ID = /^\d+$/
-const GITHUB_NAME = /^[\w.-]+$/
 /** First path segments on github.com that are site pages, not repository owners. */
 const GITHUB_RESERVED_OWNERS = new Set([
   'apps',
@@ -128,17 +128,33 @@ function slackLink(url: URL): DocumentLink | undefined {
       },
     }
   }
-  const file = parts[0] === 'files' ? parts[2] : parts[0] === 'docs' ? parts[2] : undefined
+  const file = parts[0] === 'files' || parts[0] === 'docs' ? parts[2] : undefined
   if (!file || !/^F[A-Z\d]+$/.test(file)) return undefined
   return { provider: 'slack', reference: { id: file, kind: 'file' } }
+}
+
+/** A repository file at a revision: the first segment after `blob` names it, the rest the path. */
+function blobReference(rest: string[]): LinkedReference | undefined {
+  const [revision, ...path] = rest
+  if (!revision || !path.length || path.some((part) => part === '.' || part === '..'))
+    return undefined
+  return { id: path.join('/'), kind: 'code', revision }
+}
+
+function githubRepository(owner: string, name: string): string | undefined {
+  try {
+    const { owner: parsedOwner, repo } = parseGitHubRepository(`${owner}/${name}`)
+    return `${parsedOwner}/${repo}`
+  } catch {
+    return undefined
+  }
 }
 
 function githubLink(url: URL): DocumentLink | undefined {
   const [owner, name, section, ...rest] = pathSegments(url)
   if (!owner || !name || GITHUB_RESERVED_OWNERS.has(owner.toLowerCase())) return undefined
-  const repository = `${owner}/${name.replace(/\.git$/, '')}`
-  if (!GITHUB_NAME.test(owner) || !GITHUB_NAME.test(repository.split('/')[1] ?? ''))
-    return undefined
+  const repository = githubRepository(owner, name)
+  if (!repository) return undefined
   const link = (reference: LinkedReference): DocumentLink => ({
     provider: 'github',
     reference: { container: repository, ...reference },
@@ -149,10 +165,9 @@ function githubLink(url: URL): DocumentLink | undefined {
     return commit ? githubCommit(commit, link) : link({ id: rest[0] ?? '', kind: 'issues' })
   }
   if (section === 'commit') return githubCommit(rest[0], link)
-  if (section === 'blob' && rest.length >= 2) {
-    const [revision, ...path] = rest
-    if (!revision || path.some((part) => part === '.' || part === '..')) return undefined
-    return link({ id: path.join('/'), kind: 'code', revision })
+  if (section === 'blob') {
+    const blob = blobReference(rest)
+    return blob && link(blob)
   }
   return undefined
 }
@@ -176,16 +191,14 @@ function gitlabLink(url: URL): DocumentLink | undefined {
     host: url.host,
     reference: { container: project, ...reference },
   })
-  if (section === 'issues' || section === 'work_items')
-    return NUMERIC_ID.test(rest[0] ?? '') ? link({ id: rest[0] ?? '', kind: 'issues' }) : undefined
-  if (section === 'merge_requests')
-    return NUMERIC_ID.test(rest[0] ?? '')
-      ? link({ id: rest[0] ?? '', kind: 'merge_requests' })
+  const iid = rest[0]
+  if (section === 'issues' || section === 'work_items' || section === 'merge_requests')
+    return iid && NUMERIC_ID.test(iid)
+      ? link({ id: iid, kind: section === 'merge_requests' ? 'merge_requests' : 'issues' })
       : undefined
-  if (section === 'blob' && rest.length >= 2) {
-    const [revision, ...path] = rest
-    if (!revision || path.some((part) => part === '.' || part === '..')) return undefined
-    return link({ id: path.join('/'), kind: 'code', revision })
+  if (section === 'blob') {
+    const blob = blobReference(rest)
+    return blob && link(blob)
   }
   if (section === 'wikis' && rest.length) return link({ id: rest.join('/'), kind: 'wiki' })
   return undefined
@@ -250,6 +263,19 @@ function notionLink(value: string): DocumentLink | undefined {
   return resource && { provider: 'notion', reference: { id: resource.id, kind: 'mcp' } }
 }
 
+/** Parsers for hosts that serve one provider's documents. */
+const HOST_PARSERS = new Map<string, (url: URL) => DocumentLink | undefined>([
+  ['docs.google.com', googleDriveLink],
+  ['drive.google.com', googleDriveLink],
+  ['mail.google.com', gmailLink],
+  ['calendar.google.com', calendarLink],
+  ['www.google.com', calendarLink],
+  ['github.com', githubLink],
+  ['www.github.com', githubLink],
+  ['linear.app', linearLink],
+  ['app.fireflies.ai', firefliesLink],
+])
+
 /**
  * The provider documents a pasted link may name, or undefined when `value` is not a web link.
  * An empty list means the link names nothing Sim can read directly, such as a folder, channel or
@@ -266,17 +292,9 @@ export function parseDocumentLinks(value: string): DocumentLink[] | undefined {
     return []
   }
   if (url.protocol !== 'https:' || url.username || url.password) return []
-  const host = url.hostname.toLowerCase()
-  if (host === 'docs.google.com' || host === 'drive.google.com')
-    return [googleDriveLink(url)].filter((link) => link !== undefined)
-  if (host === 'mail.google.com') return [gmailLink(url)].filter((link) => link !== undefined)
-  if (host === 'calendar.google.com' || host === 'www.google.com')
-    return [calendarLink(url)].filter((link) => link !== undefined)
-  if (host.endsWith('.slack.com')) return [slackLink(url)].filter((link) => link !== undefined)
-  if (host === 'github.com' || host === 'www.github.com')
-    return [githubLink(url)].filter((link) => link !== undefined)
-  if (host === 'linear.app') return [linearLink(url)].filter((link) => link !== undefined)
-  if (host === 'app.fireflies.ai') return [firefliesLink(url)].filter((link) => link !== undefined)
+  const parse =
+    HOST_PARSERS.get(url.hostname) ?? (url.hostname.endsWith('.slack.com') ? slackLink : undefined)
+  if (parse) return [parse(url)].filter((link) => link !== undefined)
   const notion = notionLink(value)
   if (notion) return [notion]
   return [jiraLink(url), confluenceLink(url), gitlabLink(url)].filter((link) => link !== undefined)

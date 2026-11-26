@@ -123,7 +123,7 @@ export async function atlassianSiteId(
 ): Promise<string | undefined> {
   const site = (await sites(client)).find((row) => {
     try {
-      return new URL(string(row.url)).host === host.toLowerCase()
+      return new URL(string(row.url)).host === host
     } catch {
       return false
     }

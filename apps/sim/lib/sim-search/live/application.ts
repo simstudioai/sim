@@ -1072,8 +1072,6 @@ function liveReadFailure(error: unknown, provider: string, deadline?: AbortSigna
   return error
 }
 
-type LocatedReference = Awaited<ReturnType<LiveAccountSession['locate']>>
-
 interface AccountReadInput {
   owner: ResourceOwner
   userId: string
@@ -1082,7 +1080,7 @@ interface AccountReadInput {
   signal: AbortSignal
   filters?: WorkspaceSearchFilters
   /** The reference to read within the account's session, or undefined when it holds none. */
-  locate(session: LiveAccountSession): Promise<LocatedReference>
+  locate(session: LiveAccountSession): ReturnType<LiveAccountSession['locate']>
 }
 
 /**
@@ -1169,7 +1167,7 @@ async function readReferencedDocument(
       locate: async () => reference,
     })
     if (!read) throw new OrchestrationError('not_found', 'Document not found')
-    return { resolved, document: read.document }
+    return { account: resolved.account, document: read.document }
   }).catch((error: unknown) => {
     /** Cancellation by the caller passes through unclassified. */
     throw input.signal?.aborted ? error : liveReadFailure(error, reference.provider, signal)
@@ -1241,7 +1239,7 @@ async function readLinkedDocument(
       return {
         documentId: encodeLiveReference(reference, owner),
         reference,
-        resolved: { account },
+        account,
         document: read.document,
       }
     } catch (error) {
@@ -1290,7 +1288,7 @@ const liveDocumentRead = defineAuthorizedKnowledgeUseCase({
         `Sim cannot read this link directly. Links to ${LINKABLE_SOURCES} items read; for anything else, search for the document by its title.`
       )
     annotateSearchDiagnostics({ fromLink: Boolean(links) })
-    const { documentId, reference, resolved, document } = links
+    const { documentId, reference, account, document } = links
       ? await readLinkedDocument(input, userId, links, owner, signal)
       : await readReferencedDocument(input, userId, owner, signal)
     if (!matchesLiveFilters(document, documentId, reference.provider, input.filters))
@@ -1312,7 +1310,7 @@ const liveDocumentRead = defineAuthorizedKnowledgeUseCase({
     return {
       documentId,
       knowledgeBaseId: '',
-      knowledgeBaseName: resolved.account.displayName,
+      knowledgeBaseName: account.displayName,
       documentName: safeContent(document.title, input.resultSecretRegistry),
       sourceUrl: isKnowledgeSourceUrl(document.url) ? document.url : null,
       connectorType: reference.provider,
