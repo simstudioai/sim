@@ -1016,10 +1016,21 @@ export function validateValueForSubBlockType(
         if (containsReference(trimmed)) {
           return { valid: true, value: trimmed }
         }
-        // sim-auto is valid only where the source offers Auto, which it does on hosted Sim
-        // only; writes of it anywhere else are rejected as unknown.
-        if (isAutoModel(trimmed) && modelSource.auto && isHostedDeployment) {
-          return { valid: true, value: trimmed.toLowerCase() }
+        // sim-auto is valid only where the source offers Auto, which it does on hosted Sim only.
+        if (isAutoModel(trimmed)) {
+          if (modelSource.auto && isHostedDeployment) {
+            return { valid: true, value: trimmed.toLowerCase() }
+          }
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Block "${blockType}" does not offer Auto ("sim-auto")${modelSource.auto ? ' on a self-hosted deployment' : ''}; set model to a concrete model id from components/blocks/${blockType}.json (the model.options array).`,
+            },
+          }
         }
         if (trimmed !== '' && !isRunnableModelId(trimmed)) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)

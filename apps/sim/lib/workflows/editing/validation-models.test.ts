@@ -70,7 +70,9 @@ describe('router and evaluator model fields', () => {
   it('rejects sim-auto on self-hosted Sim, where Auto is never offered', () => {
     const { errors, model } = validateModel('router_v2', 'sim-auto')
     expect(model).toBeUndefined()
-    expect(errors[0]?.error).toContain('Unknown model id')
+    expect(errors[0]?.error).toBe(
+      'Block "router_v2" does not offer Auto ("sim-auto") on a self-hosted deployment; set model to a concrete model id from components/blocks/router_v2.json (the model.options array).'
+    )
   })
 })
 
@@ -81,7 +83,9 @@ describe('translate and guardrails model fields', () => {
       setEnvFlags({ isHosted: true })
       const { errors, model } = validateModel(blockType, 'sim-auto')
       expect(model).toBeUndefined()
-      expect(errors[0]?.error).toContain('Unknown model id')
+      expect(errors[0]?.error).toBe(
+        `Block "${blockType}" does not offer Auto ("sim-auto"); set model to a concrete model id from components/blocks/${blockType}.json (the model.options array).`
+      )
     }
   )
 })
