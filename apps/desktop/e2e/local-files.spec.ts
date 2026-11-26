@@ -17,6 +17,7 @@ import type {
 import { answerShellDialog } from './executor-sim'
 import {
   test as base,
+  bundleSimFixture,
   type DesktopApp,
   type DesktopBridge,
   expect,
@@ -28,40 +29,48 @@ const PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII='
 
 /**
- * The app's own page stands in for Sim: a Forget button and a Full file access switch that drive
- * the same bridge calls Sim's Desktop settings make (a real click supplies the user activation the
- * setter requires), and the switch shows whatever the desktop last reported.
+ * Sim's real Desktop settings page, so the Full file access switch is the one users get: a real
+ * click supplies the user activation the setter requires, and a failed save shows Sim's own error.
+ * The Forget button stands in for Sim's chat-side folder removal, which has no settings UI.
  */
-const FIXTURE_PAGE = `<!doctype html><title>Local file fixture</title><h1>Local files</h1>
+const SETTINGS_SOURCE = `import { createRoot } from 'react-dom/client';
+import { ToastProvider } from '@sim/emcn';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import { PathParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime';
+import { Desktop } from '@/app/workspace/[workspaceId]/settings/components/desktop/desktop';
+import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider';
+import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header';
+import { SettingsSectionProvider } from '@/components/settings/settings-panel';
+const router = { back() {}, forward() {}, refresh() {}, push() {}, replace() {}, prefetch() {} };
+const flags = { dashboards: false, 'workflow-tests': false, 'workflow-code': false, changelog: false, 'mothership-model-selector': false, 'mothership-plan-mode': false };
+createRoot(document.getElementById('settings')).render(
+  <AppRouterContext.Provider value={router}>
+    <PathParamsContext.Provider value={{ workspaceId: 'fixture' }}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ToastProvider><SettingsHeaderProvider><SettingsHeaderShell><FeatureFlagsProvider flags={flags}>
+          <SettingsSectionProvider plane='workspace' section='desktop'><Desktop /></SettingsSectionProvider>
+        </FeatureFlagsProvider></SettingsHeaderShell></SettingsHeaderProvider></ToastProvider>
+      </QueryClientProvider>
+    </PathParamsContext.Provider>
+  </AppRouterContext.Provider>
+);`
+
+const FIXTURE_PAGE = `<!doctype html><title>Local file fixture</title><link rel="stylesheet" href="/settings.css">
+<h1>Local files</h1>
 <button id="forget">Forget folders</button>
-<label><input id="full-access" type="checkbox" role="switch" disabled> Full file access</label>
-<output id="full-access-status"></output>
+<div id="settings" style="height:calc(100vh - 80px)"></div>
 <script>
-  const api = window.simDesktop
   const forget = document.getElementById('forget')
   forget.addEventListener('click', async () => {
+    const api = window.simDesktop
     const result = await api.localFilesystem({ operation: 'list_mounts' })
     for (const mount of result.data.mounts)
       await api.localFilesystem({ operation: 'forget_mount', uri: mount.uri })
     forget.textContent = 'Forgotten'
   })
-  const toggle = document.getElementById('full-access')
-  const status = document.getElementById('full-access-status')
-  const show = (preferences) => {
-    toggle.checked = preferences.fullFileAccess === true
-    toggle.disabled = false
-  }
-  api.settings.getPreferences().then(show)
-  api.settings.onFullFileAccessChanged(show)
-  toggle.addEventListener('change', () => {
-    toggle.disabled = true
-    status.textContent = ''
-    api.settings.setFullFileAccess(toggle.checked).then(show, () => {
-      status.textContent = 'Not saved'
-      toggle.disabled = false
-    })
-  })
-</script>`
+</script>
+<script src="/settings.js"></script>`
 
 type LocalFileResponse = Awaited<ReturnType<NonNullable<SimDesktopApi['localFiles']>>>
 
@@ -143,7 +152,14 @@ const test = base.extend<{ localFiles: LocalFilesFixture }>({
         args: { path: source, targetWorkspaceId: 'target-workspace' },
       },
     }
+    const settings = await bundleSimFixture({ source: SETTINGS_SOURCE }, { external: ['postgres'] })
     const server = await serve(async (request, response, url) => {
+      if (url.pathname === '/settings.js' || url.pathname === '/settings.css') {
+        const script = url.pathname.endsWith('.js')
+        response.writeHead(200, { 'Content-Type': script ? 'text/javascript' : 'text/css' })
+        response.end(script ? settings.js : settings.css)
+        return
+      }
       if (url.pathname === '/api/auth/get-session') {
         response
           .writeHead(200, { 'Content-Type': 'application/json' })
@@ -672,7 +688,12 @@ test('Full file access is opt-in, survives restart, turns off cleanly, and fails
       mkdirSync(settingsPath)
       try {
         await session.fullAccess.click()
-        await expect(session.window.getByRole('status')).toHaveText('Not saved')
+        await expect(
+          session.window.getByText(
+            'Could not save file access settings. Your previous setting may return after restarting Sim.',
+            { exact: true }
+          )
+        ).toBeVisible()
         await expect(session.fullAccess).not.toBeChecked()
         expect(await session.preferences()).toMatchObject({ fullFileAccess: false })
         expect(await session.invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({
