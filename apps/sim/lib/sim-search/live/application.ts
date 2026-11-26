@@ -1203,13 +1203,12 @@ async function readLinkedDocument(
     /** Cancellation by the caller passes through unclassified. */
     throw input.signal?.aborted ? error : liveReadFailure(error, links[0]?.provider ?? '', signal)
   })
-  const candidates = accounts
-    .filter(
-      (account) =>
-        links.some((link) => link.provider === account.provider) &&
-        (!input.filters?.source || input.filters.source === account.provider)
-    )
-    .slice(0, MAX_LINK_ACCOUNTS)
+  const matching = accounts.filter(
+    (account) =>
+      links.some((link) => link.provider === account.provider) &&
+      (!input.filters?.source || input.filters.source === account.provider)
+  )
+  const candidates = matching.slice(0, MAX_LINK_ACCOUNTS)
   if (!candidates.length)
     throw new OrchestrationError(
       'not_found',
@@ -1272,7 +1271,9 @@ async function readLinkedDocument(
     failure ??
     new OrchestrationError(
       'not_found',
-      `This link is not on a site, workspace or host your connected ${sourceNames} account reaches. Search for the document instead.`
+      matching.length > candidates.length
+        ? `None of the first ${MAX_LINK_ACCOUNTS} of your ${matching.length} connected ${sourceNames} accounts reaches this link. Search for the document instead.`
+        : `This link is not on a site, workspace or host your connected ${sourceNames} account reaches. Search for the document instead.`
     )
   )
 }

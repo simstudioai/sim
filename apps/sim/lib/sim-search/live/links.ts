@@ -369,7 +369,7 @@ async function locateFile(
     container:
       link.provider === 'github'
         ? string(row.full_name) || link.repository
-        : string(row.path_with_namespace) || link.repository,
+        : string(row.id) || link.repository,
     kind: 'code',
     /** GitLab sources pin their branch, and file IDs from a GitLab search name it. */
     ...(link.provider === 'gitlab' ? { revision: branch } : {}),

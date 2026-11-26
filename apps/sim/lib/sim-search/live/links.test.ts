@@ -216,10 +216,10 @@ describe('locateDocumentLink', () => {
     if (!link) throw new Error('Expected a link')
     await expect(
       locateDocumentLink(link, {
-        client: client({ path_with_namespace: 'team/api', default_branch: 'main' }),
+        client: client({ id: 42, default_branch: 'main' }),
         origin: 'https://git.acme.dev',
       })
-    ).resolves.toEqual({ id: 'src/a.ts', container: 'team/api', kind: 'code', revision: 'main' })
+    ).resolves.toEqual({ id: 'src/a.ts', container: '42', kind: 'code', revision: 'main' })
   })
 
   it('refuses a Linear key that names an issue in another workspace', async () => {
