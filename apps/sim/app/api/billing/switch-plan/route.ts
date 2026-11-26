@@ -1,10 +1,16 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { APIError } from 'better-auth/api'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import {
+  type CheckoutAdmissionClaim,
+  claimCheckoutAdmission,
+  releaseCheckoutAdmission,
+} from '@/lib/billing/checkout-admission'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getOrganizationSubscription, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
@@ -12,7 +18,11 @@ import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import { readPoolUsageSnapshot, recordPlanSwitch } from '@/lib/billing/core/plan-switch'
+import {
+  isSwitchBasisCurrent,
+  readPoolUsageSnapshot,
+  recordPlanSwitch,
+} from '@/lib/billing/core/plan-switch'
 import { getPlanTierCredits, getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -42,6 +52,7 @@ const logger = createLogger('SwitchPlan')
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
+  let admission: CheckoutAdmissionClaim | null = null
 
   try {
     if (!session?.user?.id) {
@@ -118,6 +129,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (!hasPermission) {
         return NextResponse.json({ error: 'Only team admins can change the plan' }, { status: 403 })
       }
+    }
+
+    // One plan change or checkout per billing reference at a time, each computed from the plan
+    // as it stands once admitted: a second switch must not snapshot the first one's new allowance.
+    try {
+      admission = await claimCheckoutAdmission(sub.referenceId)
+    } catch (error) {
+      if (!(error instanceof APIError)) throw error
+      return NextResponse.json(
+        { error: 'A plan change is already in progress. Please wait a moment and try again.' },
+        { status: 409 }
+      )
+    }
+    if (!(await isSwitchBasisCurrent(sub))) {
+      return NextResponse.json(
+        { error: 'Your plan just changed. Refresh the page and try again.' },
+        { status: 409 }
+      )
     }
 
     const stripe = requireStripeClient()
@@ -269,5 +298,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { error: getErrorMessage(error, 'Failed to switch plan') },
       { status: 500 }
     )
+  } finally {
+    if (admission) await releaseCheckoutAdmission(admission)
   }
 })

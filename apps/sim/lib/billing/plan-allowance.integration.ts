@@ -11,7 +11,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
-import { recordPlanSwitch } from '@/lib/billing/core/plan-switch'
+import { isSwitchBasisCurrent, recordPlanSwitch } from '@/lib/billing/core/plan-switch'
 import { getOrgUsageLimit, syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { closeElapsedBillingPeriod } from '@/lib/billing/cycle-close'
 import { syncAnnualPlanUsageLimits } from '@/lib/billing/organization'
@@ -488,5 +488,37 @@ describe('recordPlanSwitch', () => {
     })
 
     expect(await readLimit(userId)).toBe(10)
+  })
+})
+
+describe('isSwitchBasisCurrent', () => {
+  it('refuses a switch computed from a plan another switch has since moved', async () => {
+    const userId = await createUser(PRO_MONTHLY_DOLLARS)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+    expect(await isSwitchBasisCurrent(sub)).toBe(true)
+
+    // A concurrent request switched to Max after this one read the subscription.
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_25000',
+      targetInterval: 'month',
+      orgScoped: false,
+    })
+
+    expect(await isSwitchBasisCurrent(sub)).toBe(false)
+  })
+
+  it('refuses a switch computed from an interval another switch has since moved', async () => {
+    const userId = await createUser(PRO_MONTHLY_DOLLARS)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'year',
+      orgScoped: false,
+    })
+
+    expect(await isSwitchBasisCurrent(sub)).toBe(false)
   })
 })

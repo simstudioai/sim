@@ -80,6 +80,29 @@ export async function rebaseUsageLimit(
   }
 }
 
+/**
+ * Whether a subscription still holds the plan and billing interval a switch was computed from.
+ * Read under the switch's admission claim: a switch that finished between this request's first
+ * read and its claim moved the plan, and computing from the stale read would count the new
+ * allowance as headroom the payer chose.
+ */
+export async function isSwitchBasisCurrent(basis: SwitchedSubscription): Promise<boolean> {
+  const [row] = await db
+    .select({
+      plan: subscriptionTable.plan,
+      billingInterval: subscriptionTable.billingInterval,
+      metadata: subscriptionTable.metadata,
+    })
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.id, basis.id))
+    .limit(1)
+  return (
+    row !== undefined &&
+    row.plan === basis.plan &&
+    resolveBillingInterval(row) === resolveBillingInterval(basis)
+  )
+}
+
 /** A usage pool's limit and prepaid credit as stored, read together before a plan switch. */
 export interface PoolUsageSnapshot {
   limit: string | null
