@@ -209,14 +209,19 @@ function unknownBlock(index: SourceIndex, query: string): CliUsageError {
   })
 }
 
-/** A wiring statement's text on one line, so a fan-out the printer wrapped reads whole. */
+/**
+ * A wiring statement's text on one line, so a fan-out the printer wrapped reads whole. Only the
+ * line breaks are rewritten, so a raw handle's text is printed as written.
+ */
 function statementText(index: SourceIndex, span: SourceSpan): string {
   const lines = index.linesOf(span.file)?.lines.slice(span.line - 1, span.endLine) ?? []
   return lines
     .map((line) => line.trim())
-    .join(' ')
-    .replace(/\(\s+/g, '(')
-    .replace(/,?\s+\)/g, ')')
+    .reduce((joined, line) => {
+      if (joined === '') return line
+      if (line.startsWith(')')) return `${joined.replace(/,$/, '')}${line}`
+      return joined.endsWith('(') ? `${joined}${line}` : `${joined} ${line}`
+    }, '')
 }
 
 function describeBlock(
@@ -296,7 +301,9 @@ export function attachWorkflowSourceFind(source: Command): void {
       await assertSourceDirKind(options.dir, 'workflow')
       const catalog = await lookupCatalog(options.dir, profile)
       const { compiled, files } = await compileWorkflowDir(options.dir, catalog)
-      if (query.trim() === '') throw new CliUsageError('Name a block.', { code: 'BLOCK_UNKNOWN' })
+      if (normalizeWorkflowBlockName(query) === '') {
+        throw new CliUsageError('Name a block.', { code: 'BLOCK_UNKNOWN' })
+      }
       const index = new SourceIndex(compiled, files)
       const keys = matchBlocks(index, query)
       if (keys.length === 0) throw unknownBlock(index, query)

@@ -152,5 +152,6 @@ describe('sim workflows source find', () => {
 
   it('refuses an empty name rather than matching every block', async () => {
     await expect(find(' ')).rejects.toMatchObject({ code: 'BLOCK_UNKNOWN' })
+    await expect(find('.')).rejects.toMatchObject({ code: 'BLOCK_UNKNOWN' })
   })
 })
