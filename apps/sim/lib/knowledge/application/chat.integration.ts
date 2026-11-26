@@ -195,15 +195,15 @@ describe('Search MCP chat follow-ups', () => {
     expect(await transcript(chatId)).toHaveLength(6)
   })
 
-  it('keeps a resumed conversation when its follow-up fails', async () => {
-    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce(answer('First answer.'))
-    const { chatId } = await ask('First question')
-    if (!chatId) throw new Error('Expected a saved conversation')
+  it('keeps a resumed conversation when its follow-up fails, even with no messages yet', async () => {
+    const chatId = generateId()
+    await db
+      .insert(copilotChats)
+      .values({ id: chatId, userId: memberId, organizationId, type: 'mothership' })
 
     mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce({ ...answer(''), success: false })
-    await expect(ask('Second question', chatId)).rejects.toThrow('could not finish')
+    await expect(ask('First question', chatId)).rejects.toThrow('could not finish')
 
     expect(await liveChats(memberId)).toContainEqual({ id: chatId })
-    expect(await transcript(chatId)).toHaveLength(2)
   })
 })

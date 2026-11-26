@@ -165,18 +165,14 @@ export const organizationSearchChat: OperationUseCase<
     })
     input.signal?.throwIfAborted()
     const resumed = input.chatId !== undefined
-    const chat = resumed
-      ? await findConversation(input.chatId ?? '', userId, organizationId)
-      : await createConversation(userId, organizationId, query)
+    const chat =
+      input.chatId === undefined
+        ? await createConversation(userId, organizationId, query)
+        : await findConversation(input.chatId, userId, organizationId)
     if (!chat) throw new OrchestrationError('not_found', CONVERSATION_NOT_FOUND)
 
     const chatId = chat.id
     const messageId = generateId()
-    if (!(await acquirePendingChatStream(chatId, messageId, 0)))
-      throw new OrchestrationError(
-        'conflict',
-        'This conversation is still answering an earlier question. Wait for that answer, then ask again.'
-      )
     const controller = new AbortController()
     let running = false
     let persisted = false
@@ -198,6 +194,11 @@ export const organizationSearchChat: OperationUseCase<
     if (input.signal?.aborted) abort()
 
     try {
+      if (!(await acquirePendingChatStream(chatId, messageId, 0)))
+        throw new OrchestrationError(
+          'conflict',
+          'This conversation is still answering an earlier question. Wait for that answer, then ask again.'
+        )
       controller.signal.throwIfAborted()
       running = true
       const payload = await buildCopilotRequestPayload({
@@ -261,17 +262,20 @@ export const organizationSearchChat: OperationUseCase<
       if (!isResolvedSecretModelContentUnchanged(answer, registry)) {
         throw new OrchestrationError('internal', 'Search answer could not be returned safely')
       }
-      let conversation: Pick<OrganizationSearchChatResult, 'chatId' | 'conversationUrl'> = {}
       try {
         await persistCopilotChatTurn(chatId, [userMessage, assistantMessage])
         persisted = true
-        conversation = {
-          chatId,
-          conversationUrl: `${getBaseUrl()}/o/${encodeURIComponent(organizationId)}/chat/${encodeURIComponent(chatId)}`,
-        }
       } catch {
         logger.warn('Unable to save Search chat transcript', { chatId })
       }
+      /** A conversation that already existed stays resumable even when this turn was not saved. */
+      const conversation: Pick<OrganizationSearchChatResult, 'chatId' | 'conversationUrl'> =
+        persisted || resumed
+          ? {
+              chatId,
+              conversationUrl: `${getBaseUrl()}/o/${encodeURIComponent(organizationId)}/chat/${encodeURIComponent(chatId)}`,
+            }
+          : {}
       controller.signal.throwIfAborted()
       return { ...answer, ...conversation }
     } finally {
@@ -281,9 +285,11 @@ export const organizationSearchChat: OperationUseCase<
       input.signal?.removeEventListener('abort', abort)
       await explicitAbort
       await releasePendingChatStream(chatId, messageId)
-      /** A resumed conversation keeps its history whatever this turn did. */
+      /**
+       * Retain run diagnostics, but keep an unsuccessful empty conversation this turn created out
+       * of history. A resumed one stays even when empty, as a conversation started in the app can be.
+       */
       if (!persisted && !resumed) {
-        /** Retain run diagnostics, but keep an unsuccessful empty conversation out of history. */
         try {
           await db.transaction(async (tx) => {
             const ownedChat = and(
