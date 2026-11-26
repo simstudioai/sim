@@ -141,28 +141,24 @@ describe('a dry run’s placeholder for an unsent write', () => {
       toolId: 'hubspot_update_deal',
       params: { accessToken: SECRET, dealId: 'deal-key', idProperty: 'deal_key', properties: {} },
       read: (returned: Record<string, unknown>) => returned.dealId,
-      not: 'deal-key',
     },
     {
       case: 'an upsert names the document it replaces as previous, never as its own',
       toolId: 'knowledge_upsert_document',
       params: { knowledgeBaseId: 'kb1', name: 'Runbook', content: 'steps', documentId: 'doc-old' },
       read: (returned: Record<string, unknown>) => toRecord(returned.data).documentId,
-      not: 'doc-old',
     },
     {
       case: 'a Slack DM reports the channel Slack opens, not the user it names',
       toolId: 'slack_message',
       params: { accessToken: SECRET, destinationType: 'dm', dmUserId: 'U123', text: 'hi' },
       read: (returned: Record<string, unknown>) => returned.channel,
-      not: 'U123',
     },
     {
       case: 'Slack text that Slack returns escaped is not echoed as sent',
       toolId: 'slack_message',
       params: { accessToken: SECRET, channel: 'C1', text: 'Q&A <today>' },
       read: (returned: Record<string, unknown>) => toRecord(returned.message).text,
-      not: 'Q&A <today>',
     },
     {
       case: 'a Confluence page created in a space named by key reports the id Confluence resolves',
@@ -175,7 +171,6 @@ describe('a dry run’s placeholder for an unsent write', () => {
         content: '<p>x</p>',
       },
       read: (returned: Record<string, unknown>) => returned.spaceId,
-      not: 'ENG',
     },
     {
       case: 'a zero-padded Confluence space id is a key Confluence resolves, not an id it echoes',
@@ -188,59 +183,36 @@ describe('a dry run’s placeholder for an unsent write', () => {
         content: '<p>x</p>',
       },
       read: (returned: Record<string, unknown>) => returned.spaceId,
-      not: '007',
     },
-  ])('$case', async ({ toolId, params, read, not }) => {
+  ])('$case', async ({ toolId, params, read }) => {
     const returned = await placeholderFor(toolId, params)
 
     expect(read(returned)).toEqual(expect.stringMatching(/^dry_run_/))
-    expect(read(returned)).not.toBe(not)
   })
 
   it.each([
     {
       toolId: 'knowledge_upsert_document',
       params: { knowledgeBaseId: 'kb1', name: 'Runbook', content: 'steps' },
-      pairs: [
-        [
-          (r: Record<string, unknown>) => toRecord(r.data).documentId,
-          (r: Record<string, unknown>) => r.documentId,
-        ],
-      ],
+      repeats: (r: Record<string, unknown>) => ({ data: { documentId: r.documentId } }),
     },
     {
       toolId: 'zendesk_create_ticket',
       params: { accessToken: SECRET, subdomain: 'acme', subject: 'Help', description: 'x' },
-      pairs: [
-        [
-          (r: Record<string, unknown>) => toRecord(r.ticket).id,
-          (r: Record<string, unknown>) => r.ticket_id,
-        ],
-      ],
+      repeats: (r: Record<string, unknown>) => ({ ticket: { id: r.ticket_id } }),
     },
     {
       toolId: 'slack_message',
       params: { accessToken: SECRET, channel: 'C1', text: 'hi' },
-      pairs: [
-        [
-          (r: Record<string, unknown>) => toRecord(r.message).ts,
-          (r: Record<string, unknown>) => r.ts,
-        ],
-        [
-          (r: Record<string, unknown>) => toRecord(r.message).channel,
-          (r: Record<string, unknown>) => r.channel,
-        ],
-      ],
+      repeats: (r: Record<string, unknown>) => ({ message: { ts: r.ts, channel: r.channel } }),
     },
   ])(
     '$toolId reports one placeholder id wherever its output repeats it',
-    async ({ toolId, params, pairs }) => {
+    async ({ toolId, params, repeats }) => {
       const returned = await placeholderFor(toolId, params)
 
-      for (const [nested, topLevel] of pairs) {
-        expect(nested(returned)).toBeDefined()
-        expect(nested(returned)).toBe(topLevel(returned))
-      }
+      expect(JSON.stringify(repeats(returned))).toMatch(/dry_run_|9000000/)
+      expect(returned).toMatchObject(repeats(returned))
     }
   )
 

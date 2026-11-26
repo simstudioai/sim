@@ -128,6 +128,17 @@ function readBody(body: string | undefined): unknown {
   }
 }
 
+/**
+ * Params the executor adds to every tool call for its own use. An in-process operation that
+ * forwards its params whole reads them in process and never sends them, so its recorded request
+ * leaves them out.
+ */
+const EXECUTOR_INJECTED_PARAMS: ReadonlySet<string> = new Set([
+  '_context',
+  '_credentialId',
+  '_workflowId',
+])
+
 /** What an MCP tool call would send its server: only the arguments it was given. */
 export function describeMcpToolRequest(params: Record<string, unknown>): unknown {
   return { arguments: parseMcpToolArguments(params) }
@@ -152,10 +163,10 @@ export function describeToolRequest(
   }
   if (isInternalToolConfig(tool)) {
     const input = tool.operation.input(params)
-    // An operation that forwards its params whole carries the run's `_context` and credential id,
-    // which it reads in process and never sends.
     return isPlainRecord(input)
-      ? Object.fromEntries(Object.entries(input).filter(([key]) => !key.startsWith('_')))
+      ? Object.fromEntries(
+          Object.entries(input).filter(([key]) => !EXECUTOR_INJECTED_PARAMS.has(key))
+        )
       : input
   }
   const prepared = prepareToolRequest(tool, params)

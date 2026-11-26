@@ -14,9 +14,9 @@
  *     it back in `transformResponse` or `postProcess`), so that contradiction passes when the
  *     tool's `effect` property carries `// tool-effect: <reason>` on one of the two lines above it.
  *     A `read` sent by a write verb never does: when unsure, the label is `write`;
- *   - a `// tool-effect:` annotation sits on a tool whose verb agrees with its label, or on a
- *     definition whose id is not a string literal, so stale or unattributable justifications do
- *     not accumulate.
+ *   - a `// tool-effect:` annotation sits on a `read` tool, on a `write` whose verb agrees with
+ *     its label, or on a definition whose id is not a string literal, so stale or unattributable
+ *     justifications do not accumulate.
  *
  * POST, the rest of function-valued verbs, and in-process operations are not judged here: their
  * effect comes from the tool's documented semantics. The `add-tools` skill lists the rules.
@@ -135,14 +135,17 @@ export function findToolEffectViolations(
 
   for (const justification of justifications) {
     const tool = justification.toolId ? tools[justification.toolId] : undefined
-    if (!tool || tool.effect !== 'write' || !contradictsVerb(tool)) {
+    const reason = !tool
+      ? `${ANNOTATION} annotation is not on the effect of a registered tool with a literal id`
+      : tool.effect !== 'write'
+        ? `has a ${ANNOTATION} annotation, which only justifies a 'write'; remove it`
+        : !contradictsVerb(tool)
+          ? `has a ${ANNOTATION} annotation but its verb agrees with its effect; remove it`
+          : undefined
+    if (reason) {
       violations.push({
         toolId: justification.toolId ?? `${justification.file}:${justification.line}`,
-        reason: !tool
-          ? `${ANNOTATION} annotation is not on the effect of a registered tool with a literal id`
-          : tool.effect === 'write'
-            ? `has a ${ANNOTATION} annotation but its verb agrees with its effect; remove it`
-            : `has a ${ANNOTATION} annotation, which only justifies a 'write'; remove it`,
+        reason,
       })
     }
   }

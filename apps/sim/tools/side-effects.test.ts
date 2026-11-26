@@ -18,6 +18,7 @@ import {
   describeToolRequest,
   unsentWriteFor,
 } from '@/tools/side-effects'
+import { terminateWorkerTool } from '@/tools/workday/terminate_worker'
 
 vi.mock('@/lib/guardrails/mask-client', () => maskClientMock)
 
@@ -167,13 +168,8 @@ describe('a write a dry run does not send', () => {
   })
 
   it('records an in-process operation without the run context it reads but never sends', () => {
-    const tool = {
-      id: 'workday_terminate_worker',
-      operation: { input: (params: Record<string, unknown>) => params },
-    } as unknown as Parameters<typeof describeToolRequest>[0]
-
     expect(
-      describeToolRequest(tool, {
+      describeToolRequest(terminateWorkerTool, {
         workerId: 'w-1',
         _context: { billingAttribution: { payerId: 'org-1' } },
         _credentialId: 'cred-1',
