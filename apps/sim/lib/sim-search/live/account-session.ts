@@ -219,6 +219,12 @@ export async function openLiveAccountSession(
     throw error
   })
 
+  const verify: LiveAccountSession['verify'] = async (document) => {
+    if (connectionBinding && document.connectionBinding !== connectionBinding) return false
+    if (!(await boundary.verify(document))) return false
+    return !admin || admin.verify(document, document.accessMetadata)
+  }
+
   return {
     async close() {
       await mcp?.close()
@@ -242,11 +248,7 @@ export async function openLiveAccountSession(
         : searchOnce(request))
       return connectionBinding ? { ...page, documents: page.documents.map(bind) } : page
     },
-    async verify(document) {
-      if (connectionBinding && document.connectionBinding !== connectionBinding) return false
-      if (!(await boundary.verify(document))) return false
-      return !admin || admin.verify(document, document.accessMetadata)
-    },
+    verify,
     async read(reference, filters) {
       if (admin) return admin.read(reference)
       if (client)
@@ -263,6 +265,17 @@ export async function openLiveAccountSession(
     },
     async locate(link) {
       if (link.provider !== provider) return undefined
+      if (admin) {
+        /**
+         * The administrator's token sees projects the reader may not, so a link reads as
+         * unreachable unless the reader may open it: no project's existence or branch leaks.
+         */
+        const located = await locateDocumentLink(link, { client, origin }).catch(() => {
+          signal.throwIfAborted()
+          return undefined
+        })
+        return located && (await verify(located)) ? located : undefined
+      }
       const located = await locateDocumentLink(link, { client, origin })
       return located && (connectionBinding ? { ...located, connectionBinding } : located)
     },
