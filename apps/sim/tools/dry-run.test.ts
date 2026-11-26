@@ -177,6 +177,19 @@ describe('a dry run’s placeholder for an unsent write', () => {
       read: (returned: Record<string, unknown>) => returned.spaceId,
       not: 'ENG',
     },
+    {
+      case: 'a zero-padded Confluence space id is a key Confluence resolves, not an id it echoes',
+      toolId: 'confluence_create_page',
+      params: {
+        accessToken: SECRET,
+        domain: 'acme.atlassian.net',
+        spaceId: '007',
+        title: 'Notes',
+        content: '<p>x</p>',
+      },
+      read: (returned: Record<string, unknown>) => returned.spaceId,
+      not: '007',
+    },
   ])('$case', async ({ toolId, params, read, not }) => {
     const returned = await placeholderFor(toolId, params)
 

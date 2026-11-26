@@ -1,4 +1,5 @@
 import { CONTENT_BODY_OUTPUT_PROPERTIES, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
+import { isNumericConfluenceSpaceId } from '@/tools/confluence/utils'
 import { dryRunId } from '@/tools/dry-run'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -113,7 +114,7 @@ export const confluenceCreatePageTool: InternalToolConfig<
       pageId: dryRunId('page'),
       title: params.title,
       status: 'current',
-      ...(/^\d+$/.test(spaceId) ? { spaceId } : {}),
+      ...(isNumericConfluenceSpaceId(spaceId) ? { spaceId } : {}),
       ...(params.parentId ? { parentId: params.parentId } : {}),
     }
   },
