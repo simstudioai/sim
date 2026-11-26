@@ -7550,6 +7550,7 @@ describe('MCP Tool Execution', () => {
                 total: { type: 'integer' },
                 label: { type: ['null', 'string'] },
                 owner: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+                alias: { oneOf: [{ type: 'string' }] },
                 untyped: {},
               },
             },
@@ -7569,7 +7570,12 @@ describe('MCP Tool Execution', () => {
     )
 
     expect(held.output).toEqual({
-      structuredContent: { total: 900_000_001, label: 'dry_run_label_1', owner: 'dry_run_owner_1' },
+      structuredContent: {
+        total: 900_000_001,
+        label: 'dry_run_label_1',
+        owner: 'dry_run_owner_1',
+        alias: 'dry_run_alias_1',
+      },
     })
     expect(dryRun.summary().stubbed).toMatchObject([
       { tool: 'mcp-123-count_files', reason: 'mcp-read-only' },

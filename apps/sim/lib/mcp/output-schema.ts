@@ -107,12 +107,15 @@ function reduceNode(node: unknown, depth: number, budget: { nodes: number }): Mc
   }
 }
 
-/** `anyOf: [X, {type: 'null'}]`, the common encoding of an optional field, reads as X. */
+/**
+ * `anyOf: [X, {type: 'null'}]`, the common encoding of an optional field, reads as X, as does a
+ * union of X alone.
+ */
 function singleNonNullVariant(node: Record<string, unknown>): unknown {
   const variants = Array.isArray(node.anyOf) ? node.anyOf : node.oneOf
   if (!Array.isArray(variants)) return undefined
   const nonNull = variants.filter((variant) => !(isRecordLike(variant) && variant.type === 'null'))
-  return nonNull.length === 1 && nonNull.length < variants.length ? nonNull[0] : undefined
+  return nonNull.length === 1 ? nonNull[0] : undefined
 }
 
 function declaredType(node: Record<string, unknown>): string | undefined {

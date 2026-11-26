@@ -2285,7 +2285,9 @@ return created.id.toString()`
 
     expect(result.status).toBe('failed')
     expect(JSON.stringify(result.error)).toContain(
-      "1 network write this code made got an empty stubbed response; --allow 'code' sends them"
+      JSON.stringify(
+        '1 network write this code made got an empty stubbed response; allowing block "code" sends them'
+      ).slice(1, -1)
     )
   })
 
