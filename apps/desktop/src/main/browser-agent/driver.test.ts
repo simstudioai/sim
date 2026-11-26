@@ -1147,7 +1147,10 @@ describe('executeTool', () => {
 
         // The page hangs once loaded; the call must still end at the watchdog measured from the start.
         await vi.advanceTimersByTimeAsync(watchdogMs - loadAfterMs + 1)
-        expect(outcome).toMatchObject({ ok: false })
+        expect(outcome).toMatchObject({
+          ok: false,
+          error: expect.stringContaining('did not finish this action in time'),
+        })
       } finally {
         vi.useRealTimers()
       }
