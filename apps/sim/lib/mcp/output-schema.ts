@@ -56,7 +56,7 @@ export function readMcpToolOutputSchema(value: unknown): McpToolSchema | undefin
 }
 
 /** Reduce a declared JSON Schema to the structure a block output can declare. */
-function toMcpToolOutputShape(schema: McpToolSchema): McpToolOutputShape {
+export function toMcpToolOutputShape(schema: McpToolSchema): McpToolOutputShape {
   const budget = { nodes: MAX_SHAPE_NODES }
   return reduceNode(schema, 0, budget)
 }

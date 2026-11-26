@@ -1,4 +1,9 @@
 import { isPlainRecord } from '@sim/utils/object'
+import {
+  type McpToolOutputShape,
+  readMcpToolOutputSchema,
+  toMcpToolOutputShape,
+} from '@/lib/mcp/output-schema'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
 import { generateMockPayloadFromOutputsDefinition } from '@/lib/workflows/triggers/mock-payload'
 import { isRunControlledOutputField } from '@/executor/utils/mock-output'
@@ -129,55 +134,29 @@ function overlayFields(
   )
 }
 
-/** Nesting of a discovered JSON Schema an output declaration follows. */
-const MAX_SCHEMA_DEPTH = 10
-
 /**
- * A discovered JSON Schema (an MCP tool's `outputSchema`) as an output declaration the sample
- * reads: `integer` is a `number`, a union reads as its first non-null member, and a field whose
- * type cannot be told is left out rather than sampled as a guess.
+ * A discovered output schema (an MCP tool's `outputSchema`), reduced within the same node and
+ * depth budget a block's saved MCP output snapshot uses, as an output declaration the sample
+ * reads. A field whose type cannot be told is left out rather than sampled as a guess.
  */
-function outputFromJsonSchema(schema: unknown, depth = 0): Record<string, unknown> | undefined {
-  if (!isPlainRecord(schema) || depth > MAX_SCHEMA_DEPTH) return undefined
-  const variants = Array.isArray(schema.anyOf) ? schema.anyOf : schema.oneOf
-  if (Array.isArray(variants)) {
-    const member = variants.find((variant) => !(isPlainRecord(variant) && variant.type === 'null'))
-    return outputFromJsonSchema(member, depth + 1)
-  }
-  const declared = Array.isArray(schema.type)
-    ? schema.type.find((type) => type !== 'null')
-    : schema.type
-  const type =
-    typeof declared === 'string'
-      ? declared
-      : isPlainRecord(schema.properties)
-        ? 'object'
-        : schema.items !== undefined
-          ? 'array'
-          : undefined
-  switch (type) {
+function outputFromShape(shape: McpToolOutputShape): Record<string, unknown> | undefined {
+  switch (shape.type) {
     case 'object': {
       const properties: Record<string, unknown> = {}
-      for (const [field, child] of Object.entries(
-        isPlainRecord(schema.properties) ? schema.properties : {}
-      )) {
-        const output = outputFromJsonSchema(child, depth + 1)
+      for (const [field, child] of Object.entries(shape.properties ?? {})) {
+        const output = outputFromShape(child)
         if (output) properties[field] = output
       }
       return { type: 'object', properties }
     }
     case 'array': {
-      const items = outputFromJsonSchema(schema.items, depth + 1)
+      const items = shape.items && outputFromShape(shape.items)
       return items ? { type: 'array', items } : undefined
     }
-    case 'integer':
-    case 'number':
-      return { type: 'number' }
-    case 'string':
-    case 'boolean':
-      return { type }
-    default:
+    case 'any':
       return undefined
+    default:
+      return { type: shape.type }
   }
 }
 
@@ -196,7 +175,8 @@ export function sampleToolOutput(
   if (!declared && !discovered) return {}
   const outputs: Record<string, unknown> = { ...declared }
   for (const [field, schema] of Object.entries(discovered ?? {})) {
-    const output = outputFromJsonSchema(schema)
+    const objectSchema = readMcpToolOutputSchema(schema)
+    const output = objectSchema && outputFromShape(toMcpToolOutputShape(objectSchema))
     if (output) outputs[field] = output
   }
   const sample = withEmptyFileLists(

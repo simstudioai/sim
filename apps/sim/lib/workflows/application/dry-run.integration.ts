@@ -2888,6 +2888,33 @@ describe('a dry run’s mocks from an earlier run, read as that run shows them',
     expect(replayed.sideEffects?.stubbed[0]?.request).toMatchObject({ data: { note: 'count 7' } })
   })
 
+  it('refuse a block whose output carries a placeholder it was handed', async () => {
+    const tableId = await createTable()
+    const fixture = lookupThenSave(tableId, 'a@b.co')
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          ...Object.values(fixture.state.blocks),
+          block('format', 'function', { language: 'javascript', code: 'return { saved: <save> }' }),
+        ],
+        [
+          ['start', 'lookup'],
+          ['lookup', 'save'],
+          ['save', 'format'],
+        ]
+      ).state
+    )
+    const source = await run(workflowId, { dry: true })
+    expect(source.status, JSON.stringify(source.error)).toBe('completed')
+
+    await expect(
+      run(workflowId, { dry: true, mocksFrom: { runId: source.executionId, blocks: ['format'] } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('with a placeholder'),
+    })
+  })
+
   it('refuse a block a test run logged before placeholders were recorded did not mock', async () => {
     const tableId = await createTable()
     const workflowId = await saveWorkflow(lookupThenSave(tableId, 'a@b.co').state)

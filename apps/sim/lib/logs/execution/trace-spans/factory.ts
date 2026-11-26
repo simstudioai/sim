@@ -202,14 +202,18 @@ function childDeploymentVersionOf(
 }
 
 /**
- * The deployment version a workflow run as an Agent tool reported. Read only for
- * `workflow_executor`, so another tool returning the same key records nothing.
+ * Moves the deployment version a workflow run as an Agent tool reported from its output onto the
+ * span, as a workflow block span has it. Trusted only when the raw tool name is
+ * `workflow_executor`: a streamed custom tool titled that way still carries its `custom_` prefix
+ * here, and the Agent drops the key from a non-streamed custom tool's result.
  */
-function workflowToolVersion(
-  toolName: string,
+function liftWorkflowToolVersion(
+  rawToolName: string | undefined,
   output: Record<string, unknown> | undefined
-): Pick<TraceSpan, 'childDeploymentVersionId'> {
-  return toolName === WORKFLOW_TOOL_ID ? childDeploymentVersionOf(output) : {}
+): { output: Record<string, unknown> | undefined } & Pick<TraceSpan, 'childDeploymentVersionId'> {
+  const version = rawToolName === WORKFLOW_TOOL_ID ? childDeploymentVersionOf(output) : {}
+  if (!output || !version.childDeploymentVersionId) return { output }
+  return { output: omit(output, ['childDeploymentVersionId']), ...version }
 }
 
 /** Enriches a span with provider timing, cost, tokens, and model from block output. */
@@ -301,9 +305,8 @@ function buildChildrenFromTimeSegments(
       const currentIndex = toolCallIndices.get(normalizedName) ?? 0
       const match = callsForName[currentIndex]
       toolCallIndices.set(normalizedName, currentIndex + 1)
-      const { output, handle } = liftChildTraceHandle(
-        normalizeTraceOutput(match?.result ?? match?.output)
-      )
+      const lifted = liftChildTraceHandle(normalizeTraceOutput(match?.result ?? match?.output))
+      const { output, ...version } = liftWorkflowToolVersion(segment.name, lifted.output)
 
       const toolChild: TraceSpan = {
         id: `${span.id}-segment-${index}`,
@@ -315,8 +318,8 @@ function buildChildrenFromTimeSegments(
         status: match?.error || segment.errorMessage ? 'error' : 'success',
         input: match?.arguments ?? match?.input,
         output: match?.error ? { error: match.error, ...output } : output,
-        ...handle,
-        ...workflowToolVersion(normalizedName, output),
+        ...lifted.handle,
+        ...version,
       }
       if (segment.toolCallId) toolChild.toolCallId = segment.toolCallId
       if (segment.errorType) toolChild.errorType = segment.errorType
@@ -383,11 +386,11 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
   return toolCalls.map((tc, index) => {
     const startTime = tc.startTime ?? log.startedAt
     const endTime = tc.endTime ?? log.endedAt
-    const { output, handle } = liftChildTraceHandle(normalizeTraceOutput(tc.result ?? tc.output))
-    const name = stripCustomToolPrefix(tc.name ?? 'unnamed-tool')
+    const lifted = liftChildTraceHandle(normalizeTraceOutput(tc.result ?? tc.output))
+    const { output, ...version } = liftWorkflowToolVersion(tc.name, lifted.output)
     return {
       id: `${span.id}-tool-${index}`,
-      name,
+      name: stripCustomToolPrefix(tc.name ?? 'unnamed-tool'),
       type: 'tool',
       duration: tc.duration ?? 0,
       startTime,
@@ -395,8 +398,8 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
       status: tc.error ? 'error' : 'success',
       input: tc.arguments ?? tc.input,
       output: tc.error ? { error: tc.error, ...output } : output,
-      ...handle,
-      ...workflowToolVersion(name, output),
+      ...lifted.handle,
+      ...version,
     }
   })
 }

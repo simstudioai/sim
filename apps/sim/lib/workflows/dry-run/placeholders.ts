@@ -18,9 +18,10 @@ const TOKEN_PREFIX = 'dry_run_'
 const TOKEN_RUN = /^[a-z0-9_]+/
 /** Where a token can end inside a run: after a whole `_<digits>`. */
 const TOKEN_END = /_\d+/g
-const DIGIT_RUN = /\d+/g
 /** Digits a placeholder number has: every one is above {@link DRY_RUN_NUMBER_BASE}. */
 const PLACEHOLDER_NUMBER_DIGITS = String(DRY_RUN_NUMBER_BASE).length
+/** A whole run of exactly that many digits, so a long string is scanned without listing every run. */
+const PLACEHOLDER_NUMBER_RUN = new RegExp(`(?<!\\d)\\d{${PLACEHOLDER_NUMBER_DIGITS}}(?!\\d)`, 'g')
 /** Longest token a scan reads at one `dry_run_`. */
 const MAX_TOKEN_LENGTH = 256
 
@@ -115,10 +116,8 @@ export class PlaceholderTokens {
           if (this.tokens.has(token)) return true
       }
       if (this.numbers.size === 0) return false
-      for (const digits of value.match(DIGIT_RUN) ?? []) {
-        if (digits.length >= PLACEHOLDER_NUMBER_DIGITS && this.numbers.has(Number(digits))) {
-          return true
-        }
+      for (const [digits] of value.matchAll(PLACEHOLDER_NUMBER_RUN)) {
+        if (this.numbers.has(Number(digits))) return true
       }
       return false
     })

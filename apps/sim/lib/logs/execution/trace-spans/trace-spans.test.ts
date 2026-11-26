@@ -1747,6 +1747,21 @@ describe('child deployment version on spans', () => {
       )
 
       expect(toolSpan?.childDeploymentVersionId).toBe('dv-9')
+      expect(toolSpan?.output).not.toHaveProperty('childDeploymentVersionId')
+    }
+  )
+
+  it.each([true, false])(
+    'ignores the key on a streamed custom tool titled like the workflow tool (time segments: %s)',
+    (withSegments) => {
+      const toolSpan = agentToolSpan(
+        'custom_workflow_executor',
+        { childDeploymentVersionId: 'forged' },
+        withSegments
+      )
+
+      expect(toolSpan).toBeDefined()
+      expect(toolSpan?.childDeploymentVersionId).toBeUndefined()
     }
   )
 

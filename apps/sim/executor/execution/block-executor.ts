@@ -469,7 +469,7 @@ export class BlockExecutor {
         stateOutput,
         duration,
         stateProvenance,
-        site !== undefined && sideEffects?.answeredWithPlaceholder(site) === true
+        site !== undefined && sideEffects?.answeredWithPlaceholder(site, stateOutput) === true
       )
 
       if (!isSentinel && blockLog) {

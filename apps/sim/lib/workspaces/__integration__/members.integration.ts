@@ -33,7 +33,6 @@ import { GET as listMembers } from '@/app/api/v2/workspaces/[workspaceId]/member
 import { addGroupMember, insertScimGroup } from '@/ee/scim/lib/repository/groups'
 
 /** Directory provisioning on a self-hosted deployment, so a locked SCIM member is refused. */
-
 vi.mock('@/lib/core/config/env-flags', () => ({ ...envFlagsMock, isScimEnabled: true }))
 
 const USER_NAMES = [
