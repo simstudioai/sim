@@ -12,7 +12,7 @@ import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import { readPoolUsageLimit, recordPlanSwitch } from '@/lib/billing/core/plan-switch'
+import { readPoolUsageSnapshot, recordPlanSwitch } from '@/lib/billing/core/plan-switch'
 import { getPlanTierCredits, getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -180,11 +180,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const orgScoped = await isSubscriptionOrgScoped(sub)
     // Read before Stripe applies the switch: its webhook can move the live limit first.
-    const previousLimit = await readPoolUsageLimit({
+    const previous = await readPoolUsageSnapshot({
       type: orgScoped ? 'organization' : 'user',
       id: sub.referenceId,
     })
-    let period: { start: Date; end: Date } | undefined
+    // The item's period after the switch: Stripe's response, or the retrieved item on a retry
+    // that finds Stripe already on the target price.
+    let switchedItem: typeof subscriptionItem | undefined = subscriptionItem
     if (!alreadyOnStripePrice) {
       const currentQuantity = subscriptionItem.quantity ?? 1
 
@@ -198,14 +200,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         ],
         proration_behavior: 'always_invoice',
       })
-      const switchedItem = updated.items.data.find((item) => item.id === subscriptionItem.id)
-      if (switchedItem) {
-        period = {
+      switchedItem = updated.items.data.find((item) => item.id === subscriptionItem.id)
+    }
+    const period = switchedItem
+      ? {
           start: new Date(switchedItem.current_period_start * 1000),
           end: new Date(switchedItem.current_period_end * 1000),
         }
-      }
-    }
+      : undefined
 
     await recordPlanSwitch({
       subscription: sub,
@@ -213,7 +215,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       targetInterval: targetInterval as 'month' | 'year',
       orgScoped,
       period,
-      previousLimit,
+      previous,
     })
 
     logger.info('Subscription switched successfully', {

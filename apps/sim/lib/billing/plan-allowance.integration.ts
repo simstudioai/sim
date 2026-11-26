@@ -385,10 +385,42 @@ describe('recordPlanSwitch', () => {
       targetPlanName: 'pro_6000',
       targetInterval: 'year',
       orgScoped: false,
-      previousLimit: String(PRO_MONTHLY_DOLLARS + 10),
+      previous: { limit: String(PRO_MONTHLY_DOLLARS + 10), creditBalance: '0' },
     })
 
     expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS * 12 + 120)
+  })
+
+  it('keeps chosen headroom when credit is granted while the switch is in flight', async () => {
+    // $70 of headroom over Pro before the switch; $50 of credit landed (raising the limit) since.
+    const userId = await createUser(100 + 50, 50)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_25000',
+      targetInterval: 'month',
+      orgScoped: false,
+      previous: { limit: '100', creditBalance: '0' },
+    })
+
+    expect(await readLimit(userId)).toBe(MAX_MONTHLY_DOLLARS + 50 + 70)
+  })
+
+  it('reads a retry snapshot already at the new floor as untouched', async () => {
+    // A retry reads the pool after Stripe and its webhook already moved it to the annual floor.
+    const userId = await createUser(PRO_MONTHLY_DOLLARS * 12)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'year',
+      orgScoped: false,
+      previous: { limit: String(PRO_MONTHLY_DOLLARS * 12), creditBalance: '0' },
+    })
+
+    expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS * 12)
   })
 
   it('records the period Stripe restarted with an interval switch, before the webhook', async () => {

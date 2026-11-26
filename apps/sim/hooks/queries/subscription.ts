@@ -228,7 +228,8 @@ export function useEndProTrial() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => requestJson(billingEndTrialContract, { body: {} }),
-    onSuccess: () =>
+    // Settled, not success: a lost response can hide a charge that went through.
+    onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.all }),
         invalidateWorkspaceUsage(queryClient),

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { organization, subscription as subscriptionTable, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { type AnyColumn, eq, sql } from 'drizzle-orm'
+import { type AnyColumn, eq, type SQL, sql } from 'drizzle-orm'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import {
@@ -32,9 +32,9 @@ interface SwitchedSubscription extends OrgAllowanceInput {
  * limit already at the new amount is untouched too: the Stripe webhook's floor sync can raise it
  * there first. An unlimited limit stays unlimited.
  *
- * `previousLimit` is the limit read before Stripe applied the change ({@link readPoolUsageLimit}).
- * Given it, the headroom comes from that value, so a webhook that raised the live limit to the new
- * floor first cannot erase headroom the payer chose.
+ * `previous` is the pool read before Stripe applied the change ({@link readPoolUsageSnapshot}).
+ * Given it, the headroom comes from that limit and that credit balance, so neither a webhook that
+ * raised the live limit first nor credit granted meanwhile changes the headroom the payer chose.
  */
 export async function rebaseUsageLimit(
   params: {
@@ -42,20 +42,19 @@ export async function rebaseUsageLimit(
     previousIncluded: number
     nextIncluded: number
     headroomScale?: number
-    previousLimit?: string | null
+    previous?: PoolUsageSnapshot
   },
   executor: DbOrTx = db
 ): Promise<void> {
-  const { pool, previousIncluded, nextIncluded, headroomScale = 1, previousLimit } = params
+  const { pool, previousIncluded, nextIncluded, headroomScale = 1, previous } = params
+  const covered = (included: number, credit: SQL) =>
+    sql`(${toDecimal(included).toString()}::numeric + ${credit})`
   const rebased = (limit: AnyColumn, creditBalance: AnyColumn) => {
-    const previousCovered = sql`(${toDecimal(previousIncluded).toString()}::numeric + ${creditBalance})`
-    const nextCovered = sql`(${toDecimal(nextIncluded).toString()}::numeric + ${creditBalance})`
-    const before = previousLimit === undefined ? sql`${limit}` : sql`${previousLimit}::numeric`
-    const headroom =
-      previousLimit === undefined
-        ? sql`case when ${limit} = ${nextCovered} then 0 else greatest(0, coalesce(${limit}, ${previousCovered}) - ${previousCovered}) end`
-        : sql`greatest(0, coalesce(${before}, ${previousCovered}) - ${previousCovered})`
-    return sql`case when ${before} >= ${ON_DEMAND_UNLIMITED} then ${before} else round(${nextCovered} + ${headroom} * ${headroomScale}::numeric, 2) end`
+    const before = previous ? sql`${previous.limit}::numeric` : sql`${limit}`
+    const creditBefore = previous ? sql`${previous.creditBalance}::numeric` : sql`${creditBalance}`
+    const previousCovered = covered(previousIncluded, creditBefore)
+    const headroom = sql`case when ${before} = ${covered(nextIncluded, creditBefore)} then 0 else greatest(0, coalesce(${before}, ${previousCovered}) - ${previousCovered}) end`
+    return sql`case when ${before} >= ${ON_DEMAND_UNLIMITED} then ${before} else round(${covered(nextIncluded, sql`${creditBalance}`)} + ${headroom} * ${headroomScale}::numeric, 2) end`
   }
 
   if (pool.type === 'organization') {
@@ -77,25 +76,30 @@ export async function rebaseUsageLimit(
   }
 }
 
-/** A usage pool's current limit, as stored: read before a plan switch for {@link rebaseUsageLimit}. */
-export async function readPoolUsageLimit(pool: {
+/** A usage pool's limit and prepaid credit as stored, read together before a plan switch. */
+export interface PoolUsageSnapshot {
+  limit: string | null
+  creditBalance: string
+}
+
+/** Reads a pool's {@link PoolUsageSnapshot} before a plan switch, for {@link rebaseUsageLimit}. */
+export async function readPoolUsageSnapshot(pool: {
   type: 'user' | 'organization'
   id: string
-}): Promise<string | null> {
-  if (pool.type === 'organization') {
-    const [row] = await db
-      .select({ limit: organization.orgUsageLimit })
-      .from(organization)
-      .where(eq(organization.id, pool.id))
-      .limit(1)
-    return row?.limit ?? null
-  }
-  const [row] = await db
-    .select({ limit: userStats.currentUsageLimit })
-    .from(userStats)
-    .where(eq(userStats.userId, pool.id))
-    .limit(1)
-  return row?.limit ?? null
+}): Promise<PoolUsageSnapshot | undefined> {
+  const [row] =
+    pool.type === 'organization'
+      ? await db
+          .select({ limit: organization.orgUsageLimit, creditBalance: organization.creditBalance })
+          .from(organization)
+          .where(eq(organization.id, pool.id))
+          .limit(1)
+      : await db
+          .select({ limit: userStats.currentUsageLimit, creditBalance: userStats.creditBalance })
+          .from(userStats)
+          .where(eq(userStats.userId, pool.id))
+          .limit(1)
+  return row
 }
 
 /**
@@ -117,9 +121,9 @@ export async function recordPlanSwitch(params: {
   targetInterval: 'month' | 'year'
   orgScoped: boolean
   period?: { start: Date; end: Date }
-  previousLimit?: string | null
+  previous?: PoolUsageSnapshot
 }): Promise<void> {
-  const { subscription, targetPlanName, targetInterval, orgScoped, period, previousLimit } = params
+  const { subscription, targetPlanName, targetInterval, orgScoped, period, previous } = params
 
   const trialing = !orgScoped && isTrialingSubscription(subscription)
   const previousInterval = resolveBillingInterval(subscription)
@@ -161,7 +165,7 @@ export async function recordPlanSwitch(params: {
         previousIncluded: previousBase,
         nextIncluded: nextBase,
         headroomScale,
-        previousLimit,
+        previous,
       },
       tx
     )

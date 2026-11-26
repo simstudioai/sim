@@ -1,4 +1,4 @@
--- Replay-safe: 0470's embedded COMMIT leaves this file in autocommit, and a lock-timeout retry
+-- Replay-safe: the embedded COMMITs in 0470 and 0472 leave this file in autocommit, and a lock-timeout retry
 -- replays every unjournaled file from the top.
 CREATE TABLE IF NOT EXISTS "enterprise_seat_true_up" (
 	"id" text PRIMARY KEY NOT NULL,

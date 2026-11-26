@@ -14,7 +14,7 @@ import {
   assertNoUnresolvedEnterpriseIssuance,
   EnterpriseIssuanceInProgressError,
 } from '@/lib/billing/enterprise-outbox'
-import { isOrgPlan } from '@/lib/billing/plan-helpers'
+import { isOrgPlan, isPro } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('BillingAuthorization')
@@ -76,12 +76,11 @@ async function assertNotBilledThroughMarketplace(referenceId: string): Promise<v
 
 /** Refuse an organization-plan upgrade while the account's own Pro plan is still in its free trial. */
 async function assertNoPersonalTrial(userId: string): Promise<void> {
-  const [trialing] = await db
-    .select({ id: subscription.id })
+  const trialing = await db
+    .select({ plan: subscription.plan })
     .from(subscription)
     .where(and(eq(subscription.referenceId, userId), eq(subscription.status, 'trialing')))
-    .limit(1)
-  if (!trialing) return
+  if (!trialing.some((row) => isPro(row.plan))) return
 
   logger.warn('Blocking team upgrade - personal plan is in its free trial', { userId })
   throw new APIError('CONFLICT', {

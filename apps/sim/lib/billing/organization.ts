@@ -714,9 +714,9 @@ async function reconcileAnnualSeatMonths(
   const nextIncluded = getOrgIncludedUsageDollars(next)
 
   // One transaction: a limit left unrebased after the count advanced would never be retried. The
-  // count advances only from the one it was computed from, because the rebase moves the limit
-  // relative to its live value: a concurrent seat sync, webhook, or sweep that read the same count
-  // would otherwise apply the same delta twice.
+  // count advances only from the row it was computed from, because the rebase moves the limit
+  // relative to its live value: a concurrent seat sync, webhook, sweep, or plan switch that changed
+  // any input since the read would otherwise be rebased over, or the same delta applied twice.
   const advanced = await db.transaction(async (tx) => {
     const [claimed] = await tx
       .update(subscriptionTable)
@@ -728,6 +728,14 @@ async function reconcileAnnualSeatMonths(
       .where(
         and(
           eq(subscriptionTable.id, annual.id),
+          eq(subscriptionTable.plan, annual.plan),
+          eq(subscriptionTable.periodStart, next.allowancePeriodStart),
+          annual.seats === null
+            ? isNull(subscriptionTable.seats)
+            : eq(subscriptionTable.seats, annual.seats),
+          annual.billingInterval === null
+            ? isNull(subscriptionTable.billingInterval)
+            : eq(subscriptionTable.billingInterval, annual.billingInterval),
           annual.allowancePeriodStart === null
             ? isNull(subscriptionTable.allowancePeriodStart)
             : eq(subscriptionTable.allowancePeriodStart, annual.allowancePeriodStart),
