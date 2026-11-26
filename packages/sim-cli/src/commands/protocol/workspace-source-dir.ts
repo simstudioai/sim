@@ -124,14 +124,20 @@ const WORKSPACE_EXAMPLES_DIR = '.sim/examples/workspace'
 const WORKSPACE_ADVANCED_FILE = '.sim/GUIDE-advanced.md'
 
 /**
- * The reference below the primer in `.sim/AGENTS.md`: the layout, the edit loop in detail, what
- * to know and every exit code.
+ * The reference below the primer in `.sim/AGENTS.md`: the examples, the flags and the layout. The
+ * rest is in {@link ADVANCED_GUIDE}, which agents read only when a step needs it.
  */
 const AGENTS_GUIDE = `# Reference
 
-The primer above is enough to edit; read a section here when a step needs it. Deletes in depth, Git and CI, and promoting to another workspace: \`${WORKSPACE_ADVANCED_FILE}\`.
+The primer above is enough to edit. \`${WORKSPACE_ADVANCED_FILE}\` has the rest: how an apply orders resources and holds back secrets, the edit loop step by step, what to know, every exit code, deletes in depth, Git and CI, and promoting to another workspace.
 
 \`${WORKSPACE_EXAMPLES_DIR}/\` holds one correct example of each kind and a workflow using them, and \`.sim/examples/*.ts\` one workflow example of each common block (agent with structured output, condition, HTTP request, child workflow, Slack, loop, …): copy from them. Look up any other builder with \`sim workflows source params <builder>\`.
+
+## Flags
+
+- \`check\`: \`--strict\` fails on the warnings that name a real problem in every block, not only in a block you added; \`--no-types\` skips the type-check.
+- \`apply\`: \`--yes\` writes (without it and a terminal, it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}); \`--dry\` only plans; \`--allow-delete\`; \`--to <workspaceId>\` promotes.
+- \`get\`: \`--force\` replaces edits no apply has saved.
 
 ## Layout
 
@@ -140,6 +146,12 @@ A resource's key is its file or folder name (in \`${KIND_DIRS.secret}\` and \`${
 Every \`.ts\` file below, a deployment included, starts with the line \`// @sim-sdk ${SDK_MAJOR}\` (without it: \`E_DECL_HEADER\`); a one-line form here shows only the call.
 
 ${APPLY_ORDER.map((kind) => `- ${WORKSPACE_KIND_SPECS[kind].guide}`).join('\n')}
+`
+
+/** The workspace guide's deep dives, which `.sim/AGENTS.md` points to in one line. */
+const ADVANCED_GUIDE = `# Sim workspace source: advanced
+
+## How an apply orders resources
 
 One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held at the last get and the ones this directory declares, with each workflow's inputs: \`sim workspaces source check\` (or \`sim workflows source check\` in a workflow folder) regenerates it from the files before it type-checks them. The dry run is the authority.
 
@@ -147,7 +159,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Edit loop in detail
 
-Batch it: write every file first, then run steps 2 and 4 (and any test run) as one chained command, \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes\`, and fix what it reports in the next step. Each non-zero exit stops the chain. Step 3, and the dry run, are for a person, CI, or a change you want reviewed first.
+Batch it: write every file first, then run steps 2 and 4 (and any test run) as one chained command, \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes\`, and fix what it reports in the next step. Each non-zero exit stops the chain. Step 3 (with its \`apply --dry\`, which only plans) is for a person, CI, or a change you want reviewed first.
 
 1. Edit the files.
 2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key (skills included) or table column, a child workflow's inputs, and an env name \`${KIND_DIRS.secret}\` lacks (a warning); and checks each \`${KIND_DIRS.table}/<key>.rows.jsonl\` line against its table as the apply would. It fails (exit 1) on errors and on ${STRICT_FINDINGS_CLAUSE} in a block you added (\`--strict\`: in every block), regenerates \`.sim/sdk/workspace.d.ts\` from the files (so a resource or workflow input added since the get is typed) and adds the blocks the workflows now use to \`tsconfig.json\`, then type-checks every file with it, using the TypeScript release the declarations are built for (installed once into the CLI's cache, on the first check; \`E_TYPE\` findings): that catches what the compile and the dry run do not, such as a reference to a start input the trigger does not declare. Offline before that install, it warns \`W_TYPES_UNCHECKED\` and passes on the compile alone; \`--no-types\` skips it. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
@@ -170,10 +182,6 @@ ${sourceExitCodesTable('sim workspaces source')}
 Exit ${SOURCE_STALE_EXIT_CODE} right after an apply that ended without an answer (a timeout, a dropped connection) means that apply or someone else changed the workspace: get into a fresh directory and compare, and only when it holds your edits run \`sim workspaces source get --dir . --force\`. A get that exits ${RATE_LIMITED_EXIT_CODE} keeps the binary files it downloaded and fetches only the rest.
 
 Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
-`
-
-/** The workspace guide's deep dives, which `.sim/AGENTS.md` points to in one line. */
-const ADVANCED_GUIDE = `# Sim workspace source: advanced
 
 ## Deletes
 

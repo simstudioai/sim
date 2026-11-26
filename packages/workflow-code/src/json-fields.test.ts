@@ -311,7 +311,13 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
     if (!printed) throw new Error('the source did not compile')
 
     expect(untyped('return { v: 2 }', 'v', printed)).toEqual([])
-    expect(untyped('return { v: $ref.start.v }', 'v', printed)).toHaveLength(1)
+    expect(untyped('return { v: $ref.start.v }', 'v', printed)).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(
+          'Score no longer declares what <score.result.v> holds (its code did before this edit)'
+        ),
+      }),
+    ])
   })
 
   it('on an apply, requotes an unchanged JSON field when the Function it reads now returns text there', () => {

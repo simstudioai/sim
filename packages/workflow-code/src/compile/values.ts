@@ -15,7 +15,7 @@ import {
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
 import { literalText, memberName, memberSegment } from '../babel'
-import { builderOutputSchemas, errorOutputOf } from '../catalog/activity'
+import { builderProducedOutputs, errorOutputOf } from '../catalog/activity'
 import type { CatalogOutput } from '../catalog/types'
 import {
   ENV_VAR_NAME,
@@ -829,7 +829,7 @@ function checkOutputPath(
   // Table rows only refine the element type of `rows`/`row`; the outputs themselves are static.
   if (!block || (block.dynamicOutputs && block.dynamicOutputs.source !== 'tableRows')) return
   const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
-  const outputs = builderOutputSchemas(ctx.catalog, block, builder)
+  const outputs = builderProducedOutputs(ctx.catalog, block, builder)
   if (outputKnown(outputs, segments)) return
   const errorOutput = errorOutputOf(block, segments)
   if (errorOutput) {
@@ -920,7 +920,7 @@ export function checkDynamicOutputRefs(
     const [first] = segments
     if (fields === null || first?.kind !== 'name' || fields.includes(first.name)) continue
     const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
-    const outputs = builderOutputSchemas(ctx.catalog, block, builder)
+    const outputs = builderProducedOutputs(ctx.catalog, block, builder)
     if (outputKnown(outputs, segments)) continue
     const errorOutput = errorOutputOf(block, segments)
     if (errorOutput) {

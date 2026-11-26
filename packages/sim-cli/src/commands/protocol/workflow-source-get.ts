@@ -124,22 +124,23 @@ export function attachWorkflowSourceGet(source: Command): void {
         )
       assertPrintedSourcePaths(workflowSource.files)
       if (!force) await assertNoLocalEdits(dir, workflowSource)
-      const tree = await writeSourceDirectory(
+      const { runFindings, ...tree } = await writeSourceDirectory(
         client,
         dir,
         workflowSource,
         workflowSource.blockTypes,
         await folderChildResults(dir)
       )
+      const diagnostics = [...workflowSource.diagnostics, ...runFindings]
       const findings = findingsOutput(profile.output, false, dir)
-      findings.print(workflowSource.diagnostics)
+      findings.print(diagnostics)
       printTreeResult(profile.output, {
         workflowId: workflowSource.workflowId,
         dir,
         ...tree,
         editLoop: editLoop('workflow', dir),
         fingerprint: workflowSource.base.fingerprint,
-        ...findings.result(workflowSource.diagnostics),
+        ...findings.result(diagnostics),
       })
     })
   })

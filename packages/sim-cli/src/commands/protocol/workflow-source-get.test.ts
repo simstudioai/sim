@@ -10,7 +10,8 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { COOKBOOK_EXAMPLES } from '@sim/workflow-sdk/codegen'
+import { escapeRegExp } from '@sim/utils/string'
+import { COOKBOOK_EXAMPLES, WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -22,6 +23,7 @@ import { digest } from './source-dir'
 import {
   AGENTS_POINTER_MARKER,
   agentsPointer,
+  PATTERNS_HEADING,
   PRIMER_MAX_BYTES,
   sourcePrimer,
 } from './source-primer'
@@ -209,6 +211,94 @@ describe('sim workflows source get --dir', () => {
     expect(agents).not.toContain('`slack.sendMessage`')
   })
 
+  it('names the tables the workflow uses and the output paths its runs fail on, which the read does not', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { codeFile, fn, table, trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('Invoices', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const lookup = table.queryRows('Lookup Customer', { tableId: table('customers') })",
+      "  const discount = fn('Apply Discount', { code: codeFile('./functions/apply-discount.js') })",
+      '  start.to(lookup)',
+      '  lookup.to(discount)',
+      '})',
+      '',
+    ].join('\n')
+    const read = {
+      code: 'W_UNRESOLVED_REF',
+      severity: 'warning',
+      message: '<nosuch.x> names no block.',
+      blockKey: 'applydiscount',
+    }
+    serve({
+      [SOURCE_PATH]: () => {
+        const answer = source(
+          {
+            'workflow.ts': workflow,
+            'functions/apply-discount.js':
+              'const customer = $ref.lookupcustomer.row\nreturn $ref.nosuch.x\n',
+          },
+          ['function', 'start_trigger', 'table_v2']
+        )
+        return { data: { ...answer.data, diagnostics: [read] } }
+      },
+    })
+
+    await get('--dir', outDir)
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed.tables).toEqual(['customers'])
+    expect(printed.diagnostics).toEqual([
+      expect.objectContaining({ code: 'W_UNRESOLVED_REF', message: read.message }),
+      expect.objectContaining({
+        code: 'W_UNKNOWN_OUTPUT_PATH',
+        file: 'functions/apply-discount.js',
+        line: 1,
+        hint: expect.stringContaining('rows'),
+      }),
+    ])
+  })
+
+  it('says how many output paths no block produces the warning cap left out', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { codeFile, fn, table, trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('Invoices', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const lookup = table.queryRows('Lookup Customer', { tableId: table('customers') })",
+      "  const discount = fn('Apply Discount', { code: codeFile('./functions/apply-discount.js') })",
+      '  start.to(lookup)',
+      '  lookup.to(discount)',
+      '})',
+      '',
+    ].join('\n')
+    const reads = Array.from({ length: 22 }, (_, index) => `$ref.lookupcustomer.row${index}`)
+    serve({
+      [SOURCE_PATH]: () =>
+        source(
+          {
+            'workflow.ts': workflow,
+            'functions/apply-discount.js': `return [${reads.join(', ')}]\n`,
+          },
+          ['function', 'start_trigger', 'table_v2']
+        ),
+    })
+
+    await get('--dir', outDir)
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    const codes = printed.diagnostics.map((finding: { code: string }) => finding.code)
+    expect(codes.filter((code: string) => code === 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(20)
+    expect(printed.diagnostics.at(-1)).toEqual(
+      expect.objectContaining({
+        code: 'I_FINDINGS_TRUNCATED',
+        message: expect.stringContaining('2 more'),
+      })
+    )
+  })
+
   it('writes a root AGENTS.md pointing at the guide, and never replaces one it did not write', async () => {
     serve({ [SOURCE_PATH]: () => source() })
 
@@ -278,6 +368,27 @@ describe('sim workflows source get --dir', () => {
       expect(Buffer.byteLength(sourcePrimer(kind))).toBeLessThanOrEqual(PRIMER_MAX_BYTES)
     }
   })
+
+  it.each(['workflow', 'workspace'] as const)(
+    'quotes in the %s primer patterns only code the type-checked examples hold',
+    (kind) => {
+      const examples = [
+        ...Object.values(COOKBOOK_EXAMPLES),
+        ...Object.values(WORKSPACE_COOKBOOK),
+      ].join('\n')
+      const lines = sourcePrimer(kind).split('\n')
+      const start = lines.findIndex((line) => line.startsWith(PATTERNS_HEADING))
+      const end = lines.findIndex((line, index) => index > start && !line.startsWith('  - '))
+      const spans = lines
+        .slice(start + 1, end)
+        .flatMap((line) => [...line.matchAll(/`([^`]+)`/g)].map((match) => match[1]))
+      expect(spans.length).toBeGreaterThan(20)
+      const missing = spans.filter(
+        (span) => !new RegExp(escapeRegExp(span).replace(/<[^>]+>/g, '.+?')).test(examples)
+      )
+      expect(missing).toEqual([])
+    }
+  )
 
   it('type-checks a builder of a block the directory does not hold: through the cache at once, and locally after a check', async () => {
     const workflow = [

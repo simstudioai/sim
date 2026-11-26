@@ -73,7 +73,7 @@ import {
   readStoredEdges,
   readStoredUntypedFields,
 } from './stored-edges'
-import { lockRecoveryHint, readSourceFiles } from './workflow-dir'
+import { lockRecoveryHint, readSourceFiles, resourceNodes } from './workflow-dir'
 import {
   type DeclaredColumn,
   kindFolders,
@@ -209,22 +209,6 @@ async function refreshWorkspaceTsconfigs(root: string, workspaceId: string): Pro
     { sources: sources.filter((text) => text !== null) },
     { incremental: true }
   )
-}
-
-/** A canonical resource node: what `table('k')`, `credential('k')` and the like compile to. */
-function resourceNode(value: unknown): { kind: string; key: string } | null {
-  if (!isRecordLike(value) || value.$sim !== 'resource') return null
-  const { kind, key } = value
-  return typeof kind === 'string' && typeof key === 'string' ? { kind, key } : null
-}
-
-/** Every resource node inside a value, depth first. */
-function resourceNodes(value: unknown): Array<{ kind: string; key: string }> {
-  const node = resourceNode(value)
-  if (node) return [node]
-  if (Array.isArray(value)) return value.flatMap(resourceNodes)
-  if (isRecordLike(value)) return Object.values(value).flatMap(resourceNodes)
-  return []
 }
 
 /**

@@ -5,7 +5,9 @@
  */
 
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import type { BlockCatalog, ChildResults } from '@sim/workflow-code'
+import { isRecordLike } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
+import type { BlockCatalog, ChildResults, CompileResult } from '@sim/workflow-code'
 import { parseSourceBase, parseWorkflowLock, type WorkflowLockV1 } from '@sim/workflow-code'
 import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import {
@@ -48,7 +50,8 @@ import {
   WORKSPACE_TYPES_FILE,
   type WorkspaceTypes,
 } from './source-tree'
-import { storedEdgesWrite } from './stored-edges'
+import type { Diagnostic } from './source-ui'
+import { compilePrinted, runFailingFindings, storedEdgesOf } from './stored-edges'
 
 type SourceBase = ApplyWorkflowSourceBody['base']
 
@@ -205,30 +208,24 @@ function workflowTsconfig(sdkFiles: readonly string[]): string {
   )}\n`
 }
 
+/** Where the workflow guide's deep dives are written, beside `.sim/AGENTS.md`. */
+const WORKFLOW_ADVANCED_FILE = '.sim/GUIDE-advanced.md'
+
 /**
- * The reference below the primer in `.sim/AGENTS.md`, by task: the edit loop in detail, a new or
- * forked workflow, the file shape, lookups, the rules and every exit code. The docs page has the
- * rest.
+ * The reference below the primer in `.sim/AGENTS.md`: the flags of the edit loop and the file
+ * shape. The rest, by task, is in {@link ADVANCED_GUIDE}, which agents read only when a step
+ * needs it, and the docs page has everything.
  */
 const AGENTS_GUIDE = `# Reference
 
-The primer above is enough to edit; read a section here when a step needs it.
+The primer above is enough to edit. \`${WORKFLOW_ADVANCED_FILE}\` has the rest, by task: the edit loop step by step and what a dry run stubs, a new workflow or a fork, finding a builder and its types, the rules, and every diagnostic and exit code. The full guide: ${SOURCE_DOCS_URL}
 
-## Edit loop in detail
+## Flags
 
-Batch it: write every file first, then run steps 2 and 4 (and a test run) as one chained command, \`sim workflows source check --dir . && sim workflows source apply --dir . --yes && sim workflows run <workflowId> --dry --input '{…}'\`, and fix what it reports in the next step. Each non-zero exit stops the chain. Step 3 (with its \`apply --dry\`, which only reviews the edit) is for a person, CI, or a change you want reviewed first. The test run's \`run --dry\` is another thing: it executes the saved draft but answers each write (table writes, sends, HTTP calls) with a placeholder and lists it under \`sideEffects.stubbed\` with the request it would have sent, so check those payloads instead of reading back or cleaning up data. Code (a Function block's, a Condition's expressions, a While loop's condition, code an Agent's model writes) runs for real: its GET, HEAD and OPTIONS \`fetch\` calls are sent (an API that writes on a GET is not stubbed, so point those at a test resource), and any other, or one carrying a method-override header, gets an empty 200 and is listed under \`sideEffects.stubbed\`, while code in a remote sandbox (shell, Python, imports) is listed under \`sideEffects.unchecked\`, so check that list too. \`--mock <block>='{…}'\` answers a block with fixed output to steer a branch. Live runs write real data: \`--allow <block>\` sends one block's writes for real and \`--draft\` sends every write, so point both at test resources.
-
-1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`${SOURCE_EXAMPLES_DIR}/\` holds correct examples to copy from: \`cookbook.ts\` (agent with structured output, condition, function, table query and upsert, knowledge search, Slack, human in the loop, loop, response), \`integrations.ts\` (webhook trigger, weekday cron schedule, HTTP request with headers, table update by row id, Gmail, an error path) and \`agents.ts\` (router, agent tools: custom tool, MCP tool, integration operation, child workflow; run a child workflow; parallel). Their resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
-2. \`sim workflows source check --dir .\`: compiles with the server's compiler, in milliseconds and without a request. It catches what \`tsc\` cannot (duplicate names, cycles, literal secrets), and fails (exit 1) on ${STRICT_FINDINGS_CLAUSE} in a block you added (\`--strict\`: in every block). It then adds the blocks the source now uses to \`tsconfig.json\` and type-checks with it, using the TypeScript release the declarations are built for (installed once into the CLI's cache, on the first check; \`E_TYPE\` findings). That catches what the compile and \`apply --dry\` do not, such as a reference to a start input the trigger does not declare. Offline before that install, it warns \`W_TYPES_UNCHECKED\` and passes on the compile alone; \`--no-types\` skips it. \`apply --dry\` is the authority: a type error on a printed line you did not edit that it accepts can be skipped with \`--no-types\`.
-3. \`sim workflows source status --dir .\`: the files you changed (\`sim workflows source diff --dir .\` shows the edits), whether the workflow changed on the server since the get, and the command to run next (\`--offline\`: skip the server). Then \`sim workflows source apply --dir . --dry\` until it exits 0.
-4. \`sim workflows source apply --dir . --yes\`: saves the draft, refusing errors, block deletions without \`--allow-delete\` and a stale directory, so it needs no separate dry run (without \`--yes\` and a terminal it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}). \`--deploy\` also deploys it; without it, a deployed workflow's next \`sim workflows deploy <id> --expected-draft-fingerprint <fingerprint>\` is printed, which deploys only the draft this apply saved. Its first line, \`live\`, says what serves: \`not deployed\`, \`version N, matches the draft\`, \`version N, draft has undeployed changes\`, or after \`--deploy\` \`version N still serving; version M activating\` until the deploy is live (\`sim workflows deployment status <id>\` shows when). It then rewrites \`${SOURCE_ENTRY_FILE}\` in canonical form (order, quoting, defaults left out).
-5. Exit ${SOURCE_STALE_EXIT_CODE} (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`. Exit ${SOURCE_STALE_EXIT_CODE} right after an apply that ended without an answer (a timeout, a dropped connection) means the draft changed, by that apply or by someone else: get into a fresh directory and compare. Only when it holds your edit, run \`sim workflows source get <workflowId> --dir . --force\`; otherwise reapply your edit in the fresh directory.
-
-Editing the \`workflow('…')\` name or description renames or redescribes the workflow; a name another workflow in its folder holds is refused with \`E_NAME_TAKEN\`. Lines starting \`note:\` explain something the write did differently than the source says; read them.
-
-## A new workflow, or a fork
-
-\`sim workflows source create --dir <new dir> --workspace <workspaceId>\` (without \`--dry\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, the types of that workspace, \`tsconfig.json\` and this guide, records the workspace in \`${SOURCE_STARTER_FILE}\`, and creates nothing. Until the workflow exists there is no \`${SOURCE_BASE_FILE}\`, so \`status\`, \`diff\` and \`apply\` refuse the directory: edit the starter, check it, then \`sim workflows source create --dir <dir> --workspace <workspaceId> --dry\` and the same with \`--yes\` (the starter prints both with its workspace filled in): it prints the new workflow id and writes the lock files. A create goes to the starter's workspace whatever the profile's default, unless \`--workspace\` or \`SIM_WORKSPACE\` names another. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --workspace <workspaceId> --name <new name> --yes\`.
+- \`check\`: \`--strict\` fails on the warnings that name a real problem in every block, not only in a block you added; \`--no-types\` skips the type-check.
+- \`apply\`: \`--yes\` writes (without it and a terminal, it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}); \`--dry\` only plans; \`--allow-delete\`; \`--deploy\`.
+- \`get\`: \`--force\` replaces edits no apply has saved, or another workflow's source.
+- \`sim workflows run\`: the primer's **Run** and **Debug**.
 
 ## File shape
 
@@ -245,6 +242,26 @@ export default workflow('Workflow name', {}, () => {
 \`\`\`
 
 The \`// @sim-sdk ${SDK_MAJOR}\` header must be the first line, and the file has exactly one \`export default workflow(name, options, () => { ... })\`; \`options\` holds \`description\` and \`variables\` and may be \`{}\`.
+`
+
+/** The workflow guide's deep dives, which `.sim/AGENTS.md` points to in one line. */
+const ADVANCED_GUIDE = `# Sim workflow source: advanced
+
+## Edit loop in detail
+
+Batch it: write every file first, then run steps 2 and 4 (and a test run) as one chained command, \`sim workflows source check --dir . && sim workflows source apply --dir . --yes && sim workflows run <workflowId> --dry --input '{…}'\`, and fix what it reports in the next step. Each non-zero exit stops the chain. Step 3 (with its \`apply --dry\`, which only plans) is for a person, CI, or a change you want reviewed first. The test run's \`run --dry\` is another thing: it executes the saved draft, while a run without \`--dry\` or \`--draft\` runs the active deployment (\`--deployment-version <n>\`: that deployed version). A dry run answers every tool call not declared read (sends, table writes, HTTP requests other than GET, HEAD or OPTIONS, custom and MCP tools) with a placeholder and lists it under \`sideEffects.stubbed\` with the request it would have sent; check those payloads instead of reading back or cleaning up data. Placeholders are distinctive (\`dry_run_row_1\`, numbers above 900000000), and a read that would send one (a tool read, an API GET, a Function's fetch, its headers included) is not sent either and is listed with \`reason: 'placeholder'\`. An MCP tool is stubbed even when its server declares it read-only, which Sim cannot verify: that entry has \`reason: 'mcp-read-only'\`, and \`--allow <block>\` sends it. Code (a Function block's, a Condition's expressions, a While or Do While loop's condition, code an Agent's model writes) runs: its GET, HEAD and OPTIONS fetches are sent (an API that writes on a GET is not stubbed, so point those at a test resource), and any other fetch, or one carrying a method-override header, gets an empty 200 and is listed under \`sideEffects.stubbed\`; code in a remote sandbox (shell, Python, imports) is listed under \`sideEffects.unchecked\`, so check that list too. Child workflows run dry too, and custom, Human in the loop and Wait blocks are answered whole. \`--mock <block>='{…}'\` answers a block with fixed output to steer a branch; a bare \`--mock <block>\` with \`--mock-from <runId>\` replays that block's output from the recorded run (this workflow's blocks, not a child's; not inside a loop or parallel unless that run mocked it). \`--allow <block>\` sends that block's writes for real (a Function's fetches included) and \`--draft\` runs the draft with every write sent, so point both at test resources. \`--allow\` and \`--mock\` name a child workflow's block as \`<workflow>.<block>\`.
+
+1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`${SOURCE_EXAMPLES_DIR}/\` holds correct examples to copy from: \`cookbook.ts\` (agent with structured output, condition, function, table query and upsert, knowledge search, Slack, human in the loop, loop, response), \`integrations.ts\` (webhook trigger, weekday cron schedule, HTTP request with headers, table update by row id, Gmail, an error path) and \`agents.ts\` (router, agent tools: custom tool, MCP tool, integration operation, child workflow; run a child workflow; parallel). Their resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
+2. \`sim workflows source check --dir .\`: compiles with the server's compiler, in milliseconds and without a request. It catches what \`tsc\` cannot (duplicate names, cycles, literal secrets), and fails (exit 1) on ${STRICT_FINDINGS_CLAUSE} in a block you added (\`--strict\`: in every block). It then adds the blocks the source now uses to \`tsconfig.json\` and type-checks with it, using the TypeScript release the declarations are built for (installed once into the CLI's cache, on the first check; \`E_TYPE\` findings). That catches what the compile and \`apply --dry\` do not, such as a reference to a start input the trigger does not declare. Offline before that install, it warns \`W_TYPES_UNCHECKED\` and passes on the compile alone; \`--no-types\` skips it. \`apply --dry\` is the authority: a type error on a printed line you did not edit that it accepts can be skipped with \`--no-types\`.
+3. \`sim workflows source status --dir .\`: the files you changed (\`sim workflows source diff --dir .\` shows the edits), whether the workflow changed on the server since the get, and the command to run next (\`--offline\`: skip the server). Then \`sim workflows source apply --dir . --dry\` until it exits 0.
+4. \`sim workflows source apply --dir . --yes\`: saves the draft, refusing errors, block deletions without \`--allow-delete\` and a stale directory, so it needs no separate dry run (without \`--yes\` and a terminal it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}). \`--deploy\` also deploys it; without it, a deployed workflow's next \`sim workflows deploy <id> --expected-draft-fingerprint <fingerprint>\` is printed, which deploys only the draft this apply saved. Its first line, \`live\`, says what serves: \`not deployed\`, \`version N, matches the draft\`, \`version N, draft has undeployed changes\`, or after \`--deploy\` \`version N still serving; version M activating\` until the deploy is live (\`sim workflows deployment status <id>\` shows when). It then rewrites \`${SOURCE_ENTRY_FILE}\` in canonical form (order, quoting, defaults left out).
+5. Exit ${SOURCE_STALE_EXIT_CODE} (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`. Exit ${SOURCE_STALE_EXIT_CODE} right after an apply that ended without an answer (a timeout, a dropped connection) means the draft changed, by that apply or by someone else: get into a fresh directory and compare. Only when it holds your edit, run \`sim workflows source get <workflowId> --dir . --force\`; otherwise reapply your edit in the fresh directory.
+
+Editing the \`workflow('…')\` name or description renames or redescribes the workflow; a name another workflow in its folder holds is refused with \`E_NAME_TAKEN\`. Lines starting \`note:\` explain something the write did differently than the source says; read them.
+
+## A new workflow, or a fork
+
+\`sim workflows source create --dir <new dir> --workspace <workspaceId>\` (without \`--dry\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, the types of that workspace, \`tsconfig.json\` and this guide, records the workspace in \`${SOURCE_STARTER_FILE}\`, and creates nothing. Until the workflow exists there is no \`${SOURCE_BASE_FILE}\`, so \`status\`, \`diff\` and \`apply\` refuse the directory: edit the starter, check it, then \`sim workflows source create --dir <dir> --workspace <workspaceId> --dry\` and the same with \`--yes\` (the starter prints both with its workspace filled in): it prints the new workflow id and writes the lock files. A create goes to the starter's workspace whatever the profile's default, unless \`--workspace\` or \`SIM_WORKSPACE\` names another. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --workspace <workspaceId> --name <new name> --yes\`.
 
 ## Finding a builder and its types
 
@@ -291,7 +308,7 @@ async function writeSourceTree(
   workspaceTypes: WorkspaceTypes | null,
   blockTypes: readonly string[],
   childResults: ChildResults | null | undefined
-): Promise<SourceTree> {
+): Promise<SourceTree & PrintedReads> {
   const [previousLock, tree] = await Promise.all([
     readPreviousLock(dir),
     sourceTreeChange(dir, catalog, workspaceTypes, WORKFLOW_TREE, {
@@ -299,20 +316,63 @@ async function writeSourceTree(
       blockTypes,
     }),
   ])
-  const edges = storedEdgesWrite(source, catalog, childResults)
+  const compiled = compilePrinted(source, catalog, childResults)
+  const edges = storedEdgesOf(source, compiled)
   const written = await writeBack(
     dir,
     source,
     previousLock,
     edges ? { ...tree.change, write: [...tree.change.write, edges] } : tree.change
   )
-  return finishTree(dir, written, workspaceTypes, tree)
+  return { ...finishTree(dir, written, workspaceTypes, tree), ...printedReads(compiled) }
+}
+
+/** A canonical resource node: what `table('k')`, `credential('k')` and the like compile to. */
+function resourceNode(value: unknown): { kind: string; key: string } | null {
+  if (!isRecordLike(value) || value.$sim !== 'resource') return null
+  const { kind, key } = value
+  return typeof kind === 'string' && typeof key === 'string' ? { kind, key } : null
+}
+
+/** Every resource node inside a value, depth first. */
+export function resourceNodes(value: unknown): Array<{ kind: string; key: string }> {
+  const node = resourceNode(value)
+  if (node) return [node]
+  if (Array.isArray(value)) return value.flatMap(resourceNodes)
+  if (isRecordLike(value)) return Object.values(value).flatMap(resourceNodes)
+  return []
+}
+
+/** What a printed workflow reads beyond its own source, and the findings that fail its runs. */
+interface PrintedReads {
+  /**
+   * The tables its blocks read or write, by key, sorted: their columns and rows are edited in a
+   * workspace directory, not this one.
+   */
+  tables?: string[]
+  /** {@link runFailingFindings} of the printed source. */
+  runFindings: Diagnostic[]
+}
+
+function printedReads(compiled: CompileResult | null): PrintedReads {
+  const tables = new Set(
+    Object.values(compiled?.workflow?.blocks ?? {}).flatMap((block) =>
+      resourceNodes(block.params)
+        .filter((node) => node.kind === 'table')
+        .map((node) => node.key)
+    )
+  )
+  const runFindings = runFailingFindings(compiled)
+  return tables.size > 0
+    ? { tables: [...tables].sort(compareStrings), runFindings }
+    : { runFindings }
 }
 
 /** The workflow directory's tree beside the printed source. */
 export const WORKFLOW_TREE: SourceTreeProfile = {
   kind: 'workflow',
   agents: AGENTS_GUIDE,
+  guides: [[WORKFLOW_ADVANCED_FILE, ADVANCED_GUIDE]],
   tsconfig: workflowTsconfig,
 }
 
@@ -369,7 +429,7 @@ export async function writeSourceDirectory(
   source: PrintedSource,
   blockTypes: readonly string[],
   childResults: ChildResults | null | undefined
-): Promise<SourceTree> {
+): Promise<SourceTree & PrintedReads> {
   const [catalog, workspaceTypes] = await Promise.all([
     loadCatalog(client, {
       workspaceId: source.workspaceId,

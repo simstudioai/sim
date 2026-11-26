@@ -31,6 +31,16 @@ whether the server changed since the get (exit 0 clean, ${SOURCE_LOCAL_CHANGES_E
 Every exit code, and the rules for editing: ${SOURCE_AGENTS_FILE} in the directory.`
 }
 
+/**
+ * The top of `sim workflows source --help`, above the usage line: what a workflow's source leaves
+ * out, so a task that changes a table starts in the directory that holds it.
+ */
+export const WORKFLOW_SOURCE_SCOPE_HELP = `A workflow's source holds that workflow alone. A table's columns and rows, and every other
+workspace resource, are edited with \`sim workspaces source get --dir <dir>\` (tables/<key>.ts),
+or read with \`sim tables rows list <table>\`. \`workflows source get\` names the tables a
+workflow uses (\`tables\`).
+`
+
 /** `sim workflows source --help`, after the command list. */
 export const WORKFLOW_SOURCE_LOOP_HELP = `
 The loop:
@@ -47,8 +57,6 @@ run; --no-types skips it). For review, \`apply --dry\` prints the plan and write
 A new workflow: \`sim workflows source create --dir ./new --workspace <workspaceId>\` writes a
 starter that records its workspace; edit and check it, then \`create --dir ./new --yes\` creates the
 workflow there, and the loop above goes on from there.
-A workflow's source holds that workflow alone: a table, its columns and rows, and every other
-workspace resource are edited with \`sim workspaces source\` (or the \`sim tables\` commands).
 ${WORKSPACE_LINE}
 ${RUN_LOGS_LINE}
 

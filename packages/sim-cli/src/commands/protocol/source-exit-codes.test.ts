@@ -16,11 +16,15 @@ const SOURCE_EXIT_CODES = [
     .map(([, code]) => code as number),
 ].sort((a, b) => a - b)
 
+/** Everything a get writes beside the primer for an agent to read: `.sim/AGENTS.md` and the guides. */
+const guidesOf = (tree: typeof WORKFLOW_TREE) =>
+  [tree.agents, ...(tree.guides ?? []).map(([, text]) => text)].join('\n')
+
 describe('the exit-code tables an agent or a reader relies on', () => {
   it.each([
-    ['the workflow directory guide', WORKFLOW_TREE.agents],
-    ['the workspace directory guide', WORKSPACE_TREE.agents],
-  ])('%s lists every code a source command exits with', (_name, text) => {
+    ['the workflow directory guides', guidesOf(WORKFLOW_TREE)],
+    ['the workspace directory guides', guidesOf(WORKSPACE_TREE)],
+  ])('%s list every code a source command exits with', (_name, text) => {
     const listed = [...text.matchAll(/^\| (\d+) \|/gm)].map((match) => Number(match[1]))
     expect(listed).toEqual(SOURCE_EXIT_CODES)
   })

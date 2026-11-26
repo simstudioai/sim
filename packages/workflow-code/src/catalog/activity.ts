@@ -12,7 +12,7 @@ import {
 } from '@sim/workflow-types/blocks'
 import type { RefSegment } from '../code-files/ref-path'
 import type { CanonicalBlock, SubBlockId } from '../model'
-import { setOwn } from '../records'
+import { getOwn, setOwn } from '../records'
 import {
   type CanonicalIndex,
   type CanonicalModeOverrides,
@@ -157,6 +157,34 @@ export function builderOutputSchemas(
     triggerMode: builder?.triggerMode === true,
     values: builder?.fixed ?? {},
   })
+}
+
+/**
+ * The outputs a block declared through `builder` produces: {@link builderOutputSchemas}, narrowed
+ * to the names its operation's tool returns when the catalog records them (`operationOutputs`),
+ * as SDK codegen types them, so `table.queryRows` has `rows` and never the `row` of the insert
+ * operations. An operation the catalog records nothing for, a block with no `operationOutputs`,
+ * and a trigger keep every output: an output's `condition` is not read, since block conditions
+ * can disagree with the tools behind them.
+ */
+export function builderProducedOutputs(
+  catalog: BlockCatalog,
+  block: CatalogBlock,
+  builder: CatalogBuilder | undefined
+): Record<string, CatalogOutput> {
+  const outputs = builderOutputSchemas(catalog, block, builder)
+  const operation = builder?.operation
+  const returned =
+    operation !== undefined && !builder?.triggerMode && outputs === block.outputs
+      ? getOwn(block.operationOutputs ?? {}, operation)
+      : undefined
+  if (!returned) return outputs
+  return Object.fromEntries(
+    returned.names.flatMap((name) => {
+      const output = getOwn(outputs, name)
+      return output ? [[name, output] as const] : []
+    })
+  )
 }
 
 /**

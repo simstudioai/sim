@@ -228,6 +228,79 @@ describe("a field hidden under the block's values", () => {
   })
 })
 
+describe("an output its builder's operation never produces", () => {
+  const tableBlock = TEST_CATALOG.blocks.table as CatalogBlock
+  const catalog: BlockCatalog = {
+    ...TEST_CATALOG,
+    builders: {
+      ...TEST_CATALOG.builders,
+      'table.queryRows': { type: 'table', operation: 'query_rows' },
+    },
+    blocks: {
+      ...TEST_CATALOG.blocks,
+      table: {
+        ...tableBlock,
+        outputs: {
+          row: { type: 'json', condition: { field: 'operation', value: ['insert_row'] } },
+          rows: { type: 'array', condition: { field: 'operation', value: ['query_rows'] } },
+        },
+        operationOutputs: { query_rows: { names: ['rows'] } },
+      },
+    },
+  }
+  const IMPORT = "import { codeFile, fn, t, table, trigger, workflow } from '@sim/workflow-sdk'"
+  const compile = (body: string, files: Record<string, string> = {}, against = catalog) =>
+    compileWorkflow({
+      entry: {
+        path: 'workflow.ts',
+        text: `// @sim-sdk 1\n${IMPORT}\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`,
+      },
+      files: new Map(Object.entries(files)),
+      catalog: against,
+      sdkMajor: 1,
+    })
+  const LOOKUP = [
+    START,
+    "const lookup = table.queryRows('Lookup Customer', { tableId: 'tbl_1' })",
+    "const add = table.insertRow('Add', { tableId: 'tbl_1', data: { a: '1' } })",
+  ]
+
+  it('reports a code file reading it, with the output the operation has', () => {
+    const result = compile(
+      [...LOOKUP, "const f = fn('F', { code: codeFile('./functions/f.js') })"].join('\n'),
+      { 'functions/f.js': 'const c = $ref.lookupcustomer.row\nreturn $ref.lookupcustomer.rows' }
+    )
+    expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH')).toEqual([
+      expect.objectContaining({
+        message: 'Lookup Customer has no output row.',
+        hint: expect.stringContaining('rows'),
+        span: expect.objectContaining({ file: 'functions/f.js', line: 1 }),
+      }),
+    ])
+  })
+
+  it('reports the workflow file reading it, and keeps the output of the operation that has it', () => {
+    const result = compile(
+      [...LOOKUP, "const f = fn('F', { code: t`${lookup.row} ${lookup.rows} ${add.row}` })"].join(
+        '\n'
+      )
+    )
+    expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH').map((d) => d.message)).toEqual([
+      'Lookup Customer has no output row.',
+    ])
+  })
+
+  it("trusts only the tool's recorded outputs, never an output condition, which can disagree with the tool", () => {
+    const { operationOutputs: _recorded, ...unrecorded } = catalog.blocks.table as CatalogBlock
+    const result = compile(
+      [...LOOKUP, "const f = fn('F', { code: t`${lookup.row}` })"].join('\n'),
+      {},
+      { ...catalog, blocks: { ...catalog.blocks, table: unrecorded } }
+    )
+    expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH')).toEqual([])
+  })
+})
+
 describe('references into an agent responseFormat', () => {
   const FORMAT =
     "responseFormat: { name: 'classify', schema: { type: 'object', properties: { priority: { type: 'string' }, score: { type: 'number' } } } }"
@@ -650,8 +723,8 @@ describe('typed references in JSON fields', () => {
     const result = run(
       `${START}\nconst a = api('A', { url: 'https://x', body: { items: start.input.list } })`
     )
-    expect(findings(result, 'W_JSON_REF_UNTYPED')[0]?.hint).toMatch(
-      /^Leave it bare when it holds an array/
+    expect(findings(result, 'W_JSON_REF_UNTYPED')[0]?.hint).toBe(
+      'Text: write t`${start.input.list}` to keep it text. An array, object, number or boolean: leave it bare, and make its source say so to drop this warning (a Function returning Number(…) or a literal, an agent responseFormat field).'
     )
   })
 })

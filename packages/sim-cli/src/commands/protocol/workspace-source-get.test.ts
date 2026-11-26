@@ -1118,6 +1118,33 @@ describe('workspaces source check after a get', () => {
     ).toHaveLength(1)
   })
 
+  it("reports a workflow folder's output path no block produces, which the server's read does not", async () => {
+    const source = [
+      '// @sim-sdk 1',
+      "import { fn, t, table, trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('Lookup', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const lookup = table.queryRows('Lookup', { tableId: 'tbl_1' })",
+      "  const use = fn('Use', { code: t`return ${lookup.row}` })",
+      '  start.to(lookup)',
+      '  lookup.to(use)',
+      '})',
+      '',
+    ].join('\n')
+    serveWorkflow('lookup', source, ['start', 'lookup', 'use'], CATALOG.hash)
+
+    await get()
+
+    expect(checked().diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'W_UNKNOWN_OUTPUT_PATH',
+        file: 'workflows/lookup/workflow.ts',
+        line: 7,
+      }),
+    ])
+  })
+
   it('refuses a cycle an edit closes between bound blocks of a workflow folder', async () => {
     serveWorkflow('cycle', CYCLE, ['start', 'a', 'b', 'c'], WORKSPACE_CATALOG.hash)
     await get()

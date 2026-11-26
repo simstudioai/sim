@@ -2,7 +2,11 @@ export { decodeAnchor, encodeAnchor } from './anchors'
 export { babelErrorShape, babelMessage } from './babel'
 export { type CanonicalizeResult, canonicalize, canonicalizeUnderLock } from './canonicalize'
 export { toolModes } from './canonicalize/modes'
-export { builderOutputSchemas, executableInactiveParams } from './catalog/activity'
+export {
+  builderOutputSchemas,
+  builderProducedOutputs,
+  executableInactiveParams,
+} from './catalog/activity'
 export { compactBlockCatalog } from './catalog/compact'
 export type {
   BlockCatalog,
