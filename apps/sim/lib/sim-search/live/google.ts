@@ -568,13 +568,12 @@ function calendarOccurrenceKey(row: Record<string, unknown>): string {
 }
 
 /**
- * Whether a person organizes or attends an event without having declined it: `me` is the
- * calendar owner, anyone else is matched by email. Always true without a person.
+ * Whether the person with this email organizes or attends an event without having declined it.
+ * Always true without a person.
  */
-function attendedBy(event: Record<string, unknown>, involving: string | undefined): boolean {
-  if (!involving) return true
-  const isPerson = (party: Record<string, unknown>) =>
-    involving === 'me' ? party.self === true : string(party.email).toLowerCase() === involving
+function attendedBy(event: Record<string, unknown>, email: string | undefined): boolean {
+  if (!email) return true
+  const isPerson = (party: Record<string, unknown>) => string(party.email).toLowerCase() === email
   return (
     isPerson(object(event.organizer)) ||
     array(event.attendees).some(
@@ -613,8 +612,22 @@ export async function searchCalendar(
     .slice(0, 20)
     .sort((left, right) => Number(right.primary === true) - Number(left.primary === true))
   const chronological = hasDateBounds(input.filters) || Boolean(dateSortDirection(input.filters))
-  /** Without text, another person's email narrows the search to events they are invited to. */
-  const q = nativeText(input) || (input.involving === 'me' ? undefined : input.involving)
+  /**
+   * The person's email: `me` is the connected account, whose primary calendar ID is its address,
+   * since a shared calendar's `self` flag marks that calendar's owner rather than the caller.
+   */
+  const person =
+    input.involving === 'me'
+      ? string(
+          object(await client.json('/calendar/v3/calendars/primary', { memo: true })).id
+        ).toLowerCase()
+      : input.involving
+  if (input.involving && !person?.includes('@'))
+    throw new NativeSearchError('unavailable', 'Calendar did not return your account address.')
+  /** Another person's email narrows the provider search to events they are invited to. */
+  const q = [nativeText(input), input.involving === 'me' ? '' : input.involving]
+    .filter(Boolean)
+    .join(' ')
   const pages = await mapWithConcurrency(rows, 4, async (row) => {
     const calendarId = string(row.id)
     try {
@@ -660,7 +673,7 @@ export async function searchCalendar(
     )
   const perCalendar = searched.map(({ data, calendarId, timeZone }) =>
     array(data.items)
-      .filter((event) => event.status !== 'cancelled' && attendedBy(event, input.involving))
+      .filter((event) => event.status !== 'cancelled' && attendedBy(event, person))
       .map((event) => ({
         ...eventDocument(event, calendarId, input.policy?.includeAttendees, timeZone),
         dedupeKey: calendarOccurrenceKey(event),

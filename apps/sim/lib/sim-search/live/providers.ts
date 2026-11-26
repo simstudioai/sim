@@ -50,6 +50,8 @@ interface NativeProvider {
   guide: NativeQueryGuide
   /** What the involving filter keeps for this provider; providers without it skip such searches. */
   involving?: string
+  /** The involving filter accepts only `me`: the provider cannot find anyone else by email. */
+  involvingMeOnly?: true
   /** Plain queries must contain every word, so an underfilled search retries with any term. */
   requiresEveryTerm?: true
   /**
@@ -210,6 +212,7 @@ export const LIVE_SEARCH_PROVIDERS = {
   },
   confluence: {
     involving: 'pages you created or edited; involving: me only',
+    involvingMeOnly: true,
     guide: {
       syntax:
         'CQL: siteSearch ~ "a few words" is Confluence relevance search and ranks pages about the topic first, so use it for topic, acronym and how-to lookups. text ~ "term" and title ~ "term" (title ~ "win*" for a prefix) match pages containing those words or their variants without that ranking, so keep them for a specific identifier or term; text ~ "\\"exact phrase\\"" matches a phrase. Combine with type IN (page, blogpost) and space = KEY (quote keys starting with a digit) using AND/OR/NOT and parentheses; add ORDER BY lastmodified DESC only when recency matters more than relevance.',
@@ -372,9 +375,10 @@ export function searchNativeProvider(
   return adapter.search(client, input, origin)
 }
 
-/** True when the provider can limit a search to the items one person took part in. */
-export function filtersByPerson(provider: LiveSearchProviderId): boolean {
-  return 'involving' in LIVE_SEARCH_PROVIDERS[provider]
+/** True when the provider can limit a search to the items this person (`me` or an email) took part in. */
+export function filtersByPerson(provider: LiveSearchProviderId, involving: string): boolean {
+  const adapter: NativeProvider | ManagedMcpProvider = LIVE_SEARCH_PROVIDERS[provider]
+  return 'involving' in adapter && (involving === 'me' || !('involvingMeOnly' in adapter))
 }
 
 /** True when the provider's plain-text search matches only items containing every query word. */

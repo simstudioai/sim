@@ -143,6 +143,28 @@ interface SitePage {
 }
 
 /**
+ * The account ID of the one user a site finds for an email, or undefined. Jira hides most email
+ * addresses, so a lone match for an email query is that person. Account IDs span sites, so a
+ * person found on any searched site applies to all of them.
+ */
+async function jiraAccountId(
+  client: NativeClient,
+  cloudId: string,
+  email: string
+): Promise<string | undefined> {
+  const found = array(
+    await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/user/search`, {
+      query: { query: email, maxResults: '2' },
+      memo: true,
+    })
+  )
+  const exact = found.filter((row) => string(row.emailAddress).toLowerCase() === email)
+  const users = exact.length ? exact : found
+  const accountId = string(users[0]?.accountId)
+  return users.length === 1 && /^[\w:-]+$/.test(accountId) ? accountId : undefined
+}
+
+/**
  * The JQL or CQL clause limiting a search to a person: issues they are assigned or reported, or
  * pages they created or edited. Jira finds anyone else by email (Atlassian account IDs span
  * sites); Confluence has no email lookup, so it filters only to the connected user.
@@ -164,17 +186,18 @@ async function atlassianPersonClause(
   }
   let user = 'currentUser()'
   if (involving !== 'me') {
-    const found = array(
-      await client.json(`/ex/jira/${segment(string(sites[0]?.id))}/rest/api/3/user/search`, {
-        query: { query: involving, maxResults: '2' },
-        memo: true,
-      })
+    const lookups = await Promise.allSettled(
+      sites.map((site) => jiraAccountId(client, string(site.id), involving))
     )
-    // Jira hides most email addresses, so a lone match for an email query is that person.
-    const exact = found.filter((row) => string(row.emailAddress).toLowerCase() === involving)
-    const users = exact.length ? exact : found
-    const accountId = string(users[0]?.accountId)
-    if (users.length !== 1 || !/^[\w:-]+$/.test(accountId))
+    const failed = lookups.find((lookup) => lookup.status === 'rejected')
+    if (failed && lookups.every((lookup) => lookup.status === 'rejected')) throw failed.reason
+    const accountIds = new Set(
+      lookups.flatMap((lookup) =>
+        lookup.status === 'fulfilled' && lookup.value ? [lookup.value] : []
+      )
+    )
+    const [accountId] = accountIds
+    if (accountIds.size !== 1 || !accountId)
       throw new NativeSearchError('unavailable', 'No single Jira user has this email.')
     user = JSON.stringify(accountId)
   }

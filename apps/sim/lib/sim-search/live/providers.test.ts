@@ -124,16 +124,20 @@ describe('native search endpoints', () => {
       start: { dateTime: '2026-09-24T09:00:00Z' },
       ...extra,
     })
-    api.json
-      .mockResolvedValueOnce({ items: [{ id: 'primary', primary: true }] })
-      .mockResolvedValueOnce({
+    const me = 'member@example.com'
+    api.json.mockImplementation(async (path) => {
+      if (path.endsWith('/calendarList')) return { items: [{ id: me, primary: true }] }
+      if (path.endsWith('/calendars/primary')) return { id: me }
+      return {
         items: [
-          event('organized', { organizer: { self: true } }),
-          event('attended', { attendees: [{ self: true, responseStatus: 'accepted' }] }),
-          event('declined', { attendees: [{ self: true, responseStatus: 'declined' }] }),
-          event('others', { attendees: [{ email: 'jane@example.com' }] }),
+          event('organized', { organizer: { email: me } }),
+          event('attended', { attendees: [{ email: me, responseStatus: 'accepted' }] }),
+          event('declined', { attendees: [{ email: me, responseStatus: 'declined' }] }),
+          // A shared calendar's own copy marks its owner, not the caller, as self.
+          event('shared', { organizer: { self: true, email: 'jane@example.com' } }),
         ],
-      })
+      }
+    })
     const result = await searchCalendar(api, { ...input, query: '', involving: 'me' })
     expect(result.documents.map(({ id }) => id)).toEqual(['organized', 'attended'])
   })

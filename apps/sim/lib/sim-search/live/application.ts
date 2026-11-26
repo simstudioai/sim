@@ -300,7 +300,7 @@ export const LIVE_NOT_STARTED_MESSAGE =
 export const LIVE_OVER_ACCOUNT_LIMIT_MESSAGE = `Not searched: one search covers at most ${MAX_ACCOUNTS} accounts. Search this source or account alone.`
 /** Account status when a search filtered by person reaches a provider that cannot apply it. */
 export const LIVE_NO_PERSON_FILTER_MESSAGE =
-  'Not searched: this source cannot filter by person. Search it without involving.'
+  'Not searched: this source cannot filter by this person. Search it without involving.'
 /** Previews center on the query's longest matching term, like indexed passages. */
 const PREVIEW_CHARACTERS = 1800
 /**
@@ -554,7 +554,7 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
       .sort(compareAccounts)
     /** A person filter skips the sources that cannot apply it rather than return them unfiltered. */
     const eligible = reachable.filter(
-      (account) => !input.involving || filtersByPerson(account.provider)
+      (account) => !input.involving || filtersByPerson(account.provider, input.involving)
     )
     const nothingSearched = !queries && reachable.length === 0
     const selected = eligible.slice(0, MAX_ACCOUNTS)

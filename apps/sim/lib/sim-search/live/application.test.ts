@@ -1083,7 +1083,7 @@ describe('authorized live retrieval', () => {
         expect.objectContaining({
           accountId: 'notion-account',
           status: 'unavailable',
-          message: expect.stringContaining('cannot filter by person'),
+          message: expect.stringContaining('cannot filter by this person'),
         })
       )
       expect(result.live?.guidance).toBe('Live coverage: google_drive')
