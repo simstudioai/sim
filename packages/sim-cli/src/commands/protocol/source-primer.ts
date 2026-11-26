@@ -60,7 +60,7 @@ const WORKFLOW_PRIMER = `# Sim workflow source: primer
 
 **Edit loop**: write every file, then run one chained command; fix what it reports: \`sim workflows source check --dir . && sim workflows source apply --dir . --yes && sim workflows run <workflowId> --dry --input '{…}'\`. \`check\` also type-checks (no \`tsc\`). Apply re-checks (\`apply --dry\` only plans) and rewrites \`${SOURCE_ENTRY_FILE}\`: reread it before the next edit.
 
-- **Scope**: the workflow alone. A table's columns and rows: \`sim tables columns update <table>\`, \`sim tables rows update <table>\`.
+- **Scope**: the workflow alone. A table's columns and rows: \`sim tables columns update <table> --column-name <column> --updates '{…}'\`, \`sim tables rows update <table> <row> --data '{…}'\`.
 - **Deletes**: removing a block or variable needs \`apply --allow-delete\`.
 - **Deploy**: \`apply --deploy\`, or later \`sim workflows deploy <workflowId>\`.
 ${sharedRules('sim workflows source')}
