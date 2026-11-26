@@ -151,7 +151,12 @@ export function describeToolRequest(
     }
   }
   if (isInternalToolConfig(tool)) {
-    return tool.operation.input(params)
+    const input = tool.operation.input(params)
+    // An operation that forwards its params whole carries the run's `_context` and credential id,
+    // which it reads in process and never sends.
+    return isPlainRecord(input)
+      ? Object.fromEntries(Object.entries(input).filter(([key]) => !key.startsWith('_')))
+      : input
   }
   const prepared = prepareToolRequest(tool, params)
   return { method: prepared.method, url: prepared.url, body: readBody(prepared.body) }
@@ -175,7 +180,11 @@ function checkScanDepth(depth: number): void {
 interface CallSecrets {
   /** Values masked wherever they reappear. */
   values: string[]
-  /** Password fields of the calling blocks, masked by name like a credential-named field. */
+  /**
+   * Password fields of the calling blocks, masked by name at the top level only: a nested field
+   * that shares a generic id (`projectId`, `url`) is row data, and the password's value is still
+   * masked wherever it reappears.
+   */
   passwordFields: ReadonlySet<string>
 }
 
@@ -190,7 +199,7 @@ function redactCredentials(value: unknown, secrets: CallSecrets, depth = 0): unk
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      isSensitiveKey(key) || secrets.passwordFields.has(key)
+      isSensitiveKey(key) || (depth === 0 && secrets.passwordFields.has(key))
         ? REDACTED_MARKER
         : redactCredentials(item, secrets, depth + 1),
     ])

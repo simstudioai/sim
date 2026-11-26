@@ -3935,6 +3935,15 @@ describe('Function execution request', () => {
       expect(data.errorMessage).toBe('Unexpected token')
     })
 
+    it('keeps a thrown message that starts with a URL path', async () => {
+      const data = await failRemote(
+        'javascript',
+        'import "node:path"\nthrow new TypeError("/v1/users/42: not found")',
+        'TypeError: /v1/users/42: not found'
+      )
+      expect(data.errorMessage).toBe('/v1/users/42: not found')
+    })
+
     it('drops the line, code and exception name from a Python error', async () => {
       const data = await failRemote(
         'python',

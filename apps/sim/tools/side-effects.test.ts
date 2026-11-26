@@ -5,6 +5,8 @@ import { createExecutionContext } from '@sim/testing'
 import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
 import { describe, expect, it, vi } from 'vitest'
 import { WriteStubPolicy } from '@/lib/workflows/dry-run'
+import { getBlock, getBlockByToolName } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
 import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -13,6 +15,7 @@ import {
   answerUnsentCall,
   codeNetworkFor,
   describeMcpToolRequest,
+  describeToolRequest,
   unsentWriteFor,
 } from '@/tools/side-effects'
 
@@ -136,6 +139,46 @@ describe('a write a dry run does not send', () => {
     const [{ request }] = policy.summary().stubbed
     const body = Buffer.from(String(request?.body), 'base64').toString('utf8')
     expect(body).toBe('sent with [REDACTED]')
+  })
+
+  it('masks a block password field by name only at the top level, never a row field that shares its id', async () => {
+    const params = {
+      projectId: 'secret-project-ref',
+      table: 'contacts',
+      data: [{ projectId: 'p-42', name: 'Ada' }],
+      _context: { blockId: 'notify' },
+    }
+    vi.mocked(getBlockByToolName).mockReturnValueOnce({ type: 'supabase' } as BlockConfig)
+    vi.mocked(getBlock).mockReturnValueOnce({
+      subBlocks: [{ id: 'projectId', password: true }],
+    } as BlockConfig)
+    const { write, policy } = unsentWrite('supabase_insert', params)
+
+    await answerUnsentCall(write, {
+      params,
+      registry: new ResolvedSecretTraceRegistry(),
+      describe: (masked) => ({ body: masked }),
+    })
+
+    const [{ request }] = policy.summary().stubbed
+    expect(request).toMatchObject({
+      body: { projectId: '[REDACTED]', data: [{ projectId: 'p-42', name: 'Ada' }] },
+    })
+  })
+
+  it('records an in-process operation without the run context it reads but never sends', () => {
+    const tool = {
+      id: 'workday_terminate_worker',
+      operation: { input: (params: Record<string, unknown>) => params },
+    } as unknown as Parameters<typeof describeToolRequest>[0]
+
+    expect(
+      describeToolRequest(tool, {
+        workerId: 'w-1',
+        _context: { billingAttribution: { payerId: 'org-1' } },
+        _credentialId: 'cred-1',
+      })
+    ).toEqual({ workerId: 'w-1' })
   })
 
   it.each([

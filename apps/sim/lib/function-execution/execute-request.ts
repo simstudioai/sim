@@ -570,10 +570,11 @@ function extractEnhancedError(
 }
 
 /**
- * A leading absolute file path a sandbox puts before a JavaScript error's message
- * (`/home/user/index.js: Unexpected token`).
+ * A leading absolute source-file path a sandbox puts before a JavaScript error's message
+ * (`/home/user/index.js: Unexpected token`). The extension keeps a message that merely starts
+ * with a URL path (`/v1/users/42: not found`) intact.
  */
-const SANDBOX_FILE_PATH_PREFIX = /^(?:file:\/\/)?\/\S*:\s*/
+const SANDBOX_FILE_PATH_PREFIX = /^(?:file:\/\/)?\/\S*\.(?:[cm]?[jt]sx?|py):\s*/
 
 /**
  * The type label a sandbox error leads with, when a message follows: `ValueError: invalid phone`,
