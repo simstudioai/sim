@@ -274,7 +274,7 @@ export const deploymentShapeSchema = z.object({
    */
   registrationMode: z.enum(REGISTRATION_MODES).optional(),
   /**
-   * Server-only switches the browser used to read from `NEXT_PUBLIC_*` twins. Optional
+   * Server-only switches, resolved on the server and projected for the browser. Optional
    * for rolling compatibility with app versions that predate projecting them; readers
    * treat absent as `false`.
    */

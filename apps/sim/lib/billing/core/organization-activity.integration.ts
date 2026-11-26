@@ -10,7 +10,7 @@ const databaseUrl = readTestDatabaseUrl()
 vi.mock('@sim/db', () => ({ dbReplica: { execute, select } }))
 vi.mock('@/lib/core/config/redis', () => ({
   getRedisClient: () => {
-    throw new Error('Redis is not used by this suite; the usage cache reads the ledger')
+    throw new Error('Redis is unavailable in this suite; the usage cache falls back to the ledger')
   },
 }))
 
