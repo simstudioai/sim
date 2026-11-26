@@ -58,9 +58,9 @@ const WORKFLOW_PRIMER = `# Sim workflow source: primer
 
 \`${SOURCE_ENTRY_FILE}\` is a Sim workflow as TypeScript; the server compiles it statically and nothing in it runs. Commands here (table ones too) act on the workflow \`${SOURCE_BASE_FILE}\` names and its workspace (a starter's \`${SOURCE_STARTER_FILE}\` names the workspace, and its loop runs \`create\` in place of \`apply\`: no workflow exists yet).
 
-**Edit loop**: write every file, then run one chained command; fix what it reports: \`sim workflows source check --dir . && sim workflows source apply --dir . --yes --run '{…}' --deploy\` applies, dry-runs that input, and deploys only if it completed (no \`--deploy\`: stays a draft). \`check\` also type-checks (no \`tsc\`). Apply re-checks (\`apply --dry\` only plans) and rewrites \`${SOURCE_ENTRY_FILE}\`: reread it before the next edit.
+**Edit loop**: write every file, then run one chained command; fix what it reports: \`sim workflows source check --dir . && sim workflows source apply --dir . --yes --run '{…}' --deploy\` applies, dry-runs that input on the draft, and deploys only if it completed (no \`--deploy\`: stays a draft). \`check\` also type-checks (no \`tsc\`). Apply re-checks (\`apply --dry\` only plans) and rewrites \`${SOURCE_ENTRY_FILE}\`: reread it before editing.
 
-- **Scope**: the workflow alone. A table's columns and rows: \`sim tables columns update <table> --column-name <column> --updates '{…}'\`, \`sim tables rows update <table> <row> --data '{…}'\`.
+- **Scope**: the workflow alone. Table columns and rows: \`sim tables columns update <table> --column-name <column> --updates '{…}'\`, \`sim tables rows update <table> <row> --data '{…}'\`.
 - **Deletes**: removing a block or variable needs \`apply --allow-delete\`.
 ${sharedRules('sim workflows source')}
 `
