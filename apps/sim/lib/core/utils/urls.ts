@@ -295,15 +295,6 @@ export function getOllamaUrl(): string {
 }
 
 /**
- * Whether OLLAMA_URL names a server, as opposed to {@link getOllamaUrl} falling
- * back to the loopback default. Callers use this to tell "someone pointed us at
- * an Ollama" apart from "nobody configured one".
- */
-function isOllamaUrlConfigured(): boolean {
-  return Boolean(env.OLLAMA_URL)
-}
-
-/**
  * Whether this deployment has an Ollama server to talk to. Self-hosted deployments run
  * alongside their own Ollama, so the loopback default {@link getOllamaUrl} falls back to is a
  * working configuration that needs no env var. Hosted Sim runs none, so there the address
@@ -313,7 +304,7 @@ function isOllamaUrlConfigured(): boolean {
  * all answer through this, so a picker never lists models its client then refuses.
  */
 export function isOllamaReachable(): boolean {
-  return !isHosted || isOllamaUrlConfigured()
+  return !isHosted || Boolean(env.OLLAMA_URL)
 }
 
 /** Whether Ollama can serve a model here: {@link isOllamaReachable}, and not blacklisted. */
