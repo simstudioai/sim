@@ -144,7 +144,7 @@ interface SitePage {
 
 /**
  * The account ID of the one user a site finds for an email, or undefined. Jira hides most email
- * addresses, so a lone match for an email query is that person. Account IDs span sites, so a
+ * addresses, so a lone match with a hidden address is taken as that person. Account IDs span sites, so a
  * person found on any searched site applies to all of them.
  */
 async function jiraAccountId(
@@ -159,7 +159,12 @@ async function jiraAccountId(
     })
   )
   const exact = found.filter((row) => string(row.emailAddress).toLowerCase() === email)
-  const users = exact.length ? exact : found
+  /** Search also matches prefixes, so a user showing a different address is never this person. */
+  const users = exact.length
+    ? exact
+    : found.length === 1 && !string(found[0]?.emailAddress)
+      ? found
+      : []
   const accountId = string(users[0]?.accountId)
   return users.length === 1 && /^[\w:-]+$/.test(accountId) ? accountId : undefined
 }

@@ -338,3 +338,27 @@ describe('Confluence plain search ranking', () => {
     expect(own.nextCursor).toBe('page-2')
   })
 })
+
+describe('Jira person filter', () => {
+  const users = '/ex/jira/cloud/rest/api/3/user/search'
+  const search = (api: NativeClient) =>
+    searchAtlassian(api, 'jira', { query: '', limit: 20, scopes: [], involving: 'jan@acme.com' })
+
+  it('never takes a prefix match showing another address as the person', async () => {
+    const api = client({ [users]: [{ accountId: 'other-id', emailAddress: 'jan@acme.com.au' }] })
+    await expect(search(api)).rejects.toThrow('No single Jira user')
+    expect(api.json).not.toHaveBeenCalledWith(
+      '/ex/jira/cloud/rest/api/3/search/jql',
+      expect.anything()
+    )
+  })
+  it('scopes issues to the one user whose address Jira hides', async () => {
+    const api = client({
+      [users]: [{ accountId: 'jan-id' }],
+      '/ex/jira/cloud/rest/api/3/search/jql': { issues: [] },
+    })
+    await search(api)
+    const [, options] = api.json.mock.calls.find(([path]) => path.endsWith('/search/jql')) ?? []
+    expect(options?.body?.jql).toBe('(assignee = "jan-id" OR reporter = "jan-id")')
+  })
+})
