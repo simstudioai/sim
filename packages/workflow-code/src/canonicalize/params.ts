@@ -55,28 +55,51 @@ export function surfaceDeclaration(
   return declarations.find((subBlock) => subBlock.surface === surface) ?? declarations[0]
 }
 
-/** Whether canonicalize decodes this subBlock's JSON text (structured or json-string storage). */
-export function shouldDecode(declaration: CatalogSubBlock | undefined): boolean {
-  if (!declaration || declaration.neverDecoded === true) return false
+/** Whether a field always holds JSON text: a structured value or json-string storage. */
+function holdsJsonText(declaration: CatalogSubBlock): boolean {
   return declaration.structured !== undefined || declaration.storage === 'json-string'
 }
 
 /**
- * JSON text of a structured field, decoded. Only an object or array counts
+ * Field types whose runtime reads JSON text and the container it encodes alike: the workflow
+ * handler and the tool runners parse a child workflow's `inputMapping` either way, and the
+ * operations route stores either. Canonicalize decodes the text so it prints as the object source
+ * can type, and deploy-change detection takes the two encodings as one value. Any other native
+ * container field stays as stored, since its runtime reads only one form.
+ */
+export const JSON_TEXT_CONTAINER_TYPES: ReadonlySet<string> = new Set([
+  'input-mapping',
+  'workflow-input-mapper',
+])
+
+/** A field of a {@link JSON_TEXT_CONTAINER_TYPES} type; text that does not parse stays a value. */
+function holdsNativeContainer(declaration: CatalogSubBlock): boolean {
+  return JSON_TEXT_CONTAINER_TYPES.has(declaration.type)
+}
+
+/** Whether canonicalize decodes this subBlock's JSON text. */
+export function shouldDecode(declaration: CatalogSubBlock | undefined): boolean {
+  if (!declaration || declaration.neverDecoded === true) return false
+  return holdsJsonText(declaration) || holdsNativeContainer(declaration)
+}
+
+/**
+ * JSON text of a structured or native-container field, decoded. Only an object or array counts
  * as decoded, so a scalar-looking string stays the string it is. Blank text is the untouched
- * sentinel and stays as is; other text that does not parse is kept with
- * `W_CANON_UNDECODABLE_JSON`. The encoding is not recorded: the CWM is encoding-free and
- * materialize keeps prev's.
+ * sentinel and stays as is; other text that does not parse is kept, with
+ * `W_CANON_UNDECODABLE_JSON` unless the field is a native container. The encoding is not
+ * recorded: the CWM is encoding-free and materialize keeps prev's.
  */
 function decodeStructured(
   raw: unknown,
+  declaration: CatalogSubBlock,
   blockKey: BlockKey,
-  param: string,
   context: CanonContext
 ): unknown {
   if (typeof raw !== 'string' || raw.trim() === '') return raw
   const parsed = parseJsonContainer(raw)
-  if (parsed) return parsed
+  if (parsed || holdsNativeContainer(declaration)) return parsed ?? raw
+  const param = declaration.id
   context.diagnostics.push(
     diagnostic(
       'W_CANON_UNDECODABLE_JSON',
@@ -187,9 +210,10 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
       )
     }
 
-    const decoded = shouldDecode(declaration)
-      ? decodeStructured(raw, blockKey, id, context)
-      : decodeLegacyScalar(raw, declaration, catalog)
+    const decoded =
+      declaration && shouldDecode(declaration)
+        ? decodeStructured(raw, declaration, blockKey, context)
+        : decodeLegacyScalar(raw, declaration, catalog)
     const location = { blockKey, param: id }
 
     if (declaration?.structured === 'tools' && Array.isArray(decoded)) {

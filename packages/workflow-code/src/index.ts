@@ -2,6 +2,7 @@ export { decodeAnchor, encodeAnchor } from './anchors'
 export { babelErrorShape, babelMessage } from './babel'
 export { type CanonicalizeResult, canonicalize, canonicalizeUnderLock } from './canonicalize'
 export { toolModes } from './canonicalize/modes'
+export { JSON_TEXT_CONTAINER_TYPES } from './canonicalize/params'
 export {
   builderProducedOutputs,
   executableInactiveParams,
@@ -42,6 +43,8 @@ export {
 } from './child-results'
 export {
   checkCodeFileBijection,
+  codeFileLanguage,
+  codeFileRefs,
   createJsContextScanner,
   ENV_VAR_NAME,
   formatStoredPath,
@@ -126,7 +129,7 @@ export type {
   Value,
 } from './model'
 export { isResourceKind } from './model'
-export { assignIdentifiers, printWorkflow } from './print'
+export { assignIdentifiers, printWorkflow, referencedHeads } from './print'
 export { hasSuspiciousCharacter, printKey, printNumber, quoteString } from './print/strings'
 export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
 export {

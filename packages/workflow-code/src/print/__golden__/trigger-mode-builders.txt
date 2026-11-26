@@ -19,6 +19,5 @@ export default workflow('Fixture', {}, () => {
     subject: 'Invoices',
     body: invoiceEmail.email.subject,
   })
-
   invoiceEmail.to(sendSummary)
 })

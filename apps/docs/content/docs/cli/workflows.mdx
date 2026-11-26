@@ -1569,6 +1569,38 @@ Without --server, each file created, edited or deleted since the directory was r
 
 API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
 
+### Print a block's code, edges and readers with line numbers
+
+Offline.
+
+```bash
+sim workflows source find <block> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `block` | Yes | Block name, key or identifier; a part of a name matches every block |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workflow source directory to read. Defaults to `.`. |
+
+</CommandTable>
+
+Prints each block the name matches, read from the directory alone (no request is made): its declaration in workflow.ts with line numbers, its function file, the wiring statements of its incoming and outgoing edges, and every block that reads its outputs (a param, a branch, or a function file's $ref), each as file:line. &lt;block&gt; is a block name (Security Score), its key (securityscore) or its identifier (securityScore); with no exact match, every block whose name contains it is printed (at most 20). Run it from a workflow source directory, or pass --dir.
+
+Exit codes: 0 printed; 1 no block matches (the closest name is suggested), or the directory is not a workflow source directory.
+
 ### Print a builder's params and outputs from the cached block catalog
 
 Offline.

@@ -14,7 +14,6 @@ export default workflow('Fixture', {}, () => {
   })
   const notifySalesChannel = api('Notify sales channel', { url: 'https://x.test', method: todo() })
   const scoreLeadQuality = api('Score lead quality', { url: 'https://x.test', method: todo() })
-
   start.to(
     archiveRawPayload,
     enrichCompanyProfile,

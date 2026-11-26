@@ -50,7 +50,6 @@ const KNOWN_UNTYPED: ReadonlyArray<{ match: RegExp; cause: string }> = [
     match: /:(response|human_in_the_loop|human_in_the_loop_v2):/,
     cause: 'a response format stored as text',
   },
-  { match: /:workflow_input:/, cause: 'an input mapping stored as JSON text' },
   {
     match: /^(operation|error-edge|variables):variables:/,
     cause: 'variable rows with no variableId',

@@ -167,6 +167,11 @@ export interface CompileResult {
    */
   edges: StoredEdgeRef[]
   /**
+   * Where the wiring that denotes each of {@link edges} is written, by the same index: its
+   * statement, or the container callback an implied start edge comes from.
+   */
+  edgeSpans: SourceSpan[]
+  /**
    * Every JSON field holding a bare reference nothing types, reported or not, by block key: what
    * an offline check records of a get's printed source as `CompileInput.storedUnreadUntypedFields`.
    */
@@ -487,6 +492,7 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
     sdkMajor,
     envReferences: [],
     edges: [],
+    edgeSpans: [],
     untypedJsonFields: [],
   }
 }
@@ -869,7 +875,8 @@ function compileEntry(
   const spans: Partial<Record<AnchorKey, SourceSpan>> = {}
   for (const [key, span] of ctx.spans) spans[key] = span
 
-  const sortedEdges = [...edges.edges].sort(compareEdges)
+  const written = edges.written().sort((a, b) => compareEdges(a.edge, b.edge))
+  const sortedEdges = written.map(({ edge }) => edge)
   const workflow: CanonicalWorkflow | null =
     reporter.hasErrors || !workflowHeader
       ? null
@@ -892,6 +899,7 @@ function compileEntry(
     sdkMajor: parsed.sdkMajor,
     envReferences: [...ctx.envReferences].sort(compareStrings),
     edges: sortedEdges.map((edge) => ({ from: edge.from, port: portKey(edge.port), to: edge.to })),
+    edgeSpans: written.map(({ node }) => reporter.span(rangeOf(ctx, node))),
     untypedJsonFields,
   }
 }

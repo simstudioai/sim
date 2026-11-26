@@ -32,6 +32,7 @@ For a whole workspace, use `sim workspaces source` with the same steps; see [Man
 
 ## Look things up
 
+- `sim workflows source find <block>` prints one block of the workflow by name, key or identifier, from the directory without a request: its declaration with line numbers, its function file, its incoming and outgoing wiring and every block that reads its outputs, each as `file:line`. A part of a name prints every block it matches.
 - `sim workflows source params <builder>` prints a builder in brief (an example call, the required params with types, the optional ones by name and the outputs) from the cached block catalog without a request. `--full` prints every param with its type, options, default and doc. A legacy builder names the one that replaces it, and a namespace such as `gmail` lists its builders.
 - `sim workflows source resources` lists the tables, knowledge bases, credentials, workflows, skills, custom tools, MCP servers and environment variable names the file can name.
 - `sim workflows source catalog` shows the block catalog the source is checked against.

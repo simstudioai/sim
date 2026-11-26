@@ -21,14 +21,13 @@ export default workflow(
         ],
       }),
     })
+    start.to(query)
     const setVars = setVariables('Set vars', {
       variables: [
         { variableId: vars.retries, value: t`${vars.retries}` },
         { variableId: vars.lastrun, value: t`${query.rows}` },
       ],
     })
-
-    start.to(query)
     query.to(setVars)
   }
 )

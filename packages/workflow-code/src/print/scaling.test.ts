@@ -1,9 +1,10 @@
 /**
- * Printing grows linearly with the workflow (see `growth` for how a case is measured).
+ * Printing grows linearly with the workflow (see `growth` for how a case is measured), and a long
+ * workflow keeps each block's wiring beside it.
  */
 
 import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
-import { describe, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { compareEdges } from '../canonicalize/edges'
 import { compileWorkflow } from '../compile'
 import { TEST_CATALOG } from '../compile/catalog.test-helpers'
@@ -70,5 +71,22 @@ describe('print scaling', () => {
       return () =>
         printWorkflow({ workflow, catalog: TEST_CATALOG, options: { functionCode: 'inline' } })
     }, 500)
+  })
+})
+
+describe('print locality', () => {
+  it('prints each edge of a long chain on the line under its target', () => {
+    const { text } = printWorkflow({
+      workflow: siblingScopes(200),
+      catalog: TEST_CATALOG,
+      options: { functionCode: 'inline' },
+    }).files[0]
+    const lines = text.split('\n')
+    const lineOf = (prefix: string) => lines.findIndex((line) => line.trim().startsWith(prefix))
+    const distances = Array.from({ length: 199 }, (_, i) => {
+      const target = `a${i + 1}`
+      return lineOf(`a${i}.to(${target})`) - lineOf(`const ${target} =`)
+    })
+    expect(new Set(distances)).toEqual(new Set([1]))
   })
 })

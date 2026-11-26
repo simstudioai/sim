@@ -25,6 +25,7 @@ import { attachWorkflowRunGet } from './workflow-run-get'
 import { attachWorkflowRunWait } from './workflow-run-wait'
 import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
 import { attachWorkflowSourceCheck } from './workflow-source-check'
+import { attachWorkflowSourceFind } from './workflow-source-find'
 import { attachWorkflowSourceGet } from './workflow-source-get'
 import { attachWorkflowSourceParams } from './workflow-source-params'
 import { attachWorkflowSourceDiff, attachWorkflowSourceStatus } from './workflow-source-status'
@@ -107,6 +108,7 @@ export function attachProtocolCommands(program: Command): void {
   attachWorkflowSourceStatus(source)
   attachWorkflowSourceDiff(source)
   attachWorkflowSourceParams(source)
+  attachWorkflowSourceFind(source)
 
   const workspaces = group(program, 'workspaces')
   attachWorkspaceOperationWait(group(workspaces, 'operations'))

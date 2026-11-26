@@ -33,7 +33,7 @@ cached catalog (run a get once).`
  * The catalog the directory was printed with (its `.sim/base.json` hash), else the one cached for
  * the workspace it records ({@link recordedWorkspace}), or the profile's.
  */
-async function lookupCatalog(
+export async function lookupCatalog(
   dir: string,
   profile: Pick<ResolvedProfile, 'workspaceId' | 'sources'>
 ): Promise<BlockCatalog> {

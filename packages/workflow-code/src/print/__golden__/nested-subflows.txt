@@ -14,21 +14,17 @@ export default workflow('Fixture', {}, () => {
         ],
         model: 'm',
       })
-
       p2.to(work)
     })
-
     p.to(fan)
   })
+  start.to(outer)
   const sibling = loop.while('Sibling', { condition: js`<loop.index> < 3` }, (p) => {
     const insideSibling = agent('Inside sibling', {
       messages: [{ role: 'system', content: 'cannot see <work.content>' }],
       model: 'm',
     })
-
     p.to(insideSibling)
   })
-
-  start.to(outer)
   outer.to(sibling)
 })

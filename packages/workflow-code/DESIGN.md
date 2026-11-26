@@ -310,6 +310,9 @@ print compiles with zero errors.
 - Blocks are declared in topological order per scope; ties sort by trigger first, then hint
   `order`, then key. A ref that would point forward (a ref cycle) prints as literal text
   (`W_FORWARD_REF_LITERALIZED`).
+- Each wiring statement prints right under the last-declared block it names, so a block's incoming
+  edges sit under its declaration and its outgoing ones under each target: finding a block's edges
+  in a long file needs no search. Compile takes wiring anywhere after the blocks it names.
 - Idents come from hints, else `assignIdentifiers`.
 - Only active values print, and none equal to its default. A pair prints under its
   `canonicalParamId` (or its alias) and the value kind alone picks the member (see SYNTAX.md "Pair

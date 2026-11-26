@@ -3008,9 +3008,10 @@ describe('renames in source', () => {
         files = edit(renameIdent(files, ident, newIdent), `fn('${name}'`, `fn('${newName}'`)
       }
       files = edit(edit(files, 'return 1', 'return 10'), 'return 2', 'return 20')
+      files = edit(edit(files, '  start.to(bang)\n', ''), '  bang.to(total)\n', '')
       files = edit(
         files,
-        '  start.to(bang)\n  bang.to(total)\n  total.to(report)',
+        '  total.to(report)',
         '  start.to(report)\n  report.to(bang)\n  report.to(total)'
       )
 
@@ -3054,12 +3055,16 @@ describe('renames in source', () => {
           ...edit(
             edit(
               edit(
-                source.files,
-                "  const tally = fn('Tally', { language: null, code: codeFile('./functions/tally.js') })\n",
-                "  const fresh = fn('Fresh', { code: js`return 'unrelated'` })\n"
+                edit(
+                  source.files,
+                  "  const tally = fn('Tally', { language: null, code: codeFile('./functions/tally.js') })\n",
+                  "  const fresh = fn('Fresh', { code: js`return 'unrelated'` })\n"
+                ),
+                '  boom.to(tally)\n',
+                '  start.to(fresh)\n'
               ),
-              '  boom.to(tally)\n  tally.to(report)',
-              '  boom.to(report)\n  start.to(fresh)'
+              '  tally.to(report)',
+              '  boom.to(report)'
             ),
             'import { codeFile, fn,',
             'import { codeFile, fn, js,'

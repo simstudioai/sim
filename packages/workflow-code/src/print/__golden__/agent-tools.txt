@@ -52,6 +52,5 @@ export default workflow('Fixture', {}, () => {
       childWorkflow('enrich-lead').asTool({ usageControl: 'auto' }),
     ],
   })
-
   start.to(assistant)
 })

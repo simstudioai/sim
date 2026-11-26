@@ -3340,7 +3340,10 @@ export const v2ImportWorkflowContract = defineRouteContract({
  */
 export const MAX_WORKFLOW_GRAPH_BLOCKS = 2000
 export const MAX_WORKFLOW_GRAPH_EDGES = 10_000
-/** Ceiling on one `POST /operations` batch. */
+/**
+ * Ceiling on one `POST /operations` batch: a bound on the request, the one transaction and the
+ * report an atomic batch writes, not on a workflow's size. A larger edit splits into batches.
+ */
 export const MAX_WORKFLOW_EDIT_OPERATIONS = 200
 /** Ceiling on the complete tool list assigned to one Agent block. */
 export const MAX_AGENT_TOOLS_PER_BLOCK = 100
@@ -4342,7 +4345,7 @@ export const v2ApplyWorkflowOperationsBodySchema = z
       .min(1, 'operations cannot be empty')
       .max(
         MAX_WORKFLOW_EDIT_OPERATIONS,
-        `operations cannot exceed ${MAX_WORKFLOW_EDIT_OPERATIONS} entries`
+        `operations cannot exceed ${MAX_WORKFLOW_EDIT_OPERATIONS} entries: split the edit into batches of at most ${MAX_WORKFLOW_EDIT_OPERATIONS}, applied in turn (atomic covers one batch); a later batch names a block an earlier one added by the id in that apply's mintedBlockIds`
       )
       .describe('Edits to apply, in a single batch.'),
     atomic: z

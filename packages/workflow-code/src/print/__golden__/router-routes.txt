@@ -8,10 +8,9 @@ export default workflow('Fixture', {}, () => {
     model: 'claude-sonnet-5-5',
     routes: { small: 'Under $100, auto-approve', review: 'Needs a manager' },
   })
-  const approve = response('Approve', {})
-  const escalate = response('Escalate', {})
-
   start.to(triage)
+  const approve = response('Approve', {})
   triage.small.to(approve)
+  const escalate = response('Escalate', {})
   triage.review.to(escalate)
 })
