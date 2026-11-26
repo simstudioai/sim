@@ -15,7 +15,9 @@ import { knowledgeUpsertDocumentTool } from '@/tools/knowledge/upsert_document'
 import { resendSendTool } from '@/tools/resend/send'
 import { answerUnsentCall, describeToolRequest, unsentWriteFor } from '@/tools/side-effects'
 import { slackMessageTool } from '@/tools/slack/message'
+import { telegramMessageTool } from '@/tools/telegram/message'
 import type { ExecutableToolConfig } from '@/tools/types'
+import { zendeskCreateTicketTool } from '@/tools/zendesk/create_ticket'
 
 vi.unmock('@/tools/metadata-outputs')
 
@@ -28,6 +30,8 @@ const TOOLS = new Map<string, ExecutableToolConfig>(
     knowledgeUpsertDocumentTool,
     resendSendTool,
     slackMessageTool,
+    telegramMessageTool,
+    zendeskCreateTicketTool,
   ].map((tool) => [tool.id, tool])
 )
 
@@ -176,7 +180,65 @@ describe('a dry run’s placeholder for an unsent write', () => {
   ])('$case', async ({ toolId, params, read, not }) => {
     const returned = await placeholderFor(toolId, params)
 
+    expect(read(returned)).toEqual(expect.stringMatching(/^dry_run_/))
     expect(read(returned)).not.toBe(not)
+  })
+
+  it.each([
+    {
+      toolId: 'knowledge_upsert_document',
+      params: { knowledgeBaseId: 'kb1', name: 'Runbook', content: 'steps' },
+      pairs: [
+        [
+          (r: Record<string, unknown>) => toRecord(r.data).documentId,
+          (r: Record<string, unknown>) => r.documentId,
+        ],
+      ],
+    },
+    {
+      toolId: 'zendesk_create_ticket',
+      params: { accessToken: SECRET, subdomain: 'acme', subject: 'Help', description: 'x' },
+      pairs: [
+        [
+          (r: Record<string, unknown>) => toRecord(r.ticket).id,
+          (r: Record<string, unknown>) => r.ticket_id,
+        ],
+      ],
+    },
+    {
+      toolId: 'slack_message',
+      params: { accessToken: SECRET, channel: 'C1', text: 'hi' },
+      pairs: [
+        [
+          (r: Record<string, unknown>) => toRecord(r.message).ts,
+          (r: Record<string, unknown>) => r.ts,
+        ],
+        [
+          (r: Record<string, unknown>) => toRecord(r.message).channel,
+          (r: Record<string, unknown>) => r.channel,
+        ],
+      ],
+    },
+  ])(
+    '$toolId reports one placeholder id wherever its output repeats it',
+    async ({ toolId, params, pairs }) => {
+      const returned = await placeholderFor(toolId, params)
+
+      for (const [nested, topLevel] of pairs) {
+        expect(nested(returned)).toBeDefined()
+        expect(nested(returned)).toBe(topLevel(returned))
+      }
+    }
+  )
+
+  it('echoes the chat a Telegram message names by a numeric id given as a number', async () => {
+    const returned = await placeholderFor('telegram_message', {
+      botToken: SECRET,
+      chatId: -1001234,
+      text: 'hi',
+    })
+
+    expect(returned).toMatchObject({ data: { chat: { id: -1001234 } } })
   })
 
   it('samples a file list a placeholder cannot hold as empty', async () => {

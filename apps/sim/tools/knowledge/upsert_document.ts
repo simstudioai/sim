@@ -1,3 +1,4 @@
+import { dryRunId } from '@/tools/dry-run'
 import { selectKnowledgeDocumentWriteSecretProvenance } from '@/tools/knowledge/secret-provenance'
 import {
   inferDocumentFileInfo,
@@ -125,12 +126,17 @@ export const knowledgeUpsertDocumentTool: InternalToolConfig<
   },
 
   /**
-   * A dry run's placeholder names the document the call writes. Its id stays a placeholder: an
-   * upsert always creates a new document, and an id the call names becomes `previousDocumentId`.
+   * A dry run's placeholder names the document the call writes. Its id stays a placeholder, one
+   * value under both fields that carry it: an upsert always creates a new document, and an id the
+   * call names becomes `previousDocumentId`.
    */
-  dryRunOutput: (params) => ({
-    data: { documentName: inferDocumentFileInfo(params.name.trim()).filename },
-  }),
+  dryRunOutput: (params) => {
+    const documentId = dryRunId('document_id')
+    return {
+      data: { documentName: inferDocumentFileInfo(params.name.trim()).filename, documentId },
+      documentId,
+    }
+  },
 
   transformResponse: async (response): Promise<KnowledgeUpsertDocumentResponse> => {
     const result = await response.json()

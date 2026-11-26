@@ -62,7 +62,7 @@ export const telegramMessageTool: ToolConfig<
    * stripped.
    */
   dryRunOutput: (params) => {
-    const chatId = params.chatId.trim()
+    const chatId = String(params.chatId).trim()
     return {
       message: 'Message sent successfully',
       ...(/^-?\d+$/.test(chatId) ? { data: { chat: { id: Number(chatId) } } } : {}),

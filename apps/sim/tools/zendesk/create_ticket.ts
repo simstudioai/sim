@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { dryRunNumber } from '@/tools/dry-run'
 import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
@@ -167,7 +168,8 @@ export const zendeskCreateTicketTool: ToolConfig<
   /**
    * A dry run's placeholder holds the subject, first comment and the priority, status, type,
    * assignee, group and requester the call sets on the ticket it creates (each id as the number
-   * Zendesk returns); Zendesk's defaults and the ticket's id stay placeholders.
+   * Zendesk returns); Zendesk's defaults stay placeholders, and the ticket's id is one placeholder
+   * under both fields that carry it.
    */
   dryRunOutput: (params) => {
     const ids = Object.entries({
@@ -178,8 +180,11 @@ export const zendeskCreateTicketTool: ToolConfig<
       const digits = id ? String(id).trim() : ''
       return /^\d+$/.test(digits) ? [[field, Number(digits)] as const] : []
     })
+    const ticketId = dryRunNumber()
     return {
+      ticket_id: ticketId,
       ticket: {
+        id: ticketId,
         subject: params.subject,
         raw_subject: params.subject,
         description: params.description,
