@@ -105,6 +105,11 @@ export function registerSearchPeopleTool(
         ...(chain.length ? { managerChain: chain.map(summaryFacts) } : {}),
         ...(reports.length ? { directReports: reports.map(reportFacts) } : {}),
         totalDirectReports: totalReports,
+        ...(totalReports > reports.length
+          ? {
+              note: `directReports lists the first ${reports.length} of ${totalReports}; search by department or title to find the others.`,
+            }
+          : {}),
       },
     }
   }

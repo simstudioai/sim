@@ -154,3 +154,7 @@ export const searchPeopleMcpSchema = z
       .describe('nextCursor from the previous page of the same query.'),
   })
   .strict()
+  .refine((input) => !input.personId || (input.query === undefined && !input.cursor), {
+    path: ['personId'],
+    message: 'Pass either personId or a query with its cursor, not both.',
+  })
