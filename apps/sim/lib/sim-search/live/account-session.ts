@@ -42,6 +42,18 @@ type Reference = Pick<
   'id' | 'container' | 'kind' | 'revision' | 'threadId' | 'accessMetadata' | 'connectionBinding'
 >
 
+/**
+ * Whether a failed link lookup is an answer about the project itself (not found, or on another
+ * branch) rather than an outage, rate limit, or credential failure that says nothing about it.
+ */
+function isProjectAnswer(error: unknown): boolean {
+  return (
+    error instanceof NativeSearchError &&
+    error.status === 'unavailable' &&
+    (error.httpStatus === undefined || error.httpStatus < 500)
+  )
+}
+
 /** One member account's provider clients and the source boundary that bounds its results. */
 export interface LiveAccountSession {
   /** The effective policy: the service source's settings in service mode, else the member's. */
@@ -270,10 +282,13 @@ export async function openLiveAccountSession(
          * The administrator's token sees projects the reader may not, so a link reads as
          * unreachable unless the reader may open it: no project's existence or branch leaks.
          */
-        const located = await locateDocumentLink(link, { client, origin }).catch(() => {
-          signal.throwIfAborted()
-          return undefined
-        })
+        const located = await locateDocumentLink(link, { client, origin }).catch(
+          (error: unknown) => {
+            signal.throwIfAborted()
+            if (!isProjectAnswer(error)) throw error
+            return undefined
+          }
+        )
         return located && (await verify(located)) ? located : undefined
       }
       const located = await locateDocumentLink(link, { client, origin })

@@ -22,6 +22,7 @@ vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({
 }))
 
 import { openLiveAccountSession } from '@/lib/sim-search/live/account-session'
+import { NativeSearchError } from '@/lib/sim-search/live/http'
 
 const fileLink: DocumentLink = {
   provider: 'gitlab',
@@ -54,7 +55,6 @@ async function adminSession() {
 
 describe('administrator GitLab link location', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     projectLookup.mockResolvedValue({ id: 7, default_branch: 'release-2026' })
   })
 
@@ -75,5 +75,13 @@ describe('administrator GitLab link location', () => {
     await expect(
       session.locate({ ...fileLink, blob: ['release-2026', 'src', 'a.ts'] })
     ).resolves.toMatchObject({ id: 'src/a.ts', container: '7', kind: 'code' })
+  })
+
+  it('still reports a GitLab outage instead of calling the link unreachable', async () => {
+    projectLookup.mockRejectedValue(
+      new NativeSearchError('unavailable', 'GitLab is unavailable.', undefined, 503)
+    )
+    const session = await adminSession()
+    await expect(session.locate(fileLink)).rejects.toThrow('GitLab is unavailable.')
   })
 })
