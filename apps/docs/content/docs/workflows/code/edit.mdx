@@ -76,7 +76,7 @@ Editing the name or description in `workflow('…')` renames or redescribes the 
 
 ### Deploy
 
-Saving writes the draft. Add `--deploy` to deploy right after the save, which also prints the URL of each webhook the workflow now serves. Without it, a deployed workflow whose draft now differs prints the `sim workflows deploy` command to run.
+Saving writes the draft. Add `--deploy` to deploy right after the save, which also prints the URL of each webhook the workflow now serves. Add `--run '<input json>'` to dry-run the saved draft with that input first: with `--deploy`, it deploys only if the run completed. Without `--deploy`, a deployed workflow whose draft now differs prints the `sim workflows deploy` command to run, pinned to the draft this apply saved; after an apply without `--run`, it also names the apply that tests and deploys in one step.
 
 ### Deletes
 

@@ -8617,7 +8617,7 @@ API request and response schemas: [getSourceResources](/api-reference/workflows/
 Show a workflow’s draft as TypeScript source with its identity lock
 
 ```bash
-sim workflows source get <workflowId> [options]
+sim workflows source get <workflow> [options]
 ```
 
 **Arguments**
@@ -8626,7 +8626,7 @@ sim workflows source get <workflowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
+| `workflow` | Yes | Workflow id, or its exact name |
 
 </CommandTable>
 
@@ -8642,7 +8642,7 @@ sim workflows source get <workflowId> [options]
 
 </CommandTable>
 
-Exit codes with --dir: 0 written; 1 the command failed, the directory is a workspace source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again.
+Exit codes with --dir: 0 written; 1 the command failed, no workflow or several are named exactly the name given (WORKFLOW_NOT_FOUND, WORKFLOW_NAME_AMBIGUOUS: each candidate is listed with its id), the directory is a workspace source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again.
 
 API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
 
@@ -8675,14 +8675,15 @@ sim workflows source apply [workflowId] [options]
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. Defaults to `.`. |
 | `--dry` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
-| `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
+| `--run [input]` | No | After the write is saved, dry-run the draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it): a run that does not complete exits 1 and deploys nothing. |
+| `--deploy` | No | After the write is saved (and a --run completed), deploy the workflow (as `sim workflows deploy <workflowId>` does). |
 | `--allow-delete` | No | Delete blocks and variables the source no longer declares; without it, an apply that deletes one is refused. |
 
 </CommandTable>
 
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflowId given is not the one .sim/base.json names (SOURCE_WORKFLOW_MISMATCH: the directory holds another workflow's source), or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was written: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was sent, run `sim login` (or fix or unset SIM_API_KEY when the key comes from it) and the command again; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it); 130 interrupted (Ctrl-C): a write already sent is finished and saved into the directory first, waiting up to 60s for its answer, and a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflowId given is not the one .sim/base.json names (SOURCE_WORKFLOW_MISMATCH: the directory holds another workflow's source), the --run test run did not complete (the draft is saved; nothing was deployed), or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was written: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was sent, run `sim login` (or fix or unset SIM_API_KEY when the key comes from it) and the command again; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it); 130 interrupted (Ctrl-C): a write already sent is finished and saved into the directory first, waiting up to 60s for its answer, and a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
 
-API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment), [getSourceResources](/api-reference/workflows/getSourceResources).
+API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment), [getSourceResources](/api-reference/workflows/getSourceResources), [executeWorkflow](/api-reference/workflows/executeWorkflowV2).
 
 ### sim workflows source create
 
@@ -8705,13 +8706,14 @@ sim workflows source create [options]
 | `--name <name>` | No | The workflow name (default: the source's). |
 | `--folder <path>` | No | The folder to create it in (default: the root). |
 | `-y, --yes` | No | Create without asking for confirmation. |
-| `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
+| `--run [input]` | No | After the write is saved, dry-run the draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it): a run that does not complete exits 1 and deploys nothing. |
+| `--deploy` | No | After the write is saved (and a --run completed), deploy the workflow (as `sim workflows deploy <workflowId>` does). |
 
 </CommandTable>
 
-Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflow name is taken (SOURCE_NAME_TAKEN: pass --name), or the command failed (a starter is created in the workspace its types were written for unless --workspace or SIM_WORKSPACE names another); 6 the folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was sent, run `sim login` (or fix or unset SIM_API_KEY when the key comes from it) and the command again; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was created (run the same command with --yes); 130 interrupted (Ctrl-C): a write already sent is finished and saved into the directory first, waiting up to 60s for its answer, and a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
+Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflow name is taken (SOURCE_NAME_TAKEN: pass --name), the --run test run did not complete (the workflow is created; nothing was deployed), or the command failed (a starter is created in the workspace its types were written for unless --workspace or SIM_WORKSPACE names another); 6 the folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was sent, run `sim login` (or fix or unset SIM_API_KEY when the key comes from it) and the command again; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was created (run the same command with --yes); 130 interrupted (Ctrl-C): a write already sent is finished and saved into the directory first, waiting up to 60s for its answer, and a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
 
-API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment).
+API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment), [executeWorkflow](/api-reference/workflows/executeWorkflowV2).
 
 ### sim workflows source check
 

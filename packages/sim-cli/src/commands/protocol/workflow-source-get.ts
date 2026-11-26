@@ -1,18 +1,22 @@
+import { isValidUuid } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
-import type { GetWorkflowSourceResponse } from '../../generated/v2-api'
-import { callsOperations } from '../../runtime/called-operations'
+import type { GetWorkflowSourceResponse, ListWorkflowsResponse } from '../../generated/v2-api'
+import { callsOperations, type OperationClient } from '../../runtime/called-operations'
+import { DEFAULT_PAGE_SIZE } from '../../runtime/options'
 import { buildRequest } from '../../runtime/request'
-import { SourceDirError } from './local-errors'
+import { CliUsageError, SourceDirError } from './local-errors'
 import { folderChildResults } from './source-check'
 import {
   absoluteDirOption,
   assertPrintedSourcePaths,
   assertSourceDirKind,
+  directoryWorkspace,
   locallyEditedFiles,
   readPreviousLock,
   readSourceJson,
+  recordedWorkspace,
   withSourceCommandLock,
 } from './source-dir'
 import { sourceExitCodesHelp } from './source-exit-codes'
@@ -55,6 +59,43 @@ async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<v
   )
 }
 
+/** How many candidates a refused name lookup names. */
+const NAMED_CANDIDATES = 10
+
+/**
+ * The workflow `workflow` names: a UUID as it is, else the one workflow in the workspace whose
+ * name is exactly `workflow`. No match or several are refused, naming the candidates with their
+ * ids (a workflow's name is unique only within its folder).
+ */
+async function resolveWorkflow(
+  client: OperationClient<'listWorkflows'>,
+  workflow: string,
+  /** The workspace to look in when not the command's own: a directory's recorded one. */
+  inWorkspace?: string
+): Promise<string> {
+  if (isValidUuid(workflow)) return workflow
+  const workspaceId = client.requireWorkspace(inWorkspace)
+  // Every page: an exact match or a second one can sort after the first page of substring hits.
+  const found = await client.requestAllPages<ListWorkflowsResponse['data'][number]>(
+    'listWorkflows',
+    { query: { workspaceId, search: workflow }, pageSize: DEFAULT_PAGE_SIZE }
+  )
+  const exact = found.filter(({ name }) => name === workflow)
+  if (exact.length === 1) return exact[0].id
+  const candidates = exact.length > 1 ? exact : found
+  const listed = candidates
+    .slice(0, NAMED_CANDIDATES)
+    .map(({ id, name, folderPath }) => `${name} (${id}${folderPath ? `, in ${folderPath}` : ''})`)
+  const more = candidates.length - listed.length
+  const named = `${listed.join('; ')}${more > 0 ? `; and ${more} more` : ''}`
+  throw new CliUsageError(
+    exact.length > 1
+      ? `${exact.length} workflows are named "${workflow}": ${named}. Get one by its id.`
+      : `No workflow is named exactly "${workflow}"${listed.length > 0 ? `; names containing it: ${named}` : ' in this workspace'}. Pass its id or exact name (\`sim workflows list\` lists them).`,
+    { code: exact.length > 1 ? 'WORKFLOW_NAME_AMBIGUOUS' : 'WORKFLOW_NOT_FOUND' }
+  )
+}
+
 /**
  * Teaches the generated `workflows source get` leaf `--dir <dir>`: instead of printing the
  * response, it writes `workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`, SDK
@@ -77,7 +118,10 @@ export function attachWorkflowSourceGet(source: Command): void {
     'getWorkflowSource',
     'getSourceCatalog',
     'getSourceResources',
+    'listWorkflows',
   ])
+  const [workflowArgument] = get.registeredArguments
+  if (workflowArgument) workflowArgument.description = 'Workflow id, or its exact name'
 
   get.option(
     `--${DIR_FLAG} <dir>`,
@@ -89,12 +133,16 @@ export function attachWorkflowSourceGet(source: Command): void {
   )
   absoluteDirOption(get)
   get.addHelpText('after', sourceExitCodesHelp('workflows source get', 'Exit codes with --dir'))
-  get.action(async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
+  get.action(async (workflow: string, _options: unknown, command: Command): Promise<void> => {
     const flags = command.optsWithGlobals() as Record<string, unknown>
     const dir = flags[DIR_FLAG]
     if (typeof dir !== 'string') {
       try {
-        await previous(command.processedArgs)
+        // An id needs no connection here: the generated handler connects on its own.
+        const workflowId = isValidUuid(workflow)
+          ? workflow
+          : await resolveWorkflow(connectGet().client, workflow)
+        await previous([workflowId, ...command.processedArgs.slice(1)])
       } catch (error) {
         throw withSourceExitCode(error)
       }
@@ -103,8 +151,20 @@ export function attachWorkflowSourceGet(source: Command): void {
     await withSourceCommandLock(dir, async () => {
       const force = flags[FORCE_FLAG] === true
       await assertSourceDirKind(dir, 'workflow')
-      if (!force) await assertSameWorkflow(dir, workflowId)
       const { client, profile } = connectGet()
+      // A name is looked up in the workspace the directory was read from, as its other commands
+      // act on it; --force gets into it from the command's own workspace instead.
+      const recorded = force
+        ? null
+        : directoryWorkspace(
+            dir,
+            await recordedWorkspace(dir, profile),
+            profile,
+            (_from, _named, setting) =>
+              `Drop ${setting}, or pass --force to replace it with a workflow from ${setting}.`
+          )
+      const workflowId = await resolveWorkflow(client, workflow, recorded ?? undefined)
+      if (!force) await assertSameWorkflow(dir, workflowId)
       const request = await buildRequest(
         'getWorkflowSource',
         [workflowId],

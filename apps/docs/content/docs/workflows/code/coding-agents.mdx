@@ -16,17 +16,19 @@ Point the agent at `.sim/AGENTS.md` before it edits.
 
 ## The loop
 
-1. `sim workflows source get <workflowId> --dir <dir>` writes the workflow and the guide.
+1. `sim workflows source get <workflow> --dir <dir> && cat <dir>/.sim/AGENTS.md` writes the workflow and the guide and reads the guide's primer in the same call. `<workflow>` is the workflow's id or its exact name.
 2. Write every file the change needs.
 3. Run one chained command, then fix whatever it reports in the next step:
 
    ```bash
-   sim workflows source check --dir <dir> && sim workflows source apply --dir <dir> --yes && sim workflows run <workflowId> --dry --input '{...}'
+   sim workflows source check --dir <dir> && sim workflows source apply --dir <dir> --yes --run '{...}' --deploy
    ```
 
    A non-zero exit code stops the chain at the first failure. `apply` compiles the source and compares it with the saved draft again, so an agent can skip `--dry`. `check` also type-checks the directory, so the chain needs no separate `tsc`. People and CI use `apply --dry` to review the plan, and `status` shows what changed and what to run next.
 
-   `run --dry` tests the saved draft without sending its writes: each write returns a placeholder and is listed under `sideEffects` with the request it would have sent, so the agent checks payloads instead of cleaning up rows or messages. `--allow <block>` sends one block's writes for real against a test resource, and `--draft` runs everything for real.
+   `--run` dry-runs the saved draft with that input, and `--deploy` deploys only if the run completed; a run that fails exits 1, deploys nothing, and maps the failing block to its file and line. Drop `--deploy` to keep the change a draft. The result opens with a one-line `summary` and ends with `errors`, `warnings`, `live` and `next`, so a `| head` or `| tail` of it still shows the outcome.
+
+   The dry run (also `sim workflows run <workflowId> --dry`) tests the saved draft without sending its writes: each write returns a placeholder and is listed under `sideEffects` with the request it would have sent, so the agent checks payloads instead of cleaning up rows or messages. `--allow <block>` sends one block's writes for real against a test resource, and `--draft` runs everything for real.
 
 For a whole workspace, use `sim workspaces source` with the same steps; see [Manage a workspace as code](/workflows/code/workspace).
 

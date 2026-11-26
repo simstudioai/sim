@@ -716,6 +716,8 @@ export const CLI_CONTRACT: CliContract = {
   getWorkflowSource: {
     command: 'workflows source get',
     describe: 'Show a workflow’s draft as TypeScript source with its identity lock',
+    // `workflow-source-get.ts` resolves a name to its id before the request.
+    pathArgumentNames: { workflowId: 'workflow' },
   },
   /** `workflows source apply --dir <dir>` reads and writes a source directory by hand. */
   applyWorkflowSource: { hidden: true },

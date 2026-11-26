@@ -116,7 +116,11 @@ describe('withDeploymentLive after a deploy', () => {
   ])('$name', ({ response, live, next }) => {
     const payload = { id: ID, isDeployed: true, warnings: [], ...response }
     const shown = withDeploymentLive('deployWorkflow', payload) as Record<string, unknown>
-    expect(Object.keys(shown)[0]).toBe('live')
+    expect(
+      Object.keys(shown)
+        .filter((key) => key !== 'next')
+        .at(-1)
+    ).toBe('live')
     expect(shown.live).toBe(live)
     expect(shown.next).toEqual(step(next))
   })

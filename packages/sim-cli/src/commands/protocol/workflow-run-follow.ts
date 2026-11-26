@@ -10,7 +10,7 @@ import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
 import { safeOneLine, sanitize } from '../../output/render'
-import { callsOperations, connect } from '../../runtime/called-operations'
+import { callsOperations, connect, type OperationClient } from '../../runtime/called-operations'
 import { runFailureMessage } from '../../runtime/execute'
 import { retypeApiError } from '../../runtime/naming'
 import { collectRepeated } from '../../runtime/options'
@@ -274,7 +274,11 @@ async function resolveWorkflowRunSelection(
  * `overrides` name it: by id, a child's as `<workflowId>.<blockId>`. The request payloads are in
  * the result itself (`--output json`).
  */
-function printSideEffects(sideEffects: unknown, overrides: unknown, workflowId: unknown): void {
+export function printSideEffects(
+  sideEffects: unknown,
+  overrides: unknown,
+  workflowId: unknown
+): void {
   if (!isRecordLike(sideEffects)) return
   const list = (key: string) => toArray(sideEffects[key]).filter(isRecordLike)
   const stubbed = list('stubbed')
@@ -447,6 +451,63 @@ function stillRunning(runId: string, workflowId: string, waitedSeconds: number) 
     `Run ${runId} is still ${snapshot.status} after ${waitedSeconds}s and continues in the background. Keep waiting: sim workflows runs wait ${runId} --workflow ${workflowId} --wait-timeout ${waitedSeconds}. Stop it: sim workflows runs cancel ${runId} --workflow ${workflowId}`
 }
 
+/** Sends a run this command waits for and reads its answer over the heartbeat transport. */
+async function sendWaitedRun(
+  client: OperationClient<'executeWorkflow'>,
+  workflowId: string,
+  flags: Record<string, unknown>,
+  workspaceId: string | null,
+  selection: WorkflowRunSelection | undefined,
+  waitTimeoutSeconds?: number
+): Promise<WorkflowResult> {
+  const request = await runRequest(workflowId, flags, workspaceId, selection, true)
+  const response = await client.requestRaw('executeWorkflow', {
+    params: request.params,
+    query: request.query,
+    body: waitTimeoutSeconds === undefined ? request.body : { ...request.body, waitTimeoutSeconds },
+    headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
+  })
+  return readWorkflowResult(response)
+}
+
+/**
+ * The run record of `sim workflows run <workflowId> --dry --input <input>`: the saved draft run
+ * with its writes stubbed, waited for. `input` is read as `--input` reads it (JSON, or `@file`).
+ * A failed run is returned, not thrown: the caller decides what it stops.
+ */
+export async function dryRunDraft(
+  client: OperationClient<'executeWorkflow'>,
+  workflowId: string,
+  input: string | undefined,
+  workspaceId: string | null
+): Promise<Record<string, unknown>> {
+  const commandSpec = CLI_CONTRACT.executeWorkflow ?? {}
+  try {
+    const result = await sendWaitedRun(
+      client,
+      workflowId,
+      input === undefined ? {} : { input },
+      workspaceId,
+      { source: 'draft', dry: true }
+    )
+    // A dry run is never detached (it cannot take --wait-timeout); a server that did is reported.
+    if ('detachedRunId' in result) {
+      throw new SimApiError(
+        `The test run ${result.detachedRunId} continued in the background: sim workflows runs wait ${result.detachedRunId} --workflow ${workflowId}`,
+        0
+      )
+    }
+    return result.settled
+  } catch (error) {
+    throw retypeApiError(
+      error,
+      'executeWorkflow',
+      commandSpec,
+      V2_OPERATIONS.executeWorkflow as OperationSpec
+    )
+  }
+}
+
 /**
  * Runs synchronously while keeping idle-limited HTTP paths active.
  *
@@ -467,15 +528,14 @@ async function runWithResultStream(
   const commandSpec = CLI_CONTRACT.executeWorkflow ?? {}
 
   try {
-    const request = await runRequest(workflowId, flags, profile.workspaceId, selection, true)
-    const response = await client.requestRaw('executeWorkflow', {
-      params: request.params,
-      query: request.query,
-      body:
-        waitTimeoutSeconds === undefined ? request.body : { ...request.body, waitTimeoutSeconds },
-      headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
-    })
-    const result = await readWorkflowResult(response)
+    const result = await sendWaitedRun(
+      client,
+      workflowId,
+      flags,
+      profile.workspaceId,
+      selection,
+      waitTimeoutSeconds
+    )
     if ('detachedRunId' in result) {
       // The server already spent the wait, so the run is read once and reported.
       const now = Date.now()
