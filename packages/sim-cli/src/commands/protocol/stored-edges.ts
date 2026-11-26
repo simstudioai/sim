@@ -144,12 +144,13 @@ export function storedEdgesWrite(
 export function runFailingFindings(compiled: CompileResult | null, prefix = ''): Diagnostic[] {
   return (compiled?.diagnostics ?? [])
     .filter((diagnostic) => diagnostic.code === 'W_UNKNOWN_OUTPUT_PATH')
-    .map(({ code, severity, message, hint, blockKey, span }) => ({
+    .map(({ code, severity, message, hint, blockKey, span, frame }) => ({
       code,
       severity,
       message,
       ...(hint !== undefined ? { hint } : {}),
       ...(blockKey !== undefined ? { blockKey } : {}),
+      ...(frame !== undefined ? { frame } : {}),
       file: `${prefix}${span.file}`,
       line: span.line,
       column: span.column,
