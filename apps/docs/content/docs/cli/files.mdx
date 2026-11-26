@@ -82,7 +82,7 @@ sim files search [options]
 | `--query <value>` | Yes | Regular expression, or exact text when `mode` is `exact`. |
 | `--mode <value>` | No | How `query` is read. Defaults to "regex". Accepted values: `exact`, `regex`. |
 | `--max-results <value>` | No | Maximum matching lines to return. Defaults to 50. |
-| `--folder <value...>` | No | Folders to search, by path as shown in the app; omit to search the whole workspace (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder <value...>` | No | Folders to search, by path as shown in the app; omit to search the whole workspace (space-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-subfolders` | No | Whether each folder scope includes nested folders; on by default. |
 | `--no-include-subfolders` | No | Send --include-subfolders as false. |
 

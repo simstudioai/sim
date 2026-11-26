@@ -6,10 +6,10 @@ import {
   type FieldSpec,
   flagNameFor,
   flagSpecFor,
+  listValuesOf,
   otherSpellings,
   PROFILE_INJECTED_FIELD,
   pathFlagNameFor,
-  splitsListValues,
   takesJson,
 } from './request'
 import type { OperationSpec } from './types'
@@ -212,9 +212,10 @@ function addFieldOption(
   }
 
   const takesList = flag.list === true
-  const inlineForms = splitsListValues(flag)
-    ? 'space- or comma-separated, a JSON array'
-    : 'space-separated'
+  const inlineForms =
+    listValuesOf(flag) === 'text'
+      ? 'space-separated, a JSON array'
+      : 'space- or comma-separated, a JSON array'
   const wantsJson = takesJson(descriptor, flag)
   const placeholder = takesList
     ? '<value...>'

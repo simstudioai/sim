@@ -47,7 +47,7 @@ sim logs list [options]
 | `--run-id <value>` | No | Exact run identifier to match. |
 | `--sort-by <value>` | No | Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs sort before recorded values in ascending order and after them in descending order. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included. Defaults to "startedAt". Accepted values: `startedAt`, `durationMs`, `cost`, `status`. |
 | `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -96,7 +96,7 @@ sim logs stats [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--workflow <value...>` | No | Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
 | `--include-handled-errors` | No | Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace. |

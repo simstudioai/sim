@@ -10,7 +10,7 @@ import {
   type OperationClient,
 } from '../../runtime/called-operations'
 import { retypeApiError } from '../../runtime/naming'
-import { buildRequest, readListValues } from '../../runtime/request'
+import { buildRequest, flagSpecFor, readListFlag } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
 
@@ -232,7 +232,11 @@ export function attachWorkflowRunGet(runs: Command): void {
     }
     // Expanded here, once: a `@-` source cannot be read twice, and the
     // generated path would read it again if it still saw the `@`.
-    const typed = await readListValues(raw, SELECT_OUTPUT_FLAG)
+    const typed = await readListFlag(
+      raw,
+      flagSpecFor('getWorkflowRun', 'selectedOutputs'),
+      SELECT_OUTPUT_FLAG
+    )
     command.setOptionValue('selectOutput', typed)
     if (typed.every(isIdHeaded)) {
       await previous(command.processedArgs)

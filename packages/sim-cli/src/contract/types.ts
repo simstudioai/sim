@@ -51,10 +51,17 @@ export interface FlagSpec {
    */
   hiddenAliases?: readonly string[]
   /**
-   * A {@link list} whose values may themselves hold a comma (a pip requirement such as
-   * `requests>=2,<3`), so each value is sent as typed rather than split into entries.
+   * How a {@link list} reads one inline value as entries; every list reads a JSON array of
+   * strings (`["a","b"]`) as its entries.
+   *
+   * - unset: ids, so a comma-joined run (`a,b`) is its entries too.
+   * - `text`: a value may hold a comma of its own (a pip requirement `requests>=2,<3`, an output
+   *   selector naming a block `Draft, Review`), so a comma never splits it. A folder path list
+   *   reads this way without saying so.
+   * - `fileReferences`: workspace file ids or `files/…` paths. A comma splits ids, never a value
+   *   that is a `files/` path, so a path keeps a comma in its name.
    */
-  keepsCommas?: true
+  listValues?: 'text' | 'fileReferences'
   /**
    * Accept one or more space-separated values, or `@path` / `@-` with one
    * value per line.

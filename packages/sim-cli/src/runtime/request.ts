@@ -327,23 +327,30 @@ export async function readArgumentSource(
   }
 }
 
-/**
- * Whether a list flag reads one value as several entries ({@link listEntries}). A folder path and
- * a {@link FlagSpec.keepsCommas} value may hold a comma of its own, so neither splits.
- */
-export function splitsListValues(flag: FlagSpec): boolean {
-  return !flag.keepsCommas && !flag.folderPath
+/** How a list flag reads one value as entries ({@link FlagSpec.listValues}). */
+export function listValuesOf(flag: FlagSpec): 'ids' | 'text' | 'fileReferences' {
+  return flag.listValues ?? (flag.folderPath ? 'text' : 'ids')
+}
+
+/** Whether `value`, read as `listValues`, is a comma-joined run of entries. */
+function splitsOnCommas(value: string, listValues: ReturnType<typeof listValuesOf>): boolean {
+  if (!value.includes(',')) return false
+  if (listValues === 'fileReferences') return !value.startsWith('files/')
+  return listValues === 'ids'
 }
 
 /**
- * The entries one list value carries: a JSON array's strings, a comma-joined run of ids, or the
- * value itself. A value holding a `/` (a `files/…` path) keeps its commas, so a path is never cut
- * in two.
+ * The entries one list value carries under its flag's {@link FlagSpec.listValues}: a JSON array's
+ * strings, a comma-joined run, or the value itself.
  */
-function listEntries(value: string, flagName: string): string[] {
+function listEntries(
+  value: string,
+  flagName: string,
+  listValues: ReturnType<typeof listValuesOf>
+): string[] {
   const entries = value.startsWith('[')
     ? jsonStringArray(value)
-    : value.includes(',') && !value.includes('/')
+    : splitsOnCommas(value, listValues)
       ? value.split(',')
       : undefined
   if (!entries) return [value]
@@ -372,15 +379,28 @@ function isManifestNoise(line: string): boolean {
 }
 
 /**
+ * A list flag's values as entries: argv and `@path` values ({@link readListValues}), each read
+ * under the flag's {@link FlagSpec.listValues}. The one parser every list goes through, a
+ * wrapper that reads a list before the request is built (`workflows runs get --select-output`)
+ * included.
+ */
+export async function readListFlag(
+  raw: unknown,
+  flag: FlagSpec,
+  flagName: string
+): Promise<string[]> {
+  const listValues = listValuesOf(flag)
+  return (await readListValues(raw, flagName, flag.manifest === true)).flatMap((value) =>
+    listEntries(value, flagName, listValues)
+  )
+}
+
+/**
  * Reads a primitive list from argv or a newline-delimited file. A `manifest`
  * list drops blank and `#` comment lines read from a file, so a requirements
  * file can be passed as it is on disk.
  */
-export async function readListValues(
-  raw: unknown,
-  flagName: string,
-  manifest = false
-): Promise<string[]> {
+async function readListValues(raw: unknown, flagName: string, manifest = false): Promise<string[]> {
   const arguments_ = Array.isArray(raw) ? raw : [raw]
   const values: string[] = []
   for (const argument of arguments_) {
@@ -532,12 +552,8 @@ export async function coerce(
    *   or failed validation outright.
    */
   if (flag.list) {
-    const listed = await readListValues(raw, flagName, flag.manifest === true)
-    const values = flag.folderPath
-      ? listed.map(encodeFolderPath)
-      : splitsListValues(flag)
-        ? listed.flatMap((value) => listEntries(value, flagName))
-        : listed
+    const listed = await readListFlag(raw, flag, flagName)
+    const values = flag.folderPath ? listed.map(encodeFolderPath) : listed
     // Encoding first is also what keeps the comma-joined form unambiguous: a
     // folder name containing a comma leaves here as `%2C`, so the route's split
     // cannot cut one path in half.

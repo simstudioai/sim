@@ -96,6 +96,17 @@ describe('sim workflows runs get --select-output', () => {
     })
   })
 
+  it('reads a JSON array of selectors as its entries before resolving names', async () => {
+    answer({ data: { runId: RUN_ID, status: 'completed', blockOutputs: {} } })
+    stdout()
+
+    await get('--select-output', '["summarizeresult.text","Save"]')
+
+    expect(request.mock.calls[1][1].query).toEqual({
+      selectedOutputs: `${SUMMARIZE_ID}.text,${SAVE_ID}`,
+    })
+  })
+
   it('refuses a name no block carries, says names are accepted, and lists them', async () => {
     answer({ data: { runId: RUN_ID, status: 'completed' } })
 

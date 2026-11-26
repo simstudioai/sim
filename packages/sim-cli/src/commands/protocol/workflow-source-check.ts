@@ -128,11 +128,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
               const checked = await typeCheck(options.dir, { enabled, compiled: findings })
               types = {
                 ...checked,
-                findings: await withStaleTableHints(
-                  checked.findings,
-                  options.dir,
-                  `sim workflows source status --dir ${options.dir}`
-                ),
+                findings: await withStaleTableHints(checked.findings, options.dir),
               }
             }
             reportCheck(

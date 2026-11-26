@@ -32,7 +32,7 @@ import {
   type Written,
 } from './source-dir'
 import { keptTableColumns, TSCONFIG_FILE, WORKSPACE_TYPES_FILE } from './source-tree'
-import type { Diagnostic } from './source-ui'
+import { type Diagnostic, shellWord } from './source-ui'
 
 /** The `--types` / `--no-types` pair: absent runs the type check. */
 export interface TypesOptions {
@@ -468,44 +468,72 @@ export async function typeCheck(
 /** tsc's excess-property error: the property, and the object type it is missing from. */
 const UNKNOWN_PROPERTY = /^TS2353: .*'([^']+)' does not exist in type '(.*)'\.?$/
 
-/** A member name in a printed object type (`{ body?: …; "due date": … }`), quoted or bare. */
-const TYPE_MEMBER = /(?:^|[{;]\s*)("(?:[^"\\]|\\.)*"|[A-Za-z_$][\w$]*)\??:/g
+/** A member name in a printed object type (`{ body?: …; 'due date': … }`), quoted or bare. */
+const TYPE_MEMBER = /(?:^|[{;]\s*)('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[A-Za-z_$][\w$]*)\??:/g
 
-/** The member names of a printed object type. */
+/** What tsc prints in place of the members a long type leaves out. */
+const ELIDED_MEMBERS = /\.\.\. \d+ more \.\.\./
+
+/** The member names of a printed object type, unquoted. */
 function typeMembers(printed: string): string[] {
   return [...printed.matchAll(TYPE_MEMBER)].map(([, name]) =>
-    name.startsWith('"') ? String(JSON.parse(name)) : name
+    /^['"]/.test(name) ? name.slice(1, -1).replace(/\\(.)/g, '$1') : name
   )
 }
 
 /**
- * Adds the refresh to a row write's excess-property type error when the row type is a table's as
- * the last get typed it: a column created since (`sim tables columns create`) is missing from those
- * types until a command that reads the server rewrites them, and a check makes no request. The
- * table is the one whose stored columns hold every member the error prints, and not the property.
+ * The stored table a row type printed in a type error is, when exactly one fits: its columns are
+ * the printed members (or hold them, when tsc elided some) and lack `property`. `null` when none
+ * fits, `undefined` when several do.
+ */
+function tableOfRow(
+  tables: ReadonlyMap<string, ReadonlySet<string>>,
+  property: string,
+  printed: string
+): string | null | undefined {
+  const members = typeMembers(printed)
+  if (members.length === 0) return null
+  const elided = ELIDED_MEMBERS.test(printed)
+  const fits = [...tables].filter(
+    ([, columns]) =>
+      !columns.has(property) &&
+      (elided || columns.size === members.length) &&
+      members.every((member) => columns.has(member))
+  )
+  if (fits.length === 0) return null
+  return fits.length === 1 ? fits[0][0] : undefined
+}
+
+/**
+ * Adds the refresh to a row write's excess-property type error when the row type is a stored
+ * table's as the last get typed it: a column created since (`sim tables columns create`) is
+ * missing from those types until a command that reads the server (`source status`) rewrites
+ * them, and a check makes no request. The hint names the table only when one table alone fits.
+ * Only a workflow directory of its own types tables from the kept manifest: in a workspace
+ * directory a table's row type comes from its `tables/<key>.ts`, which the check reads fresh.
  */
 export async function withStaleTableHints(
   findings: Diagnostic[],
-  dir: string,
-  refresh: string
+  dir: string
 ): Promise<Diagnostic[]> {
   const excess = (finding: Diagnostic) =>
     finding.code === 'E_TYPE' && !finding.hint && UNKNOWN_PROPERTY.test(finding.message)
   if (!findings.some(excess)) return findings
   const tables = await keptTableColumns(dir)
+  const refresh = `sim workflows source status --dir ${shellWord(dir)}`
   return findings.map((finding) => {
     const unknown = excess(finding) ? UNKNOWN_PROPERTY.exec(finding.message) : null
     if (!unknown) return finding
     const [, property, printed] = unknown
-    const members = typeMembers(printed)
-    if (members.length === 0) return finding
-    const table = [...tables].find(
-      ([, columns]) => !columns.has(property) && members.every((member) => columns.has(member))
-    )?.[0]
-    if (table === undefined) return finding
+    const table = tableOfRow(tables, property, printed)
+    if (table === null) return finding
+    const missing =
+      table === undefined
+        ? `"${property}" is not a column of the table in the types the last get wrote.`
+        : `"${property}" is not a column of table "${table}" in the types the last get wrote.`
     return {
       ...finding,
-      hint: `"${property}" is not a column of table "${table}" in the types the last get wrote. If it was added since (sim tables columns create), refresh them with \`${refresh}\`, then check again.`,
+      hint: `${missing} If it was added since (sim tables columns create), refresh them with \`${refresh}\`, then check again.`,
     }
   })
 }

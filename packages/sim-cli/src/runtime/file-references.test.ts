@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runEmbeddedCli } from '../embed'
+import { flagSpecFor, readListFlag } from './request'
 
 const identity = { endpoint: 'https://sim.test', apiKey: 'fixture', workspaceId: 'workspace' }
 
@@ -147,5 +148,35 @@ describe('every id list reads repeated, comma-joined and JSON-array values alike
     ])
     expect(result.exitCode).toBe(0)
     expect(result.bodies).toEqual([expect.objectContaining({ dependencies: ['requests>=2,<3'] })])
+  })
+})
+
+describe('lists whose values hold commas still read a JSON array', () => {
+  it('sends each specifier of a JSON-array --dependencies, keeping the commas inside one', async () => {
+    const result = await run([
+      'sandboxes',
+      'create',
+      '--name',
+      'box',
+      '--language',
+      'python',
+      '--dependencies',
+      '["requests>=2,<3","httpx"]',
+    ])
+    expect(result.exitCode).toBe(0)
+    expect(result.bodies).toEqual([
+      expect.objectContaining({ dependencies: ['requests>=2,<3', 'httpx'] }),
+    ])
+  })
+
+  it('keeps an output selector naming a block whose name holds a comma as one selector', async () => {
+    const flag = flagSpecFor('executeWorkflow', 'selectedOutputs')
+    expect(await readListFlag(['Draft, Review.content'], flag, 'select-output')).toEqual([
+      'Draft, Review.content',
+    ])
+    expect(await readListFlag(['["a.content","b"]'], flag, 'select-output')).toEqual([
+      'a.content',
+      'b',
+    ])
   })
 })
