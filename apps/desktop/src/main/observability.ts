@@ -82,8 +82,9 @@ const FAILURE_DEDUPE_MS = 5_000
  *
  * The recovery prompt never outlives a quit: a failure once a quit is committed
  * (`will-quit`) exits without asking, since a dialog opened during shutdown can
- * only fall back to a blocking native alert, and any quit request while the
- * prompt is open answers it as Quit. A `before-quit` that another listener
+ * only fall back to a blocking native alert, and a quit request while the
+ * bundled prompt is open answers it as Quit (the native fallback, used only when
+ * that page fails to load, cannot be answered by a quit). A `before-quit` that another listener
  * cancels leaves later failures their prompt.
  */
 export function installMainProcessFailureObservers({

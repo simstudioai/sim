@@ -5501,6 +5501,9 @@ export async function executeTool(
             tool !== 'browser_request_takeover' &&
             !BROWSER_TOOL_OBSERVES_ONLY[tool]
           const watchdogMs = browserToolWatchdogMs(tool, params)
+          // The waits for the user and for a first page spend the action's own budget: the client
+          // times the call as queue plus watchdog, so time spent before acting cannot be extra.
+          const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
           if (yieldsToUser && isUserWorkingInPage()) {
             await yieldToUser(
               toolCallId,
@@ -5531,11 +5534,15 @@ export async function executeTool(
             ? { contents: session.requireAutomationTab().view.webContents, response }
             : null
           const executionEpoch = ++state.toolExecutionEpoch
-          const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
           // Checked right before each input the action sends: a user who starts working in the
           // page mid-action (between a batch's steps, during a click's target probes) wins it.
+          // The pre-action waits can spend the whole budget; the watchdog's timer only fires once
+          // the action yields, so an input dispatched before then must check the deadline itself.
           const assertCurrentExecution = () => {
-            if (state.toolExecutionEpoch !== executionEpoch) {
+            if (
+              state.toolExecutionEpoch !== executionEpoch ||
+              (executionDeadline !== undefined && Date.now() >= executionDeadline)
+            ) {
               throw new ToolError('This browser action expired before it could dispatch input.')
             }
             if (yieldsToUser && isUserWorkingInPage()) {
@@ -5588,20 +5595,24 @@ export async function executeTool(
           )
           const cancellableExecution = Promise.race([execution, cancellation])
           const guardedExecution =
-            watchdogMs === null
+            executionDeadline === undefined
               ? cancellableExecution
-              : raceAgainstWatchdog(cancellableExecution, watchdogMs, () => {
-                  executionController.abort()
-                  if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
-                  if (
-                    tool === 'browser_snapshot' ||
-                    tool === 'browser_open_url' ||
-                    tool === 'browser_find' ||
-                    observeRequest(tool, params) !== undefined
-                  ) {
-                    invalidateSnapshot(state)
+              : raceAgainstWatchdog(
+                  cancellableExecution,
+                  Math.max(0, executionDeadline - Date.now()),
+                  () => {
+                    executionController.abort()
+                    if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
+                    if (
+                      tool === 'browser_snapshot' ||
+                      tool === 'browser_open_url' ||
+                      tool === 'browser_find' ||
+                      observeRequest(tool, params) !== undefined
+                    ) {
+                      invalidateSnapshot(state)
+                    }
                   }
-                })
+                )
           let observedResult: unknown
           try {
             observedResult = await guardedExecution

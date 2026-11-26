@@ -1,3 +1,4 @@
+import { dryRunId } from '@/tools/dry-run'
 import type { SlackMessageParams, SlackMessageResponse } from '@/tools/slack/types'
 import { MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { InternalToolConfig } from '@/tools/types'
@@ -111,14 +112,20 @@ export const slackMessageTool: InternalToolConfig<SlackMessageParams, SlackMessa
   /**
    * A dry run's placeholder holds the text the call sends, unless it holds `&`, `<` or `>`, which
    * Slack returns escaped or as links; the thread it replies in (which a message with files does
-   * not report); and how many files it attaches. The channel stays a placeholder: a DM's is the one
-   * Slack opens.
+   * not report); and how many files it attaches. The channel and timestamp stay placeholders (a
+   * DM's channel is the one Slack opens), each one value wherever the output repeats it.
    */
   dryRunOutput: (params) => {
     const threadTs = params.threadTs?.trim()
     const fileCount = params.files?.length ?? 0
+    const ts = dryRunId('ts')
+    const channel = dryRunId('channel')
     return {
+      ts,
+      channel,
       message: {
+        ts,
+        channel,
         ...(/[&<>]/.test(params.text) ? {} : { text: params.text }),
         ...(threadTs && fileCount === 0 ? { thread_ts: threadTs } : {}),
       },

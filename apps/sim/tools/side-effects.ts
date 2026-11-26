@@ -128,6 +128,17 @@ function readBody(body: string | undefined): unknown {
   }
 }
 
+/**
+ * Params the executor adds to every tool call for its own use. An in-process operation that
+ * forwards its params whole reads them in process and never sends them, so its recorded request
+ * leaves them out.
+ */
+const EXECUTOR_INJECTED_PARAMS: ReadonlySet<string> = new Set([
+  '_context',
+  '_credentialId',
+  '_workflowId',
+])
+
 /** What an MCP tool call would send its server: only the arguments it was given. */
 export function describeMcpToolRequest(params: Record<string, unknown>): unknown {
   return { arguments: parseMcpToolArguments(params) }
@@ -151,7 +162,12 @@ export function describeToolRequest(
     }
   }
   if (isInternalToolConfig(tool)) {
-    return tool.operation.input(params)
+    const input = tool.operation.input(params)
+    return isPlainRecord(input)
+      ? Object.fromEntries(
+          Object.entries(input).filter(([key]) => !EXECUTOR_INJECTED_PARAMS.has(key))
+        )
+      : input
   }
   const prepared = prepareToolRequest(tool, params)
   return { method: prepared.method, url: prepared.url, body: readBody(prepared.body) }
@@ -175,7 +191,11 @@ function checkScanDepth(depth: number): void {
 interface CallSecrets {
   /** Values masked wherever they reappear. */
   values: string[]
-  /** Password fields of the calling blocks, masked by name like a credential-named field. */
+  /**
+   * Password fields of the calling blocks, masked by name at the top level only: a nested field
+   * that shares a generic id (`projectId`, `url`) is row data, and the password's value is still
+   * masked wherever it reappears.
+   */
   passwordFields: ReadonlySet<string>
 }
 
@@ -190,7 +210,7 @@ function redactCredentials(value: unknown, secrets: CallSecrets, depth = 0): unk
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      isSensitiveKey(key) || secrets.passwordFields.has(key)
+      isSensitiveKey(key) || (depth === 0 && secrets.passwordFields.has(key))
         ? REDACTED_MARKER
         : redactCredentials(item, secrets, depth + 1),
     ])

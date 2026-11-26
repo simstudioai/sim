@@ -98,3 +98,10 @@ export function transformPageData(data: any) {
     },
   }
 }
+
+const NUMERIC_SPACE_ID_PATTERN = /^[1-9][0-9]{0,19}$/
+
+/** Whether a space identifier is a Confluence numeric space id rather than a space key. */
+export function isNumericConfluenceSpaceId(spaceIdentifier: string): boolean {
+  return NUMERIC_SPACE_ID_PATTERN.test(spaceIdentifier)
+}

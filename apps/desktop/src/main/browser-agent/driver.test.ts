@@ -154,6 +154,35 @@ describe('executeTool', () => {
     expect(result.error).toContain('the user started working in this page')
   })
 
+  it('sends no input once the action budget is spent, even before the watchdog timer fires', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    const watchdogMs = driver.browserToolWatchdogMs('browser_press_key', { key: 'Enter' })
+    if (watchdogMs === null) throw new Error('browser_press_key must have a watchdog')
+    vi.useFakeTimers()
+    try {
+      // The clock passes the deadline while the action reads the page, with no timer run yet.
+      const probe = vi.mocked(contents.executeJavaScript).getMockImplementation()
+      vi.mocked(contents.executeJavaScript).mockImplementation(async (...args) => {
+        vi.setSystemTime(Date.now() + watchdogMs + 1)
+        return probe ? probe(...args) : undefined
+      })
+      vi.mocked(contents.debugger.sendCommand).mockClear()
+
+      const pending = driver.executeTool('chat-test', 'browser_press_key', { key: 'Enter' })
+      await vi.advanceTimersByTimeAsync(watchdogMs)
+      const result = await pending
+
+      expect(result.ok).toBe(false)
+      expect(contents.debugger.sendCommand).not.toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.anything()
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('never makes a background read wait for the user', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     typeInAgentPage(session.requireTab().view.webContents)
@@ -1123,6 +1152,34 @@ describe('executeTool', () => {
         for (const onLoaded of listeners('did-stop-loading').slice(registered)) onLoaded()
         await vi.advanceTimersByTimeAsync(0)
         expect(contents.executeJavaScript).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('charges the first-page wait to the watchdog so the call ends within its budget', async () => {
+      const { contents, listeners, registered } = await openLoadingTab()
+      const watchdogMs = driver.browserToolWatchdogMs('browser_snapshot', {})
+      if (watchdogMs === null) throw new Error('browser_snapshot must have a watchdog')
+      const loadAfterMs = Math.floor(watchdogMs / 2) - 1
+      vi.mocked(contents.executeJavaScript).mockReturnValue(new Promise(() => {}))
+      vi.useFakeTimers()
+      try {
+        let outcome: unknown
+        void driver.executeTool('chat-test', 'browser_snapshot', {}).then((result) => {
+          outcome = result
+        })
+        await vi.advanceTimersByTimeAsync(loadAfterMs)
+        vi.mocked(contents.getURL).mockReturnValue('http://127.0.0.1/popup')
+        vi.mocked(contents.isLoading).mockReturnValue(false)
+        for (const onLoaded of listeners('did-stop-loading').slice(registered)) onLoaded()
+
+        // The page hangs once loaded; the call must still end at the watchdog measured from the start.
+        await vi.advanceTimersByTimeAsync(watchdogMs - loadAfterMs + 1)
+        expect(outcome).toMatchObject({
+          ok: false,
+          error: expect.stringContaining('did not finish this action in time'),
+        })
       } finally {
         vi.useRealTimers()
       }

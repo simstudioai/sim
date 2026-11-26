@@ -10,12 +10,13 @@
  *
  *   - a tool's static HTTP verb contradicts its label: GET/HEAD labelled `write`, or
  *     PUT/PATCH/DELETE labelled `read`, or a `read` tool's function-valued verb can return
- *     PUT/PATCH/DELETE. Some are genuine (a GET that reads an event and then writes
- *     it back in `transformResponse` or `postProcess`), so the contradiction passes when the
- *     tool's `effect` property carries `// tool-effect: <reason>` on one of the two lines above it;
- *   - a `// tool-effect:` annotation sits on a tool whose verb agrees with its label, or on a
- *     definition whose id is not a string literal, so stale or unattributable justifications do
- *     not accumulate.
+ *     PUT/PATCH/DELETE. A `write` sent by GET can be genuine (it reads an event and then writes
+ *     it back in `transformResponse` or `postProcess`), so that contradiction passes when the
+ *     tool's `effect` property carries `// tool-effect: <reason>` on one of the two lines above it.
+ *     A `read` sent by a write verb never does: when unsure, the label is `write`;
+ *   - a `// tool-effect:` annotation sits on a `read` tool, on a `write` whose verb agrees with
+ *     its label, or on a definition whose id is not a string literal, so stale or unattributable
+ *     justifications do not accumulate.
  *
  * POST, the rest of function-valued verbs, and in-process operations are not judged here: their
  * effect comes from the tool's documented semantics. The `add-tools` skill lists the rules.
@@ -117,24 +118,34 @@ export function findToolEffectViolations(
   const violations: ToolEffectViolation[] = []
 
   for (const [toolId, tool] of Object.entries(tools)) {
-    const { effect } = tool
     const verb = contradictsVerb(tool)
-    if (verb && !justified.has(toolId)) {
+    if (!verb) continue
+    if (tool.effect === 'read') {
       violations.push({
         toolId,
-        reason: `sends ${verb} but declares effect '${effect}'; fix the label, or add \`${ANNOTATION} <reason>\` above it if the tool really ${effect === 'write' ? 'writes after the read' : 'reads through that verb'}`,
+        reason: `sends ${verb} but declares effect 'read'; label it 'write' (a write verb is never justified as a read)`,
+      })
+    } else if (!justified.has(toolId)) {
+      violations.push({
+        toolId,
+        reason: `sends ${verb} but declares effect 'write'; fix the label, or add \`${ANNOTATION} <reason>\` above it if the tool really writes after the read`,
       })
     }
   }
 
   for (const justification of justifications) {
     const tool = justification.toolId ? tools[justification.toolId] : undefined
-    if (!tool || !contradictsVerb(tool)) {
+    const reason = !tool
+      ? `${ANNOTATION} annotation is not on the effect of a registered tool with a literal id`
+      : tool.effect !== 'write'
+        ? `has a ${ANNOTATION} annotation, which only justifies a 'write'; remove it`
+        : !contradictsVerb(tool)
+          ? `has a ${ANNOTATION} annotation but its verb agrees with its effect; remove it`
+          : undefined
+    if (reason) {
       violations.push({
         toolId: justification.toolId ?? `${justification.file}:${justification.line}`,
-        reason: tool
-          ? `has a ${ANNOTATION} annotation but its verb agrees with its effect; remove it`
-          : `${ANNOTATION} annotation is not on the effect of a registered tool with a literal id`,
+        reason,
       })
     }
   }

@@ -15,6 +15,7 @@ import { knowledgeUpsertDocumentTool } from '@/tools/knowledge/upsert_document'
 import { resendSendTool } from '@/tools/resend/send'
 import { answerUnsentCall, describeToolRequest, unsentWriteFor } from '@/tools/side-effects'
 import { slackMessageTool } from '@/tools/slack/message'
+import { telegramMessageTool } from '@/tools/telegram/message'
 import type { ExecutableToolConfig } from '@/tools/types'
 
 vi.unmock('@/tools/metadata-outputs')
@@ -28,6 +29,7 @@ const TOOLS = new Map<string, ExecutableToolConfig>(
     knowledgeUpsertDocumentTool,
     resendSendTool,
     slackMessageTool,
+    telegramMessageTool,
   ].map((tool) => [tool.id, tool])
 )
 
@@ -137,28 +139,24 @@ describe('a dry run’s placeholder for an unsent write', () => {
       toolId: 'hubspot_update_deal',
       params: { accessToken: SECRET, dealId: 'deal-key', idProperty: 'deal_key', properties: {} },
       read: (returned: Record<string, unknown>) => returned.dealId,
-      not: 'deal-key',
     },
     {
       case: 'an upsert names the document it replaces as previous, never as its own',
       toolId: 'knowledge_upsert_document',
       params: { knowledgeBaseId: 'kb1', name: 'Runbook', content: 'steps', documentId: 'doc-old' },
       read: (returned: Record<string, unknown>) => toRecord(returned.data).documentId,
-      not: 'doc-old',
     },
     {
       case: 'a Slack DM reports the channel Slack opens, not the user it names',
       toolId: 'slack_message',
       params: { accessToken: SECRET, destinationType: 'dm', dmUserId: 'U123', text: 'hi' },
       read: (returned: Record<string, unknown>) => returned.channel,
-      not: 'U123',
     },
     {
       case: 'Slack text that Slack returns escaped is not echoed as sent',
       toolId: 'slack_message',
       params: { accessToken: SECRET, channel: 'C1', text: 'Q&A <today>' },
       read: (returned: Record<string, unknown>) => toRecord(returned.message).text,
-      not: 'Q&A <today>',
     },
     {
       case: 'a Confluence page created in a space named by key reports the id Confluence resolves',
@@ -171,12 +169,54 @@ describe('a dry run’s placeholder for an unsent write', () => {
         content: '<p>x</p>',
       },
       read: (returned: Record<string, unknown>) => returned.spaceId,
-      not: 'ENG',
     },
-  ])('$case', async ({ toolId, params, read, not }) => {
+    {
+      case: 'a zero-padded Confluence space id is a key Confluence resolves, not an id it echoes',
+      toolId: 'confluence_create_page',
+      params: {
+        accessToken: SECRET,
+        domain: 'acme.atlassian.net',
+        spaceId: '007',
+        title: 'Notes',
+        content: '<p>x</p>',
+      },
+      read: (returned: Record<string, unknown>) => returned.spaceId,
+    },
+  ])('$case', async ({ toolId, params, read }) => {
     const returned = await placeholderFor(toolId, params)
 
-    expect(read(returned)).not.toBe(not)
+    expect(read(returned)).toEqual(expect.stringMatching(/^dry_run_/))
+  })
+
+  it.each([
+    {
+      toolId: 'knowledge_upsert_document',
+      params: { knowledgeBaseId: 'kb1', name: 'Runbook', content: 'steps' },
+      repeats: (r: Record<string, unknown>) => ({ data: { documentId: r.documentId } }),
+    },
+    {
+      toolId: 'slack_message',
+      params: { accessToken: SECRET, channel: 'C1', text: 'hi' },
+      repeats: (r: Record<string, unknown>) => ({ message: { ts: r.ts, channel: r.channel } }),
+    },
+  ])(
+    '$toolId reports one placeholder id wherever its output repeats it',
+    async ({ toolId, params, repeats }) => {
+      const returned = await placeholderFor(toolId, params)
+
+      expect(JSON.stringify(repeats(returned))).toMatch(/dry_run_/)
+      expect(returned).toMatchObject(repeats(returned))
+    }
+  )
+
+  it('echoes the chat a Telegram message names by a numeric id given as a number', async () => {
+    const returned = await placeholderFor('telegram_message', {
+      botToken: SECRET,
+      chatId: -1001234,
+      text: 'hi',
+    })
+
+    expect(returned).toMatchObject({ data: { chat: { id: -1001234 } } })
   })
 
   it('samples a file list a placeholder cannot hold as empty', async () => {
