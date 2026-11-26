@@ -14,7 +14,11 @@ export function dryRunId(kind: string, n = 1): string {
  */
 export const DRY_RUN_NUMBER_BASE = 900_000_000
 
-/** The `n`th placeholder number, counting from 1: `900000001`. */
+/**
+ * The `n`th placeholder number, counting from 1: `900000001`. Never put one in a `dryRunOutput`
+ * echo: a number the echo carries is taken as given by the request, so a later call sending it is
+ * not recognised as depending on a stub.
+ */
 export function dryRunNumber(n = 1): number {
   return DRY_RUN_NUMBER_BASE + n
 }

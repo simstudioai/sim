@@ -17,7 +17,6 @@ import { answerUnsentCall, describeToolRequest, unsentWriteFor } from '@/tools/s
 import { slackMessageTool } from '@/tools/slack/message'
 import { telegramMessageTool } from '@/tools/telegram/message'
 import type { ExecutableToolConfig } from '@/tools/types'
-import { zendeskCreateTicketTool } from '@/tools/zendesk/create_ticket'
 
 vi.unmock('@/tools/metadata-outputs')
 
@@ -31,7 +30,6 @@ const TOOLS = new Map<string, ExecutableToolConfig>(
     resendSendTool,
     slackMessageTool,
     telegramMessageTool,
-    zendeskCreateTicketTool,
   ].map((tool) => [tool.id, tool])
 )
 
@@ -197,11 +195,6 @@ describe('a dry run’s placeholder for an unsent write', () => {
       repeats: (r: Record<string, unknown>) => ({ data: { documentId: r.documentId } }),
     },
     {
-      toolId: 'zendesk_create_ticket',
-      params: { accessToken: SECRET, subdomain: 'acme', subject: 'Help', description: 'x' },
-      repeats: (r: Record<string, unknown>) => ({ ticket: { id: r.ticket_id } }),
-    },
-    {
       toolId: 'slack_message',
       params: { accessToken: SECRET, channel: 'C1', text: 'hi' },
       repeats: (r: Record<string, unknown>) => ({ message: { ts: r.ts, channel: r.channel } }),
@@ -211,7 +204,7 @@ describe('a dry run’s placeholder for an unsent write', () => {
     async ({ toolId, params, repeats }) => {
       const returned = await placeholderFor(toolId, params)
 
-      expect(JSON.stringify(repeats(returned))).toMatch(/dry_run_|9000000/)
+      expect(JSON.stringify(repeats(returned))).toMatch(/dry_run_/)
       expect(returned).toMatchObject(repeats(returned))
     }
   )

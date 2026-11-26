@@ -154,6 +154,35 @@ describe('executeTool', () => {
     expect(result.error).toContain('the user started working in this page')
   })
 
+  it('sends no input once the action budget is spent, even before the watchdog timer fires', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    const watchdogMs = driver.browserToolWatchdogMs('browser_press_key', { key: 'Enter' })
+    if (watchdogMs === null) throw new Error('browser_press_key must have a watchdog')
+    vi.useFakeTimers()
+    try {
+      // The clock passes the deadline while the action reads the page, with no timer run yet.
+      const probe = vi.mocked(contents.executeJavaScript).getMockImplementation()
+      vi.mocked(contents.executeJavaScript).mockImplementation(async (...args) => {
+        vi.setSystemTime(Date.now() + watchdogMs + 1)
+        return probe ? probe(...args) : undefined
+      })
+      vi.mocked(contents.debugger.sendCommand).mockClear()
+
+      const pending = driver.executeTool('chat-test', 'browser_press_key', { key: 'Enter' })
+      await vi.advanceTimersByTimeAsync(watchdogMs)
+      const result = await pending
+
+      expect(result.ok).toBe(false)
+      expect(contents.debugger.sendCommand).not.toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.anything()
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('never makes a background read wait for the user', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     typeInAgentPage(session.requireTab().view.webContents)

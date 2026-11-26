@@ -3929,20 +3929,23 @@ describe('Function execution request', () => {
       const data = await failRemote(
         'javascript',
         'import "node:path"\nreturn 1',
-        'SyntaxError: /home/user/index.js: Unexpected token (9:8)'
+        'SyntaxError: /home/user/.sim-function-a1B2c3_d4.mjs: Unexpected token (9:8)'
       )
       expect(data.error).toBe('SyntaxError: Unexpected token')
       expect(data.errorMessage).toBe('Unexpected token')
     })
 
-    it('keeps a thrown message that starts with a URL path', async () => {
-      const data = await failRemote(
-        'javascript',
-        'import "node:path"\nthrow new TypeError("/v1/users/42: not found")',
-        'TypeError: /v1/users/42: not found'
-      )
-      expect(data.errorMessage).toBe('/v1/users/42: not found')
-    })
+    it.each(['/v1/users/42: not found', '/static/app.js: not found'])(
+      'keeps a thrown message that starts with a path other than the sandbox code file: %s',
+      async (message) => {
+        const data = await failRemote(
+          'javascript',
+          `import "node:path"\nthrow new TypeError(${JSON.stringify(message)})`,
+          `TypeError: ${message}`
+        )
+        expect(data.errorMessage).toBe(message)
+      }
+    )
 
     it('drops the line, code and exception name from a Python error', async () => {
       const data = await failRemote(

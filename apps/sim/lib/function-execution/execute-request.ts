@@ -570,11 +570,13 @@ function extractEnhancedError(
 }
 
 /**
- * A leading absolute source-file path a sandbox puts before a JavaScript error's message
- * (`/home/user/index.js: Unexpected token`). The extension keeps a message that merely starts
- * with a URL path (`/v1/users/42: not found`) intact.
+ * The path of the code file a remote sandbox runs (`.sim-function-<id>.mjs`, under its working
+ * directory), which a JavaScript error puts before its message
+ * (`/home/user/.sim-function-abc.mjs: Unexpected token`). Matched by that name alone, so a thrown
+ * message that starts with any other path (`/static/app.js: not found`) stays intact.
  */
-const SANDBOX_FILE_PATH_PREFIX = /^(?:file:\/\/)?\/\S*\.(?:[cm]?[jt]sx?|py):\s*/
+const SANDBOX_FILE_PATH_PREFIX =
+  /^(?:file:\/\/)?(?:\S*\/)?\.sim-function-[\w-]+\.(?:mjs|cjs|py):\s*/
 
 /**
  * The type label a sandbox error leads with, when a message follows: `ValueError: invalid phone`,

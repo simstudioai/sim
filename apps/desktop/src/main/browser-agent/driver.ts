@@ -5536,8 +5536,13 @@ export async function executeTool(
           const executionEpoch = ++state.toolExecutionEpoch
           // Checked right before each input the action sends: a user who starts working in the
           // page mid-action (between a batch's steps, during a click's target probes) wins it.
+          // The pre-action waits can spend the whole budget; the watchdog's timer only fires once
+          // the action yields, so an input dispatched before then must check the deadline itself.
           const assertCurrentExecution = () => {
-            if (state.toolExecutionEpoch !== executionEpoch) {
+            if (
+              state.toolExecutionEpoch !== executionEpoch ||
+              (executionDeadline !== undefined && Date.now() >= executionDeadline)
+            ) {
               throw new ToolError('This browser action expired before it could dispatch input.')
             }
             if (yieldsToUser && isUserWorkingInPage()) {
