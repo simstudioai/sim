@@ -488,12 +488,13 @@ function readReturns(code: string): ReturnedKinds | null {
   if (returns.length === 0) return null
   const inference = new Inference(collectBindings(program))
   const whole = wholeKind(program, returns, inference)
-  const objects = returns.filter((argument) => argument?.type === 'ObjectExpression')
+  const objects = returns.filter(
+    (argument): argument is ObjectExpression => argument?.type === 'ObjectExpression'
+  )
   const kinds = new Map<string, ReturnedKind>()
   if (objects.length !== returns.length) return { whole, fields: kinds }
   let agreed: Map<string, JsKind | undefined> | null = null
   for (const argument of objects) {
-    if (argument?.type !== 'ObjectExpression') continue
     const fields = returnedFields(argument, inference)
     if (agreed === null) {
       agreed = fields

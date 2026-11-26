@@ -1,4 +1,3 @@
-export { SDK_MAJOR } from '@sim/workflow-code/sdk'
 export { COOKBOOK_EXAMPLES } from './cookbook-text.generated'
 export { CORE_DTS } from './core-text.generated'
 export {
@@ -21,7 +20,6 @@ export {
   type BuilderLookup,
   type BuilderReference,
   builderSnippet,
-  type CompactBuilderReference,
   compactBuilder,
   describeBuilder,
   lookupBuilder,

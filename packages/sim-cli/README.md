@@ -339,7 +339,7 @@ sim workflows source get <workflowId> --dir ./support-triage   # write workflow.
 sim workflows source check --dir ./support-triage              # compile offline, no request
 sim workflows source status --dir ./support-triage             # your edits, server changes, next step
 sim workflows source diff --dir ./support-triage               # your edits as a unified diff
-sim workflows source apply --dir ./support-triage --dry    # run every check a save runs
+sim workflows source apply --dir ./support-triage --dry        # run every check a save runs
 sim workflows source apply --dir ./support-triage --yes        # save the draft (never deploys)
 ```
 

@@ -9,8 +9,8 @@ import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { compareStrings } from '@sim/utils/string'
 import type { ChildResultFields, WorkflowInput } from '@sim/workflow-code'
 import { SOURCE_CODE_DIR, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
+import { SDK_MAJOR } from '@sim/workflow-code/sdk'
 import {
-  SDK_MAJOR,
   SOURCE_COMPILER_OPTIONS,
   WORKSPACE_COOKBOOK,
   WORKSPACE_SDK_DTS,

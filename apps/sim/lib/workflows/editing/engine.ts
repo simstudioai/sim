@@ -528,13 +528,11 @@ function removeInvalidScopeEdges(
     })
   }
 
-  if (dropped.length > 0) {
-    logger.info('Removed invalid workflow edges', {
-      refused: refusedEdgeIds.length,
-      removed: removedEdges.length,
-      reasons: dropped.map(({ reason }) => reason),
-    })
-  }
+  logger.info('Removed invalid workflow edges', {
+    refused: refusedEdgeIds.length,
+    removed: removedEdges.length,
+    reasons: dropped.map(({ reason }) => reason),
+  })
 
   return { refusedEdgeIds, removedEdges }
 }

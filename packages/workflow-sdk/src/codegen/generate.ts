@@ -17,8 +17,8 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
-import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
-import { builderOutputSchemas, printKey, quoteString } from '@sim/workflow-code'
+import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from '@sim/workflow-code'
+import { builderProducedOutputs, printKey, quoteString } from '@sim/workflow-code'
 import { type EditorDefault, subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
 import {
   builderPins,
@@ -262,31 +262,6 @@ export interface BuilderTypes {
   facts: ParamFacts
 }
 
-/**
- * The outputs of an operation builder whose tool the catalog records (`operationOutputs`): only
- * those the tool returns, and which of them may be `null`.
- */
-function operationOutputs(
-  block: CatalogBlock,
-  entry: BuilderEntry,
-  outputs: Record<string, CatalogOutput>
-): { outputs: Record<string, CatalogOutput>; nullable: ReadonlySet<string> } {
-  const operation = entry.builder.operation
-  const byOperation = block.operationOutputs
-  const returned =
-    operation !== undefined &&
-    !entry.builder.triggerMode &&
-    outputs === block.outputs &&
-    byOperation &&
-    Object.hasOwn(byOperation, operation)
-      ? byOperation[operation]
-      : undefined
-  if (!returned) return { outputs, nullable: new Set() }
-  const picked: Record<string, CatalogOutput> = {}
-  for (const name of returned.names) if (Object.hasOwn(outputs, name)) picked[name] = outputs[name]
-  return { outputs: picked, nullable: new Set(returned.nullable ?? []) }
-}
-
 /** The label of `operation` in the block's operation dropdown, if it has one. */
 export function operationLabel(block: CatalogBlock, operation: string): string | undefined {
   const dropdown = block.subBlocks.find((subBlock) => subBlock.id === 'operation')
@@ -483,11 +458,7 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
       `sdk codegen: builder \`${entry.key}\` names unknown block type \`${entry.builder.type}\``
     )
   }
-  const { outputs, nullable } = operationOutputs(
-    block,
-    entry,
-    builderOutputSchemas(catalog, block, entry.builder)
-  )
+  const { outputs, nullable } = builderProducedOutputs(catalog, block, entry.builder)
   const spec = block.dynamicOutputs ?? null
   const plan =
     spec && !entry.special ? dynamicOutputPlan(spec, outputs, entry.builder.operation) : null

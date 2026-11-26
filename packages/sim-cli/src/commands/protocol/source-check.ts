@@ -66,13 +66,7 @@ import {
 } from './source-tree'
 import { type TypeCheck, typeCheck } from './source-types'
 import { type Diagnostic, findingsOutput } from './source-ui'
-import {
-  blockDigest,
-  compiledWithChildResults,
-  readStoredBlockDigests,
-  readStoredEdges,
-  readStoredUntypedFields,
-} from './stored-edges'
+import { blockDigest, compiledWithChildResults, readStoredRecord } from './stored-edges'
 import { lockRecoveryHint, readSourceFiles, resourceNodes } from './workflow-dir'
 import {
   type DeclaredColumn,
@@ -473,13 +467,16 @@ async function compileWorkflowDir(
   const lockText = await readSourceText(dir, SOURCE_LOCK_FILE)
   const parsedLock = lockText === null ? null : parseWorkflowLock(lockText)
   const lock = parsedLock?.lock
-  const [files, storedEdges, storedBlocks, storedUntypedFields, printedWith] = await Promise.all([
+  const [files, stored, printedWith] = await Promise.all([
     readSourceFiles(dir, lock ?? null),
-    readStoredEdges(dir),
-    readStoredBlockDigests(dir),
-    readStoredUntypedFields(dir),
+    readStoredRecord(dir),
     cachedSourceCatalog(dir),
   ])
+  const {
+    edges: storedEdges,
+    blockDigests: storedBlocks,
+    untypedJsonFields: storedUntypedFields,
+  } = stored
   const catalog = printedWith ?? workspaceCatalog
   // Compiled against another catalog than the source was printed with, a field may store a
   // reference differently with no edit, so the record says nothing of what the edit changed.

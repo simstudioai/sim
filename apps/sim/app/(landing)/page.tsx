@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   },
   description: HOME_PAGE_DESCRIPTION,
   keywords:
-    'AI workspace, AI agent builder, AI agent workflow builder, build AI agents, visual workflow builder, open-source AI agent platform, AI agents, agentic workflows, LLM orchestration, AI automation, knowledge base, workflow builder, AI integrations, SOC2 compliant, enterprise AI',
+    'AI workspace, AI agent builder, AI agent workflow builder, build AI agents, visual workflow builder, open-source AI agent platform, AI agents, agentic workflows, LLM orchestration, AI automation, knowledge base, workflow builder, AI integrations, SOC 2 Type II, enterprise AI',
   authors: [{ name: 'Sim' }],
   creator: 'Sim',
   publisher: 'Sim',

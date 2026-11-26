@@ -114,7 +114,7 @@ describe('canonicalize and codegen over the real block catalog', () => {
           ? undefined
           : block?.operationOutputs?.[builder.operation]
       if (!builder || !block || !returned) return []
-      const produced = builderProducedOutputs(catalog, block, builder)
+      const { outputs: produced } = builderProducedOutputs(catalog, block, builder)
       return returned.names
         .filter((name) => Object.hasOwn(block.outputs, name) && !Object.hasOwn(produced, name))
         .map((name) => `${key}.${name}`)

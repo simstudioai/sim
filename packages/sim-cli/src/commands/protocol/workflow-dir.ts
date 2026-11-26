@@ -16,7 +16,8 @@ import {
   SOURCE_ENTRY_FILE,
   SOURCE_LOCK_FILE,
 } from '@sim/workflow-code/limits'
-import { SDK_GUIDE_FILE, SDK_MAJOR, SOURCE_COMPILER_OPTIONS } from '@sim/workflow-sdk/codegen'
+import { SDK_MAJOR } from '@sim/workflow-code/sdk'
+import { SDK_GUIDE_FILE, SOURCE_COMPILER_OPTIONS } from '@sim/workflow-sdk/codegen'
 import { SOURCE_PLANNED_EXIT_CODE, SOURCE_STALE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkflowSourceBody, GetWorkflowSourceResponse } from '../../generated/v2-api'
 import type { OperationClient } from '../../runtime/called-operations'

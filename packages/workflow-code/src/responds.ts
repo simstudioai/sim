@@ -126,8 +126,15 @@ export function childResultFields(
   return fields
 }
 
+/**
+ * The block types that run a workflow as a child. Another block may name a workflow in its
+ * `workflowId` (Deployments deploys or promotes one) without calling it.
+ */
+const CHILD_WORKFLOW_BLOCK_TYPES: ReadonlySet<string> = new Set(['workflow', 'workflow_input'])
+
 /** The key of the workflow `block` runs as a child (its `workflowId` names one), else `null`. */
 export function calledWorkflowKey(block: CanonicalBlock): string | null {
+  if (!CHILD_WORKFLOW_BLOCK_TYPES.has(block.type)) return null
   const param = getOwn(block.params, 'workflowId')
   const child = param?.kind === 'value' ? param.value : undefined
   return isResource(child, 'workflow') ? child.key : null

@@ -845,8 +845,8 @@ export const simProfile: CompetitorProfile = {
     },
     security: {
       soc2: {
-        value: 'Yes: SOC2 compliant',
-        shortValue: 'SOC2 compliant',
+        value: 'Yes: SOC 2 Type II audit completed, covering the Security criterion',
+        shortValue: 'SOC 2 Type II audited (Security)',
         confidence: 'verified',
         sources: [
           {
@@ -924,10 +924,10 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       additionalCompliance: {
-        value: 'SOC2',
+        value: 'SOC 2 Type II (Security criterion); ISO 27001 certification in progress',
         detail:
-          'Self-hosting is the primary lever Sim offers for data-residency-sensitive compliance needs beyond SOC2, rather than additional certifications.',
-        shortValue: 'SOC2',
+          'Self-hosting is the primary lever Sim offers for data-residency-sensitive compliance needs beyond SOC 2, rather than additional certifications.',
+        shortValue: 'SOC 2 Type II; ISO 27001 in progress',
         confidence: 'estimated',
         sources: [
           {

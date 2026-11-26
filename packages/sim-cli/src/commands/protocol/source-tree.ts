@@ -13,6 +13,7 @@ import { escapeRegExp } from '@sim/utils/string'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
 import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
+import { SDK_MAJOR } from '@sim/workflow-code/sdk'
 import {
   COOKBOOK_EXAMPLES,
   CORE_DTS,
@@ -23,7 +24,6 @@ import {
   generateWorkspaceTypes,
   referencedBlockTypes,
   SDK_INDEX_FILE,
-  SDK_MAJOR,
   SDK_MODELS_FILE,
   sdkIndexHeader,
   type WorkspaceManifest,

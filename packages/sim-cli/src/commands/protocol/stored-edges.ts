@@ -215,9 +215,10 @@ export interface WorkflowFolderRecords {
  * call by the result fields of the folder it calls, resolved through chains
  * ({@link resolveChildResults}), as a check types it. A workflow holding a type the workspace
  * catalog lacks was printed with its own catalog: one not cached yet is fetched, once per
- * distinct hash, and cached, so an offline check compiles that folder against it too. The records are a cache fill, never part of the write: a
- * catalog fetch that fails skips the folders printed with that catalog (named in `unrecorded`)
- * rather than failing a write the server already committed.
+ * distinct hash, and cached, so an offline check compiles that folder against it too. The
+ * records are a cache fill, never part of the write: a catalog fetch that fails skips the folders
+ * printed with that catalog (named in `unrecorded`) rather than failing a write the server already
+ * committed.
  */
 export async function workflowFolderRecords(
   client: OperationClient<'getSourceCatalog'>,
@@ -325,38 +326,39 @@ async function currentRecord(dir: string): Promise<Record<string, unknown>> {
     : {}
 }
 
-/**
- * The stored edges recorded for the base `dir` holds now, or `undefined` when none are: no
- * record, one another base wrote, or a malformed one.
- */
-export async function readStoredEdges(dir: string): Promise<StoredEdgeRef[] | undefined> {
-  const { edges } = await currentRecord(dir)
-  return Array.isArray(edges) && edges.every(isStoredEdge) ? edges : undefined
+/** What the stored-edges record of the base a workflow folder holds now says. */
+interface StoredRecord {
+  /** The stored edges, or `undefined` when none are recorded or the record is malformed. */
+  edges: StoredEdgeRef[] | undefined
+  /**
+   * The digest of each block of the printed source the record was written from, by key (see
+   * {@link storedEdgesWrite}); `undefined` when the record names no blocks or a malformed one.
+   */
+  blockDigests: ReadonlyMap<string, string> | undefined
+  /**
+   * The JSON fields holding untyped references (see {@link storedEdgesWrite}), or `undefined` when
+   * none are recorded or the record is malformed.
+   */
+  untypedJsonFields: UntypedJsonField[] | undefined
 }
 
 /**
- * The JSON fields holding untyped references recorded for the base `dir` holds now (see
- * {@link storedEdgesWrite}), or `undefined` when none are: no record, one another base wrote, or
- * a malformed one.
+ * The stored-edges record of the base `dir` holds now, read once. Every part is `undefined` when
+ * there is no record, or one another base wrote.
  */
-export async function readStoredUntypedFields(
-  dir: string
-): Promise<UntypedJsonField[] | undefined> {
-  const { untypedJsonFields } = await currentRecord(dir)
-  return Array.isArray(untypedJsonFields) && untypedJsonFields.every(isUntypedJsonField)
-    ? untypedJsonFields
-    : undefined
+export async function readStoredRecord(dir: string): Promise<StoredRecord> {
+  const { edges, blocks, untypedJsonFields } = await currentRecord(dir)
+  return {
+    edges: Array.isArray(edges) && edges.every(isStoredEdge) ? edges : undefined,
+    blockDigests: blockDigestsOf(blocks),
+    untypedJsonFields:
+      Array.isArray(untypedJsonFields) && untypedJsonFields.every(isUntypedJsonField)
+        ? untypedJsonFields
+        : undefined,
+  }
 }
 
-/**
- * The digest of each block of the printed source the record of the base `dir` holds now was
- * written from, by key (see {@link storedEdgesWrite}); `undefined` when there is no such record or
- * it records no blocks.
- */
-export async function readStoredBlockDigests(
-  dir: string
-): Promise<ReadonlyMap<string, string> | undefined> {
-  const { blocks } = await currentRecord(dir)
+function blockDigestsOf(blocks: unknown): ReadonlyMap<string, string> | undefined {
   if (!isRecordLike(blocks)) return undefined
   const digests = new Map<string, string>()
   for (const [key, value] of Object.entries(blocks)) {
