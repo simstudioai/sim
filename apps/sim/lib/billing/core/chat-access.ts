@@ -45,7 +45,11 @@ export async function payerHasPaidAccess(
       verdict: options.onBalanceUnavailable,
       error: getErrorMessage(error),
     })
-    if (options.onBalanceUnavailable === 'throw') throw error
+    if (options.onBalanceUnavailable === 'throw') {
+      throw new Error("Couldn't verify the plan for Sim's hosted key. Try again in a moment.", {
+        cause: error,
+      })
+    }
     return true
   }
 }

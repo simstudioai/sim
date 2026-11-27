@@ -10,7 +10,7 @@ import {
   renderCreditPurchaseEmail,
   renderPaymentFailedEmail,
 } from '@/components/emails'
-import { getBillingEntityBlockStatus } from '@/lib/billing/core/access'
+import { hasBillingBlockFor } from '@/lib/billing/core/access'
 import { isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
@@ -647,10 +647,10 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
         const subIsOrgScoped = await isSubscriptionOrgScoped(sub)
 
         const isProrationInvoice = invoice.billing_reason === 'subscription_update'
-        const { billingBlocked } = await getBillingEntityBlockStatus({
-          type: subIsOrgScoped ? 'organization' : 'user',
-          id: sub.referenceId,
-        })
+        const billingBlocked = await hasBillingBlockFor(
+          { type: subIsOrgScoped ? 'organization' : 'user', id: sub.referenceId },
+          'payment_failed'
+        )
         const paysSomething = !isProrationInvoice || (invoice.amount_paid ?? 0) > 0
         // A paid invoice restores access only when no other charge is still failing: overage and
         // seat true-up invoices are separate from renewals, so one can stay unpaid while another

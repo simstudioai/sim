@@ -32,7 +32,7 @@ interface SwitchedSubscription extends OrgAllowanceInput {
  * limit already at the new amount is untouched too: the Stripe webhook's floor sync can raise it
  * there first. An unlimited limit stays unlimited.
  *
- * `previous` is the pool read before Stripe applied the change ({@link readPoolUsageSnapshot}).
+ * `previous` is the pool read before Stripe applied the change ({@link readSwitchBasis}).
  * Given it, the headroom comes from that limit and that credit balance, so neither a webhook that
  * raised the live limit first nor credit granted meanwhile changes the headroom the payer chose;
  * a snapshot predates any webhook, so a limit in it at the new amount is chosen headroom.
@@ -80,53 +80,65 @@ export async function rebaseUsageLimit(
   }
 }
 
-/**
- * Whether a subscription still holds the plan and billing interval a switch was computed from.
- * Read under the switch's admission claim: a switch that finished between this request's first
- * read and its claim moved the plan, and computing from the stale read would count the new
- * allowance as headroom the payer chose.
- */
-export async function isSwitchBasisCurrent(basis: SwitchedSubscription): Promise<boolean> {
-  const [row] = await db
-    .select({
-      plan: subscriptionTable.plan,
-      billingInterval: subscriptionTable.billingInterval,
-      metadata: subscriptionTable.metadata,
-    })
-    .from(subscriptionTable)
-    .where(eq(subscriptionTable.id, basis.id))
-    .limit(1)
-  return (
-    row !== undefined &&
-    row.plan === basis.plan &&
-    resolveBillingInterval(row) === resolveBillingInterval(basis)
-  )
-}
-
 /** A usage pool's limit and prepaid credit as stored, read together before a plan switch. */
 export interface PoolUsageSnapshot {
   limit: string | null
   creditBalance: string
 }
 
-/** Reads a pool's {@link PoolUsageSnapshot} before a plan switch, for {@link rebaseUsageLimit}. */
-export async function readPoolUsageSnapshot(pool: {
-  type: 'user' | 'organization'
-  id: string
-}): Promise<PoolUsageSnapshot | undefined> {
-  const [row] =
-    pool.type === 'organization'
-      ? await db
-          .select({ limit: organization.orgUsageLimit, creditBalance: organization.creditBalance })
-          .from(organization)
-          .where(eq(organization.id, pool.id))
-          .limit(1)
-      : await db
-          .select({ limit: userStats.currentUsageLimit, creditBalance: userStats.creditBalance })
-          .from(userStats)
-          .where(eq(userStats.userId, pool.id))
-          .limit(1)
-  return row
+/** What a plan switch computes from: the subscription and its usage pool, read in one snapshot. */
+export interface SwitchBasis {
+  subscription: typeof subscriptionTable.$inferSelect
+  pool: PoolUsageSnapshot | undefined
+}
+
+/**
+ * Reads a plan switch's {@link SwitchBasis} under its admission claim, in one snapshot. Null when
+ * the plan or interval no longer matches `basis`: a switch that finished between this request's
+ * first read and its claim moved it, and computing from the stale read would count the new
+ * allowance as headroom the payer chose. A seat sync takes no claim, so the seats and allowance
+ * come from this read too, consistent with the pool limit they produced.
+ */
+export async function readSwitchBasis(
+  basis: SwitchedSubscription,
+  pool: { type: 'user' | 'organization'; id: string }
+): Promise<SwitchBasis | null> {
+  return db.transaction(
+    async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(subscriptionTable)
+        .where(eq(subscriptionTable.id, basis.id))
+        .limit(1)
+      if (
+        !current ||
+        current.plan !== basis.plan ||
+        resolveBillingInterval(current) !== resolveBillingInterval(basis)
+      ) {
+        return null
+      }
+      const [poolRow] =
+        pool.type === 'organization'
+          ? await tx
+              .select({
+                limit: organization.orgUsageLimit,
+                creditBalance: organization.creditBalance,
+              })
+              .from(organization)
+              .where(eq(organization.id, pool.id))
+              .limit(1)
+          : await tx
+              .select({
+                limit: userStats.currentUsageLimit,
+                creditBalance: userStats.creditBalance,
+              })
+              .from(userStats)
+              .where(eq(userStats.userId, pool.id))
+              .limit(1)
+      return { subscription: current, pool: poolRow }
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' }
+  )
 }
 
 /**
