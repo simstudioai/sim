@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
@@ -40,11 +41,15 @@ import { isRequestCancelled, SimApiError } from '../../http/client'
 import { sanitize } from '../../output/render'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { liveDeploymentStatus } from '../../runtime/deployment-live'
+import { runFailureMessage } from '../../runtime/execute'
+import { collectRepeated } from '../../runtime/options'
+import { readArgumentSource } from '../../runtime/request'
 import { searchTasks } from '../search'
 import { type DeployedUrl, deployedUrlsText, lockBlockNames, namedUrls } from './deployed-urls'
 import { gitProvenance } from './git-provenance'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
+import { printRunFailureSite } from './run-source-location'
 import {
   absoluteDirOption,
   directoryWorkspace,
@@ -78,12 +83,13 @@ import {
   verboseFlag,
   writeMode,
 } from './source-ui'
-import { runSourceWrite } from './source-write'
+import { runSourceWrite, type SourceWriteFlow } from './source-write'
 import {
   removedWorkflowRecords,
   unrecordedFoldersWarning,
   workflowFolderRecords,
 } from './stored-edges'
+import { dryRunDraft, printSideEffects, type TestRun, testRunResult } from './workflow-run-follow'
 import {
   appliedBlobDigests,
   assertBlobsFetched,
@@ -94,6 +100,8 @@ import {
 import {
   assertWorkspaceDir,
   assertWorkspacePaths,
+  declaredKeys,
+  kindFolders,
   ONLY_KINDS_HELP,
   parseKinds,
   readWorkspaceDir,
@@ -114,6 +122,8 @@ interface ApplyOptions {
   only?: string
   to?: string
   summaryFile?: string
+  /** Each `--run <key>[=<input>]`, as written. */
+  run?: string[]
 }
 
 const SYMBOLS: Record<Change['action'], string> = {
@@ -699,6 +709,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     'getWorkspaceSource',
     'getSourceCatalog',
     'getWorkflowDeployment',
+    'executeWorkflow',
   ])
   absoluteDirOption(command)
   verboseFlag(command)
@@ -725,6 +736,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
       '--to <workspaceId>',
       "Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place. Only .sim/targets/<workspaceId>.json changes, the record the next promotion compares with: a resource changed there since is kept, or refused as stale (exit 5) when the directory changed it too"
     )
+    .option(
+      '--run <key=input>',
+      "After the apply, dry-run workflows/<key>/'s saved draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it; `--run <key>` alone: no input). Repeat it to test more workflows. deployments/ is applied only after every run completed; a run that does not complete exits 1 and leaves the applied drafts in place",
+      collectRepeated
+    )
     .allowExcessArguments(false)
     .description('Apply a workspace source directory')
     .addHelpText('after', sourceExitCodesHelp('workspaces source apply'))
@@ -732,6 +748,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
       assertTargetOnlyDeletable(options)
       const mode = writeMode(options)
       const only = parseKinds(options.only)
+      const parsedRuns = parseRuns(options.run)
+      assertRunnable(options, parsedRuns, only)
+      await assertRunKeys(options.dir, parsedRuns)
+      const runs = await readRunInputs(parsedRuns)
       const { client, profile } = connect()
       const readFrom = baseWorkspaceOf(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
       const workspaceId =
@@ -746,7 +766,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
           ) ?? undefined
         )
       const provenance = await gitProvenance(options.dir)
-      const post = async (submission: WorkspaceSubmission, dry: boolean) => {
+      const post = async (
+        submission: WorkspaceSubmission,
+        dry: boolean,
+        kinds: readonly WorkspaceKind[] | undefined
+      ) => {
         const body: ApplyWorkspaceSourceBody = {
           files: submission.files,
           kinds: submission.kinds,
@@ -754,7 +778,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
           ...(submission.base ? { base: submission.base } : {}),
           options: {
             ...(options.allowDelete ? { allowDelete: true } : {}),
-            ...(only ? { only } : {}),
+            ...(kinds ? { only: [...kinds] } : {}),
           },
           provenance: { client: 'cli', ...provenance },
         }
@@ -782,14 +806,18 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
       }
       /**
-       * Sends the directory. A commit the server refuses only for blobs that are not staged (the
-       * CLI's guess from the base missed one) stages those and is sent once more.
+       * Sends the directory (as `kinds` limit it). A commit the server refuses only for blobs that
+       * are not staged (the CLI's guess from the base missed one) stages those and is sent once more.
        */
       let promotion: Promotion | null = null
-      const send = async (submission: WorkspaceSubmission, dry: boolean): Promise<ApplyData> => {
+      const send = async (
+        submission: WorkspaceSubmission,
+        dry: boolean,
+        kinds: readonly WorkspaceKind[] | undefined = only
+      ): Promise<ApplyData> => {
         let refusal: unknown
         try {
-          return await post(submission, dry)
+          return await post(submission, dry, kinds)
         } catch (error) {
           refusal = error
         }
@@ -797,7 +825,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
         if (missing && missing.length > 0) {
           await stage(submission, new Set(missing))
           try {
-            return await post(submission, dry)
+            return await post(submission, dry, kinds)
           } catch (error) {
             refusal = error
           }
@@ -829,6 +857,13 @@ export function attachWorkspaceSourceApply(source: Command): void {
               )
             : null
           const submission = promotion?.submission ?? read
+          // With --run, deployments/ waits for the test runs: the first write leaves it out, and a
+          // second applies it once every run completed (the drafts the runs tested, vouched for by
+          // the workflow folders' bases the first write saved).
+          const deferred = new Set(
+            runs.length > 0 ? (declaredKeys('deployment', submission.files) ?? []) : []
+          )
+          const firstWrite = deferred.size > 0 ? withoutDeployments(submission) : submission
           /** `data` as this apply reports it: a promotion's own wording and warnings added. */
           const reported = (data: ApplyData): ApplyData =>
             promotion
@@ -848,7 +883,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
           const report = (
             data: ApplyData,
             next?: NextStep,
-            { workflows, urls }: WrittenWorkflows = { workflows: [], urls: [] }
+            { workflows, urls }: WrittenWorkflows = { workflows: [], urls: [] },
+            tested: readonly WorkflowTestRun[] = []
           ) => {
             const diagnostics = [...notSent, ...data.diagnostics]
             publishSummary(
@@ -859,6 +895,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               ...summarize({ ...data, diagnostics }),
               ...(workflows.length > 0 ? { workflows } : {}),
               ...(urls.length > 0 ? { urls } : {}),
+              ...(tested.length > 0 ? { runs: tested } : {}),
               ...(next ? { next } : {}),
             }
             printProtocolResult(
@@ -868,10 +905,23 @@ export function attachWorkspaceSourceApply(source: Command): void {
                 created: createdText(result.created),
                 ...(workflows.length > 0 ? { workflows: writtenWorkflowsText(workflows) } : {}),
                 ...(urls.length > 0 ? { urls: workflowUrlsText(urls) } : {}),
+                ...(tested.length > 0 ? { runs: testRunsText(tested) } : {}),
               }
             )
+            if (findings.machine) return
+            for (const run of tested) {
+              if (run.sideEffects) printSideEffects(run.sideEffects, undefined, run.workflowId)
+            }
           }
-          const data = await runSourceWrite<ApplyData>({
+          /**
+           * The write of `commit` after a preview of the whole submission, saved into the
+           * directory against `held`, its `.sim/written.json`. A commit of part of the submission
+           * is sent as only its own kinds.
+           */
+          const writeFlow = (
+            commit: WorkspaceSubmission,
+            held: Written
+          ): SourceWriteFlow<ApplyData> => ({
             mode,
             preview: async () => reported(await send(submission, true)),
             show: (preview) => {
@@ -882,9 +932,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
             previewExitCode,
             // Without a preview, stage the blobs the base does not hold as they are.
             beforeCommit: (preview) =>
-              stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission)),
+              stage(commit, preview ? new Set(preview.needBlobs) : blobsToStage(commit)),
             commit: async () => {
-              const answer = reported(await send(submission, false))
+              const answer = reported(
+                await send(commit, false, commit === submission ? only : commit.kinds)
+              )
               findings.print(answer.diagnostics)
               return answer
             },
@@ -899,7 +951,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               const { records, unrecorded } = workspaceCatalog
                 ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, answer.files)
                 : { records: [], unrecorded: [] }
-              await saveApplied(options.dir, answer, submission, written, records)
+              await saveApplied(options.dir, answer, commit, held, records)
               const unrecordedWarning = unrecordedFoldersWarning(unrecorded)
               if (unrecordedWarning) printError(unrecordedWarning)
             },
@@ -913,36 +965,287 @@ export function attachWorkspaceSourceApply(source: Command): void {
               ifAnswerLost: answerLostHint(options.dir),
             },
           })
-          if (!data) return
-          if (data.failed) {
-            printError('The apply stopped part-way; each planned change:')
-            printPlan(data.plan, data.diagnostics, data)
-          } else if (mode === 'write') printPlan(data.plan, data.diagnostics)
-          const held = data.plan.filter((change) => change.held)
-          if (held.length > 0) {
-            printError(
-              `Held back, not written: ${held.map((change) => `${change.kind} ${change.key}`).join(', ')}. Fix what each one's error names, then apply again.`
-            )
-            // Written in part is not the same outcome as nothing written: a script must tell them apart.
-            setSoftExitCode(data.applied.length > 0 ? SOURCE_HELD_EXIT_CODE : 1)
+          /**
+           * Prints how a written apply ended (its plan, what it held back, where it stopped) and
+           * sets its exit status. Returns whether it wrote every change it planned.
+           */
+          const settle = (data: ApplyData): boolean => {
+            if (data.failed) {
+              printError('The apply stopped part-way; each planned change:')
+              printPlan(data.plan, data.diagnostics, data)
+            } else if (mode === 'write') printPlan(data.plan, data.diagnostics)
+            const held = data.plan.filter((change) => change.held)
+            if (held.length > 0) {
+              printError(
+                `Held back, not written: ${held.map((change) => `${change.kind} ${change.key}`).join(', ')}. Fix what each one's error names, then apply again.`
+              )
+              // Written in part is not the same outcome as nothing written: a script must tell them apart.
+              setSoftExitCode(data.applied.length > 0 ? SOURCE_HELD_EXIT_CODE : 1)
+            }
+            if (data.failed) {
+              printError(
+                `Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`
+              )
+              setSoftExitCode(failedExitCode(data.failed))
+            }
+            return !data.failed && held.length === 0
           }
-          if (data.failed) {
-            printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
-            setSoftExitCode(failedExitCode(data.failed))
-          }
-          report(
-            data,
-            undefined,
-            await writtenWorkflows(
-              client,
+          const tested: WorkflowTestRun[] = []
+          /** Prints `data` as the result with its workflows' deployments and the test runs. */
+          const finish = async (data: ApplyData, next?: NextStep) =>
+            report(
               data,
-              promotion ? undefined : (path) => readSourceText(options.dir, path)
+              next,
+              await writtenWorkflows(
+                client,
+                data,
+                promotion ? undefined : (path) => readSourceText(options.dir, path)
+              ),
+              tested
             )
-          )
+
+          const data = await runSourceWrite<ApplyData>(writeFlow(firstWrite, written))
+          if (!data) return
+          // The first write declares no deployment file, so the server warns that each deferred
+          // deployment's workflow changed with none to deploy it (`warnDeployedDraftChanges`):
+          // the second write decides those.
+          const first =
+            deferred.size === 0
+              ? data
+              : {
+                  ...data,
+                  diagnostics: data.diagnostics.filter(
+                    (finding) =>
+                      finding.code !== 'W_DEPLOYED_DRAFT_CHANGED' ||
+                      !deferred.has(finding.key ?? '')
+                  ),
+                }
+          const complete = settle(first)
+          if (runs.length === 0) return finish(first)
+          if (!complete) {
+            printError(
+              `Not test-run${deferred.size > 0 ? ', and deployments/ not applied' : ''}: the apply did not write every change.`
+            )
+            return finish(first)
+          }
+          /** Runs a step after the write; a failure prints the write's result first: it stands. */
+          const afterWrite = async <T>(step: () => Promise<T>): Promise<T> => {
+            try {
+              return await step()
+            } catch (error) {
+              await finish(first)
+              throw error
+            }
+          }
+          await afterWrite(() => testRuns(client, options.dir, workspaceId, first, runs, tested))
+          const failedRuns = tested.filter((run) => run.status !== 'completed')
+          if (failedRuns.length > 0) {
+            const next = {
+              command: `${applyCommand(options)} --yes`,
+              reason: 'applies your fix and tests it again',
+            }
+            await finish(first, next)
+            const why = failedRuns
+              .map((run) => `the test run of ${run.workflow} ${String(run.status)}: ${run.error}`)
+              .join('; ')
+            throw new SimApiError(
+              `The apply was written into ${options.dir}, but ${why}.${deferred.size > 0 ? ' deployments/ was not applied.' : ''} Fix the source, then run \`${next.command}\`.`,
+              0
+            )
+          }
+          if (deferred.size === 0) return finish(first)
+          const deployed = await afterWrite(async () => {
+            const saved = await readWritten(options.dir)
+            const second = await readWorkspaceDir(
+              options.dir,
+              ['workflow', 'deployment'],
+              workspaceId,
+              saved
+            )
+            return runSourceWrite<ApplyData>({ ...writeFlow(second, saved), mode: 'write' })
+          })
+          if (!deployed) return
+          settle({ ...deployed, plan: deployed.plan.filter(isDeployment) })
+          await finish(mergedApply(first, deployed))
         },
         { readOnly: mode === 'dry' || mode === 'plan' }
       )
     })
+}
+
+/** One `--run`: the workflow folder's key, and its input as `--input` takes it (JSON or `@file`). */
+interface RunRequest {
+  key: string
+  input?: string
+}
+
+/** `--run <key>[=<input>]`, each workflow once. */
+function parseRuns(values: readonly string[] | undefined): RunRequest[] {
+  const runs = (values ?? []).map((value): RunRequest => {
+    const at = value.indexOf('=')
+    const key = at === -1 ? value : value.slice(0, at)
+    if (key.length === 0) {
+      throw new CliUsageError(
+        `--run ${value} names no workflow: write --run <key>='{…}', where <key> is its folder under ${KIND_DIRS.workflow}/.`
+      )
+    }
+    return at === -1 ? { key } : { key, input: value.slice(at + 1) }
+  })
+  const keys = runs.map((run) => run.key)
+  const repeated = keys.find((key, index) => keys.indexOf(key) !== index)
+  if (repeated !== undefined) {
+    throw new CliUsageError(`--run names ${repeated} twice: test each workflow once per apply.`)
+  }
+  return runs
+}
+
+/**
+ * Refuses `--run` beside `--dry` (nothing is written to test), `--to` (a promotion writes another
+ * workspace than the one the directory tests in) and an `--only` without workflows.
+ */
+function assertRunnable(
+  options: ApplyOptions,
+  runs: readonly RunRequest[],
+  only: readonly WorkspaceKind[] | undefined
+): void {
+  if (runs.length === 0) return
+  if (options.dry) {
+    throw new CliUsageError(
+      '--run test-runs what the apply writes, and --dry writes nothing: drop one of them.'
+    )
+  }
+  if (options.to) {
+    throw new CliUsageError(
+      '--run tests the workflows of the workspace this directory was read from, and --to promotes to another one: test with an apply to this workspace, then promote without --run.'
+    )
+  }
+  if (only && !only.includes('workflow')) {
+    throw new CliUsageError(
+      `--run tests the workflows this apply writes: add ${KIND_DIRS.workflow} to --only, or drop --run.`
+    )
+  }
+}
+
+/** Refuses a `--run` key with no `workflows/<key>/` folder in `dir`, naming the keys it has. */
+async function assertRunKeys(dir: string, runs: readonly RunRequest[]): Promise<void> {
+  if (runs.length === 0) return
+  const { paths } = await kindFolders(dir, ['workflow'])
+  const keys = [...KIND_LAYOUTS.workflow.group(paths).groups.keys()].sort(compareStrings)
+  const unknown = runs.filter((run) => !keys.includes(run.key)).map((run) => run.key)
+  if (unknown.length === 0) return
+  throw new CliUsageError(
+    `--run ${unknown.join(', ')}: no such folder under ${KIND_DIRS.workflow}/ in ${dir}. ${
+      keys.length > 0 ? `Its workflow keys: ${keys.join(', ')}.` : 'It holds no workflows.'
+    }`
+  )
+}
+
+/**
+ * Each `--run` input read as `--input` reads it (JSON, or `@file`) and checked to parse, so a bad
+ * one is refused before anything is written rather than after the apply.
+ */
+async function readRunInputs(runs: readonly RunRequest[]): Promise<RunRequest[]> {
+  return Promise.all(
+    runs.map(async (run) => {
+      if (run.input === undefined) return run
+      const { text } = await readArgumentSource(run.input, 'run')
+      try {
+        JSON.parse(text)
+      } catch {
+        throw new CliUsageError(`--run ${run.key}: its input is not JSON.`)
+      }
+      return { ...run, input: text }
+    })
+  )
+}
+
+const isDeployment = (change: Pick<Change, 'kind'>) => change.kind === 'deployment'
+
+/** `submission` without its deployment files: an apply of every other kind it sends. */
+function withoutDeployments(submission: WorkspaceSubmission): WorkspaceSubmission {
+  return {
+    ...submission,
+    kinds: submission.kinds.filter((kind) => kind !== 'deployment'),
+    files: Object.fromEntries(
+      Object.entries(submission.files).filter(([path]) => kindOfPath(path) !== 'deployment')
+    ),
+  }
+}
+
+/**
+ * The first write of a `--run` apply and the deployments written after its runs, as one apply:
+ * the second's deployment changes and findings added to the first's. The second write sends the
+ * workflows only so their bases vouch for the drafts it deploys; the first already wrote them, so
+ * its findings on them repeat the first's.
+ */
+function mergedApply(first: ApplyData, deployed: ApplyData): ApplyData {
+  return {
+    ...deployed,
+    plan: [...first.plan, ...deployed.plan.filter(isDeployment)],
+    applied: [...first.applied, ...deployed.applied.filter(isDeployment)],
+    files: { ...first.files, ...deployed.files },
+    diagnostics: [
+      ...first.diagnostics,
+      ...deployed.diagnostics.filter((finding) => finding.kind !== 'workflow'),
+    ],
+    ...(first.applyId ? { applyId: first.applyId } : {}),
+  }
+}
+
+/** A `--run` test run in an apply's result: the workflow's key and id, then the run. */
+interface WorkflowTestRun extends TestRun {
+  workflow: string
+  workflowId: string
+}
+
+/** The test runs as one display line: `ingest completed; score failed: …`. */
+function testRunsText(tested: readonly WorkflowTestRun[]): string {
+  return tested
+    .map((run) =>
+      run.status === 'completed'
+        ? `${run.workflow} completed`
+        : `${run.workflow} ${String(run.status)}: ${String(run.error)}`
+    )
+    .join('; ')
+}
+
+/**
+ * Dry-runs each `--run` workflow's saved draft, one at a time, as `sim workflows run <id> --dry
+ * --input` does, adding each result to `tested`; a run that does not complete has its failing
+ * block mapped to file:line in its `workflows/<key>/` folder, and its `error` says why, as
+ * `sim workflows source apply --run` words it. A key the written base binds to no workflow is
+ * refused before any run.
+ */
+async function testRuns(
+  client: OperationClient<'executeWorkflow'>,
+  dir: string,
+  workspaceId: string,
+  data: ApplyData,
+  runs: readonly RunRequest[],
+  tested: WorkflowTestRun[]
+): Promise<void> {
+  const base = parseWorkspaceBase(data.base).base
+  const targets = runs.map((run) => ({
+    ...run,
+    workflowId: base?.resources[resourceAddress('workflow', run.key)]?.id,
+  }))
+  const unbound = targets.filter((target) => !target.workflowId).map((target) => target.key)
+  if (unbound.length > 0) {
+    throw new SourceDirError(
+      `The apply was written, but ${WORKSPACE_BASE_FILE} binds no workflow to ${unbound.map((key) => `${workflowFolder(key)}/`).join(', ')}, so nothing was test-run: check that each holds a workflow.ts, then apply again.`
+    )
+  }
+  for (const { key, input, workflowId } of targets) {
+    if (!workflowId) continue
+    const record = await dryRunDraft(client, workflowId, input, workspaceId)
+    const run = { workflow: key, workflowId, ...testRunResult(record) }
+    if (record.status !== 'completed') {
+      await printRunFailureSite(join(dir, workflowFolder(key)), workflowId, record.error)
+      run.error =
+        runFailureMessage('executeWorkflow', record) ?? `it ended ${String(record.status)}`
+    }
+    tested.push(run)
+  }
 }
 
 /**
@@ -1090,7 +1393,10 @@ async function writtenWorkflows(
   }
 }
 
-/** This apply as a command, without `--yes` or `--dry`: what a plan run names next. */
+/**
+ * This apply as a command, without `--yes` or `--dry`: what a plan run or a failed test run
+ * names next.
+ */
 function applyCommand(options: ApplyOptions): string {
   return [
     `sim workspaces source apply --dir ${shellWord(options.dir)}`,
@@ -1098,6 +1404,7 @@ function applyCommand(options: ApplyOptions): string {
     ...(options.to ? [`--to ${shellWord(options.to)}`] : []),
     ...(options.allowDelete ? ['--allow-delete'] : []),
     ...(options.deleteTargetOnly ? ['--delete-target-only'] : []),
+    ...(options.run ?? []).map((run) => `--run ${shellWord(run)}`),
     ...(options.summaryFile ? [summaryFileFlag(options.summaryFile).trimStart()] : []),
   ].join(' ')
 }

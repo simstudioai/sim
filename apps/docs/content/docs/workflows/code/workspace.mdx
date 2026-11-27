@@ -50,6 +50,16 @@ Unlike a workflow directory's `check`, it needs the block catalog but fetches it
 
 The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resource with the same name, `-` delete) and every error with its file and line. `--only tables,workflows` limits a get or an apply to some kinds.
 
+## Test workflows on apply
+
+```bash
+sim workspaces source check --dir ./my-workspace && sim workspaces source apply --dir ./my-workspace --yes --run lead-intake='{"email":"a@b.co"}'
+```
+
+`--run <key>='<input>'` dry-runs the saved draft of `workflows/<key>/` with that input after the apply, as `sim workflows run <workflowId> --dry --input` does: writes return placeholders and are listed under each run's `sideEffects`. The input is JSON or `@file`; repeat `--run` to test several workflows. The result lists each run under `runs` with its workflow key and id, status and output. A run that does not complete exits `1` and prints the failing block's file and line in `workflows/<key>/`; the applied drafts stay in place, so fix the source and run the same command again.
+
+With `--run`, `deployments/` is applied only after every run completed, in a second write, so a deployment with `live: 'draft'` publishes only a draft that passed its test. Without `--run` it is applied with everything else. `--run` is refused with `--dry` (nothing is written to test), with `--to` (test in this workspace, then promote), and with an `--only` that leaves out `workflows`.
+
 An apply adopts a resource it never read (one made in Sim under the name a new declaration gives) only when the declaration matches it, or only adds to it: a column, rows into an empty table, a document. An adopt that would change or remove anything the resource holds is refused with `E_APPLY_NO_BASE`, even with `--allow-delete`. Run `get` into a new directory to read the resource, then make your edit there, or give the declaration another name.
 
 `status` shows what would happen if you applied, without writing anything: the files you created, edited, or deleted, grouped by resource; what changed in Sim since the `get` (a resource edited, added, or deleted there, a workflow edited in the workflow builder included); the conflicts, where a resource changed on both sides; and the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unapplied, and `12` when something changed in Sim since the `get`, so a script or an agent can branch on it. Its JSON `plan` counts errors and warnings as the dry run of the apply it names next would, a conflict as an error. Without a connection it shows your edits only and says so; `--offline` skips the server. `diff [paths or kind:key…]` prints the edits as unified diffs (a binary file by its sizes), and `diff --server` compares the directory with what Sim holds now. Both take `--json` (or `--output json`).

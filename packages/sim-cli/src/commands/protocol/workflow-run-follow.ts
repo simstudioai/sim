@@ -16,7 +16,7 @@ import { retypeApiError } from '../../runtime/naming'
 import { collectRepeated } from '../../runtime/options'
 import { buildRequest, readArgumentSource } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
-import { selectorOf, shellArgument } from '../../runtime/run-next'
+import { selectorOf, shellArgument, withRunNext } from '../../runtime/run-next'
 import type { OperationSpec } from '../../runtime/types'
 import { printRunFailureSite } from './run-source-location'
 import { BLOCK_ID } from './workflow-run-get'
@@ -468,6 +468,33 @@ async function sendWaitedRun(
     headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
   })
   return readWorkflowResult(response)
+}
+
+/** What a write's result shows of its `--run` test run. */
+export interface TestRun {
+  runId: unknown
+  status: unknown
+  error?: unknown
+  output: unknown
+  sideEffects?: unknown
+  next?: unknown
+}
+
+/**
+ * A `--run` record as a source write's result shows it: the run id, status, error message, the
+ * workflow's output, the side effects the dry run held back and, for a run that failed in a
+ * block, the dry rerun from where the server says a rerun can start (none when it names none).
+ */
+export function testRunResult(record: Record<string, unknown>): TestRun {
+  const { next } = toRecord(withRunNext('executeWorkflow', record))
+  return {
+    runId: record.runId,
+    status: record.status,
+    ...(record.error ? { error: toRecord(record.error).message ?? record.error } : {}),
+    output: record.output,
+    ...(record.sideEffects ? { sideEffects: record.sideEffects } : {}),
+    ...(next ? { next } : {}),
+  }
 }
 
 /**

@@ -77,7 +77,7 @@ const WORKFLOW_LOOP =
   'sim workflows source check --dir . && sim workflows source apply --dir . --yes'
 
 const WORKSPACE_LOOP =
-  'sim workspaces source check --dir . && sim workspaces source apply --dir . --yes'
+  "sim workspaces source check --dir . && sim workspaces source apply --dir . --yes --run <key>='{…}'"
 
 /** What a coding agent chains onto a workflow apply: the test run, then the deploy. */
 const RUN_AND_DEPLOY = " --run '{…}' --deploy"
@@ -119,11 +119,11 @@ const WORKSPACE_EXTRA = {
 
 const WORKSPACE_PRIMER = `# Sim workspace source: primer
 
-A Sim workspace as files (\`tables/\`, \`workflows/<key>/\`); nothing here runs. Commands here (table ones too) act on the workspace \`${SOURCE_BASE_FILE}\` names. Every \`.ts\` file starts with \`// @sim-sdk ${SDK_MAJOR}\`.
+A Sim workspace as files; nothing here runs. Commands here (table ones too) act on the workspace \`${SOURCE_BASE_FILE}\` names. Every \`.ts\` file starts with \`// @sim-sdk ${SDK_MAJOR}\`.
 
-**Edit loop**: write every file, then run one chained command; fix what it reports: \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes\`; then \`sim workflows run <workflowId> --dry --input '{…}'\`. \`check\` also type-checks (no \`tsc\`). Apply re-checks (\`apply --dry\` only plans) and rewrites files: reread before editing.
+**Edit loop**: write every file, then run one chained command; fix what it reports: \`${WORKSPACE_LOOP}\` dry-runs \`workflows/<key>/\`'s draft (repeatable) and deploys only if all complete. \`check\` also type-checks (no \`tsc\`). Apply re-checks (\`apply --dry\` only plans) and rewrites files: reread before editing.
 
-- **Deletes**: removing a file, folder, column, block or variable needs \`apply --allow-delete\` and is permanent.
+- **Deletes**: removing anything (file, column, block) needs \`apply --allow-delete\` and is permanent.
 - **Exit ${SOURCE_HELD_EXIT_CODE}**: partly written: what needs an unset secret or unbound credential waits; set it, reapply.
 ${sharedRules(WORKSPACE_EXTRA)}
 `

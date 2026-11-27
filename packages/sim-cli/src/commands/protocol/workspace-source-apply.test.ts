@@ -140,6 +140,7 @@ beforeEach(() => {
   contextMockState.workspaceSource = 'config'
   request.mockReset()
   mockRequest.mockReset()
+  contextMockFns.mockRequestRaw.mockReset()
   mockRequest.mockImplementation((path: string, options: { body?: unknown; form?: FormData }) =>
     path.includes('/source/blobs') ? stagingAnswer(path, options) : request(path, options)
   )
@@ -2152,5 +2153,145 @@ describe('workspaces source apply', () => {
       .mock.calls.map(([line]) => String(line))
       .join('\n')
     expect(warned).toContain('could not fetch the block catalog of workflows/ingest')
+  })
+
+  describe('--run', () => {
+    const APPLY_PATH = '/api/v2/workspaces/ws_local/source'
+    const DEPLOYMENT = "// @sim-sdk 1\nexport default defineDeployment({ live: 'draft' })\n"
+    const runAnswer = (record: Record<string, unknown>) =>
+      new Response(JSON.stringify({ data: { workflowId: 'wf_1', runId: 'run-1', ...record } }), {
+        headers: { 'content-type': 'application/json' },
+      })
+    const applies = () => request.mock.calls.filter((call) => call[0] === APPLY_PATH)
+    /** Answers the first write with the workflow saved, the second with the deployment. */
+    const serveApplies = () =>
+      request.mockImplementation(async (path: string, options: { body?: { kinds?: string[] } }) => {
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(1)
+        const base = { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } }
+        return options.body?.kinds?.includes('deployment')
+          ? answer({
+              plan: [
+                { kind: 'workflow', key: 'ingest', action: 'noop' },
+                { kind: 'deployment', key: 'ingest', action: 'update' },
+              ],
+              applied: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+              base,
+            })
+          : answer({
+              plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              applied: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              files: { 'workflows/ingest/workflow.ts': `${INGEST}// stored\n` },
+              base,
+            })
+      })
+
+    beforeEach(() => {
+      write('deployments/ingest.ts', DEPLOYMENT)
+    })
+
+    it('applies, dry-runs the saved draft with the input, then applies deployments/, in one result', async () => {
+      serveApplies()
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: { tier: 'A' } })
+      )
+
+      await apply('--yes', '--run', 'ingest={"email":"a@b.co"}')
+
+      const [first, second] = applies().map((call) => call[1].body)
+      expect(applies()).toHaveLength(2)
+      expect(first.kinds).not.toContain('deployment')
+      expect(first.options.only).not.toContain('deployment')
+      expect(Object.keys(first.files).some((path) => path.startsWith('deployments/'))).toBe(false)
+      expect(second.options.only).toEqual(['workflow', 'deployment'])
+      expect(second.files['deployments/ingest.ts']).toBe(DEPLOYMENT)
+      const [path, sent] = contextMockFns.mockRequestRaw.mock.calls[0]
+      expect(path).toBe('/api/v2/workflows/wf_1/execute')
+      expect(sent.body).toMatchObject({
+        input: { email: 'a@b.co' },
+        run: { source: 'draft', dry: true },
+      })
+      expect(process.exitCode).toBeUndefined()
+      const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+      expect(printed).toMatchObject({
+        applied: 2,
+        runs: [
+          {
+            workflow: 'ingest',
+            workflowId: 'wf_1',
+            runId: 'run-1',
+            status: 'completed',
+            output: { tier: 'A' },
+          },
+        ],
+      })
+    })
+
+    it('applies nothing of deployments/ when a run fails, exits 1 at its block, and keeps the applied draft', async () => {
+      write(
+        'workflows/ingest/.sim/lock.json',
+        JSON.stringify({
+          version: 1,
+          blocks: { score: { id: 'b-score', parent: null, ident: 'score', order: 0 } },
+          variables: {},
+        })
+      )
+      serveApplies()
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({
+          status: 'failed',
+          error: { message: 'score is not a number', blockId: 'b-score' },
+        })
+      )
+
+      const failure = apply('--yes', '--run', 'ingest={}')
+
+      await expect(failure).rejects.toThrow(
+        /the test run of ingest failed: score is not a number\. deployments\/ was not applied/
+      )
+      expect(applies()).toHaveLength(1)
+      expect(applies()[0][1].body.kinds).not.toContain('deployment')
+      expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toMatch(
+        /workflows\/ingest\/workflow\.ts: score is not a number \(block score\)/
+      )
+      expect(readFileSync(join(dir, 'workflows/ingest/workflow.ts'), 'utf8')).toBe(
+        `${INGEST}// stored\n`
+      )
+      const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+      expect(printed).toMatchObject({
+        applied: 1,
+        runs: [{ workflow: 'ingest', status: 'failed', error: 'score is not a number' }],
+        next: { command: `sim workspaces source apply --dir ${dir} --run 'ingest={}' --yes` },
+      })
+    })
+
+    it('refuses a key with no workflow folder, naming the keys there, before sending anything', async () => {
+      await expect(apply('--yes', '--run', 'ingset={}')).rejects.toThrow(
+        /--run ingset: no such folder under workflows\/ .* Its workflow keys: ingest\./
+      )
+      expect(request).not.toHaveBeenCalled()
+      expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
+    })
+
+    it('refuses an input that is not JSON before sending anything', async () => {
+      await expect(apply('--yes', '--run', 'ingest={email:')).rejects.toThrow(
+        /--run ingest: its input is not JSON/
+      )
+      expect(request).not.toHaveBeenCalled()
+    })
+
+    it('refuses beside --to, before sending anything', async () => {
+      await expect(apply('--yes', '--to', 'ws_prod', '--run', 'ingest={}')).rejects.toThrow(
+        /--run tests the workflows of the workspace this directory was read from/
+      )
+      expect(request).not.toHaveBeenCalled()
+    })
+
+    it('refuses beside --dry, before sending anything', async () => {
+      await expect(apply('--dry', '--run', 'ingest={}')).rejects.toThrow(
+        /--run test-runs what the apply writes, and --dry writes nothing/
+      )
+      expect(request).not.toHaveBeenCalled()
+      expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
+    })
   })
 })
