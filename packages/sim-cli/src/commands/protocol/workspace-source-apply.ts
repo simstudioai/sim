@@ -1076,8 +1076,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
             })
           })
           if (!deployed) return
-          settle({ ...deployed, plan: deployed.plan.filter(isDeployment) })
-          await finish(mergedApply(data, deployed))
+          const merged = mergedApply(data, deployed)
+          // Judged against the whole apply: held deployments after written workflows are a
+          // partial write, not nothing written.
+          settle({ ...merged, plan: deployed.plan.filter(isDeployment) })
+          await finish(merged)
         },
         { readOnly: mode === 'dry' || mode === 'plan' }
       )

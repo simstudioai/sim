@@ -2264,6 +2264,33 @@ describe('workspaces source apply', () => {
       })
     })
 
+    it('exits as written in part when the deployments write holds every deployment back', async () => {
+      request.mockImplementation(async (path: string, options: { body?: { kinds?: string[] } }) => {
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(1)
+        const base = { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } }
+        return options.body?.kinds?.includes('deployment')
+          ? answer({
+              plan: [{ kind: 'deployment', key: 'ingest', action: 'update', held: true }],
+              applied: [],
+              base,
+            })
+          : answer({
+              plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              applied: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              files: { 'workflows/ingest/workflow.ts': `${INGEST}// stored\n` },
+              base,
+            })
+      })
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: {} })
+      )
+
+      await apply('--yes', '--run', 'ingest={}')
+
+      expect(applies()).toHaveLength(2)
+      expect(process.exitCode).toBe(15)
+    })
+
     it('holds back a managed deployments/ with no files left (its undeploys) until the runs complete', async () => {
       unlinkSync(join(dir, 'deployments/ingest.ts'))
       write('deployments/.gitkeep', '')
