@@ -135,7 +135,7 @@ const PUBLISH_CHAT: OperationSpec = {
 }
 
 const PUBLIC_NOTE =
-  'note: auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
+  'auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
 
 /** Publishes a chat past its `--yes` gate with the required fields and the given extras. */
 function publishChat(flags: Record<string, unknown>) {
@@ -163,7 +163,7 @@ function streams() {
 }
 
 describe('a chat publish that lands on public auth', () => {
-  it('notes the exposure on stderr when the default chose public, and keeps stdout the record', async () => {
+  it('carries the exposure in the JSON record when the default chose public, so stdout and stderr merged still parse', async () => {
     request.mockResolvedValue({
       data: { id: 'chat_1', identifier: 'support', authType: 'public' },
     })
@@ -172,13 +172,25 @@ describe('a chat publish that lands on public auth', () => {
     await publishChat({})
 
     expect(request.mock.calls[0][1].body).not.toHaveProperty('authType')
-    expect(captured.stderr).toContain(PUBLIC_NOTE)
-    expect(captured.stdout).not.toContain('note:')
-    expect(JSON.parse(captured.stdout)).toEqual({
+    expect(JSON.parse(captured.stdout + captured.stderr)).toEqual({
       id: 'chat_1',
       identifier: 'support',
       authType: 'public',
+      note: PUBLIC_NOTE,
     })
+  })
+
+  it('notes the exposure on stderr for a person reading the table, and keeps it out of stdout', async () => {
+    output.format = 'table'
+    request.mockResolvedValue({
+      data: { id: 'chat_1', identifier: 'support', authType: 'public' },
+    })
+    const captured = streams()
+
+    await publishChat({})
+
+    expect(captured.stderr).toContain(`note: ${PUBLIC_NOTE}`)
+    expect(captured.stdout).not.toContain('anyone with the link')
   })
 })
 

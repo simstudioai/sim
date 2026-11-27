@@ -34,6 +34,8 @@ Machine formats preserve API values: a duration remains `1500`, rather than the 
 
 Read rows with `jq '.data[]'` and check `.nextCursor` for continuation. A null cursor means pagination is finished; inspect any command-specific truncation flags or notices too. See [Pagination](/cli/scripting#pagination) for limits and memory behavior.
 
+When the CLI adds a note to a single result, such as `sim blocks get table` reading as `table_v2`, JSON and YAML carry it in the result as `note`, so output captured with `2>&1` still parses. Tables and text print it on stderr.
+
 ### Tables and text
 
 Tables show UTC timestamps without milliseconds, formatted sizes, `yes`/`no` booleans, and formatted monetary amounts. Each command's reference specifies its units. Long table cells are clipped to one line; use JSON or YAML to inspect the returned value in full.
