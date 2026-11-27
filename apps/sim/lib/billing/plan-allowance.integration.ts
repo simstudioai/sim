@@ -553,4 +553,40 @@ describe('readSwitchBasis', () => {
       .where(eq(organization.id, organizationId))
     expect(Number(org?.orgUsageLimit)).toBe(MAX_MONTHLY_DOLLARS * 6 + 50)
   })
+
+  it('prices a Team switch for a seat a sync added while Stripe applied it', async () => {
+    const organizationId = await createOrganization()
+    await db
+      .update(organization)
+      .set({ orgUsageLimit: String(PRO_MONTHLY_DOLLARS * 5 + 50) })
+      .where(eq(organization.id, organizationId))
+    const sub = await addSubscription(organizationId, {
+      plan: 'team_6000',
+      billingInterval: 'month',
+      seats: 5,
+    })
+    const basis = await readSwitchBasis(sub, { type: 'organization', id: organizationId })
+    if (!basis) throw new Error('expected the switch basis to match')
+
+    // Between that read and recording the switch, a seat sync added a sixth seat.
+    await db.update(subscription).set({ seats: 6 }).where(eq(subscription.id, sub.id))
+    await db
+      .update(organization)
+      .set({ orgUsageLimit: String(PRO_MONTHLY_DOLLARS * 6 + 50) })
+      .where(eq(organization.id, organizationId))
+
+    await recordPlanSwitch({
+      subscription: basis.subscription,
+      targetPlanName: 'team_25000',
+      targetInterval: 'month',
+      orgScoped: true,
+      previous: basis.pool,
+    })
+
+    const [org] = await db
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+    expect(Number(org?.orgUsageLimit)).toBe(MAX_MONTHLY_DOLLARS * 6 + 50)
+  })
 })

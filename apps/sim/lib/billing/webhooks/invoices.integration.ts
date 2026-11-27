@@ -4,6 +4,7 @@
  */
 import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
+import { createMockStripeEvent } from '@sim/testing/mocks/stripe.mock'
 import { generateId } from '@sim/utils/id'
 import { inArray } from 'drizzle-orm'
 import type Stripe from 'stripe'
@@ -81,24 +82,23 @@ async function createTeam(ownerBlocked: boolean, membersBlocked: boolean) {
 }
 
 function paidOverageInvoice(stripeSubscriptionId: string): Stripe.Event {
-  const invoice = {
-    id: `in_${generateId()}`,
-    object: 'invoice',
-    amount_paid: 3582,
-    billing_reason: 'manual',
-    customer: `cus_${generateId()}`,
-    currency: 'usd',
-    metadata: {
-      billingPeriod: '2026-10',
-      subscriptionId: stripeSubscriptionId,
-      type: 'overage_threshold_billing_org',
+  return createMockStripeEvent(
+    'invoice.payment_succeeded',
+    {
+      id: `in_${generateId()}`,
+      object: 'invoice',
+      amount_paid: 3582,
+      billing_reason: 'manual',
+      customer: `cus_${generateId()}`,
+      currency: 'usd',
+      metadata: {
+        billingPeriod: '2026-10',
+        subscriptionId: stripeSubscriptionId,
+        type: 'overage_threshold_billing_org',
+      },
     },
-  }
-  return {
-    id: `evt_${generateId()}`,
-    type: 'invoice.payment_succeeded',
-    data: { object: invoice },
-  } as unknown as Stripe.Event
+    { id: `evt_${generateId()}` }
+  )
 }
 
 async function blockedUserIds(ids: string[]): Promise<string[]> {

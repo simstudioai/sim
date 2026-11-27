@@ -153,6 +153,11 @@ export async function readSwitchBasis(
  * written with the interval: until the subscription webhook lands, the old period with the new
  * interval would price a year of usage against a month's allowance, and threshold billing would
  * collect overage the old year's close then finds it never owed.
+ *
+ * The new allowance comes from the subscription row as locked here, since a seat sync takes no
+ * switch claim and can land while Stripe applies the change. The old allowance is the one the limit
+ * read was taken against: `subscription`'s, which `previous` was read with, or the locked row's
+ * for the live limit.
  */
 export async function recordPlanSwitch(params: {
   subscription: SwitchedSubscription
@@ -167,22 +172,26 @@ export async function recordPlanSwitch(params: {
   const trialing = !orgScoped && isTrialingSubscription(subscription)
   const previousInterval = resolveBillingInterval(subscription)
   const restartedPeriod = previousInterval !== targetInterval ? period : undefined
-  const target = {
-    ...subscription,
-    plan: targetPlanName,
-    billingInterval: targetInterval,
-    ...(restartedPeriod ? { periodStart: restartedPeriod.start } : {}),
-  }
-  const previousBase = orgScoped
-    ? getOrgIncludedUsageDollars(subscription)
-    : getPlanPricing(subscription).basePrice
-  const nextBase = orgScoped ? getOrgIncludedUsageDollars(target) : getPlanPricing(target).basePrice
+  const includedUsage = (sub: SwitchedSubscription) =>
+    orgScoped ? getOrgIncludedUsageDollars(sub) : getPlanPricing(sub).basePrice
   const headroomScale =
     previousInterval === targetInterval ? 1 : targetInterval === 'year' ? 12 : 1 / 12
 
   // One transaction: a retry of a half-recorded switch finds the plan already matching and would
   // never rebase the limit.
   await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select()
+      .from(subscriptionTable)
+      .where(eq(subscriptionTable.id, subscription.id))
+      .for('update')
+    const current = locked ?? subscription
+    const target = {
+      ...current,
+      plan: targetPlanName,
+      billingInterval: targetInterval,
+      ...(restartedPeriod ? { periodStart: restartedPeriod.start } : {}),
+    }
     if (subscription.plan !== targetPlanName || restartedPeriod) {
       await tx
         .update(subscriptionTable)
@@ -201,8 +210,8 @@ export async function recordPlanSwitch(params: {
         pool: orgScoped
           ? { type: 'organization', id: subscription.referenceId }
           : { type: 'user', id: subscription.referenceId },
-        previousIncluded: previousBase,
-        nextIncluded: nextBase,
+        previousIncluded: includedUsage(previous ? subscription : current),
+        nextIncluded: includedUsage(target),
         headroomScale,
         previous,
       },
@@ -215,7 +224,5 @@ export async function recordPlanSwitch(params: {
     fromPlan: subscription.plan,
     toPlan: targetPlanName,
     interval: targetInterval,
-    previousBase,
-    nextBase,
   })
 }
