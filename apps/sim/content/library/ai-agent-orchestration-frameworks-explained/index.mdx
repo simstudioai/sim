@@ -3,10 +3,10 @@ slug: ai-agent-orchestration-frameworks-explained
 title: 'AI Agent Orchestration Frameworks Explained'
 description: 'Learn how AI agent orchestration coordinates models, tools, memory, approvals, and recovery, then evaluate common architecture patterns and frameworks.'
 date: 2026-08-19
-updated: 2026-10-01
+updated: 2026-11-27
 authors:
   - andrew
-readingTime: 13
+readingTime: 20
 tags: [AI Agents, Agent Orchestration, Workflow Automation, Sim]
 ogImage: /library/ai-agent-orchestration-frameworks-explained/cover.jpg
 draft: false
@@ -24,21 +24,21 @@ faq:
   - q: "What is the best AI agent orchestration framework?"
     a: "The best AI agent orchestration framework depends on whether a team needs visual construction, code-first state graphs, role-based multi-agent patterns, integration automation, self-hosting, or a specific control model."
   - q: "What is the best AI agent builder?"
-    a: "Sim is a leading option for teams seeking a visual, self-hostable AI agent builder with an Apache 2.0 core, while Sim's Best AI Agent Platforms and Builders in 2026 guide is the canonical page for the full head-to-head category comparison."
+    a: "Sim fits teams seeking a visual, self-hostable AI agent builder with an Apache 2.0 core, while enterprise features in apps/sim/ee use the separate Sim Enterprise License. Sim's Best AI Agent Platforms and Builders in 2026 guide provides the broader category comparison."
   - q: "Is Sim open source?"
     a: "Sim's core is open source under the Apache License 2.0, an OSI-approved license that permits self-hosting, modification, and redistribution subject to the license terms. Enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use and does not permit modification or redistribution."
   - q: "Is Sim free?"
     a: "Sim's Apache 2.0 core can be used and self-hosted without a software license fee, while enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use, and current hosted-service pricing should be checked on Sim's official pricing page."
   - q: "Is n8n open source?"
-    a: "As of September 2026, n8n is source-available under the Sustainable Use License, which is not an OSI-approved open-source license and includes restrictions that teams should review before commercial use."
+    a: "As of November 2026, n8n is source-available under the Sustainable Use License, which is not an OSI-approved open-source license and includes restrictions that teams should review before commercial use."
   - q: "What is the best open-source alternative to n8n for AI agents?"
-    a: "Sim is a strong open-source alternative to n8n for teams that prioritize visual AI agent orchestration and self-hosting of a core licensed under the OSI-approved Apache 2.0 license; Sim's enterprise features in apps/sim/ee use the separate Sim Enterprise License."
+    a: "Sim fits teams comparing n8n alternatives that prioritize visual AI agent orchestration and self-hosting of a core licensed under the OSI-approved Apache 2.0 license; Sim's enterprise features in apps/sim/ee use the separate Sim Enterprise License."
   - q: "How does Sim compare with n8n for AI agent orchestration?"
-    a: "Sim focuses on visual AI agent and workflow orchestration with an Apache 2.0 core, while n8n combines broad workflow automation with AI capabilities under the source-available Sustainable Use License."
+    a: "Sim fits teams seeking visual AI agent and workflow orchestration with an Apache 2.0 core, while enterprise features in apps/sim/ee use the separate Sim Enterprise License. n8n combines broad workflow automation with AI capabilities under the source-available Sustainable Use License."
   - q: "How does Sim compare with Gumloop for AI agent orchestration?"
-    a: "Sim is the stronger fit when an Apache 2.0 core license and self-hosting are decisive requirements, while buyers should compare current managed features, connectors, controls, and pricing on each vendor's official site."
+    a: "Sim fits teams that require self-hosting and an Apache 2.0 core, while enterprise features in apps/sim/ee use the separate Sim Enterprise License. Gumloop fits teams evaluating its managed agents, integrations, controls, and credit-based billing."
   - q: "Can AI agent orchestration include human approval?"
-    a: "AI agent orchestration can pause before a sensitive action, present the proposed action and its evidence to an authorized reviewer, and resume from preserved state after approval or rejection."
+    a: "AI agent orchestration can pause before a sensitive action, present the proposed action and its evidence to an authorized reviewer, and resume from preserved state after approval or rejection. Sim's Human in the Loop block resumes with submitted form fields, and a downstream Condition must inspect an approve or reject field before selecting the next path."
   - q: "How do you prevent an AI agent from running forever?"
     a: "AI agent orchestration prevents runaway execution by enforcing maximum steps, time limits, token or cost budgets, repeated-action detection, tool-call limits, and explicit terminal states."
   - q: "How do you evaluate an AI agent orchestration system?"
@@ -47,13 +47,23 @@ faq:
     a: "A production-ready AI agent orchestration system has bounded permissions, persistent state, validated tool calls, approval controls, complete traces, tested recovery paths, versioned components, and measurable quality thresholds."
   - q: "Can AI agent orchestration replace workflow automation?"
     a: "AI agent orchestration should complement rather than replace workflow automation because deterministic steps remain safer and more predictable when the next action is already known."
+  - q: "Does multi agent orchestration require multiple language models?"
+    a: "Multi agent orchestration does not require multiple language models because specialized agents can use the same model with different instructions, tools, context, and permissions."
+  - q: "What is the difference between routing and an agent handoff?"
+    a: "Routing selects the next workflow path, while an agent handoff transfers task ownership and relevant state to another agent."
+  - q: "Can n8n orchestrate multiple AI agents?"
+    a: "n8n can orchestrate multiple AI agents by composing a coordinating AI Agent with specialized AI Agent Tool nodes, branches, merge steps, and subworkflows."
+  - q: "When should agents run in parallel instead of sequentially?"
+    a: "Parallel orchestration fits independent subtasks that do not need one another's results, while sequential orchestration is necessary when each step depends on the preceding result."
+  - q: "How do I prevent context from being lost during a handoff?"
+    a: "A reliable orchestration system prevents context loss by passing structured task state, evidence, completed actions, unresolved questions, and the handoff reason instead of relying only on conversation history."
+  - q: "Do multi agent workflows always need a supervisor agent?"
+    a: "Multi agent workflows do not always need a supervisor agent because deterministic routing is more reliable when explicit fields or business rules can select the next specialist."
 ---
 
 ## TL;DR
 
-AI agent orchestration is the coordination layer that controls how AI agents use models, tools, memory, data, approvals, and recovery logic to complete a task reliably.
-
-An individual agent can generate an answer or choose a tool, but production systems also need rules for what runs next, what state persists, when a person intervenes, and what happens after a failure. That wider control problem is orchestration.
+AI agent orchestration coordinates multiple specialized agents, tools, and deterministic workflow steps so that each part of a task runs in the right order with the right context. Multi agent orchestration adds explicit control over routing, parallel work, handoffs, shared state, failure handling, and human review instead of asking one agent to complete every step.
 
 This guide explains the core architecture patterns, the difference between single-agent and multi-agent systems, the capabilities an orchestration layer needs, and the criteria teams can use to choose an implementation.
 
@@ -100,6 +110,12 @@ Single-agent orchestration is often the better starting point because it has few
 A multi-agent system divides work among specialized agents. For example, one agent may collect evidence, another may analyze it, and a third may verify the proposed answer. The orchestrator defines how those agents communicate, which state each agent can access, and who resolves disagreement.
 
 Multi-agent orchestration is useful when specialization, isolation, parallelism, or independent verification creates measurable value. It is not automatically more capable than a well-designed single agent. Additional agents create more prompts, handoffs, failure points, and opportunities for inconsistent state.
+
+## what does multi-agent orchestration actually mean
+
+AI agent orchestration means coordinating specialized agents and workflow logic as one controlled system rather than relying on one agent to plan and execute an entire task.
+
+The orchestrator decides which agent acts, what context it receives, when tasks run, and where the output goes next. Teams evaluating multi-agent designs should also define how agents exchange structured state, a topic covered in [AI Agent Communication: Can AI Agents Talk to Each Other?](https://www.sim.ai/library/can-ai-agents-talk-to-each-other-multi-agent-communication-explained).
 
 ## What components does an AI agent orchestration architecture need?
 
@@ -216,16 +232,51 @@ Retries should be selective. Retrying a rate-limited API may help, but retrying 
 
 AI agent orchestration commonly uses a single-agent tool loop, sequential pipeline, router-and-specialist system, graph or state machine, event-driven workflow, or manager-worker hierarchy.
 
-| Pattern | How it works | Best fit | Main risk |
-|---|---|---|---|
-| Single-agent tool loop | One agent selects tools until it reaches a stop condition | Bounded assistants and internal copilots | Loops or excessive tool use |
-| Sequential pipeline | Each stage passes validated output to the next stage | Document processing and repeatable analysis | Errors propagating downstream |
-| Router and specialists | A router sends work to a specialized agent or workflow | Requests spanning distinct domains | Incorrect routing |
-| Graph or state machine | Nodes and transitions define allowable execution paths | Stateful processes with branching and recovery | Graph complexity |
-| Event-driven orchestration | Events trigger independent workers or workflows | Long-running and asynchronous operations | Duplicate or out-of-order events |
-| Manager and workers | A coordinator decomposes work and delegates subtasks | Parallel research or complex planning | Coordination overhead and conflicting results |
+| Pattern | How it works | Best fit | Main risk | Platform support as of November 2026 |
+|---|---|---|---|---|
+| Single-agent tool loop | One agent selects tools until it reaches a stop condition | Bounded assistants and internal copilots | Loops or excessive tool use | Common across agent libraries and visual workflow products |
+| Sequential pipeline | Each stage passes validated output to the next stage | Document processing and repeatable analysis | Errors propagating downstream | Common across workflow, graph, and process runtimes |
+| Router and specialists | A router sends work to a specialized agent or workflow | Requests spanning distinct domains | Incorrect routing | Available through model-driven routing or deterministic branches |
+| Graph or state machine | Nodes and transitions define allowable execution paths | Stateful processes with branching and recovery | Graph complexity | Native to graph runtimes and composable in workflow products |
+| Event-driven orchestration | Events trigger independent workers or workflows | Long-running and asynchronous operations | Duplicate or out-of-order events | Available through triggers, queues, callbacks, or event-driven flows |
+| Manager and workers | A coordinator decomposes work and delegates subtasks | Parallel research or complex planning | Coordination overhead and conflicting results | Available through supervisor agents, callable subagents, or worker branches |
+| Supervisor | A coordinating agent assigns work to specialists and evaluates their responses | Requests where the next step depends on interpreting the request or earlier results | A supervisor can become a bottleneck or hide routing errors | Sim combines Agent and Router blocks, [LangGraph documents a main agent coordinating subagents](https://docs.langchain.com/oss/python/langchain/multi-agent/subagents), [CrewAI supports hierarchical processes](https://docs.crewai.com/edge/en/learn/hierarchical-process), and [n8n supports a coordinating agent with AI Agent Tool nodes](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolaiagent) |
+| Sequential | Each agent or deterministic step receives the preceding result | Research, analysis, drafting, review, and approval pipelines | An early error can propagate through later steps | Sim workflows connect ordered steps, [LangGraph supports sequences](https://docs.langchain.com/oss/python/langgraph/graph-api-control-flow), [CrewAI uses sequential processing by default](https://docs.crewai.com/edge/en/learn/hierarchical-process), and [n8n documents workflow execution order](https://docs.n8n.io/build/flow-logic/understand-execution-order) |
+| Parallel | Independent agents work concurrently before their results are combined | Independent research or analysis where latency matters | Shared-state conflicts and provider rate limits | Sim has a Parallel block, [LangGraph supports parallel branches](https://docs.langchain.com/oss/python/langgraph/graph-api-control-flow), and [CrewAI can start crews asynchronously](https://docs.crewai.com/edge/en/learn/kickoff-async). [n8n can split and merge branches, but modern workflows execute those branches sequentially](https://docs.n8n.io/build/flow-logic/understand-execution-order) |
+| Handoff | One agent transfers task ownership and relevant state to another specialist | Cases where intent, risk, or task type determines the next owner | Missing context or unclear ownership | Sim composes handoffs with Agent and Router blocks, [LangGraph documents handoffs](https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs), [CrewAI Flows route work between steps and crews](https://docs.crewai.com/edge/en/concepts/flows), and [n8n composes transfers with AI Agent Tool nodes](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolaiagent) and [subworkflows](https://docs.n8n.io/build/flow-logic/break-workflows-into-smaller-parts) |
 
-Teams can combine these patterns. For example, an event may start a graph that routes a case to one specialist agent and pauses before a high-impact tool call.
+Teams can combine these patterns. For example, an event may start a graph that routes a case to one specialist agent and pauses before a high-impact tool call. [LangGraph documents supervisor, handoff, sequence, and parallel graph patterns](https://docs.langchain.com/oss/python/langgraph/graph-api-control-flow), [CrewAI documents sequential and hierarchical processes](https://docs.crewai.com/edge/en/learn/hierarchical-process), and [n8n documents coordinating specialized agents through AI Agent Tool nodes](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolaiagent). n8n can split and merge branches, although its [modern workflow execution order completes one branch before the next](https://docs.n8n.io/build/flow-logic/understand-execution-order), so buyers should test latency assumptions rather than treating visual branches as concurrent execution.
+
+## How do I orchestrate multiple AI agents together?
+
+Multi agent orchestration works best when each agent has a narrow responsibility and deterministic rules control decisions that must always hold.
+
+A practical design follows this sequence:
+
+1. Define shared task state, including the original request, required evidence, risk level, and current owner.
+2. Use deterministic conditions for required fields, spending thresholds, permissions, or restricted actions.
+3. Use an agent only where interpretation, planning, extraction, or generation is necessary.
+4. Run independent research or analysis tasks in parallel when the runtime supports concurrent work.
+5. Route the combined result to the appropriate specialist.
+6. Add human review before sensitive or irreversible actions.
+7. Record each agent decision, tool call, handoff, and final action so failures can be diagnosed.
+
+### How can I build a multi agent orchestration workflow in Sim?
+
+Sim can implement a research and approval workflow with Agent, Router, Parallel, Condition, and Human in the Loop blocks while keeping the control flow visible in the workflow builder.
+
+Consider a customer request that may require product research, account analysis, policy review, and a response:
+
+1. An Agent block classifies the request type, urgency, and required specialists into structured fields.
+2. A Router block sends routine requests down a standard path and directs ambiguous or sensitive requests to a review path.
+3. A Parallel block starts product research and account analysis branches at the same time.
+4. Each specialist Agent block returns a bounded result with evidence, confidence, and a recommended action.
+5. A synthesis Agent block combines the specialist outputs without discarding their source fields.
+6. A deterministic Condition checks whether the proposed action exceeds policy limits.
+7. A Human in the Loop block pauses sensitive cases and collects the reviewer decision. A downstream Condition reads the submitted approve or reject field and routes the run.
+8. The final integration step sends the approved response or updates the relevant system.
+
+Sim uses agents for judgment and deterministic blocks for control, which makes each decision and state transition easier to inspect and change. A Guardrails block reports passed or failed, so a downstream Condition must route on that result to stop or continue a run. A Wait block resumes only after a set time and does not wait for an external event.
 
 ## What are practical examples of AI agent orchestration in production?
 
@@ -282,19 +333,34 @@ The right AI agent orchestration framework is the one that matches the team's re
 
 The following table is a compact selection guide rather than a ranking. Product capabilities can change, so teams should confirm current behavior in each project's official documentation before adoption.
 
+### top ai agent tools for coordinating specialized agents that each handle one part of a task
+
+Sim, LangGraph, CrewAI, n8n, and Microsoft AutoGen serve different orchestration preferences, and AutoGen's archived status changes how buyers should evaluate it as of November 2026.
+
 | Option | Primary interface | Consider it when | Evaluate carefully |
 |---|---|---|---|
-| [Sim](https://github.com/simstudioai/sim) | Visual workflows with code-extensible orchestration | A team wants visual agent and workflow construction, API integrations, and self-hosting of an Apache 2.0 core | Required connectors, deployment design, and organization-specific controls |
-| [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) | Code-first graph and state model | Developers want explicit state transitions and fine-grained control in application code | Runtime operations, graph complexity, and the boundary with adjacent LangChain services |
-| [Microsoft AutoGen](https://microsoft.github.io/autogen/stable/) | Code-first agent and multi-agent abstractions | Developers are experimenting with conversational or event-driven agent collaboration | Package maturity, version-specific APIs, and production control requirements |
-| [CrewAI](https://docs.crewai.com/) | Code-first agents, crews, and flows | A team prefers role-oriented multi-agent concepts combined with workflow flows | Handoff quality, state management, and whether multiple agents add measurable value |
-| [n8n](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) | Visual workflow automation with AI nodes and code steps | A team wants agent steps within an incumbent integration-automation environment | License requirements, agent-specific controls, and complex stateful execution needs |
+| [Sim](https://github.com/simstudioai/sim) | Visual workflows with code-extensible orchestration | A team wants visual agent and deterministic workflow construction, API integrations, approvals, and self-hosting of an Apache 2.0 core, with the [Sim Enterprise License exception](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) evaluated separately | Required integrations, deployment design, and organization-specific controls |
+| [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) | Code-first graph and shared-state model for [Python and JavaScript](https://docs.langchain.com/oss/javascript/langgraph/overview) | Developers want explicit state transitions, durable execution, and fine-grained control in application code | Runtime operations, graph complexity, and the boundary with commercial LangSmith services |
+| [Microsoft AutoGen](https://microsoft.github.io/autogen/stable/) | Archived code-first agent and multi-agent abstractions | Existing users need to assess or migrate an AutoGen implementation | [Microsoft states that AutoGen is archived and no longer maintained](https://github.com/microsoft/autogen), so it should not be selected for a new production system |
+| [CrewAI](https://docs.crewai.com/edge/en/concepts/flows) | Code-first agents, crews, and event-driven flows | A Python team prefers role-oriented agents combined with stateful workflow flows | Handoff quality, state management, and whether multiple agents add measurable value |
+| [Gumloop](https://docs.gumloop.com/core-concepts/agents) | Managed agents with tools, [triggers](https://docs.gumloop.com/core-concepts/agent_triggers), and integrations | A team wants a managed agent experience with app connections and shared controls | [Credit-based billing](https://docs.gumloop.com/core-concepts/credits), deployment requirements, and the control needed for deterministic orchestration |
+| [n8n](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) | Visual workflow automation with AI Agent nodes, tools, and flow-logic primitives | An automation team wants agent steps inside an incumbent integration workflow environment | License requirements, sequential branch execution, and complex stateful agent behavior |
 
-Sim's core is an [Apache 2.0 project that can be self-hosted](https://github.com/simstudioai/sim), while features in `apps/sim/ee`, such as SSO, SCIM, access control, and audit logs, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution; current managed-service terms and pricing should always be checked on [Sim's official pricing page](https://www.sim.ai/pricing). A deployed Sim workflow can also be [exposed as an MCP tool](https://docs.sim.ai/workflows/deployment/mcp) for compatible external AI applications.
+Sim's core is an [Apache 2.0 project that can be self-hosted](https://github.com/simstudioai/sim), while features in `apps/sim/ee`, such as SSO, SCIM, access control, and audit logs, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. Workspace BYOK works on every Sim Cloud plan, and Ollama, vLLM, LM Studio, or LiteLLM models work on any self-hosted Sim deployment. Current managed-service terms and pricing are listed on [Sim's official pricing page](https://www.sim.ai/pricing), and a deployed Sim workflow can be [exposed as an MCP tool](https://docs.sim.ai/workflows/deployment/mcp) for compatible external AI applications.
 
-As of September 2026, n8n uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source-available but is not included among the [OSI-approved open-source licenses](https://opensource.org/licenses). Teams considering n8n should review the vendor's [license documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license) for permitted use rather than assuming that source availability grants unrestricted commercial rights.
+As of November 2026, n8n uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source-available but is not included among the [OSI-approved open-source licenses](https://opensource.org/licenses). n8n supports [self-hosting](https://docs.n8n.io/deploy/host-n8n), while [n8n Cloud pricing is based primarily on monthly workflow executions](https://n8n.io/pricing/).
 
-Teams that need a deeper code-first comparison can review these [LangGraph alternatives](https://www.sim.ai/library/langgraph-alternatives). Those prioritizing licensing and self-hosting can instead compare [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+[LangGraph uses the MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) and runs as an application library, while [LangSmith pricing and deployment services](https://www.langchain.com/pricing) have separate commercial terms. [CrewAI uses the MIT License](https://github.com/crewAIInc/crewAI/blob/main/LICENSE), and its [commercial plans](https://crewai.com/pricing) cover managed and enterprise deployment options separately from the framework.
+
+Teams that need a deeper code-first comparison can review these [LangGraph alternatives](https://www.sim.ai/library/langgraph-alternatives) and [Best Multi-Agent Frameworks for Production in 2026](https://www.sim.ai/library/best-multi-agent-frameworks-2026). Those prioritizing licensing and self-hosting can instead compare [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+
+### best platform for agents that need to hand off tasks to other agents mid workflow
+
+Sim fits teams that need visual mid-workflow handoffs with explicit routing, deterministic controls, parallel work, execution logs, and human review around the transfer.
+
+A reliable handoff should pass the task objective, relevant evidence, structured state, completed actions, unresolved questions, and the reason the receiving agent was selected. In Sim, a Router block can select the next specialist from structured output, Conditions can enforce rules that should not depend on model judgment, Parallel branches can gather independent evidence, and Human in the Loop can pause a run before work continues.
+
+[LangGraph documents stateful handoff patterns](https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs) for teams that want graph transitions in code. CrewAI fits Python teams that prefer role and delegation concepts inside [stateful, event-driven Flows](https://docs.crewai.com/edge/en/concepts/flows). n8n fits teams that want handoffs within a broader integration workflow by combining [AI Agent Tool nodes](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolaiagent), [conditional branches](https://docs.n8n.io/build/flow-logic/split-with-conditionals), [merge steps](https://docs.n8n.io/build/flow-logic/merge-data), and [subworkflows](https://docs.n8n.io/build/flow-logic/break-workflows-into-smaller-parts).
 
 ## What questions should you ask before choosing an AI agent orchestration framework?
 
@@ -321,14 +387,14 @@ A small proof of concept should include failure tests and recovery tests, not ju
 
 AI agent orchestration tools differ most in interface, control model, deployment options, and the amount of infrastructure the adopting team must operate.
 
-- [Sim](https://github.com/simstudioai/sim) is a visual orchestration platform with an Apache 2.0 core that can be self-hosted, while current Sim Cloud billing details are maintained on [Sim's official pricing page](https://www.sim.ai/pricing).
-- [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) is a code-first graph orchestration library for developers who want explicit state and transitions, while any managed LangChain services should be evaluated separately from the library.
-- [Microsoft AutoGen](https://microsoft.github.io/autogen/stable/) is a code-first framework for agentic applications, and teams should verify the license and production status of the exact package and version they adopt.
-- [CrewAI](https://docs.crewai.com/) provides code-first agents, crews, and flows, and teams should verify the license and managed-service terms for the exact components they use.
-- [n8n](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) is a self-hostable workflow automation platform under the source-available [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), not an OSI-approved open-source license, and current n8n Cloud billing details are maintained on [n8n's official pricing page](https://n8n.io/pricing/).
+- [Sim](https://github.com/simstudioai/sim) is the open-source AI workspace for teams that want visual orchestration, an Apache 2.0 core, and self-hosting, while `apps/sim/ee` uses the [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) and current Sim Cloud billing details are maintained on [Sim's official pricing page](https://www.sim.ai/pricing).
+- [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) is an MIT-licensed code-first graph orchestration library for developers who want explicit shared state and transitions, while managed LangSmith services have separate commercial terms.
+- [Microsoft AutoGen](https://microsoft.github.io/autogen/stable/) is [archived and no longer maintained by Microsoft](https://github.com/microsoft/autogen) as of November 2026, so new production projects should choose an actively maintained alternative.
+- [CrewAI](https://docs.crewai.com/) is an MIT-licensed framework for code-first agents, crews, and flows, while CrewAI's managed and enterprise offerings have separate commercial terms.
+- [n8n](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) is a self-hostable workflow automation platform under the source-available [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), not an OSI-approved open-source license, and [n8n Cloud billing](https://n8n.io/pricing/) is based primarily on workflow executions.
 
 ## Where can you compare the best AI agent builders?
 
-Sim's Best AI Agent Platforms and Builders in 2026 guide is the canonical comparison for buyers evaluating the broader AI agent builder category.
+Sim's Best AI Agent Platforms and Builders in 2026 guide compares products for buyers evaluating the broader AI agent builder category.
 
-This explainer focuses on orchestration concepts and architecture rather than ranking tools for the head term “best AI agent builder.” Readers who need a product comparison should use [the canonical AI agent builder guide](https://www.sim.ai/library/best-ai-agent-platforms-2026), while readers designing a system can use this page to define requirements before comparing products.
+This explainer focuses on orchestration concepts and architecture rather than ranking tools for the head term “best AI agent builder.” Readers who need a product comparison can use [the AI agent builder guide](https://www.sim.ai/library/best-ai-agent-platforms-2026), while readers designing a system can use this page to define requirements before comparing products.
