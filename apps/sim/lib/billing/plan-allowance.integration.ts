@@ -522,6 +522,22 @@ describe('readSwitchBasis', () => {
     expect(await readSwitchBasis(sub, { type: 'user', id: userId })).toBeNull()
   })
 
+  it('reads the old allowance from the plan the request switched from on a retry', async () => {
+    // Untouched Max limit; a retry finds Stripe on Pro and the webhook already recorded Pro.
+    const userId = await createUser(MAX_MONTHLY_DOLLARS)
+    const sub = await addSubscription(userId, { plan: 'pro_25000', billingInterval: 'month' })
+    await db.update(subscription).set({ plan: 'pro_6000' }).where(eq(subscription.id, sub.id))
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'month',
+      orgScoped: false,
+    })
+
+    expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS)
+  })
+
   it('computes a Team switch from seats a sync added after the request read the plan', async () => {
     const organizationId = await createOrganization()
     const sub = await addSubscription(organizationId, {

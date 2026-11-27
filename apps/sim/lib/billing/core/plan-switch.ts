@@ -94,9 +94,9 @@ export interface SwitchBasis {
 
 /**
  * Reads a plan switch's {@link SwitchBasis} under its admission claim, in one snapshot. Null when
- * the plan or interval no longer matches `basis`: a switch that finished between this request's
- * first read and its claim moved it, and computing from the stale read would count the new
- * allowance as headroom the payer chose. A seat sync takes no claim, so the seats and allowance
+ * the payer, plan or interval no longer matches `basis`: a switch that finished between this
+ * request's first read and its claim moved it, and computing from the stale read would count the
+ * new allowance as headroom the payer chose, or rebase the wrong pool. A seat sync takes no claim, so the seats and allowance
  * come from this read too, consistent with the pool limit they produced.
  */
 export async function readSwitchBasis(
@@ -112,6 +112,7 @@ export async function readSwitchBasis(
         .limit(1)
       if (
         !current ||
+        current.referenceId !== basis.referenceId ||
         current.plan !== basis.plan ||
         resolveBillingInterval(current) !== resolveBillingInterval(basis)
       ) {
@@ -154,10 +155,11 @@ export async function readSwitchBasis(
  * interval would price a year of usage against a month's allowance, and threshold billing would
  * collect overage the old year's close then finds it never owed.
  *
- * The new allowance comes from the subscription row as locked here, since a seat sync takes no
- * switch claim and can land while Stripe applies the change. The old allowance is the one the limit
- * read was taken against: `subscription`'s, which `previous` was read with, or the locked row's
- * for the live limit.
+ * Seats come from the subscription row as locked here, since a seat sync takes no switch claim and
+ * can land while Stripe applies the change; the old plan and interval always come from
+ * `subscription`, since the subscription webhook can record the new plan first. The old allowance
+ * is priced for the seats the limit read was taken with: `subscription`'s, which `previous` was
+ * read with, or the locked row's for the live limit.
  */
 export async function recordPlanSwitch(params: {
   subscription: SwitchedSubscription
@@ -210,7 +212,9 @@ export async function recordPlanSwitch(params: {
         pool: orgScoped
           ? { type: 'organization', id: subscription.referenceId }
           : { type: 'user', id: subscription.referenceId },
-        previousIncluded: includedUsage(previous ? subscription : current),
+        previousIncluded: includedUsage(
+          previous ? subscription : { ...subscription, seats: current.seats }
+        ),
         nextIncluded: includedUsage(target),
         headroomScale,
         previous,

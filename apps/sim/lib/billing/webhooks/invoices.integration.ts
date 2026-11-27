@@ -67,21 +67,25 @@ async function createTeam(ownerBlocked: boolean, membersBlocked: boolean) {
     })
   }
   const stripeSubscriptionId = `sub_${generateId()}`
+  const stripeCustomerId = `cus_${generateId()}`
   await db.insert(subscription).values({
     id: generateId(),
     plan: 'team_6000',
     referenceId: organizationId,
-    stripeCustomerId: `cus_${generateId()}`,
+    stripeCustomerId,
     stripeSubscriptionId,
     status: 'active',
     seats: 3,
     periodStart: new Date(Date.now() - 86_400_000),
     periodEnd: new Date(Date.now() + 29 * 86_400_000),
   })
-  return { organizationId, ownerId, memberIds, stripeSubscriptionId }
+  return { organizationId, ownerId, memberIds, stripeSubscriptionId, stripeCustomerId }
 }
 
-function paidOverageInvoice(stripeSubscriptionId: string): Stripe.Event {
+function paidOverageInvoice(team: {
+  stripeSubscriptionId: string
+  stripeCustomerId: string
+}): Stripe.Event {
   return createMockStripeEvent(
     'invoice.payment_succeeded',
     {
@@ -89,11 +93,11 @@ function paidOverageInvoice(stripeSubscriptionId: string): Stripe.Event {
       object: 'invoice',
       amount_paid: 3582,
       billing_reason: 'manual',
-      customer: `cus_${generateId()}`,
+      customer: team.stripeCustomerId,
       currency: 'usd',
       metadata: {
         billingPeriod: '2026-10',
-        subscriptionId: stripeSubscriptionId,
+        subscriptionId: team.stripeSubscriptionId,
         type: 'overage_threshold_billing_org',
       },
     },
@@ -132,7 +136,7 @@ describe('a paid invoice after a failed one', () => {
     // member who joined after the block.
     const team = await createTeam(false, true)
 
-    await handleInvoicePaymentSucceeded(paidOverageInvoice(team.stripeSubscriptionId))
+    await handleInvoicePaymentSucceeded(paidOverageInvoice(team))
 
     expect(await blockedUserIds([team.ownerId, ...team.memberIds])).toEqual([])
   })
@@ -151,8 +155,11 @@ describe('a paid invoice after a failed one', () => {
       }
     })
 
-    await handleInvoicePaymentSucceeded(paidOverageInvoice(team.stripeSubscriptionId))
+    await handleInvoicePaymentSucceeded(paidOverageInvoice(team))
 
+    expect(stripeStub.invoices.list).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: team.stripeCustomerId, status: 'open' })
+    )
     expect((await blockedUserIds([team.ownerId, ...team.memberIds])).sort()).toEqual(
       [team.ownerId, ...team.memberIds].sort()
     )
@@ -161,7 +168,7 @@ describe('a paid invoice after a failed one', () => {
   it('skips the Stripe invoice listing for an organization nobody is blocked in', async () => {
     const team = await createTeam(false, false)
 
-    await handleInvoicePaymentSucceeded(paidOverageInvoice(team.stripeSubscriptionId))
+    await handleInvoicePaymentSucceeded(paidOverageInvoice(team))
 
     expect(stripeStub.invoices.list).not.toHaveBeenCalled()
   })
