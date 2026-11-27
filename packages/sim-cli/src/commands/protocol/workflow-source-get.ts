@@ -63,6 +63,12 @@ async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<v
 const NAMED_CANDIDATES = 10
 
 /**
+ * The longest `search` the v2 list routes take (`V2_SEARCH_MAX_LENGTH`), shorter than the longest
+ * workflow name: a longer name searches its first this many characters and matches exactly here.
+ */
+const SEARCH_MAX_LENGTH = 200
+
+/**
  * The workflow `workflow` names: a UUID as it is, else the one workflow in the workspace whose
  * name is exactly `workflow`. No match or several are refused, naming the candidates with their
  * ids (a workflow's name is unique only within its folder).
@@ -74,11 +80,21 @@ async function resolveWorkflow(
   inWorkspace?: string
 ): Promise<string> {
   if (isValidUuid(workflow)) return workflow
+  // Cut on a character boundary: half an emoji would search for a name no workflow holds.
+  const search = workflow
+    .trim()
+    .slice(0, SEARCH_MAX_LENGTH)
+    .replace(/[\uD800-\uDBFF]$/, '')
+  if (search === '') {
+    throw new CliUsageError('Name a workflow: its id or exact name.', {
+      code: 'WORKFLOW_NOT_FOUND',
+    })
+  }
   const workspaceId = client.requireWorkspace(inWorkspace)
   // Every page: an exact match or a second one can sort after the first page of substring hits.
   const found = await client.requestAllPages<ListWorkflowsResponse['data'][number]>(
     'listWorkflows',
-    { query: { workspaceId, search: workflow }, pageSize: DEFAULT_PAGE_SIZE }
+    { query: { workspaceId, search }, pageSize: DEFAULT_PAGE_SIZE }
   )
   const exact = found.filter(({ name }) => name === workflow)
   if (exact.length === 1) return exact[0].id

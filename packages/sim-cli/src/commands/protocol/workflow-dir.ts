@@ -37,6 +37,7 @@ import {
   writeBack,
 } from './source-dir'
 import { sourceExitCodesTable } from './source-exit-codes'
+import type { PrimerSurface } from './source-primer'
 import { STRICT_FINDINGS_CLAUSE } from './source-strict'
 import {
   assertSdkMajor,
@@ -214,19 +215,20 @@ const WORKFLOW_ADVANCED_FILE = '.sim/GUIDE-advanced.md'
 
 /**
  * The reference below the primer in `.sim/AGENTS.md`: the flags of the edit loop and the file
- * shape. The rest, by task, is in {@link ADVANCED_GUIDE}, which agents read only when a step
+ * shape. The rest, by task, is in {@link advancedGuide}, which agents read only when a step
  * needs it, and the docs page has everything.
  */
-const AGENTS_GUIDE = `# Reference
+function agentsGuide(surface: PrimerSurface): string {
+  return `# Reference
 
 The primer above is enough to edit. \`${WORKFLOW_ADVANCED_FILE}\` has the rest, by task: the edit loop step by step and what a dry run stubs, a new workflow or a fork, finding a builder and its types, the rules, and every diagnostic and exit code. The full guide: ${SOURCE_DOCS_URL}
 
 ## Flags
 
 - \`check\`: \`--strict\` fails on the warnings that name a real problem in every block, not only in a block you added; \`--no-types\` skips the type-check.
-- \`apply\`: \`--yes\` writes (without it and a terminal, it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}); \`--dry\` only plans; \`--allow-delete\`; \`--deploy\`.
+- \`apply\`: \`--yes\` writes (without it and a terminal, it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}); \`--dry\` only plans; \`--allow-delete\`${surface === 'cli' ? '; `--deploy`' : ''}.
 - \`get\`: \`--force\` replaces edits no apply has saved, or another workflow's source.
-- \`sim workflows run\`: the primer's **Run** and **Debug**.
+- ${surface === 'cli' ? "`sim workflows run`: the primer's **Run** and **Debug**." : "Test runs and deploys go through sim_cli, as the shell refuses runs: the primer's edit loop, **Run** and **Debug**."}
 
 ## File shape
 
@@ -244,18 +246,45 @@ export default workflow('Workflow name', {}, () => {
 
 The \`// @sim-sdk ${SDK_MAJOR}\` header must be the first line, and the file has exactly one \`export default workflow(name, options, () => { ... })\`; \`options\` holds \`description\` and \`variables\` and may be \`{}\`.
 `
+}
+
+/**
+ * How a test run and the deploy follow the apply in {@link advancedGuide}: chained onto it in a
+ * coding agent's shell, through `sim_cli` in Mothership's, whose shell refuses runs.
+ */
+const ADVANCED_TEST_AND_DEPLOY: Record<
+  PrimerSurface,
+  { batch: string; testRun: string; applyStep: string }
+> = {
+  cli: {
+    batch:
+      "Batch it: write every file first, then run steps 2 and 4 (with a test run and the deploy) as one chained command, `sim workflows source check --dir . && sim workflows source apply --dir . --yes --run '{…}' --deploy`, and fix what it reports in the next step.",
+    testRun: "`--run`, or `sim workflows run <workflowId> --dry --input '{…}'`",
+    applyStep:
+      "`--run '{…}'` then dry-runs that input on the saved draft (`run` in the result: status, output, side effects; a failed run exits 1 and maps the failing block to file:line), and `--deploy` deploys it only if that run completed (alone, it deploys right after the apply). Without `--deploy`, a deployed workflow's next is `sim workflows deploy <id> --expected-draft-fingerprint <fingerprint>`, which deploys only the draft this apply saved; after an apply without `--run` its reason names the same apply with `--run '{…}' --deploy`, which tests and deploys in one step.",
+  },
+  chat: {
+    batch:
+      "Batch it: write every file first, then run steps 2 and 4 as one chained command in run_code's shell, `sim workflows source check --dir . && sim workflows source apply --dir . --yes`, and fix what it reports in the next step.",
+    testRun: "sim_cli's `workflows run <workflowId> --dry --input '{…}' --dir <dir>`",
+    applyStep:
+      "Then test it with sim_cli, as the shell refuses runs: `workflows run <workflowId> --dry --input '{…}' --dir <dir>` (`--dir` maps a failure to file:line), and only if that run completed, deploy the draft it tested with `workflows deploy <id> --expected-draft-fingerprint <fingerprint>` (the fingerprint in `.sim/base.json`).",
+  },
+}
 
 /** The workflow guide's deep dives, which `.sim/AGENTS.md` points to in one line. */
-const ADVANCED_GUIDE = `# Sim workflow source: advanced
+function advancedGuide(surface: PrimerSurface): string {
+  const { batch, testRun, applyStep } = ADVANCED_TEST_AND_DEPLOY[surface]
+  return `# Sim workflow source: advanced
 
 ## Edit loop in detail
 
-Batch it: write every file first, then run steps 2 and 4 (with a test run and the deploy) as one chained command, \`sim workflows source check --dir . && sim workflows source apply --dir . --yes --run '{…}' --deploy\`, and fix what it reports in the next step. Each non-zero exit stops the chain. Step 3 (with its \`apply --dry\`, which only plans) is for a person, CI, or a change you want reviewed first. The test run (\`--run\`, or \`sim workflows run <workflowId> --dry --input '{…}'\`) is another thing than \`apply --dry\`: it executes the saved draft, while a run without \`--dry\`, \`--draft\` or a flag that implies the draft (\`--trigger\`, \`--sample\`, \`--stop-after\`, \`--from-block\`) runs the active deployment (\`--deployment-version <n>\`: that deployed version). A dry run answers every tool call not declared read (sends, table writes, HTTP requests other than GET, HEAD or OPTIONS, custom and MCP tools) with a placeholder and lists it under \`sideEffects.stubbed\` with the request it would have sent, when present (each list keeps a bounded number of entries and counts the rest in \`sideEffects.omitted\`, so check it before treating a list as complete); check those payloads instead of reading back or cleaning up data. Placeholders are distinctive (\`dry_run_row_1\`, numbers above 900000000), and a read that would send one (a tool read, an API GET, a Function's fetch, its headers included) is not sent either and is listed with \`reason: 'placeholder'\`. An MCP tool is stubbed even when its server declares it read-only, which Sim cannot verify: that entry has \`reason: 'mcp-read-only'\`, and \`--allow <block>\` sends it. Code (a Function block's, a Condition's expressions, a While or Do While loop's condition, code an Agent's model writes) runs: its GET, HEAD and OPTIONS fetches are sent (an API that writes on a GET is not stubbed, so point those at a test resource), and any other fetch, or one carrying a method-override header, gets an empty 200 and is listed under \`sideEffects.stubbed\`; code in a remote sandbox (shell, Python, imports) is listed under \`sideEffects.unchecked\`, so check that list too. Child workflows run dry too, and custom, Human in the loop and Wait blocks are answered whole. \`--mock <block>='{…}'\` answers a block with fixed output to steer a branch; a bare \`--mock <block>\` with \`--mock-from <runId>\` replays that block's output from the recorded run (this workflow's blocks, not a child's; not inside a loop or parallel unless that run mocked it). \`--allow <block>\` sends that block's writes for real (a Function's fetches included) and \`--draft\` runs the draft with every write sent, so point both at test resources. \`--allow\` and \`--mock\` name a child workflow's block as \`<workflow>.<block>\`.
+${batch} Each non-zero exit stops the chain. Step 3 (with its \`apply --dry\`, which only plans) is for a person, CI, or a change you want reviewed first. The test run (${testRun}) is another thing than \`apply --dry\`: it executes the saved draft, while a run without \`--dry\`, \`--draft\` or a flag that implies the draft (\`--trigger\`, \`--sample\`, \`--stop-after\`, \`--from-block\`) runs the active deployment (\`--deployment-version <n>\`: that deployed version). A dry run answers every tool call not declared read (sends, table writes, HTTP requests other than GET, HEAD or OPTIONS, custom and MCP tools) with a placeholder and lists it under \`sideEffects.stubbed\` with the request it would have sent, when present (each list keeps a bounded number of entries and counts the rest in \`sideEffects.omitted\`, so check it before treating a list as complete); check those payloads instead of reading back or cleaning up data. Placeholders are distinctive (\`dry_run_row_1\`, numbers above 900000000), and a read that would send one (a tool read, an API GET, a Function's fetch, its headers included) is not sent either and is listed with \`reason: 'placeholder'\`. An MCP tool is stubbed even when its server declares it read-only, which Sim cannot verify: that entry has \`reason: 'mcp-read-only'\`, and \`--allow <block>\` sends it. Code (a Function block's, a Condition's expressions, a While or Do While loop's condition, code an Agent's model writes) runs: its GET, HEAD and OPTIONS fetches are sent (an API that writes on a GET is not stubbed, so point those at a test resource), and any other fetch, or one carrying a method-override header, gets an empty 200 and is listed under \`sideEffects.stubbed\`; code in a remote sandbox (shell, Python, imports) is listed under \`sideEffects.unchecked\`, so check that list too. Child workflows run dry too, and custom, Human in the loop and Wait blocks are answered whole. \`--mock <block>='{…}'\` answers a block with fixed output to steer a branch; a bare \`--mock <block>\` with \`--mock-from <runId>\` replays that block's output from the recorded run (this workflow's blocks, not a child's; not inside a loop or parallel unless that run mocked it). \`--allow <block>\` sends that block's writes for real (a Function's fetches included) and \`--draft\` runs the draft with every write sent, so point both at test resources. \`--allow\` and \`--mock\` name a child workflow's block as \`<workflow>.<block>\`.
 
 1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`${SOURCE_EXAMPLES_DIR}/\` holds correct examples to copy from: \`cookbook.ts\` (agent with structured output, condition, function, table query and upsert, knowledge search, Slack, human in the loop, loop, response), \`integrations.ts\` (webhook trigger, weekday cron schedule, HTTP request with headers, table update by row id, Gmail, an error path) and \`agents.ts\` (router, agent tools: custom tool, MCP tool, integration operation, child workflow; run a child workflow; parallel). Their resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
 2. \`sim workflows source check --dir .\`: compiles with the server's compiler, in milliseconds and without a request. It catches what \`tsc\` cannot (duplicate names, cycles, literal secrets), and fails (exit 1) on ${STRICT_FINDINGS_CLAUSE} in a block you added (\`--strict\`: in every block). It then adds the blocks the source now uses to \`tsconfig.json\` and type-checks with it, using the TypeScript release the declarations are built for (installed once into the CLI's cache, on the first check; \`E_TYPE\` findings). That catches what the compile and \`apply --dry\` do not, such as a reference to a start input the trigger does not declare. Offline before that install, it warns \`W_TYPES_UNCHECKED\` and passes on the compile alone; \`--no-types\` skips it. \`apply --dry\` is the authority: a type error on a printed line you did not edit that it accepts can be skipped with \`--no-types\`.
 3. \`sim workflows source status --dir .\`: the files you changed (\`sim workflows source diff --dir .\` shows the edits), whether the workflow changed on the server since the get, and the command to run next (\`--offline\`: skip the server). Then \`sim workflows source apply --dir . --dry\` until it exits 0.
-4. \`sim workflows source apply --dir . --yes\`: saves the draft, refusing errors, block deletions without \`--allow-delete\` and a stale directory, so it needs no separate dry run (without \`--yes\` and a terminal it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}). \`--run '{…}'\` then dry-runs that input on the saved draft (\`run\` in the result: status, output, side effects; a failed run exits 1 and maps the failing block to file:line), and \`--deploy\` deploys it only if that run completed (alone, it deploys right after the apply). Without \`--deploy\`, a deployed workflow's next is \`sim workflows deploy <id> --expected-draft-fingerprint <fingerprint>\`, which deploys only the draft this apply saved; after an apply without \`--run\` its reason names the same apply with \`--run '{…}' --deploy\`, which tests and deploys in one step. Its first line, \`summary\`, gives the counts, findings, test run and what is live; its last lines repeat \`errors\`, \`warnings\` and \`live\`, which says what serves: \`not deployed\`, \`version N, matches the draft\`, \`version N, draft has undeployed changes\`, or after \`--deploy\` \`version N still serving; version M activating\` until the deploy is live (\`sim workflows deployment status <id>\` shows when). It then rewrites \`${SOURCE_ENTRY_FILE}\` in canonical form (order, quoting, defaults left out).
+4. \`sim workflows source apply --dir . --yes\`: saves the draft, refusing errors, block deletions without \`--allow-delete\` and a stale directory, so it needs no separate dry run (without \`--yes\` and a terminal it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}). ${applyStep} Its first line, \`summary\`, gives the counts, findings, test run and what is live; its last lines repeat \`errors\`, \`warnings\` and \`live\`, which says what serves: \`not deployed\`, \`version N, matches the draft\`, \`version N, draft has undeployed changes\`, or after a deploy \`version N still serving; version M activating\` until the deploy is live (\`sim workflows deployment status <id>\` shows when). It then rewrites \`${SOURCE_ENTRY_FILE}\` in canonical form (order, quoting, defaults left out).
 5. Exit ${SOURCE_STALE_EXIT_CODE} (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`. Exit ${SOURCE_STALE_EXIT_CODE} right after an apply that ended without an answer (a timeout, a dropped connection) means the draft changed, by that apply or by someone else: get into a fresh directory and compare. Only when it holds your edit, run \`sim workflows source get <workflowId> --dir . --force\`; otherwise reapply your edit in the fresh directory.
 
 Editing the \`workflow('…')\` name or description renames or redescribes the workflow; a name another workflow in its folder holds is refused with \`E_NAME_TAKEN\`. Lines starting \`note:\` explain something the write did differently than the source says; read them.
@@ -289,6 +318,7 @@ ${sourceExitCodesTable('sim workflows source')}
 
 The full guide: ${SOURCE_DOCS_URL}
 `
+}
 
 /** The printed source a tree write saves: a get's answer, or an applied create's. */
 export type PrintedSource = Pick<
@@ -373,8 +403,8 @@ function printedReads(compiled: CompileResult | null): PrintedReads {
 /** The workflow directory's tree beside the printed source. */
 export const WORKFLOW_TREE: SourceTreeProfile = {
   kind: 'workflow',
-  agents: AGENTS_GUIDE,
-  guides: [[WORKFLOW_ADVANCED_FILE, ADVANCED_GUIDE]],
+  agents: agentsGuide,
+  guides: (surface) => [[WORKFLOW_ADVANCED_FILE, advancedGuide(surface)]],
   tsconfig: workflowTsconfig,
 }
 

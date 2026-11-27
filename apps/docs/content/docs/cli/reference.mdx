@@ -10125,7 +10125,7 @@ sim workspaces source apply [options]
 | `--delete-target-only` | No | With --to and --allow-delete, also delete the target's resources this directory never declared and no promotion from it left there (prod-only tables and their rows, skills made in prod). Without it a promotion keeps them, naming each with a warning. |
 | `--only <kinds>` | No | Apply only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
 | `--to <workspaceId>` | No | Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place. Only .sim/targets/&lt;workspaceId&gt;.json changes, the record the next promotion compares with: a resource changed there since is kept, or refused as stale (exit 5) when the directory changed it too. |
-| `--run <key=input>` | No | After the apply, dry-run workflows/&lt;key&gt;/'s saved draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it; `--run <key>` alone: no input). Repeat it to test more workflows. deployments/ is applied only after every run completed; a run that does not complete exits 1 and leaves the applied drafts in place. |
+| `--run <key=input>` | No | After the apply, dry-run workflows/&lt;key&gt;/'s saved draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it; `--run <key>` alone: no input). Repeat it to test more workflows. deployments/ is applied only after every run completed, and only when every draft it publishes was test-run; a run that does not complete exits 1 and leaves the applied drafts in place. |
 
 </CommandTable>
 

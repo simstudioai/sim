@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as exitCodes from '../../exit-codes'
 import { sourceExitCodesHelp, sourceExitCodesTable } from './source-exit-codes'
+import type { PrimerSurface } from './source-primer'
 import { WORKFLOW_TREE } from './workflow-dir'
 import { WORKSPACE_TREE } from './workspace-source-dir'
 
@@ -17,13 +18,14 @@ const SOURCE_EXIT_CODES = [
 ].sort((a, b) => a - b)
 
 /** Everything a get writes beside the primer for an agent to read: `.sim/AGENTS.md` and the guides. */
-const guidesOf = (tree: typeof WORKFLOW_TREE) =>
-  [tree.agents, ...(tree.guides ?? []).map(([, text]) => text)].join('\n')
+const guidesOf = (tree: typeof WORKFLOW_TREE, surface: PrimerSurface) =>
+  [tree.agents(surface), ...(tree.guides?.(surface) ?? []).map(([, text]) => text)].join('\n')
 
 describe('the exit-code tables an agent or a reader relies on', () => {
   it.each([
-    ['the workflow directory guides', guidesOf(WORKFLOW_TREE)],
-    ['the workspace directory guides', guidesOf(WORKSPACE_TREE)],
+    ['the workflow directory guides', guidesOf(WORKFLOW_TREE, 'cli')],
+    ["the workflow directory guides Mothership's chat reads", guidesOf(WORKFLOW_TREE, 'chat')],
+    ['the workspace directory guides', guidesOf(WORKSPACE_TREE, 'cli')],
   ])('%s list every code a source command exits with', (_name, text) => {
     const listed = [...text.matchAll(/^\| (\d+) \|/gm)].map((match) => Number(match[1]))
     expect(listed).toEqual(SOURCE_EXIT_CODES)

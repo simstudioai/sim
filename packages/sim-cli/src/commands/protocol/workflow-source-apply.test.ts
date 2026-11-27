@@ -1148,6 +1148,17 @@ describe('sim workflows source apply', () => {
         expect(request).not.toHaveBeenCalled()
         expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
       })
+
+      it('refuses an input that is not JSON before saving anything', async () => {
+        setTerminal(false)
+        serveDeploy()
+
+        const failure = apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{bad', '--deploy')
+
+        await expect(failure).rejects.toThrow(/--run: its input is not JSON. Nothing was saved./)
+        expect(request).not.toHaveBeenCalled()
+        expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
+      })
     })
 
     it('deploys through the deploy operation once the apply is saved', async () => {
@@ -1257,6 +1268,18 @@ describe('sim workflows source apply', () => {
       expect(toRecord(result.next).reason).toContain(
         `\`sim workflows source apply --dir ${dir} --yes --run '{…}' --deploy\` tests and deploys it in one step`
       )
+    })
+
+    it('inside Mothership, names the test run through sim_cli, never --run or --deploy, in the reason', async () => {
+      setTerminal(false)
+      vi.stubEnv('SIM_CLI_HOST', 'mothership')
+      request.mockResolvedValue(outcome())
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+
+      const reason = String(toRecord(stdoutJson().next).reason)
+      expect(reason).toContain(`sim_cli (\`workflows run ${WORKFLOW_ID} --dry`)
+      expect(reason).not.toMatch(/--run|--deploy/)
     })
 
     it.each([
@@ -1736,6 +1759,17 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
   async function create(...argv: string[]): Promise<void> {
     await program().parseAsync(['node', 'sim', 'workflows', 'source', 'create', ...argv])
   }
+
+  it('refuses a --run input that is not JSON before writing a starter', async () => {
+    const empty = join(dir, 'new')
+
+    await expect(create('--dir', empty, '--run', '{bad')).rejects.toThrow(
+      /--run: its input is not JSON/
+    )
+
+    expect(existsSync(join(empty, 'workflow.ts'))).toBe(false)
+    expect(request).not.toHaveBeenCalled()
+  })
 
   it('writes a starter workflow.ts, the types, tsconfig and the guide, and creates nothing', async () => {
     setTerminal(false)

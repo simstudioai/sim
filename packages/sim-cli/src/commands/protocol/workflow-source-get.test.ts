@@ -267,6 +267,33 @@ describe('sim workflows source get <name>', () => {
       expect(existsSync(join(outDir, '.sim/base.json'))).toBe(false)
     }
   )
+
+  it('refuses a blank name before listing anything', async () => {
+    serve({ [LIST_PATH]: listed({ id: WORKFLOW_ID, name: 'Lead Scorer' }) })
+
+    for (const name of ['', '  ']) {
+      expect(await getNamed(name)).toMatchObject({ code: 'WORKFLOW_NOT_FOUND' })
+    }
+    expect(callsTo(LIST_PATH)).toHaveLength(0)
+  })
+
+  it('finds a name longer than the list search takes by its first 200 characters', async () => {
+    const long = `${'Lead Scorer '.repeat(20)}final`
+    serve({ [LIST_PATH]: listed({ id: WORKFLOW_ID, name: long }) })
+
+    expect(await getNamed(long)).toBeNull()
+
+    expect(callsTo(LIST_PATH)[0][1].query?.search).toBe(long.slice(0, 200))
+  })
+
+  it('never cuts the search inside a character a long name holds', async () => {
+    const long = `${'a'.repeat(199)}😀 scorer`
+    serve({ [LIST_PATH]: listed({ id: WORKFLOW_ID, name: long }) })
+
+    expect(await getNamed(long)).toBeNull()
+
+    expect(callsTo(LIST_PATH)[0][1].query?.search).toBe('a'.repeat(199))
+  })
 })
 
 describe('sim workflows source get --dir', () => {
@@ -522,7 +549,9 @@ describe('sim workflows source get --dir', () => {
 
   it('writes the chat primer and pointer inside Mothership, and the coding-agent ones elsewhere', async () => {
     const guides = () =>
-      ['.sim/AGENTS.md', 'AGENTS.md'].map((file) => readFileSync(join(outDir, file), 'utf8'))
+      ['.sim/AGENTS.md', 'AGENTS.md', '.sim/GUIDE-advanced.md'].map((file) =>
+        readFileSync(join(outDir, file), 'utf8')
+      )
     serve()
     await get('--dir', outDir)
     for (const guide of guides()) {
@@ -534,7 +563,7 @@ describe('sim workflows source get --dir', () => {
     await get('--dir', outDir, '--force')
 
     for (const guide of guides()) {
-      expect(guide).not.toMatch(/ --run(?![\w-])/)
+      expect(guide).not.toMatch(/--run '|(^|[\s`])--deploy(?![\w-])/m)
       expect(guide).toContain('with sim_cli')
     }
   })
