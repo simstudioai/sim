@@ -576,8 +576,10 @@ export const DealportBlock: BlockConfig = {
     },
     {
       id: 'watch',
-      title: 'Watch Matched Companies Monthly',
+      title: 'Watch Matched Companies Weekly',
       type: 'switch',
+      description:
+        'Monitor matched companies weekly for ownership, leadership, headcount, filing, and news changes ($0.05 per newly watched company per month).',
       condition: { field: 'operation', value: 'dealport_match_companies' },
       mode: 'advanced',
     },
