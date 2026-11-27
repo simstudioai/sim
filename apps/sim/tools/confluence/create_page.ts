@@ -109,7 +109,7 @@ export const confluenceCreatePageTool: InternalToolConfig<
    * picks the space's homepage); its id is a placeholder.
    */
   dryRunOutput: (params) => {
-    const spaceId = params.spaceId.trim()
+    const spaceId = String(params.spaceId).trim()
     return {
       pageId: dryRunId('page'),
       title: params.title,
