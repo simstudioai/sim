@@ -239,7 +239,11 @@ write is refused as stale rather than published. A deploy's idempotency key hash
 fingerprint and the live version it replaces. The flag, the deploy and the chat are separate writes, so the
 apply checks what the chat write refuses (an identifier another chat holds,
 `E_DEPLOY_CHAT_IDENTIFIER`, at plan time and again before the first write; the password, the
-outputs, the auth mode) before it writes any of them. The base records each part's fingerprint
+outputs, the auth mode) before it writes any of them. A chat stores its outputs by block id, and
+a stored output reads by the block's name in the draft, else in the live version it serves: a kept
+chat whose output block the going-live draft re-created (by this apply's edit, or an earlier
+apply's, as \`apply --run\` writes deployments after its test runs) is rewritten to the block of
+that name (\`checkKeptOutputs\`). The base records each part's fingerprint
 (`x-parts`: `api`, `chat`), so a re-run after an apply stopped between them finds every part
 either the base's or the directory's and finishes the write (`partway` in `three-way.ts`), while a
 part that matches neither is still `E_APPLY_STALE`. A first deploy that stopped before its chat leaves a deployment with no

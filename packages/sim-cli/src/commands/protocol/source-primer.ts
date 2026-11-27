@@ -121,7 +121,7 @@ const WORKSPACE_PRIMER = `# Sim workspace source: primer
 
 A Sim workspace as files; nothing here runs. Commands here (table ones too) act on the workspace \`${SOURCE_BASE_FILE}\` names. Every \`.ts\` file starts with \`// @sim-sdk ${SDK_MAJOR}\`.
 
-**Edit loop**: write every file, then run one chained command; fix what it reports: \`${WORKSPACE_LOOP}\` dry-runs \`workflows/<key>/\`'s draft (repeatable) and deploys only if all complete. \`check\` also type-checks (no \`tsc\`). Apply re-checks (\`apply --dry\` only plans) and rewrites files: reread before editing.
+**Edit loop**: write every file, then run one chained command; fix what it reports: \`${WORKSPACE_LOOP}\` dry-runs \`workflows/<key>/\`'s draft (one \`--run\` per workflow you changed; drop it when you changed none) and deploys only if all complete. \`check\` also type-checks (no \`tsc\`). Apply re-checks (\`apply --dry\` only plans) and rewrites files: reread before editing.
 
 - **Deletes**: removing anything (file, column, block) needs \`apply --allow-delete\` and is permanent.
 - **Exit ${SOURCE_HELD_EXIT_CODE}**: partly written: what needs an unset secret or unbound credential waits; set it, reapply.
@@ -137,7 +137,7 @@ export const AGENTS_POINTER_MARKER =
 
 const STARTER_LOOP = ` A starter (\`${SOURCE_STARTER_FILE}\`, no workflow yet) runs \`create\` in place of \`apply\`.`
 
-const WORKSPACE_POINTER_LOOP = `\`${WORKSPACE_LOOP}\`; fix what it reports next.`
+const WORKSPACE_POINTER_LOOP = `\`${WORKSPACE_LOOP}\` (one \`--run\` per workflow you changed); fix what it reports next.`
 
 /** The loop line of the pointer, after its lead, by directory kind and surface. */
 const POINTER_LOOPS: Record<PrimerKind, Record<PrimerSurface, string>> = {
