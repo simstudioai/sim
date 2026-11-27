@@ -1,4 +1,5 @@
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   type CopilotExecutionContext,
@@ -14,15 +15,21 @@ interface CopilotPeopleScope {
 }
 
 /**
- * Runs a People directory read for the organization Assistant: the subject and organization come
- * from the trusted turn, the delegation is bound to the member's private chat, and the People use
- * cases the read calls still check the feature, the membership and the directory capability.
+ * Runs a People directory read for the organization Assistant, the only mode Sim grants the
+ * `people` entitlement in. The subject and organization come from the trusted turn, the
+ * delegation is bound to the member's private chat, and the People use cases the read calls
+ * still check the feature, the membership and the directory capability.
  */
 export async function executeCopilotPeopleRead<R>(
   context: CopilotExecutionContext | undefined,
   read: (scope: CopilotPeopleScope) => Promise<R>
 ): Promise<R> {
   const trusted = requireTrustedOrganizationCopilotContext(context)
+  if (context?.requestMode !== 'assistant')
+    throw new OrchestrationError(
+      'forbidden',
+      'The People directory is available only in organization Assistant conversations'
+    )
   const principal = createTrustedOrganizationCopilotPrincipal(
     { ...trusted, delegationId: trusted.toolCallId },
     {

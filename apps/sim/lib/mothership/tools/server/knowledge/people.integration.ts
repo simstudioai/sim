@@ -115,11 +115,20 @@ it('refuses a chat owner who is no longer a member of the organization', async (
   expect(JSON.stringify(result)).not.toContain('Grace Lead')
 })
 
-it('offers the directory only in organization conversations', async () => {
+it('offers the directory only in organization Assistant conversations', async () => {
   expect(
     await searchPeopleServerTool.execute(
       { query: 'grace' },
       { ...turn(readerId, readerChat), organizationId: undefined, workspaceId: generateId() }
     )
   ).toMatchObject({ success: false })
+  expect(
+    await searchPeopleServerTool.execute(
+      { query: 'grace' },
+      { ...turn(readerId, readerChat), requestMode: 'agent' }
+    )
+  ).toEqual({
+    success: false,
+    message: 'The People directory is available only in organization Assistant conversations',
+  })
 })
