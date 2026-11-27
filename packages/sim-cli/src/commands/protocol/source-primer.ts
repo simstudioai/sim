@@ -57,18 +57,18 @@ export const PATTERNS_HEADING = '- **Patterns**'
 
 /** The rules every source directory shares, after the kind's own edit loop. */
 function sharedRules(extra: { renames?: string; patterns?: string; debug?: string } = {}): string {
-  return `- **Renames**: rename blocks' display names (first argument) or consts, with other edits: \`${SOURCE_LOCK_FILE}\` keeps each block and apply rewrites every reference, \`$ref.<key>\` too. Changing both on one block keeps it only if its settings or neighbours match, else a delete (\`E_APPLY_BLOCK_DELETE\`). One workflow variable per apply.${extra.renames ?? ''}
+  return `- **Renames**: rename display names (first argument) or consts, with other edits: \`${SOURCE_LOCK_FILE}\` keeps each block and apply rewrites every reference, \`$ref.<key>\` too. Changing both on one block keeps it only if its settings or neighbours match, else a delete (\`E_APPLY_BLOCK_DELETE\`). One workflow variable per apply.${extra.renames ?? ''}
 - **References**: \`${SOURCE_ENTRY_FILE}\` reads \`x.content\`, text as \`\` t\`…\` \`\`, env as \`env.NAME\`. A function file (\`codeFile('./functions/x.js')\`) reads \`$ref.<key>.<path>\` (key: display name lowercased, no spaces or dots), \`$ref.loop.currentItem\` / \`.index\` in a body (\`parallel\` too), \`$env.NAME\`; \`.py\`/\`.sh\` files \`<key.path>\`, \`{{NAME}}\`. A block that never ran reads \`null\` (\`''\` in text).
 ${PATTERNS_HEADING} (\`.sim/examples/\`, indexed atop \`cookbook.ts\`; any builder: \`${PARAMS_COMMAND} <builder>\`):
   - Condition: keys test in order, first true wins, \`else: true\` last; wire \`route.high.to(alert)\`.
   - Loop: \`const each = loop.forEach('Each Order', { collection: recent.rows }, (p) => {\`; inside, \`p.currentItem.data.orderId\` and \`p.index\`; after, \`each.results\`.
   - Failure: \`shape.onError(invalid)\`; \`invalid\` reads \`shape.error\` (an \`api\` block's too); only a Function also has \`.errorMessage\` (message only).
-  - Retry: an \`api\` block's retries and retry delay are \`retries: 3\`, \`retryDelayMs: 500\` (resend the request); a block's Retry on fail is the 3rd argument, \`{ retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 2000 } }\`.
+  - Retry: an \`api\` block resends with \`retries: 3\`, \`retryDelayMs: 500\`; any block's Retry on fail: 3rd argument, \`{ retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 2000 } }\`.
   - Child: \`const enrich = runWorkflow('Enrich Lead', {\` with \`workflowId: childWorkflow('enrich-lead')\`, \`inputMapping: { email: start.email }\`; read \`enrich.result.data.<field>\`.
   - Tables: \`table.queryRows\` outputs \`rows\` (\`recent.rows[0].data.status\`), not \`row\`; \`table.upsertRow\` takes \`conflictColumn: 'orderId'\`.
   - Rejoin: before one \`response\`, a Function picks the branch that ran with \`??\`.${extra.patterns ?? ''}
 - **Credentials**: \`sim credentials connect <provider> --name "<Name>"\`, send the owner its link, then \`credential('<key>')\`.
-- **Run**: \`sim workflows run <workflowId>\` runs the active deployment; \`--dry\` runs the draft stubbing writes and MCP tools (even read-only: \`mcp-read-only\`), listed in \`sideEffects\` (\`dry_run_*\` placeholders); GET \`api\` calls and plain-JS GET fetches run; sandboxed code (Python, shell, imports): \`unchecked\`. With \`--dry\`, \`--allow <block>\` sends its writes; \`--draft\` sends all (use test resources). \`--mock <block>='{…}'\` fixes its output (bare, with \`--mock-from <runId>\`: that run's); a child's block: \`<workflow>.<block>\`.
+- **Run**: \`sim workflows run <workflowId>\` runs the active deployment; \`--dry\` runs the draft stubbing writes and MCP tools (even read-only: \`mcp-read-only\`), listed in \`sideEffects\` (\`dry_run_*\` placeholders); GET \`api\` calls and plain-JS GET fetches run; sandboxed code (Python, shell, imports): \`unchecked\`. \`--allow <block>\` (implies \`--dry\`) sends its writes; \`--draft\` alone sends all (use test resources). \`--mock <block>='{…}'\` fixes its output (bare, with \`--mock-from <runId>\`: that run's); a child's block: \`<workflow>.<block>\`.
 - **Debug**: \`--dir <dir>\` maps a failure to file:line; \`sim logs get <runId> --trace --no-include-workflow-state\`; rows: \`sim tables rows list <table>\`; rerun: \`--from-block <block> --source-run <runId>\`; \`--stop-after <block>\`.${extra.debug ?? ''}
 - **Exit codes**: 0 ok, 1 errors, ${SOURCE_STALE_EXIT_CODE} stale (redo in a fresh get), ${RATE_LIMITED_EXIT_CODE} rate limited, ${SOURCE_BUSY_EXIT_CODE} busy, ${SOURCE_LOCAL_CHANGES_EXIT_CODE}/${SOURCE_DRIFT_EXIT_CODE} \`status\`: your edits / the server changed.`
 }
@@ -76,11 +76,17 @@ ${PATTERNS_HEADING} (\`.sim/examples/\`, indexed atop \`cookbook.ts\`; any build
 const WORKFLOW_LOOP =
   'sim workflows source check --dir . && sim workflows source apply --dir . --yes'
 
-const WORKSPACE_LOOP =
-  "sim workspaces source check --dir . && sim workspaces source apply --dir . --yes --run <key>='{…}'"
+/**
+ * What a coding agent chains onto each kind's apply: a workflow's test run, then its deploy; a
+ * workspace's test run of each workflow it changes. Mothership's shell refuses runs, so its loop
+ * stops at the apply.
+ */
+export const CLI_LOOP_RUN: Record<PrimerKind, string> = {
+  workflow: " --run '{…}' --deploy",
+  workspace: " --run <key>='{…}'",
+}
 
-/** What a coding agent chains onto a workflow apply: the test run, then the deploy. */
-const RUN_AND_DEPLOY = " --run '{…}' --deploy"
+const WORKSPACE_LOOP = `sim workspaces source check --dir . && sim workspaces source apply --dir . --yes${CLI_LOOP_RUN.workspace}`
 
 const EDIT_LOOP_LEAD = '**Edit loop**: write every file, then run one chained command'
 
@@ -92,19 +98,19 @@ const APPLY_REWRITES = `\`check\` also type-checks (no \`tsc\`). Apply re-checks
  * test runs through `sim_cli`, whose `--dir` reads the same workbench.
  */
 const WORKFLOW_EDIT_LOOP: Record<PrimerSurface, string> = {
-  cli: `${EDIT_LOOP_LEAD}; fix what it reports: \`${WORKFLOW_LOOP}${RUN_AND_DEPLOY}\` applies, dry-runs that input, and deploys only if it completed (no \`--deploy\`: stays a draft). ${APPLY_REWRITES}`,
+  cli: `${EDIT_LOOP_LEAD}; fix what it reports: \`${WORKFLOW_LOOP}${CLI_LOOP_RUN.workflow}\` applies, dry-runs that input, and deploys only if it completed (no \`--deploy\`: stays a draft). ${APPLY_REWRITES}`,
   chat: `${EDIT_LOOP_LEAD} in run_code's shell; fix what it reports: \`${WORKFLOW_LOOP}\`. ${APPLY_REWRITES} Test the draft with sim_cli, as the shell refuses runs: \`workflows run <workflowId> --dry --input '{…}' --dir <dir>\` (from /home/user), then \`workflows deploy <workflowId> --expected-draft-fingerprint <fingerprint>\` (from \`.sim/base.json\`).`,
 }
 
 function workflowPrimer(surface: PrimerSurface): string {
   return `# Sim workflow source: primer
 
-\`${SOURCE_ENTRY_FILE}\` is a Sim workflow as TypeScript; the server compiles it; nothing in it runs. Commands here (table ones too) act on the workflow \`${SOURCE_BASE_FILE}\` names and its workspace (a starter's \`${SOURCE_STARTER_FILE}\` names the workspace; its loop runs \`create\` in place of \`apply\`).
+\`${SOURCE_ENTRY_FILE}\` is a Sim workflow as TypeScript; the server compiles it; nothing in it runs. Commands here (table ones too) act on the workflow \`${SOURCE_BASE_FILE}\` names and its workspace (a starter's \`${SOURCE_STARTER_FILE}\` names the workspace; its loop runs \`create\`, not \`apply\`).
 
 ${WORKFLOW_EDIT_LOOP[surface]}
 
-- **Scope**: the workflow alone. Tables: \`sim tables columns create <table> --column '{…}'\` (or \`update\`), \`sim tables rows update <table> <row> --data '{…}'\`; change columns before the get (its table types go stale).
-- **Deletes**: removing a block or variable needs \`apply --allow-delete\`.
+- **Scope**: the workflow alone. Tables: \`sim tables columns create <table> --column '{…}'\`, \`sim tables columns update <table> --column-name <c> --updates '{…}'\`, \`sim tables rows update <table> <row> --data '{…}'\`; change columns before the get (its table types go stale).
+- **Deletes**: removing a block or variable: \`apply --allow-delete\`.
 ${sharedRules()}
 `
 }
@@ -142,7 +148,7 @@ const WORKSPACE_POINTER_LOOP = `\`${WORKSPACE_LOOP}\` (one \`--run\` per workflo
 /** The loop line of the pointer, after its lead, by directory kind and surface. */
 const POINTER_LOOPS: Record<PrimerKind, Record<PrimerSurface, string>> = {
   workflow: {
-    cli: `\`${WORKFLOW_LOOP}${RUN_AND_DEPLOY}\`; fix what it reports next.${STARTER_LOOP}`,
+    cli: `\`${WORKFLOW_LOOP}${CLI_LOOP_RUN.workflow}\`; fix what it reports next.${STARTER_LOOP}`,
     chat: `\`${WORKFLOW_LOOP}\`; fix what it reports next. Then test the draft with sim_cli as \`${SOURCE_AGENTS_FILE}\` says.${STARTER_LOOP}`,
   },
   workspace: { cli: WORKSPACE_POINTER_LOOP, chat: WORKSPACE_POINTER_LOOP },

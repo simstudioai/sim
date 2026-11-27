@@ -376,7 +376,22 @@ describe('sim workflows source check', () => {
     })
   })
 
-  it('with --output json, prints each finding in the JSON, ending stderr with the first error on one line and no frame', async () => {
+  it('with --output json, prints each finding in the JSON and nothing on stderr, so 2>&1 stays one document', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('{ body: { received: start.message } }', '{ bdy: { received: start.message } }')
+    )
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'E_UNKNOWN_PARAM' }] })
+    expect(vi.mocked(console.error)).not.toHaveBeenCalled()
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('inside Mothership, whose shell checks with the default JSON output, ends stderr with the first error on one line and no frame', async () => {
+    vi.stubEnv('SIM_CLI_HOST', 'mothership')
     cacheCatalog()
     writeFileSync(
       join(dir, 'workflow.ts'),
@@ -428,10 +443,7 @@ describe('sim workflows source check', () => {
 
     expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'E_UNKNOWN_PARAM' }] })
     const stderr = vi.mocked(console.error).mock.calls.map((call) => call.join(' '))
-    expect(stderr).toEqual([
-      expect.stringMatching(/^::error file=.*,title=E_UNKNOWN_PARAM::/),
-      expect.stringMatching(/^Error: workflow\.ts:6:\d+ error E_UNKNOWN_PARAM: /),
-    ])
+    expect(stderr).toEqual([expect.stringMatching(/^::error file=.*,title=E_UNKNOWN_PARAM::/)])
   })
 
   it('leaves stored() to the server, which holds the stored values', async () => {

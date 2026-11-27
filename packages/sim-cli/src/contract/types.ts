@@ -345,6 +345,12 @@ export interface CommandSpec {
    */
   confirm?: string
   /**
+   * The `confirm` text when the caller listed what the command acts on (`--row a --row b`), so the
+   * refusal says what it is about to destroy: `flag` is the list flag's name, and `text` takes how
+   * many entries were typed (`null` when one is read from a file).
+   */
+  confirmListed?: { flag: string; text: (count: number | null) => string }
+  /**
    * Accept `-y/--yes` without a `confirm` gate, as a no-op: a write callers run beside confirmed
    * ones (a deploy after `workflows source apply --yes`) takes the flag they pass there.
    */

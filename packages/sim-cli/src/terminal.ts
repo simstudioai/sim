@@ -3,7 +3,7 @@ import { dump } from 'js-yaml'
 import { styles } from '#sim-cli/output/presentation'
 import { CliUpdateError } from '#sim-cli/update/install'
 import { enclosingWorkspace } from './commands/protocol/source-dir'
-import { ProfileConfigError } from './config/index'
+import { isMachineFormat, ProfileConfigError } from './config/index'
 import { profileFrom, setWorkingDirectoryWorkspace } from './context'
 import { CliExit } from './embed-context'
 import {
@@ -44,7 +44,7 @@ function explainFailure(error: unknown, program: Command): number | null {
     } catch {
       /** Preserve the original error when configuration is invalid. */
     }
-    if (output === 'json' || output === 'yaml') {
+    if (isMachineFormat(output)) {
       const payload = {
         error: {
           code: error.code ?? 'CLI_ERROR',

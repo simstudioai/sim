@@ -92,12 +92,22 @@ function looksLikeAnId(token: string): boolean {
 }
 
 /**
- * Whether the command runs an action of its own rather than only dispatching
- * to subcommands. Commander keeps the handler off its typings, and the tree
- * mixes generated commands with hand-written ones, so the contract cannot say.
+ * The action `command` holds, if any. Commander keeps the handler off its
+ * typings and offers no way to read it, so a command that wraps a generated
+ * leaf's handler (`workflows source get --dir`, `workflows runs get`) reads it
+ * here, and the tree, which mixes generated and hand-written commands, asks it
+ * whether a command acts on its own.
  */
+export function heldAction(
+  command: Command | undefined
+): ((args: unknown[]) => unknown) | undefined {
+  const held = (command as (Command & { _actionHandler?: unknown }) | undefined)?._actionHandler
+  return typeof held === 'function' ? (held as (args: unknown[]) => unknown) : undefined
+}
+
+/** Whether the command runs an action of its own rather than only dispatching to subcommands. */
 function hasOwnAction(command: Command): boolean {
-  return Boolean((command as Command & { _actionHandler?: unknown })._actionHandler)
+  return heldAction(command) !== undefined
 }
 
 function longFlagSyntax(option: Option): string {
@@ -145,32 +155,76 @@ function misplacedFlagValue(command: Command): { option: Option; value: string }
   return extra.length === 1 ? { option: missing[0], value: extra[0] } : undefined
 }
 
+/** An option of this command or a group above it that took another of its flags as its value. */
+interface SwallowedFlag {
+  owner: Command
+  option: Option
+  /** The flag it took, as typed (`--input`, or `--input=…`). */
+  taken: string
+  /** The option the taken flag names. */
+  takenOption: Option
+}
+
 /**
  * Each option of this command or a group above it (the root's `--workspace` too) that took a flag
- * as its value, with what the option is for: `run <id> --allow --input '{…}'` gives `--allow` the value `--input` and
- * leaves the JSON over as a positional, so the excess is a symptom of the missing value and the
- * JSON is not misplaced.
+ * as its value: `run <id> --allow --input '{…}'` gives `--allow` the value `--input` and leaves the
+ * JSON over as a positional, so the excess is a symptom of the missing value and the JSON is not
+ * misplaced.
  */
-function swallowedFlags(command: Command): string[] {
+function swallowedFlags(command: Command): SwallowedFlag[] {
   const owned: { owner: Command; option: Option }[] = []
   for (let owner: Command | null = command; owner; owner = owner.parent) {
     for (const option of owner.options) owned.push({ owner, option })
   }
   return owned.flatMap(({ owner, option }) => {
     const value = owner.getOptionValue(option.attributeName())
-    const taken = (Array.isArray(value) ? value : [value]).find(
-      (given) =>
-        typeof given === 'string' &&
-        owned.some(({ option: other }) =>
-          [other.long, other.short].includes(given.split('=', 1)[0])
-        )
-    )
-    if (taken === undefined) return []
-    const purpose = option.description.split(/[;(]/, 1)[0].trim()
-    return [
-      `${option.long ?? option.short} took ${taken} as its value; write ${option.flags}: ${purpose}.`,
-    ]
+    for (const given of Array.isArray(value) ? value : [value]) {
+      if (typeof given !== 'string') continue
+      const takenOption = owned.find(({ option: other }) =>
+        [other.long, other.short].includes(given.split('=', 1)[0])
+      )?.option
+      if (takenOption) return [{ owner, option, taken: given, takenOption }]
+    }
+    return []
   })
+}
+
+/** What a swallowing option is for, and how to write it. */
+function swallowedLine({ option, taken }: SwallowedFlag): string {
+  const purpose = option.description.split(/[;(]/, 1)[0].trim()
+  return `${option.long ?? option.short} took ${taken} as its value; write ${option.flags}: ${purpose}.`
+}
+
+/**
+ * The command line with the one leaf option that took a flag given a placeholder value of its own,
+ * and the flag it took given the operand left over: `run <id> --allow '<block>' --input '{…}'`.
+ * The typed positionals and options are kept. Null when the reading is not the only one: several
+ * swallowed flags, one owned by a group above the leaf, or operands that do not fit the taken flag.
+ */
+function swallowedExample(command: Command, swallowed: readonly SwallowedFlag[]): string | null {
+  if (swallowed.length !== 1) return null
+  const [{ owner, option, taken, takenOption }] = swallowed
+  if (owner !== command || !option.long || !takenOption.long) return null
+  const extra = command.args.slice(command.registeredArguments.length)
+  const takesValue = (takenOption.required || takenOption.optional) && !taken.includes('=')
+  if (extra.length !== (takesValue ? 1 : 0)) return null
+  const placeholder = option.flags.slice(option.flags.lastIndexOf(' ') + 1)
+  const value = command.getOptionValue(option.attributeName())
+  const kept = (Array.isArray(value) ? value : []).filter(
+    (given): given is string => typeof given === 'string' && given !== taken
+  )
+  const words = [
+    typedCommandLine(
+      command,
+      command.args.slice(0, command.registeredArguments.length),
+      new Set([option.attributeName()])
+    ),
+    ...kept.map((given) => `${option.long} ${shellArgument(given)}`),
+    `${option.long} ${shellArgument(placeholder)}`,
+    taken.includes('=') ? shellArgument(taken) : takenOption.long,
+    ...extra.map(shellArgument),
+  ]
+  return `Example: ${words.join(' ')}`
 }
 
 /**
@@ -243,9 +297,10 @@ function parseErrorGuidance(command: Command, code: string | undefined): string[
     case 'commander.excessArguments': {
       const swallowed = swallowedFlags(command)
       const moved = swallowed.length === 0 ? misplacedJson(command) : null
+      const corrected = swallowedExample(command, swallowed)
       return [
-        ...swallowed,
-        ...(moved ?? [`Example: ${usageExample(command)}`]),
+        ...swallowed.map(swallowedLine),
+        ...(moved ?? [corrected ?? `Example: ${usageExample(command)}`]),
         optionList(command),
       ]
     }
@@ -297,28 +352,6 @@ export function addParseErrorGuidanceToTree(program: Command): void {
 }
 
 /**
- * Refuses a leaf option the root program would swallow.
- *
- * A collision is invisible at runtime — either the root's handler answers and
- * exits `0`, or the root simply keeps the value and the leaf reads `undefined`.
- * Either way the command reports success while doing nothing the caller asked
- * for. Raising here means the CLI cannot start with one, which the command-tree
- * tests exercise on every operation, so a contract that introduces one fails in
- * CI rather than in somebody's pipeline.
- */
-function assertNoReservedFlags(command: Command, operation: V2OperationName): void {
-  for (const option of command.options) {
-    for (const flag of [option.long, option.short]) {
-      if (flag && RESERVED_PROGRAM_FLAGS.has(flag)) {
-        throw new Error(
-          `${operation} declares ${flag}, which the root program already owns; give the flag another name`
-        )
-      }
-    }
-  }
-}
-
-/**
  * Commands allowed to re-declare a flag the root owns, by full command path.
  *
  * `profiles add` declares `-w, --workspace` so that its own `--help` names the
@@ -330,12 +363,17 @@ function assertNoReservedFlags(command: Command, operation: V2OperationName): vo
 const RESERVED_FLAG_EXEMPTIONS: ReadonlySet<string> = new Set(['profiles add'])
 
 /**
- * Sweeps the assembled program for a flag the root already owns.
+ * Refuses, across the assembled program, a leaf option the root would swallow:
+ * generated leaves, commands attached by hand (`attachSecretCommands`,
+ * `attachProtocolCommands`, `attachCredentialCommands`) and options added to a
+ * leaf after it is built.
  *
- * `assertNoReservedFlags` runs while a generated leaf is configured, so it sees
- * nothing that is attached by hand (`attachSecretCommands`,
- * `attachProtocolCommands`, `attachCredentialCommands`) or added to a leaf
- * after it is built. Walking the finished tree is what covers those.
+ * A collision is invisible at runtime — either the root's handler answers and
+ * exits `0`, or the root simply keeps the value and the leaf reads `undefined`.
+ * Either way the command reports success while doing nothing the caller asked
+ * for. Raising here means the CLI cannot start with one, which the command-tree
+ * tests exercise on every operation, so a contract that introduces one fails in
+ * CI rather than in somebody's pipeline.
  */
 export function assertNoReservedProgramFlags(program: Command): void {
   const walk = (command: Command, prefix: string[]): void => {
@@ -520,7 +558,6 @@ function configureOperation(
   )
   if (spec.helpText) command.addHelpText('after', spec.helpText)
   addOperationOptions(command, operation, spec, operationSpec)
-  assertNoReservedFlags(command, operation)
   // The last frame that still knows which operation ran, and so the only one
   // that can say `--include-job-runs` where the server said `includeJobRuns`.
   command.action((...invocation: unknown[]) =>
@@ -629,20 +666,12 @@ function addLeafCommand(
 ): void {
   const [groupName, ...rest] = segments
   if (rest.length === 0) throw new Error(`${operation} leaf command must include a verb`)
-  const group = groupFor(groups, groupName)
 
-  if (rest.length > 1) {
-    let parent = group
-    for (const segment of rest.slice(0, -1)) {
-      parent = nestedGroup(parent, segment)
-    }
-    parent.addCommand(configureOperation(new Command(rest[rest.length - 1]), operation, spec), {
-      isDefault: spec.defaultSubcommand === true,
-    })
-    return
+  let parent = groupFor(groups, groupName)
+  for (const segment of rest.slice(0, -1)) {
+    parent = nestedGroup(parent, segment)
   }
-
-  group.addCommand(configureOperation(new Command(rest[0]), operation, spec), {
+  parent.addCommand(configureOperation(new Command(rest[rest.length - 1]), operation, spec), {
     isDefault: spec.defaultSubcommand === true,
   })
 }

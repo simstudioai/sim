@@ -41,15 +41,13 @@ import { isRequestCancelled, SimApiError } from '../../http/client'
 import { sanitize } from '../../output/render'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { liveDeploymentStatus } from '../../runtime/deployment-live'
-import { runFailureMessage } from '../../runtime/execute'
 import { collectRepeated } from '../../runtime/options'
-import { readArgumentSource } from '../../runtime/request'
+import { simInvocation } from '../../runtime/run-next'
 import { searchTasks } from '../search'
 import { type DeployedUrl, deployedUrlsText, lockBlockNames, namedUrls } from './deployed-urls'
 import { gitProvenance } from './git-provenance'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
-import { printRunFailureSite } from './run-source-location'
 import {
   absoluteDirOption,
   directoryWorkspace,
@@ -89,7 +87,7 @@ import {
   unrecordedFoldersWarning,
   workflowFolderRecords,
 } from './stored-edges'
-import { dryRunDraft, printSideEffects, type TestRun, testRunResult } from './workflow-run-follow'
+import { printSideEffects, readRunInput, type TestRun, testRunDraft } from './workflow-run-follow'
 import {
   appliedBlobDigests,
   assertBlobsFetched,
@@ -738,13 +736,14 @@ export function attachWorkspaceSourceApply(source: Command): void {
     )
     .option(
       '--run <key=input>',
-      "After the apply, dry-run workflows/<key>/'s saved draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it; `--run <key>` alone: no input). Repeat it to test more workflows. deployments/ is applied only after every run completed, and only when every draft it publishes was test-run; a run that does not complete exits 1 and leaves the applied drafts in place",
+      "After the apply, dry-run workflows/<key>/'s saved draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it; `--run <key>` alone: no input). Repeat it to test more workflows. deployments/ is applied only after every run completed, and only when every draft it publishes was test-run; a run that does not complete exits 1 and leaves the applied drafts in place. Sandboxed code (Python, shell, imports) really runs in it, network requests included, and is listed in runs[].sideEffects.unchecked",
       collectRepeated
     )
     .allowExcessArguments(false)
     .description('Apply a workspace source directory')
     .addHelpText('after', sourceExitCodesHelp('workspaces source apply'))
-    .action(async (options: ApplyOptions) => {
+    .action(async (options: ApplyOptions, invoked: Command) => {
+      const sim = simInvocation(invoked)
       assertTargetOnlyDeletable(options)
       const mode = writeMode(options)
       const only = parseKinds(options.only)
@@ -831,7 +830,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
           }
         }
         return printRefusal(promotion ? rehinted(refusal, promotion) : refusal, profile.output, {
-          ...(dry ? {} : { ifAnswerLost: answerLostHint(options.dir) }),
+          ...(dry ? {} : { ifAnswerLost: answerLostHint(options.dir, sim) }),
           verbose: options.verbose === true,
         })
       }
@@ -905,6 +904,12 @@ export function attachWorkspaceSourceApply(source: Command): void {
               () => planMarkdown({ ...data, diagnostics }, options.to ?? workspaceId),
               { file: options.summaryFile, marker: summaryMarker(options.dir) }
             )
+            // Before the result, so its errors, warnings and next stay the last lines printed.
+            if (!findings.machine) {
+              for (const run of tested) {
+                if (run.sideEffects) printSideEffects(run.sideEffects, undefined, run.workflowId)
+              }
+            }
             const result = {
               ...summarize({ ...data, diagnostics }),
               ...(workflows.length > 0 ? { workflows } : {}),
@@ -922,10 +927,6 @@ export function attachWorkspaceSourceApply(source: Command): void {
                 ...(tested.length > 0 ? { runs: testRunsText(tested) } : {}),
               }
             )
-            if (findings.machine) return
-            for (const run of tested) {
-              if (run.sideEffects) printSideEffects(run.sideEffects, undefined, run.workflowId)
-            }
           }
           /**
            * The write of `commit` after a preview of the whole submission, saved into the
@@ -939,7 +940,9 @@ export function attachWorkspaceSourceApply(source: Command): void {
             mode,
             preview: async () => reported(await send(submission, true)),
             show: (preview) => {
-              printPlan(preview.plan, preview.diagnostics)
+              // A machine result carries the plan, so `2>&1` stays one document; a person asked
+              // to confirm still reads it.
+              if (!findings.machine || mode === 'ask') printPlan(preview.plan, preview.diagnostics)
               findings.print(preview.diagnostics)
             },
             refuses: (preview) => preview.refuses === true,
@@ -951,7 +954,13 @@ export function attachWorkspaceSourceApply(source: Command): void {
               const sent = reported(
                 await send(commit, false, commit === submission ? only : commit.kinds)
               )
-              const answer = commit === firstWrite && gated ? withoutDeferredWarnings(sent) : sent
+              if (commit !== firstWrite) {
+                // The deployments write: the first write already printed its workflows' findings,
+                // which mergedApply drops from the result too.
+                findings.print(sent.diagnostics.filter((finding) => finding.kind !== 'workflow'))
+                return sent
+              }
+              const answer = gated ? withoutDeferredWarnings(sent) : sent
               findings.print(answer.diagnostics)
               return answer
             },
@@ -972,12 +981,12 @@ export function attachWorkspaceSourceApply(source: Command): void {
             },
             report,
             question: `Apply these changes to workspace ${workspaceId}?`,
-            command: applyCommand(options),
+            command: applyCommand(options, sim),
             interrupt: {
               verb: 'apply',
               dir: options.dir,
               noun: 'workspace',
-              ifAnswerLost: answerLostHint(options.dir),
+              ifAnswerLost: answerLostHint(options.dir, sim),
             },
           })
           /**
@@ -988,7 +997,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             if (data.failed) {
               printError('The apply stopped part-way; each planned change:')
               printPlan(data.plan, data.diagnostics, data)
-            } else if (mode === 'write') printPlan(data.plan, data.diagnostics)
+            } else if (mode === 'write' && !findings.machine) printPlan(data.plan, data.diagnostics)
             const held = data.plan.filter((change) => change.held)
             if (held.length > 0) {
               printError(
@@ -1054,16 +1063,20 @@ export function attachWorkspaceSourceApply(source: Command): void {
           await afterWrite(() => testRuns(client, options.dir, workspaceId, data, runs, tested))
           const failedRuns = tested.filter((run) => run.status !== 'completed')
           if (failedRuns.length > 0) {
+            // A run the server refused before it started has no id: its fix is the --run input.
+            const refused = failedRuns.some((run) => run.runId === null)
             const next = {
-              command: `${applyCommand(options)} --yes`,
-              reason: 'applies your fix and tests it again',
+              command: `${applyCommand(options, sim)} --yes`,
+              reason: refused
+                ? 'applies again and tests it with your fixed --run input'
+                : 'applies your fix and tests it again',
             }
             await finish(data, next)
             const why = failedRuns
               .map((run) => `the test run of ${run.workflow} ${String(run.status)}: ${run.error}`)
               .join('; ')
             throw new SimApiError(
-              `The apply was written into ${options.dir}, but ${why}.${gated ? ' deployments/ was not applied.' : ''} Fix the source, then run \`${next.command}\`.`,
+              `The apply was written into ${options.dir}, but ${why}.${gated ? ' deployments/ was not applied.' : ''} Fix the ${refused ? 'source or the refused --run input' : 'source'}, then run \`${next.command}\`.`,
               0
             )
           }
@@ -1073,8 +1086,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
           )
           if (untested.length > 0) {
             const next = {
-              command: `${applyCommand(options)}${untested.map((key) => ` --run ${shellWord(`${key}={…}`)}`).join('')} --yes`,
-              reason: 'tests every draft deployments/ publishes, then deploys them',
+              command: `${applyCommand(options, sim)}${untested.map((key) => ` --run ${shellWord(key)}`).join('')} --yes`,
+              reason: `tests every draft deployments/ publishes, then deploys them; give a run its input with ${untested.map((key) => `--run ${key}='{…}'`).join(' ')}`,
             }
             await finish(data, next)
             throw new SimApiError(
@@ -1171,10 +1184,16 @@ async function assertRunKeys(dir: string, runs: readonly RunRequest[]): Promise<
   const keys = [...KIND_LAYOUTS.workflow.group(paths).groups.keys()].sort(compareStrings)
   const unknown = runs.filter((run) => !keys.includes(run.key)).map((run) => run.key)
   if (unknown.length === 0) return
+  const listed =
+    keys.length > 0 ? `Its workflow keys: ${keys.join(', ')}.` : 'It holds no workflows.'
+  // An input with no key (`--run '{…}'`, `--run @input.json`) reads as a key that names nothing.
+  if (unknown.some((key) => /^\s*[[{@]/.test(key))) {
+    throw new CliUsageError(
+      `--run takes <key>='{…}', where <key> is the workflow's folder under ${KIND_DIRS.workflow}/ in ${dir}. ${listed}`
+    )
+  }
   throw new CliUsageError(
-    `--run ${unknown.join(', ')}: no such folder under ${KIND_DIRS.workflow}/ in ${dir}. ${
-      keys.length > 0 ? `Its workflow keys: ${keys.join(', ')}.` : 'It holds no workflows.'
-    }`
+    `--run ${unknown.join(', ')}: no such folder under ${KIND_DIRS.workflow}/ in ${dir}. ${listed}`
   )
 }
 
@@ -1186,13 +1205,10 @@ async function readRunInputs(runs: readonly RunRequest[]): Promise<RunRequest[]>
   return Promise.all(
     runs.map(async (run) => {
       if (run.input === undefined) return run
-      const { text } = await readArgumentSource(run.input, 'run')
-      try {
-        JSON.parse(text)
-      } catch {
-        throw new CliUsageError(`--run ${run.key}: its input is not JSON.`)
+      return {
+        ...run,
+        input: await readRunInput(run.input, `--run ${run.key}: its input is not JSON.`),
       }
-      return { ...run, input: text }
     })
   )
 }
@@ -1320,14 +1336,19 @@ async function testRuns(
   }
   for (const { key, input, workflowId } of targets) {
     if (!workflowId) continue
-    const record = await dryRunDraft(client, workflowId, input, workspaceId)
-    const run = { workflow: key, workflowId, ...testRunResult(record) }
-    if (record.status !== 'completed') {
-      await printRunFailureSite(join(dir, workflowFolder(key)), workflowId, record.error)
-      run.error =
-        runFailureMessage('executeWorkflow', record) ?? `it ended ${String(record.status)}`
-    }
-    tested.push(run)
+    const test = await testRunDraft(
+      client,
+      join(dir, workflowFolder(key)),
+      workflowId,
+      input,
+      workspaceId
+    )
+    tested.push({
+      workflow: key,
+      workflowId,
+      ...test.run,
+      ...(test.failure !== undefined ? { error: test.failure } : {}),
+    })
   }
 }
 
@@ -1478,11 +1499,11 @@ async function writtenWorkflows(
 
 /**
  * This apply as a command, without `--yes` or `--dry`: what a plan run or a failed test run
- * names next.
+ * names next. `sim` carries the server options the caller typed.
  */
-function applyCommand(options: ApplyOptions): string {
+function applyCommand(options: ApplyOptions, sim: string): string {
   return [
-    `sim workspaces source apply --dir ${shellWord(options.dir)}`,
+    `${sim} workspaces source apply --dir ${shellWord(options.dir)}`,
     ...(options.only ? [`--only ${shellWord(options.only)}`] : []),
     ...(options.to ? [`--to ${shellWord(options.to)}`] : []),
     ...(options.allowDelete ? ['--allow-delete'] : []),
@@ -1529,8 +1550,8 @@ function notSentFindings(paths: readonly string[]): ApplyData['diagnostics'] {
  * The next step for an apply write whose answer never came back (a timeout, a dropped connection,
  * an interrupt): it may or may not have been written.
  */
-function answerLostHint(dir: string): string {
-  return `It may have been written. Run \`sim workspaces source apply --dir ${dir} --dry\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`sim workspaces source get --dir <fresh dir>\` and compare it with ${dir}: if it holds your edits, \`sim workspaces source get --dir ${dir} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
+function answerLostHint(dir: string, sim: string): string {
+  return `It may have been written. Run \`${sim} workspaces source apply --dir ${shellWord(dir)} --dry\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`${sim} workspaces source get --dir <fresh dir>\` and compare it with ${dir}: if it holds your edits, \`${sim} workspaces source get --dir ${shellWord(dir)} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
 }
 
 /**

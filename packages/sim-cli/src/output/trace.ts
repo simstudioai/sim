@@ -1,6 +1,6 @@
 import { printLine } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
-import type { OutputFormat } from '../config/index'
+import { isMachineFormat, type OutputFormat } from '../config/index'
 import { duration, sanitize } from './render'
 
 type TraceSpan = Record<string, unknown>
@@ -107,7 +107,7 @@ function renderSpan(value: unknown, depth: number): string[] {
 
 /** Prints the complete recursive run trace for an explicitly expanded log. */
 export function printTraceSpans(format: OutputFormat, traceSpans: unknown[]): void {
-  if (format === 'json' || format === 'yaml') return
+  if (isMachineFormat(format)) return
   printLine('')
   printLine(format === 'table' ? styles().dim('trace:') : 'trace:')
   if (traceSpans.length === 0) {

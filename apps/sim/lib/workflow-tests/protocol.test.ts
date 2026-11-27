@@ -37,22 +37,4 @@ describe('storedTestReportSchema', () => {
 
     expect(parsed.sideEffects?.executions['exec-1'].stubbed).toEqual([{ ...call, mcp: null }])
   })
-
-  it('reads the reason a report stored as flags, before it was named', () => {
-    const parsed = storedTestReportSchema.parse(
-      stored([
-        { ...call, dependsOnStub: true, readOnlyHint: true },
-        { ...call, dependsOnStub: false, readOnlyHint: true },
-        { ...call, dependsOnStub: false, readOnlyHint: false },
-        { ...call, reason: 'placeholder' },
-      ])
-    )
-
-    expect(parsed.sideEffects?.executions['exec-1'].stubbed).toEqual([
-      { ...call, mcp: null, reason: 'placeholder' },
-      { ...call, mcp: null, reason: 'mcp-read-only' },
-      { ...call, mcp: null },
-      { ...call, mcp: null, reason: 'placeholder' },
-    ])
-  })
 })

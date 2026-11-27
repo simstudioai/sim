@@ -3,9 +3,11 @@ import { toRecord } from '@sim/utils/object'
 import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import type { GetWorkflowSourceResponse, ListWorkflowsResponse } from '../../generated/v2-api'
+import { heldAction } from '../../runtime/build'
 import { callsOperations, type OperationClient } from '../../runtime/called-operations'
 import { DEFAULT_PAGE_SIZE } from '../../runtime/options'
 import { buildRequest } from '../../runtime/request'
+import { simInvocation } from '../../runtime/run-next'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { folderChildResults } from './source-check'
 import {
@@ -125,11 +127,10 @@ async function resolveWorkflow(
  */
 export function attachWorkflowSourceGet(source: Command): void {
   const get = source.commands.find((command) => command.name() === 'get')
-  const held = (get as (Command & { _actionHandler?: unknown }) | undefined)?._actionHandler
-  if (!get || typeof held !== 'function') {
+  const previous = heldAction(get)
+  if (!get || !previous) {
     throw new Error('workflows source get must be registered before --dir can be attached to it')
   }
-  const previous = held as (args: unknown[]) => unknown
   const connectGet = callsOperations(get, [
     'getWorkflowSource',
     'getSourceCatalog',
@@ -214,7 +215,7 @@ export function attachWorkflowSourceGet(source: Command): void {
         workflowId: workflowSource.workflowId,
         dir,
         ...tree,
-        editLoop: editLoop('workflow', dir),
+        editLoop: editLoop('workflow', dir, simInvocation(command)),
         fingerprint: workflowSource.base.fingerprint,
         ...findings.result(diagnostics),
       })

@@ -2,7 +2,7 @@ import { isRecordLike, omit, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import { truncationMetadata } from '#sim-cli/output/truncation'
-import type { OutputFormat } from '../config/index'
+import { isMachineFormat, type OutputFormat } from '../config/index'
 import type { ColumnSpec, CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
 import { nextStepText } from '../output/next-step'
@@ -530,11 +530,6 @@ function spellOut(flag: string): string {
 function clippedSubject(flag: string): string {
   const subject = flag.replace(/^truncated$|Truncated$/, '').replace(/^is(?=[A-Z]|$)/, '')
   return subject ? `the ${spellOut(subject)} it returned` : 'this result'
-}
-
-/** Whether `format` prints one parseable document rather than lines for a person. */
-function isMachineFormat(format: OutputFormat): boolean {
-  return format === 'json' || format === 'yaml'
 }
 
 /** A result whose `next` a person reads: its command, then why ({@link nextStepText}). */

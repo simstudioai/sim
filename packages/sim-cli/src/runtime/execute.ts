@@ -7,7 +7,7 @@ import {
   waitWorkspaceOperation,
   workspaceWaitTimeout,
 } from '../commands/protocol/workspace-operation-wait'
-import type { ResolvedProfile } from '../config/index'
+import { isMachineFormat, type ResolvedProfile } from '../config/index'
 import type { CommandSpec } from '../contract/types'
 import type { GetWorkspaceOperationResponse, V2OperationName } from '../generated/v2-api'
 import { assertCursorAdvances, pageProgress, SimApiError, type V2Page } from '../http/client'
@@ -15,7 +15,7 @@ import { safeOneLine } from '../output/render'
 import { connect } from './called-operations'
 import { camel } from './derive'
 import { DEFAULT_PAGE_SIZE, defaultListLimit } from './options'
-import { deliveredRenameWarnings, owedRenameWarnings, warnRenamedFlag } from './renamed'
+import { renameWarningOptions, warnRenamedFlag } from './renamed'
 import {
   type BuiltRequest,
   buildRequest,
@@ -253,14 +253,26 @@ const RESULT_NOTES: Readonly<
   },
 }
 
-/** The operation's result note, when it has one and the result calls for it. */
-function resultNote(
-  operation: V2OperationName,
-  payload: unknown,
-  request: BuiltRequest
-): string | undefined {
-  return RESULT_NOTES[operation]?.(toRecord(payload), request)
+/**
+ * What a `confirm` command is about to do: its `confirmListed` text when the caller listed the
+ * entries (counted as typed, a comma list too; a file is read only once confirmed), else `confirm`.
+ */
+function confirmText(spec: CommandSpec, flags: Record<string, unknown>): string | undefined {
+  const listed = spec.confirmListed
+  const raw = listed ? flags[camel(listed.flag)] : undefined
+  if (!listed || raw === undefined) return spec.confirm
+  const values = (Array.isArray(raw) ? raw : [raw]).filter(
+    (value): value is string => typeof value === 'string'
+  )
+  if (values.length === 0) return spec.confirm
+  const count = values.some((value) => value.startsWith('@'))
+    ? null
+    : values.flatMap((value) => value.split(',')).filter((entry) => entry.trim() !== '').length
+  return listed.text(count)
 }
+
+/** The bulk checks that fail a batch that may have committed part of it, not only a total miss. */
+const PARTIAL_BULK_FAILURES: ReadonlySet<V2OperationName> = new Set(['createWorkspaceInvitations'])
 
 /** The one-line explanation of a bulk call that changed nothing, or `null`. */
 function bulkFailureMessage(
@@ -479,10 +491,11 @@ export async function executeOperation(
    */
   if (commandSpec.confirm && !requestFlags.yes && requestFlags.dry !== true) {
     const misshapen = inlineShapeRefusal(operation, requestFlags)
+    const confirm = confirmText(commandSpec, requestFlags)
     throw new SimApiError(
       misshapen
-        ? `${misshapen} Also pass --yes: ${commandSpec.confirm}`
-        : `${commandSpec.confirm} Re-run with --yes to confirm.`,
+        ? `${misshapen} Also pass --yes: ${confirm}`
+        : `${confirm} Re-run with --yes to confirm.`,
       0
     )
   }
@@ -590,8 +603,7 @@ export async function executeOperation(
       progress.finish()
     }
     renderPage(profile.output, { data: rows, nextCursor: cursor }, commandSpec, envelope, {
-      warnings: owedRenameWarnings(host),
-      warningsDelivered: () => deliveredRenameWarnings(host),
+      ...renameWarningOptions(host),
     })
     return
   }
@@ -674,11 +686,17 @@ export async function executeOperation(
       ))
     payload = report
     renderResult(operation, profile.output, payload, commandSpec, {
-      warnings: owedRenameWarnings(host),
-      warningsDelivered: () => deliveredRenameWarnings(host),
+      ...renameWarningOptions(host),
     })
     assertWorkspaceOperationOutcome(report, timedOut)
     return
+  }
+  const bulkFailure = bulkFailureMessage(operation, payload, request.body)
+  // A total miss committed nothing, so a machine format prints one document: the refusal,
+  // carrying the result that explains it. A batch that may have committed part prints its
+  // result first, as a failed run does.
+  if (bulkFailure && isMachineFormat(profile.output) && !PARTIAL_BULK_FAILURES.has(operation)) {
+    throw new SimApiError(bulkFailure, 0, null, payload)
   }
   renderResult(
     operation,
@@ -687,9 +705,8 @@ export async function executeOperation(
     commandSpec,
     {
       expandedTrace: requestFlags.trace === true,
-      note: resultNote(operation, payload, request),
-      warnings: owedRenameWarnings(host),
-      warningsDelivered: () => deliveredRenameWarnings(host),
+      note: RESULT_NOTES[operation]?.(toRecord(payload), request),
+      ...renameWarningOptions(host),
     },
     // The envelope, not just the payload: a list that does not paginate states
     // its own truncation there, and unwrapping `data` discarded it.
@@ -700,7 +717,6 @@ export async function executeOperation(
   // carries the block outputs that explain *why* the run failed, and exiting
   // before writing it would leave a piped consumer an exit code and nothing to
   // read.
-  const failure =
-    runFailureMessage(operation, payload) ?? bulkFailureMessage(operation, payload, request.body)
+  const failure = runFailureMessage(operation, payload) ?? bulkFailure
   if (failure) throw new SimApiError(failure, 0)
 }

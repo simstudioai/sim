@@ -54,6 +54,29 @@ export function typedCommandLine(
   return words.join(' ')
 }
 
+/** The root options that choose the server, which a command printed to run next keeps. */
+const SERVER_OPTIONS: ReadonlySet<string> = new Set(['profile', 'endpoint'])
+
+/**
+ * `sim` with the root `--profile` and `--endpoint` the caller typed, so a command printed for the
+ * caller to run next reaches the server this one did. `--workspace` is left out: the source
+ * commands that print one act on a directory that pins its workspace.
+ */
+export function simInvocation(command: Command): string {
+  let root = command
+  while (root.parent) root = root.parent
+  const words = ['sim']
+  for (const option of root.options) {
+    const key = option.attributeName()
+    if (!option.long || !SERVER_OPTIONS.has(key) || root.getOptionValueSource(key) !== 'cli') {
+      continue
+    }
+    const value = root.getOptionValue(key)
+    if (typeof value === 'string') words.push(option.long, shellArgument(value))
+  }
+  return words.join(' ')
+}
+
 function resumeCommand(runId: string, workflowId: string, contextId: string): string {
   return `sim workflows runs resume ${shellArgument(runId)} --workflow ${shellArgument(workflowId)} --context ${shellArgument(contextId)}`
 }

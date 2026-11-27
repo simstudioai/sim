@@ -10,6 +10,7 @@ import { printError } from '#sim-cli/output/io'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
+import { simInvocation } from '../../runtime/run-next'
 import { searchTasks } from '../search'
 import { removeStagingOnSignal } from './files-get'
 import { SourceDirError } from './local-errors'
@@ -345,7 +346,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     .allowExcessArguments(false)
     .description('Write a workspace as a source directory')
     .addHelpText('after', GET_HELP)
-    .action(async (options: { dir: string; only?: string; force?: boolean }) => {
+    .action(async (options: { dir: string; only?: string; force?: boolean }, invoked: Command) => {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
       await withSourceDirLock(options.dir, async () => {
@@ -389,7 +390,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
           removed: result.removed,
           skipped: data.skipped.length,
           guide: result.guide,
-          editLoop: editLoop('workspace', options.dir),
+          editLoop: editLoop('workspace', options.dir, simInvocation(invoked)),
           ...findings.result(diagnostics),
         })
       })

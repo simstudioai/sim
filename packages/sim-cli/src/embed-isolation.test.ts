@@ -118,6 +118,35 @@ describe('embedded CLI output ownership', () => {
     expect(noOptions.stderr).not.toContain('Options for')
   })
 
+  it('words the --yes refusal of listed rows by their count, and prints one document when none was deleted', async () => {
+    const sent: unknown[] = []
+    const transport = async (_input: unknown, init?: RequestInit) => {
+      sent.push(init?.body)
+      return new Response(JSON.stringify({ data: { deletedCount: 0, requestedCount: 2 } }), {
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    const unconfirmed = await runEmbeddedCli(
+      ['tables', 'rows', 'batch-delete', 'tbl_1', '--row-ids', 'row_1,row_2'],
+      { ...identity, transport }
+    )
+    expect(unconfirmed.exitCode).toBe(1)
+    expect(unconfirmed.stderr).toContain(
+      'This deletes these 2 rows and cannot be undone. Re-run with --yes to confirm.'
+    )
+    expect(sent).toEqual([])
+
+    const missing = await runEmbeddedCli(
+      ['tables', 'rows', 'batch-delete', 'tbl_1', '--row', 'row_1', 'row_2', '--yes'],
+      { ...identity, transport }
+    )
+    expect(missing.exitCode).toBe(1)
+    expect(missing.stdout).toBe('')
+    expect(missing.stderr).toMatch(
+      /^Error: Deleted nothing: none of the 2 requested rows were deleted\.\n.*requestedCount/s
+    )
+  })
+
   it('names the command a guessed flag belongs to one group down, by any spelling it answers to', async () => {
     const guessed = await runEmbeddedCli(
       ['tables', 'batch-delete', 'tbl_1', '--row-ids', 'row_1', '--yes'],
@@ -178,32 +207,42 @@ describe('embedded CLI output ownership', () => {
     const transport = async () => {
       throw new Error('a parse error must not reach the API')
     }
-    const [positionalInput, swallowed, rootSwallowed, negated, fromFile] = await Promise.all([
-      runEmbeddedCli(['workflows', 'run', 'wf_1', '--dry', '{"email":"a@b.co"}'], {
-        ...identity,
-        transport,
-      }),
-      runEmbeddedCli(
-        ['workflows', 'run', 'wf_1', '--draft', '--allow', '--input', '{"email":"a@b.co"}'],
-        { ...identity, transport }
-      ),
-      runEmbeddedCli(['workflows', 'run', 'wf_1', '--workspace', '--input', '{"a":1}'], {
-        ...identity,
-        transport,
-      }),
-      runEmbeddedCli(['workflows', 'run', 'wf_1', '--dry', '--include-file-base64', '{"a":1}'], {
-        ...identity,
-        transport,
-      }),
-      runEmbeddedCli(['workflows', 'run', 'wf_1', '@input.json'], { ...identity, transport }),
-    ])
+    const [positionalInput, swallowed, mockSwallowed, rootSwallowed, negated, fromFile] =
+      await Promise.all([
+        runEmbeddedCli(['workflows', 'run', 'wf_1', '--dry', '{"email":"a@b.co"}'], {
+          ...identity,
+          transport,
+        }),
+        runEmbeddedCli(
+          ['workflows', 'run', 'wf_1', '--draft', '--allow', '--input', '{"email":"a@b.co"}'],
+          { ...identity, transport }
+        ),
+        runEmbeddedCli(
+          ['workflows', 'run', 'wf_1', '--mock', 'Fetch={}', '--mock', '--input', '{"a":1}'],
+          { ...identity, transport }
+        ),
+        runEmbeddedCli(['workflows', 'run', 'wf_1', '--workspace', '--input', '{"a":1}'], {
+          ...identity,
+          transport,
+        }),
+        runEmbeddedCli(['workflows', 'run', 'wf_1', '--dry', '--include-file-base64', '{"a":1}'], {
+          ...identity,
+          transport,
+        }),
+        runEmbeddedCli(['workflows', 'run', 'wf_1', '@input.json'], { ...identity, transport }),
+      ])
     expect(positionalInput.exitCode).toBe(1)
     expect(positionalInput.stderr).toContain(
       `Example: sim workflows run wf_1 --dry --input '{"email":"a@b.co"}'`
     )
     expect(swallowed.exitCode).toBe(1)
     expect(swallowed.stderr).toContain('--allow took --input as its value; write --allow <block>:')
-    expect(swallowed.stderr).not.toContain('--input \'{"email"')
+    expect(swallowed.stderr).toContain(
+      `Example: sim workflows run wf_1 --draft --allow '<block>' --input '{"email":"a@b.co"}'`
+    )
+    expect(mockSwallowed.stderr).toContain(
+      `Example: sim workflows run wf_1 --mock 'Fetch={}' --mock '<block>=<json|@file>' --input '{"a":1}'`
+    )
     expect(rootSwallowed.stderr).toContain('--workspace took --input as its value')
     expect(fromFile.stderr).toContain("Example: sim workflows run wf_1 --input '@input.json'")
     expect(negated.stderr).toContain(

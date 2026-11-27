@@ -332,14 +332,25 @@ describe('sim workflows source get --dir', () => {
     const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
     expect(printed).not.toHaveProperty('primer')
     expect(printed.guide).toBe('.sim/AGENTS.md')
-    expect(printed.editLoop).toEqual([
-      expect.stringMatching(
-        /^sim workflows source check --dir (\S+) && sim workflows source apply --dir \1 --yes$/
-      ),
-    ])
     const agents = readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8')
     expect(agents).toContain('- `gmail.sendEmail` (Gmail: Send Email)')
     expect(agents).not.toContain('`slack.sendMessage`')
+  })
+
+  it("names the primer's edit loop: the test run and deploy for a coding agent, the apply alone in Mothership", async () => {
+    serve()
+    const editLoop = async (...args: string[]) => {
+      await get('--dir', outDir, ...args)
+      return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}').editLoop
+    }
+
+    expect(await editLoop()).toEqual([
+      `sim workflows source check --dir ${outDir} && sim workflows source apply --dir ${outDir} --yes --run '{…}' --deploy`,
+    ])
+    vi.stubEnv('SIM_CLI_HOST', 'mothership')
+    expect(await editLoop('--force')).toEqual([
+      `sim workflows source check --dir ${outDir} && sim workflows source apply --dir ${outDir} --yes`,
+    ])
   })
 
   it('names the tables the workflow uses and the output paths its runs fail on, which the read does not', async () => {

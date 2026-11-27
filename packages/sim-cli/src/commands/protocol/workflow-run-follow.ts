@@ -18,6 +18,7 @@ import { buildRequest, readArgumentSource } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import { selectorOf, shellArgument, typedCommandLine, withRunNext } from '../../runtime/run-next'
 import type { OperationSpec } from '../../runtime/types'
+import { CliUsageError } from './local-errors'
 import { printRunFailureSite } from './run-source-location'
 import { BLOCK_ID } from './workflow-run-get'
 import {
@@ -493,7 +494,7 @@ export interface TestRun {
  * workflow's output, the side effects the dry run held back and, for a run that failed in a
  * block, the dry rerun from where the server says a rerun can start (none when it names none).
  */
-export function testRunResult(record: Record<string, unknown>): TestRun {
+function testRunResult(record: Record<string, unknown>): TestRun {
   const { next } = toRecord(withRunNext('executeWorkflow', record))
   return {
     runId: record.runId,
@@ -510,7 +511,7 @@ export function testRunResult(record: Record<string, unknown>): TestRun {
  * with its writes stubbed, waited for. `input` is read as `--input` reads it (JSON, or `@file`).
  * A failed run is returned, not thrown: the caller decides what it stops.
  */
-export async function dryRunDraft(
+async function dryRunDraft(
   client: OperationClient<'executeWorkflow'>,
   workflowId: string,
   input: string | undefined,
@@ -540,6 +541,62 @@ export async function dryRunDraft(
       commandSpec,
       V2_OPERATIONS.executeWorkflow as OperationSpec
     )
+  }
+}
+
+/**
+ * A `--run` input read as `--input` reads it (JSON, or `@file`) and checked to parse, so a bad one
+ * is refused with `notJson` before anything is written rather than after.
+ */
+export async function readRunInput(raw: string, notJson: string): Promise<string> {
+  const { text } = await readArgumentSource(raw, 'run')
+  try {
+    JSON.parse(text)
+  } catch {
+    throw new CliUsageError(notJson)
+  }
+  return text
+}
+
+/** A source write's `--run` test of its saved draft, as {@link testRunDraft} reports it. */
+export interface DraftTest {
+  /** The run as the write's result shows it. */
+  run: TestRun
+  /** Why the run did not complete; unset when it did. */
+  failure?: string
+  /** Whether the server refused the run before it started (an input the trigger does not take). */
+  refused?: boolean
+}
+
+/**
+ * Dry-runs the saved draft of `workflowId` with `input` and, when the run does not complete, maps
+ * its failure to a line of `sourceDir` and says why. A run the server refuses (a 400: an input the
+ * trigger's fields do not match) is a test that failed before it started, not an error of the write.
+ */
+export async function testRunDraft(
+  client: OperationClient<'executeWorkflow'>,
+  sourceDir: string,
+  workflowId: string,
+  input: string | undefined,
+  workspaceId: string | null
+): Promise<DraftTest> {
+  let record: Record<string, unknown>
+  try {
+    record = await dryRunDraft(client, workflowId, input, workspaceId)
+  } catch (error) {
+    if (!(error instanceof SimApiError) || error.status !== 400) throw error
+    return {
+      run: { runId: null, status: 'failed', error: error.message, output: null },
+      failure: `the server refused it before it started: ${error.message}`,
+      refused: true,
+    }
+  }
+  const run = testRunResult(record)
+  if (record.status === 'completed') return { run }
+  await printRunFailureSite(sourceDir, workflowId, record.error)
+  return {
+    run,
+    failure: runFailureMessage('executeWorkflow', record) ?? `it ended ${String(record.status)}`,
   }
 }
 
@@ -947,7 +1004,8 @@ placeholder (ids like dry_run_row_1, numbers above 900000000) and is listed in
 sideEffects.stubbed with the request it would have sent; check those payloads. A read that would
 send a placeholder is held back too (reason placeholder), and an MCP call its server calls
 read-only says so (reason mcp-read-only). Reads, model calls and code run for real; code in a
-remote sandbox (shell, Python, imports) is listed in sideEffects.unchecked. Child workflows run
+remote sandbox (shell, Python, imports) runs for real too, its network requests included, and is
+listed in sideEffects.unchecked. Child workflows run
 dry too; custom, Human in the loop and Wait blocks are answered whole, so the run never pauses.
 --allow <block> sends that block's writes for real (use a test resource). --mock <block>=<json>
 answers a block with fixed output, to steer a branch; --mock-from <runId> with a bare
@@ -1007,7 +1065,7 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option(
       '--allow <block>',
-      "Send this block's writes for real during a dry run (its id, display name or key, or <workflow>.<block> for a workflow it calls); for an Agent, only its own tool calls, not a workflow or custom block it calls.; repeatable",
+      "Send this block's writes for real during a dry run (its id, display name or key, or <workflow>.<block> for a workflow it calls); for an Agent, only its own tool calls, not a workflow or custom block it calls; repeatable",
       collectRepeated
     )
     .option(

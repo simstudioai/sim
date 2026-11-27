@@ -1,4 +1,4 @@
-import { compareStrings } from '@sim/utils/string'
+import { compareStrings, escapeRegExp } from '@sim/utils/string'
 import { collectStringLeaves } from '@sim/utils/workflow-references'
 import {
   type BlockKey,
@@ -18,12 +18,12 @@ import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { Command } from 'commander'
 import { printLine } from '#sim-cli/output/io'
+import { isMachineFormat } from '../../config/index'
 import { actingProfileFrom } from '../../context'
 import { CliUsageError } from './local-errors'
 import { printProtocolResult } from './result'
 import { compileWorkflowDir } from './source-check'
 import { assertSourceDirKind, sourceRelativePath } from './source-dir'
-import { isMachine } from './source-ui'
 import { lookupCatalog } from './workflow-source-params'
 
 /** The most blocks one find prints, so a broad match stays readable. */
@@ -163,13 +163,21 @@ function readersByKey(index: SourceIndex): Map<BlockKey, Reader[]> {
       const at =
         index.span({ kind: 'param', block: readerKey, param: field }) ??
         index.span({ kind: 'block', block: readerKey })
+      const lines = at ? (index.linesOf(at.file)?.lines ?? []) : []
       for (const head of heads) {
-        add(head, {
-          block: block.name,
-          field,
-          file: at?.file ?? SOURCE_ENTRY_FILE,
-          line: at?.line ?? 0,
-        })
+        // The line of the field that names the block (`quote.data`, `<quote.data>`), not the
+        // field's first line: a long field or block spans many.
+        const reads = new RegExp(
+          `(?<![\\w$])(?:${escapeRegExp(index.identOf(head))}\\b|<${escapeRegExp(head)}[.>])`
+        )
+        let line = at?.line ?? 0
+        for (let candidate = line; at && candidate <= at.endLine; candidate += 1) {
+          if (reads.test(lines[candidate - 1] ?? '')) {
+            line = candidate
+            break
+          }
+        }
+        add(head, { block: block.name, field, file: at?.file ?? SOURCE_ENTRY_FILE, line })
       }
     }
   }
@@ -294,7 +302,7 @@ export function attachWorkflowSourceFind(source: Command): void {
     .argument('<block>', 'Block name, key or identifier; a part of a name matches every block')
     .option('--dir <dir>', 'Workflow source directory to read', '.')
     .allowExcessArguments(false)
-    .description("Print a block's code, edges and readers with line numbers (offline)")
+    .description("Print a block's declaration, edges and readers with line numbers (offline)")
     .addHelpText('after', FIND_HELP)
     .action(async (query: string, options: { dir: string }, command: Command) => {
       const profile = actingProfileFrom(command)
@@ -313,7 +321,7 @@ export function attachWorkflowSourceFind(source: Command): void {
         .map((key) => describeBlock(index, readers, key))
         .sort(byLine)
       const more = keys.length - found.length
-      if (isMachine(profile.output)) {
+      if (isMachineFormat(profile.output)) {
         printProtocolResult(profile.output, {
           blocks: found,
           compiles: compiled.workflow !== null,

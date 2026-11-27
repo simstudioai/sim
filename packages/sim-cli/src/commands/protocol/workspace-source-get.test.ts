@@ -200,7 +200,9 @@ describe('workspaces source get', () => {
 
     const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
     expect(printed).not.toHaveProperty('primer')
-    expect(printed.editLoop[0]).toMatch(/^sim workspaces source check --dir /)
+    expect(printed.editLoop).toEqual([
+      `sim workspaces source check --dir ${dir} && sim workspaces source apply --dir ${dir} --yes --run <key>='{…}'`,
+    ])
   })
 
   it('writes the workspace primer atop the guide, and the deep dives to the advanced guide it names', async () => {
