@@ -16,7 +16,7 @@ import {
   RESERVED_PROGRAM_FLAGS,
   trailingListField,
 } from './request'
-import { shellArgument } from './run-next'
+import { shellArgument, typedCommandLine } from './run-next'
 import type { OperationSpec } from './types'
 
 const GROUP_ALIASES: Readonly<Record<string, string>> = {
@@ -173,7 +173,7 @@ function swallowedFlags(command: Command): string[] {
 
 /**
  * A JSON operand typed where one of the command's JSON flags (`--input <json|@file>`) was meant,
- * as the line that moves it there with the positionals kept. Null when no operand opens like
+ * as the line that moves it there with the positionals and the options typed kept. Null when no operand opens like
  * JSON, or the command has no such flag or several to choose between.
  */
 function misplacedJson(command: Command): string[] | null {
@@ -187,7 +187,7 @@ function misplacedJson(command: Command): string[] | null {
   const positionals = command.args.slice(0, command.registeredArguments.length)
   return [
     `The JSON was passed as a positional; pass it with ${flag} '<json>' (or ${flag} @file).`,
-    `Example: ${[commandPath(command), ...positionals.map(shellArgument), flag, shellArgument(json)].join(' ')}`,
+    `Example: ${typedCommandLine(command, positionals)} ${flag} ${shellArgument(json)}`,
   ]
 }
 

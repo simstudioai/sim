@@ -16,7 +16,7 @@ import { retypeApiError } from '../../runtime/naming'
 import { collectRepeated } from '../../runtime/options'
 import { buildRequest, readArgumentSource } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
-import { selectorOf, shellArgument, withRunNext } from '../../runtime/run-next'
+import { selectorOf, shellArgument, typedCommandLine, withRunNext } from '../../runtime/run-next'
 import type { OperationSpec } from '../../runtime/types'
 import { printRunFailureSite } from './run-source-location'
 import { BLOCK_ID } from './workflow-run-get'
@@ -167,23 +167,8 @@ async function readBlockMocks(
   return { mocks, recorded }
 }
 
-/**
- * The run a `--draft` run with dry-run overrides was meant to be: every flag the caller typed on
- * the command, `--dry` in place of `--draft`.
- */
-function asDryRun(workflowId: string, command: Command): string {
-  const words = ['sim workflows run', shellArgument(workflowId), '--dry']
-  for (const option of command.options) {
-    const key = option.attributeName()
-    if (key === 'draft' || key === 'dry' || command.getOptionValueSource(key) !== 'cli') continue
-    const value = command.getOptionValue(key)
-    for (const given of Array.isArray(value) ? value : [value]) {
-      if (typeof given === 'string') words.push(option.long ?? '', shellArgument(given))
-      else if (given === true || (given === false && option.negate)) words.push(option.long ?? '')
-    }
-  }
-  return words.join(' ')
-}
+/** The draft and dry flags a corrected dry run leaves out of the caller's command line. */
+const DRAFT_AND_DRY = new Set(['draft', 'dry'])
 
 /**
  * Projects friendly CLI flags into the API's strict nested run selector. `--allow`, `--mock` and
@@ -207,7 +192,7 @@ async function resolveWorkflowRunSelection(
   const overrides = allow.length > 0 || mockValues.length > 0 || mockFrom !== undefined
   if (overrides && flags.draft === true && flags.dry !== true) {
     throw new SimApiError(
-      `--allow picks the writes a --dry run sends and --mock answers a block in one, but --draft runs every block and sends every write: use --dry in place of --draft. Next: ${asDryRun(workflowId, command)}`,
+      `--allow picks the writes a --dry run sends and --mock answers a block in one, but --draft runs every block and sends every write: use --dry in place of --draft. Next: ${typedCommandLine(command, [workflowId, '--dry'], DRAFT_AND_DRY)}`,
       0
     )
   }

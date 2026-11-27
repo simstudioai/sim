@@ -53,6 +53,7 @@ function bodyVariantShapeError(
   variants: readonly BodyVariantSpec[]
 ): string {
   const base = wrongJsonShape(`--${variant.name}`, variant.kind, variant.property, parsed)
+  if (isRecordLike(parsed) && jsonShape(parsed[variant.property]) === variant.kind) return base
   const shape = jsonShape(parsed)
   const other =
     shape && variants.find((candidate) => candidate !== variant && candidate.kind === shape)

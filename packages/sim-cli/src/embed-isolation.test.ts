@@ -179,7 +179,7 @@ describe('embedded CLI output ownership', () => {
       throw new Error('a parse error must not reach the API')
     }
     const [positionalInput, swallowed] = await Promise.all([
-      runEmbeddedCli(['workflows', 'run', 'wf_1', '{"email":"a@b.co"}'], {
+      runEmbeddedCli(['workflows', 'run', 'wf_1', '--dry', '{"email":"a@b.co"}'], {
         ...identity,
         transport,
       }),
@@ -190,7 +190,7 @@ describe('embedded CLI output ownership', () => {
     ])
     expect(positionalInput.exitCode).toBe(1)
     expect(positionalInput.stderr).toContain(
-      `Example: sim workflows run wf_1 --input '{"email":"a@b.co"}'`
+      `Example: sim workflows run wf_1 --dry --input '{"email":"a@b.co"}'`
     )
     expect(swallowed.exitCode).toBe(1)
     expect(swallowed.stderr).toContain('--allow took --input as its value; write --allow <block>:')
@@ -207,7 +207,18 @@ describe('embedded CLI output ownership', () => {
     }
     const [draftAllow, draftMock, allowOnly] = await Promise.all([
       runEmbeddedCli(
-        ['workflows', 'run', 'wf_1', '--draft', '--allow', 'Save Lead', '--input', '{"a":1}'],
+        [
+          '--workspace',
+          'ws_9',
+          'workflows',
+          'run',
+          'wf_1',
+          '--draft',
+          '--allow',
+          'Save Lead',
+          '--input',
+          '{"a":1}',
+        ],
         { ...identity, transport }
       ),
       runEmbeddedCli(['workflows', 'run', 'wf_1', '--draft', '--mock', 'Score={"s":1}'], {
@@ -222,7 +233,7 @@ describe('embedded CLI output ownership', () => {
     expect(draftAllow.exitCode).toBe(1)
     expect(draftAllow.stderr).toContain('--draft runs every block and sends every write')
     expect(draftAllow.stderr).toContain(
-      `Next: sim workflows run wf_1 --dry --input '{"a":1}' --allow 'Save Lead'`
+      `Next: sim --workspace ws_9 workflows run wf_1 --dry --input '{"a":1}' --allow 'Save Lead'`
     )
     expect(draftMock.exitCode).toBe(1)
     expect(draftMock.stderr).toContain(`Next: sim workflows run wf_1 --dry --mock 'Score={"s":1}'`)
@@ -338,6 +349,7 @@ describe('embedded CLI output ownership', () => {
     expect(wrapped.exitCode).toBe(1)
     expect(wrapped.stderr).toContain(`e.g. --rows '[{"key":"value"}]'; got a JSON object`)
     expect(wrapped.stderr).toContain('Pass the array under its "rows" key itself')
+    expect(wrapped.stderr).not.toContain('For that shape')
     expect(oneRow.stderr).toContain('For that shape use --data.')
     expect(rowList.stderr).toContain('--data must be a JSON object')
     expect(rowList.stderr).toContain('For that shape use --rows.')
