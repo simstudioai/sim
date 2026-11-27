@@ -258,7 +258,9 @@ function gmailDocument(row: Record<string, unknown>): NativeDocument {
  */
 function gmailPersonClause(involving: string | undefined): string {
   if (!involving) return ''
-  return involving === 'me' ? 'from:me' : `{from:${involving} to:${involving} cc:${involving}}`
+  if (involving === 'me') return 'from:me'
+  const address = `"${involving}"`
+  return `{from:${address} to:${address} cc:${address}}`
 }
 
 export async function searchGmail(

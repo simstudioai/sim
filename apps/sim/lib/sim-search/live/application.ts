@@ -554,7 +554,8 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
       .sort(compareAccounts)
     /** A person filter skips the sources that cannot apply it rather than return them unfiltered. */
     const eligible = reachable.filter(
-      (account) => !input.involving || filtersByPerson(account.provider, input.involving)
+      (account) =>
+        !input.involving || filtersByPerson(account.provider, input.involving, account.scopes)
     )
     const nothingSearched = !queries && reachable.length === 0
     const selected = eligible.slice(0, MAX_ACCOUNTS)
