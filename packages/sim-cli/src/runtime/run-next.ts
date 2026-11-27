@@ -45,7 +45,9 @@ export function typedCommandLine(
       const value = step.getOptionValue(key)
       for (const given of Array.isArray(value) ? value : [value]) {
         if (typeof given === 'string') words.push(option.long, shellArgument(given))
-        else if (given === true || (given === false && option.negate)) words.push(option.long)
+        else if ((given === true && !option.negate) || (given === false && option.negate)) {
+          words.push(option.long)
+        }
       }
     }
   }

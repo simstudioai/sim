@@ -178,7 +178,7 @@ describe('embedded CLI output ownership', () => {
     const transport = async () => {
       throw new Error('a parse error must not reach the API')
     }
-    const [positionalInput, swallowed] = await Promise.all([
+    const [positionalInput, swallowed, rootSwallowed, negated] = await Promise.all([
       runEmbeddedCli(['workflows', 'run', 'wf_1', '--dry', '{"email":"a@b.co"}'], {
         ...identity,
         transport,
@@ -187,6 +187,14 @@ describe('embedded CLI output ownership', () => {
         ['workflows', 'run', 'wf_1', '--draft', '--allow', '--input', '{"email":"a@b.co"}'],
         { ...identity, transport }
       ),
+      runEmbeddedCli(['workflows', 'run', 'wf_1', '--workspace', '--input', '{"a":1}'], {
+        ...identity,
+        transport,
+      }),
+      runEmbeddedCli(['workflows', 'run', 'wf_1', '--dry', '--include-file-base64', '{"a":1}'], {
+        ...identity,
+        transport,
+      }),
     ])
     expect(positionalInput.exitCode).toBe(1)
     expect(positionalInput.stderr).toContain(
@@ -195,6 +203,10 @@ describe('embedded CLI output ownership', () => {
     expect(swallowed.exitCode).toBe(1)
     expect(swallowed.stderr).toContain('--allow took --input as its value; write --allow <block>:')
     expect(swallowed.stderr).not.toContain('--input \'{"email"')
+    expect(rootSwallowed.stderr).toContain('--workspace took --input as its value')
+    expect(negated.stderr).toContain(
+      `Example: sim workflows run wf_1 --include-file-base64 --dry --input '{"a":1}'`
+    )
   })
 
   it('refuses --allow beside --draft with the dry run it meant, and runs --allow alone dry', async () => {

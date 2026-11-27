@@ -146,22 +146,24 @@ function misplacedFlagValue(command: Command): { option: Option; value: string }
 }
 
 /**
- * Each option that took a flag of this command (or of a group above it) as its value, with what
- * the option is for: `run <id> --allow --input '{…}'` gives `--allow` the value `--input` and
+ * Each option of this command or a group above it (the root's `--workspace` too) that took a flag
+ * as its value, with what the option is for: `run <id> --allow --input '{…}'` gives `--allow` the value `--input` and
  * leaves the JSON over as a positional, so the excess is a symptom of the missing value and the
  * JSON is not misplaced.
  */
 function swallowedFlags(command: Command): string[] {
-  const options: Option[] = []
-  for (let current: Command | null = command; current; current = current.parent) {
-    options.push(...current.options)
+  const owned: { owner: Command; option: Option }[] = []
+  for (let owner: Command | null = command; owner; owner = owner.parent) {
+    for (const option of owner.options) owned.push({ owner, option })
   }
-  return command.options.flatMap((option) => {
-    const value = command.getOptionValue(option.attributeName())
+  return owned.flatMap(({ owner, option }) => {
+    const value = owner.getOptionValue(option.attributeName())
     const taken = (Array.isArray(value) ? value : [value]).find(
       (given) =>
         typeof given === 'string' &&
-        options.some((other) => [other.long, other.short].includes(given.split('=', 1)[0]))
+        owned.some(({ option: other }) =>
+          [other.long, other.short].includes(given.split('=', 1)[0])
+        )
     )
     if (taken === undefined) return []
     const purpose = option.description.split(/[;(]/, 1)[0].trim()
