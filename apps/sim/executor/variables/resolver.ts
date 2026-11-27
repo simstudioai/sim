@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isFilePathReference } from '@sim/utils/workflow-references'
 import { JSON_TEXT_CONTAINER_TYPES } from '@sim/workflow-code/json-text'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
@@ -862,10 +863,10 @@ export class VariableResolver {
     matchIndex: number,
     contextVarAccumulator: Record<string, unknown>
   ): Promise<{ replacement: string; display: string } | null> {
-    const parts = parseReferencePath(reference)
-    if (parts.length < 3 || parts.at(-1) !== 'path') {
+    if (!isFilePathReference(reference)) {
       return null
     }
+    const parts = parseReferencePath(reference)
 
     const fileReference = `${REFERENCE.START}${parts.slice(0, -1).join(REFERENCE.PATH_DELIMITER)}${REFERENCE.END}`
     const file = await this.resolveReference(fileReference, context)

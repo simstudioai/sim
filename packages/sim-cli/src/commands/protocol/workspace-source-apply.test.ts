@@ -480,6 +480,17 @@ describe('workspaces source apply', () => {
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     expect(summary).toMatchObject({ deleted: 1, destructive: 2 })
+    // The JSON names each change and what it loses, as the printed plan does.
+    expect(summary.plan).toEqual([
+      {
+        kind: 'table',
+        key: 'leads',
+        action: 'update',
+        destructive: { what: 'rows', counts: { rows: 40 } },
+      },
+      { kind: 'skill', key: 'tone', action: 'delete', destructive: { what: 'skill', counts: {} } },
+      { kind: 'workflow', key: 'ingest', action: 'update' },
+    ])
     expect(await humanPlan('--dry')).toContain(
       '2 change(s) delete data that applying an older directory'
     )

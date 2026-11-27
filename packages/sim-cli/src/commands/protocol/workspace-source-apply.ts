@@ -912,6 +912,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
             }
             const result = {
               ...summarize({ ...data, diagnostics }),
+              // The changes the printed plan lists, for a machine result, which prints no plan:
+              // an unchanged resource only counts, and its drift is a finding.
+              ...(findings.machine
+                ? { plan: data.plan.filter((change) => change.action !== 'noop') }
+                : {}),
               ...(workflows.length > 0 ? { workflows } : {}),
               ...(urls.length > 0 ? { urls } : {}),
               ...(tested.length > 0 ? { runs: tested } : {}),

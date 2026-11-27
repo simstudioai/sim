@@ -52,7 +52,7 @@ import {
   WORKSPACE_TYPES_FILE,
   type WorkspaceTypes,
 } from './source-tree'
-import type { Diagnostic } from './source-ui'
+import { type Diagnostic, shellWord } from './source-ui'
 import { compilePrinted, runFailingFindings, storedEdgesOf } from './stored-edges'
 
 type SourceBase = ApplyWorkflowSourceBody['base']
@@ -186,7 +186,7 @@ export async function readSourceFiles(
  * the server options the caller typed.
  */
 export function createCommand(dir: string, workspaceId: string, sim = 'sim'): string {
-  return `${sim} workflows source create --dir ${dir} --workspace ${workspaceId}`
+  return `${sim} workflows source create --dir ${shellWord(dir)} --workspace ${workspaceId}`
 }
 
 /** The public guide to workflow source, which AGENTS.md points an agent at. */

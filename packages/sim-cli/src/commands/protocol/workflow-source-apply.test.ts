@@ -1960,6 +1960,11 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     await expect(create('--dir', empty, '--folder', 'Reports/Q4', '--dry')).rejects.toThrow(
       /^Folder not found\. Create it with `sim workflows folders create '?Reports\/Q4'?`, then create the workflow again\.$/
     )
+    // The command the hint names is one the CLI has.
+    const folders = program()
+      .commands.find((command) => command.name() === 'workflows')
+      ?.commands.find((command) => command.name() === 'folders')
+    expect(folders?.commands.map((command) => command.name())).toContain('create')
   })
 
   it('plans a starter without reading or rewriting its workspace types', async () => {

@@ -165,10 +165,11 @@ function readersByKey(index: SourceIndex): Map<BlockKey, Reader[]> {
         index.span({ kind: 'block', block: readerKey })
       const lines = at ? (index.linesOf(at.file)?.lines ?? []) : []
       for (const head of heads) {
-        // The line of the field that names the block (`quote.data`, `<quote.data>`), not the
-        // field's first line: a long field or block spans many.
+        // The line of the field that names the block (`quote.data`, `...quote`, `<quote.data>`,
+        // `<quote[0]>`), not the field's first line: a long field or block spans many. A
+        // property access (`metadata.quote`) names something else.
         const reads = new RegExp(
-          `(?<![\\w$])(?:${escapeRegExp(index.identOf(head))}\\b|<${escapeRegExp(head)}[.>])`
+          `(?<![\\w$])(?<!(?<!\\.\\.)\\.)(?:${escapeRegExp(index.identOf(head))}\\b|<${escapeRegExp(head)}[.>[])`
         )
         let line = at?.line ?? 0
         for (let candidate = line; at && candidate <= at.endLine; candidate += 1) {

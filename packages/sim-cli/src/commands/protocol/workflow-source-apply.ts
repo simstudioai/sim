@@ -763,7 +763,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
               const workspaceId = client.requireWorkspace()
               const tree = await writeSourceScaffold(client, options.dir, workspaceId)
               const next: NextStep = {
-                command: `${createCommand(shellWord(options.dir), workspaceId, sim)} --yes${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
+                command: `${createCommand(options.dir, workspaceId, sim)} --yes${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
                 reason: `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, check it, then create it.`,
               }
               const machine = isMachineFormat(profile.output)
@@ -798,7 +798,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
               mode,
               creating: true,
               question: 'Create this workflow?',
-              command: `${createCommand(shellWord(options.dir), workspaceId, sim)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
+              command: `${createCommand(options.dir, workspaceId, sim)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
               savedCommand: applyCommand(options, sim),
               output: profile.output,
               client,

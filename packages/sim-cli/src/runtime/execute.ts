@@ -21,10 +21,12 @@ import {
   buildRequest,
   cursorSlot,
   flagNameFor,
+  flagSpecFor,
   inlineShapeRefusal,
   isProfileWorkspacePath,
   otherSpellings,
   PROFILE_INJECTED_FIELD,
+  readListFlag,
   trailingListField,
 } from './request'
 import { foldPageEnvelope, renderPage, renderResult } from './result'
@@ -255,24 +257,41 @@ const RESULT_NOTES: Readonly<
 
 /**
  * What a `confirm` command is about to do: its `confirmListed` text when the caller listed the
- * entries (counted as typed, a comma list too; a file is read only once confirmed), else `confirm`.
+ * entries, counted as the request reads the list (a comma list or a JSON array too; a file is read
+ * only once confirmed, so its count is unknown), else `confirm`. A list the request would refuse
+ * keeps `confirm`, for the request to name the mistake.
  */
-function confirmText(spec: CommandSpec, flags: Record<string, unknown>): string | undefined {
+async function confirmText(
+  operation: V2OperationName,
+  spec: CommandSpec,
+  flags: Record<string, unknown>
+): Promise<string | undefined> {
   const listed = spec.confirmListed
-  const raw = listed ? flags[camel(listed.flag)] : undefined
-  if (!listed || raw === undefined) return spec.confirm
-  const values = (Array.isArray(raw) ? raw : [raw]).filter(
-    (value): value is string => typeof value === 'string'
-  )
-  if (values.length === 0) return spec.confirm
-  const count = values.some((value) => value.startsWith('@'))
-    ? null
-    : values.flatMap((value) => value.split(',')).filter((entry) => entry.trim() !== '').length
-  return listed.text(count)
+  const flagName = listed ? flagNameFor(operation, listed.field) : undefined
+  const raw = flagName ? flags[camel(flagName)] : undefined
+  if (!listed || !flagName || raw === undefined) return spec.confirm
+  const values = Array.isArray(raw) ? raw : [raw]
+  if (values.some((value) => typeof value === 'string' && value.startsWith('@'))) {
+    return listed.text(null)
+  }
+  try {
+    return listed.text(
+      (await readListFlag(raw, flagSpecFor(operation, listed.field), flagName)).length
+    )
+  } catch {
+    return spec.confirm
+  }
 }
 
-/** The bulk checks that fail a batch that may have committed part of it, not only a total miss. */
-const PARTIAL_BULK_FAILURES: ReadonlySet<V2OperationName> = new Set(['createWorkspaceInvitations'])
+/**
+ * Whether a bulk call its check failed still committed part of its batch. Only an invitation
+ * batch fails a partial success; every other check fails a total miss alone.
+ */
+function committedPart(operation: V2OperationName, payload: unknown): boolean {
+  if (operation !== 'createWorkspaceInvitations') return false
+  const { successful, added, invitations } = toRecord(payload)
+  return lengthOf(successful) + lengthOf(added) + lengthOf(invitations) > 0
+}
 
 /** The one-line explanation of a bulk call that changed nothing, or `null`. */
 function bulkFailureMessage(
@@ -491,7 +510,7 @@ export async function executeOperation(
    */
   if (commandSpec.confirm && !requestFlags.yes && requestFlags.dry !== true) {
     const misshapen = inlineShapeRefusal(operation, requestFlags)
-    const confirm = confirmText(commandSpec, requestFlags)
+    const confirm = await confirmText(operation, commandSpec, requestFlags)
     throw new SimApiError(
       misshapen
         ? `${misshapen} Also pass --yes: ${confirm}`
@@ -692,11 +711,15 @@ export async function executeOperation(
     return
   }
   const bulkFailure = bulkFailureMessage(operation, payload, request.body)
-  // A total miss committed nothing, so a machine format prints one document: the refusal,
-  // carrying the result that explains it. A batch that may have committed part prints its
-  // result first, as a failed run does.
-  if (bulkFailure && isMachineFormat(profile.output) && !PARTIAL_BULK_FAILURES.has(operation)) {
-    throw new SimApiError(bulkFailure, 0, null, payload)
+  // A failure that committed nothing prints one document in a machine format: the refusal,
+  // carrying the result that explains it and the invocation's warnings as the result's `note`
+  // would. A batch that committed part prints its result first, as a failed run does.
+  if (bulkFailure && isMachineFormat(profile.output) && !committedPart(operation, payload)) {
+    const { warnings, warningsDelivered } = renameWarningOptions(host)
+    const details =
+      warnings.length > 0 ? { ...toRecord(payload), note: warnings.join('\n') } : payload
+    warningsDelivered()
+    throw new SimApiError(bulkFailure, 0, null, details)
   }
   renderResult(
     operation,

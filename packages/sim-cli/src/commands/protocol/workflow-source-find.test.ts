@@ -114,12 +114,12 @@ describe('sim workflows source find', () => {
     expect(contextMockFns.mockRequest).not.toHaveBeenCalled()
   })
 
-  it('names the line that reads the block, not the first line of a field or block that spans several', async () => {
+  it('names the line that reads the block, not the first line of a field or block that spans several, nor a property of that name', async () => {
     const multiline = WORKFLOW_TS.replace(
       "const gate = condition('Gate', { if: js`${fetchPolicy.status} === 200`, else: true })",
       [
         "const gate = condition('Gate', {",
-        '    if: js`true &&',
+        '    if: js`metadata.fetchPolicy &&',
         '      ${fetchPolicy.status} === 200`,',
         '    else: true,',
         '  })',

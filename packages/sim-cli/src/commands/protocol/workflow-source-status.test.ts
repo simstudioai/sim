@@ -118,14 +118,14 @@ afterEach(() => {
 
 describe('workflows source status', () => {
   it.each(['status', 'diff'] as const)(
-    'on a starter no workflow was created from, %s names the create to run, not a get',
+    'on a starter no workflow was created from, %s names the create to run, not a get, quoting its directory',
     async (command) => {
-      const starter = join(root, 'starter')
+      const starter = join(root, 'my starter')
       write(starter, 'workflow.ts', GOT['workflow.ts'])
       write(starter, '.sim/starter.json', JSON.stringify({ workspaceId: WORKSPACE_ID }))
 
       await expect(run(starter, command)).rejects.toThrow(
-        `It holds a starter no workflow was created from yet: run \`sim workflows source create --dir ${starter} --workspace ${WORKSPACE_ID} --dry\``
+        `It holds a starter no workflow was created from yet: run \`sim workflows source create --dir '${starter}' --workspace ${WORKSPACE_ID} --dry\``
       )
       expect(mockRequest).not.toHaveBeenCalled()
     }

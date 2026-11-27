@@ -1932,13 +1932,13 @@ describe('a quoted tag in a Python code file', () => {
     ])
   })
 
-  it('leaves an unquoted tag, a tag inside a longer string and a shell file alone', () => {
+  it("leaves an unquoted tag, a tag inside a longer string, a quoted file's path and a shell file alone", () => {
     expect(
       quoted(
         withFile(
           'python',
           'f.py',
-          'country = <start.country>\nbody = \'{"country": <start.country>}\'\nreturn [country, body]'
+          "country = <start.country>\nbody = '{\"country\": <start.country>}'\nwith open('<start.attachment.path>') as f:\n  return [country, body, f.read()]"
         )
       )
     ).toEqual([])

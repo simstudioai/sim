@@ -4,6 +4,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { utf8ByteLength } from '@sim/utils/paste'
 import {
   findWorkflowReferenceTokens,
+  isFilePathReference,
   isLikelyWorkflowReferenceSegment,
 } from '@sim/utils/workflow-references'
 import {
@@ -530,8 +531,8 @@ function reportScriptRefSyntax(
  * `W_CODE_FILE_REF_QUOTED` on each `<key.path>` tag a Python file writes between quotes of its own
  * (`"<start.country>"`, `'<start.country>'`): the run substitutes a tag as a Python literal (inside
  * a string, as its JSON text), so the value arrives with its quotes in it. A tag inside longer text
- * (a JSON body a string builds) reads that JSON text on purpose, and a shell file quotes a tag in
- * quotes correctly, so neither is reported.
+ * (a JSON body a string builds) reads that JSON text on purpose, a file's path is spliced raw
+ * (`isFilePathReference`), and a shell file quotes a tag in quotes correctly, so none is reported.
  */
 function reportQuotedScriptRefs(
   ctx: CompileContext,
@@ -545,6 +546,8 @@ function reportQuotedScriptRefs(
     const quote = text[ref.start - 1]
     if ((quote !== '"' && quote !== "'") || text[ref.end] !== quote) continue
     const tag = text.slice(ref.start, ref.end)
+    // A file's path is spliced raw into its quotes: `open('<start.file.path>')` is right.
+    if (isFilePathReference(tag)) continue
     ctx.reporter.report(
       'W_CODE_FILE_REF_QUOTED',
       `${quote}${tag}${quote} quotes a reference the run already substitutes as a Python literal, so a string value arrives with its quotes in it.`,

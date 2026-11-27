@@ -340,7 +340,7 @@ export const CLI_CONTRACT: CliContract = {
     },
     confirm: 'This deletes every matching row and cannot be undone.',
     confirmListed: {
-      flag: 'row',
+      field: 'rowIds',
       text: (count) =>
         `This deletes ${count === null ? 'the listed rows' : count === 1 ? 'this row' : `these ${count} rows`} and cannot be undone.`,
     },

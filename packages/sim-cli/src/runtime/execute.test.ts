@@ -11,6 +11,7 @@ import {
 import { SimApiError } from '../http/client'
 import { callsOperations } from './called-operations'
 import { BULK_OUTCOME_CHECKS, executeOperation } from './execute'
+import { warnRenamedCommand, writeRenameWarnings } from './renamed'
 import type { OperationSpec } from './types'
 
 const { request, output, workspaceSource } = vi.hoisted(() => ({
@@ -442,6 +443,35 @@ describe('a bulk call that changed nothing', () => {
     )
   })
 
+  it('fails a machine result as one document: the refusal carries the result and the warnings owed', async () => {
+    const payload = {
+      deleted: [],
+      skipped: [],
+      notFound: [{ kind: 'table', id: 'tbl_nope' }],
+      failed: [],
+      deletedItems: { tables: 0, folders: 0 },
+    }
+    request.mockResolvedValue({ data: payload })
+    const host = leaf('bulkDeleteTables')
+    warnRenamedCommand(host, 'tables remove', 'tables batch-delete')
+    const written = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const failure = await executeOperation('bulkDeleteTables', {}, BULK_DELETE_TABLES, [
+      {},
+      host,
+    ]).catch((error: unknown) => error)
+    writeRenameWarnings(host)
+
+    expect(failure).toBeInstanceOf(SimApiError)
+    expect((failure as SimApiError).details).toEqual({
+      ...payload,
+      note: 'command "sim tables remove" has been renamed to "sim tables batch-delete". The old name still works.',
+    })
+    expect(console.log).not.toHaveBeenCalled()
+    expect(written).not.toHaveBeenCalled()
+  })
+
   /**
    * The scoping guard. Some items really were deleted, so the call did work;
    * failing here would break every caller sweeping a list that legitimately
@@ -513,24 +543,32 @@ describe('workspace invitation batch outcomes', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
   })
 
-  it.each([false, true])(
-    'prints every result and exits nonzero on a partial=%s failure',
-    async (partial) => {
-      const payload = {
-        ...empty,
-        success: false,
-        successful: partial ? ['first@example.com'] : [],
-        invitations: partial ? [receipt] : [],
-        failed: [{ email: 'second@example.com', error: 'Unable to invite this recipient' }],
-      }
-      request.mockResolvedValue({ data: payload })
-      await expect(invite()).rejects.toThrow(
-        'Invitation batch failed for 1 recipient. Successful results remain committed; inspect failed recipients before retrying.'
-      )
-      expect(JSON.parse(vi.mocked(console.log).mock.calls[0][0])).toEqual(payload)
-      expect(request).toHaveBeenCalledTimes(1)
-    }
-  )
+  const failedBatch = (partial: boolean) => ({
+    ...empty,
+    success: false,
+    successful: partial ? ['first@example.com'] : [],
+    invitations: partial ? [receipt] : [],
+    failed: [{ email: 'second@example.com', error: 'Unable to invite this recipient' }],
+  })
+  const BATCH_FAILED =
+    'Invitation batch failed for 1 recipient. Successful results remain committed; inspect failed recipients before retrying.'
+
+  it('prints the committed part of a failed batch, then exits nonzero', async () => {
+    request.mockResolvedValue({ data: failedBatch(true) })
+    await expect(invite()).rejects.toThrow(BATCH_FAILED)
+    expect(JSON.parse(vi.mocked(console.log).mock.calls[0][0])).toEqual(failedBatch(true))
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails a batch that committed nothing as one document, the refusal carrying the result', async () => {
+    request.mockResolvedValue({ data: failedBatch(false) })
+    await expect(invite()).rejects.toMatchObject({
+      message: BATCH_FAILED,
+      details: failedBatch(false),
+    })
+    expect(console.log).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledTimes(1)
+  })
 
   it('preserves HTTP failures without reporting a successful batch or retrying', async () => {
     const failure = new SimApiError('Organization access denied', 403)
