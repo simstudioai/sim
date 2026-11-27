@@ -857,13 +857,27 @@ export function attachWorkspaceSourceApply(source: Command): void {
               )
             : null
           const submission = promotion?.submission ?? read
-          // With --run, deployments/ waits for the test runs: the first write leaves it out, and a
-          // second applies it once every run completed (the drafts the runs tested, vouched for by
-          // the workflow folders' bases the first write saved).
+          // With --run, a managed deployments/ (its deploys, and the undeploys of files removed
+          // from it) waits for the test runs: the first write leaves it out, and a second applies
+          // it once every run completed (the drafts the runs tested, vouched for by the workflow
+          // folders' bases the first write saved).
+          const gated = runs.length > 0 && submission.kinds.includes('deployment')
           const deferred = new Set(
-            runs.length > 0 ? (declaredKeys('deployment', submission.files) ?? []) : []
+            gated ? (declaredKeys('deployment', submission.files) ?? []) : []
           )
-          const firstWrite = deferred.size > 0 ? withoutDeployments(submission) : submission
+          const firstWrite = gated ? withoutDeployments(submission) : submission
+          /**
+           * The first write declares no deployment file, so the server warns that each deferred
+           * deployment's workflow changed with none to deploy it (`warnDeployedDraftChanges`): the
+           * second write decides those.
+           */
+          const withoutDeferredWarnings = (data: ApplyData): ApplyData => ({
+            ...data,
+            diagnostics: data.diagnostics.filter(
+              (finding) =>
+                finding.code !== 'W_DEPLOYED_DRAFT_CHANGED' || !deferred.has(finding.key ?? '')
+            ),
+          })
           /** `data` as this apply reports it: a promotion's own wording and warnings added. */
           const reported = (data: ApplyData): ApplyData =>
             promotion
@@ -934,9 +948,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
             beforeCommit: (preview) =>
               stage(commit, preview ? new Set(preview.needBlobs) : blobsToStage(commit)),
             commit: async () => {
-              const answer = reported(
+              const sent = reported(
                 await send(commit, false, commit === submission ? only : commit.kinds)
               )
+              const answer = commit === firstWrite && gated ? withoutDeferredWarnings(sent) : sent
               findings.print(answer.diagnostics)
               return answer
             },
@@ -1006,67 +1021,63 @@ export function attachWorkspaceSourceApply(source: Command): void {
 
           const data = await runSourceWrite<ApplyData>(writeFlow(firstWrite, written))
           if (!data) return
-          // The first write declares no deployment file, so the server warns that each deferred
-          // deployment's workflow changed with none to deploy it (`warnDeployedDraftChanges`):
-          // the second write decides those.
-          const first =
-            deferred.size === 0
-              ? data
-              : {
-                  ...data,
-                  diagnostics: data.diagnostics.filter(
-                    (finding) =>
-                      finding.code !== 'W_DEPLOYED_DRAFT_CHANGED' ||
-                      !deferred.has(finding.key ?? '')
-                  ),
-                }
-          const complete = settle(first)
-          if (runs.length === 0) return finish(first)
+          const complete = settle(data)
+          if (runs.length === 0) return finish(data)
           if (!complete) {
             printError(
-              `Not test-run${deferred.size > 0 ? ', and deployments/ not applied' : ''}: the apply did not write every change.`
+              `Not test-run${gated ? ', and deployments/ not applied' : ''}: the apply did not write every change.`
             )
-            return finish(first)
+            return finish(data)
           }
-          /** Runs a step after the write; a failure prints the write's result first: it stands. */
+          /** Runs a step after the write; a failure prints the write's result data: it stands. */
           const afterWrite = async <T>(step: () => Promise<T>): Promise<T> => {
             try {
               return await step()
             } catch (error) {
-              await finish(first)
+              await finish(data)
               throw error
             }
           }
-          await afterWrite(() => testRuns(client, options.dir, workspaceId, first, runs, tested))
+          /** What the deployments write sends: the workflows the first write saved, and deployments/. */
+          const readDeploymentWrite = async () => {
+            const saved = await readWritten(options.dir)
+            const read = await readWorkspaceDir(
+              options.dir,
+              ['workflow', 'deployment'],
+              workspaceId,
+              saved
+            )
+            return { saved, read }
+          }
+          // Read before the runs, so the deploys publish only what they tested.
+          const before = gated ? await afterWrite(readDeploymentWrite) : null
+          await afterWrite(() => testRuns(client, options.dir, workspaceId, data, runs, tested))
           const failedRuns = tested.filter((run) => run.status !== 'completed')
           if (failedRuns.length > 0) {
             const next = {
               command: `${applyCommand(options)} --yes`,
               reason: 'applies your fix and tests it again',
             }
-            await finish(first, next)
+            await finish(data, next)
             const why = failedRuns
               .map((run) => `the test run of ${run.workflow} ${String(run.status)}: ${run.error}`)
               .join('; ')
             throw new SimApiError(
-              `The apply was written into ${options.dir}, but ${why}.${deferred.size > 0 ? ' deployments/ was not applied.' : ''} Fix the source, then run \`${next.command}\`.`,
+              `The apply was written into ${options.dir}, but ${why}.${gated ? ' deployments/ was not applied.' : ''} Fix the source, then run \`${next.command}\`.`,
               0
             )
           }
-          if (deferred.size === 0) return finish(first)
+          if (!before) return finish(data)
           const deployed = await afterWrite(async () => {
-            const saved = await readWritten(options.dir)
-            const second = await readWorkspaceDir(
-              options.dir,
-              ['workflow', 'deployment'],
-              workspaceId,
-              saved
-            )
-            return runSourceWrite<ApplyData>({ ...writeFlow(second, saved), mode: 'write' })
+            assertUnchangedSinceRuns(options.dir, before.read, (await readDeploymentWrite()).read)
+            return runSourceWrite<ApplyData>({
+              ...writeFlow(before.read, before.saved),
+              mode: 'write',
+            })
           })
           if (!deployed) return
           settle({ ...deployed, plan: deployed.plan.filter(isDeployment) })
-          await finish(mergedApply(first, deployed))
+          await finish(mergedApply(data, deployed))
         },
         { readOnly: mode === 'dry' || mode === 'plan' }
       )
@@ -1156,6 +1167,26 @@ async function readRunInputs(runs: readonly RunRequest[]): Promise<RunRequest[]>
       }
       return { ...run, input: text }
     })
+  )
+}
+
+/**
+ * Refuses the deployments write of a `--run` apply when its workflow or deployment files changed
+ * while the runs ran (`before` was read ahead of them, `after` once they completed): deploying
+ * then would publish a draft, or settings, no run tested.
+ */
+function assertUnchangedSinceRuns(
+  dir: string,
+  before: WorkspaceSubmission,
+  after: WorkspaceSubmission
+): void {
+  const paths = new Set([...Object.keys(before.files), ...Object.keys(after.files)])
+  const changed = [...paths]
+    .filter((path) => before.files[path] !== after.files[path])
+    .sort(compareStrings)
+  if (changed.length === 0) return
+  throw new SourceDirError(
+    `The apply was written and every test run completed, but ${changed.join(', ')} changed in ${dir} while they ran, so ${KIND_DIRS.deployment}/ was not applied: apply again to test and deploy what is there now.`
   )
 }
 

@@ -2264,6 +2264,74 @@ describe('workspaces source apply', () => {
       })
     })
 
+    it('holds back a managed deployments/ with no files left (its undeploys) until the runs complete', async () => {
+      unlinkSync(join(dir, 'deployments/ingest.ts'))
+      write('deployments/.gitkeep', '')
+      serveApplies()
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'failed', error: { message: 'score is not a number' } })
+      )
+
+      await expect(apply('--yes', '--allow-delete', '--run', 'ingest={}')).rejects.toThrow(
+        /deployments\/ was not applied/
+      )
+      expect(applies()).toHaveLength(1)
+      expect(applies()[0][1].body.kinds).not.toContain('deployment')
+    })
+
+    it('applies no deployments when a workflow file changed while the runs ran', async () => {
+      serveApplies()
+      contextMockFns.mockRequestRaw.mockImplementation(async () => {
+        write('workflows/ingest/workflow.ts', `${INGEST}// edited during the run\n`)
+        return runAnswer({ status: 'completed', output: {} })
+      })
+
+      await expect(apply('--yes', '--run', 'ingest={}')).rejects.toThrow(
+        /workflows\/ingest\/workflow\.ts changed in .* while they ran, so deployments\/ was not applied/
+      )
+      expect(applies()).toHaveLength(1)
+    })
+
+    it("never prints the first write's warning that a deferred deployment's workflow is not deployed", async () => {
+      request.mockImplementation(async (path: string, options: { body?: { kinds?: string[] } }) => {
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(1)
+        const base = { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } }
+        if (options.body?.kinds?.includes('deployment')) {
+          return answer({
+            plan: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+            applied: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+            base,
+          })
+        }
+        return answer({
+          plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+          applied: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+          files: { 'workflows/ingest/workflow.ts': `${INGEST}// stored\n` },
+          base,
+          diagnostics: [
+            {
+              code: 'W_DEPLOYED_DRAFT_CHANGED',
+              severity: 'warning',
+              message: 'workflow ingest is deployed: the live version keeps running the old one.',
+              kind: 'workflow',
+              key: 'ingest',
+            },
+          ],
+        })
+      })
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: {} })
+      )
+
+      await apply('--yes', '--run', 'ingest={}')
+
+      expect(applies()).toHaveLength(2)
+      const out = [...vi.mocked(console.error).mock.calls, ...vi.mocked(console.log).mock.calls]
+        .flat()
+        .join('\n')
+      expect(out).not.toContain('W_DEPLOYED_DRAFT_CHANGED')
+    })
+
     it('refuses a key with no workflow folder, naming the keys there, before sending anything', async () => {
       await expect(apply('--yes', '--run', 'ingset={}')).rejects.toThrow(
         /--run ingset: no such folder under workflows\/ .* Its workflow keys: ingest\./
