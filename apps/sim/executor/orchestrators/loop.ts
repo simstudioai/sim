@@ -10,7 +10,13 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
-import { CONTROL_BACK_EDGE_HANDLES, DEFAULTS, EDGE, PARALLEL } from '@/executor/constants'
+import {
+  BlockType,
+  CONTROL_BACK_EDGE_HANDLES,
+  DEFAULTS,
+  EDGE,
+  PARALLEL,
+} from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
@@ -28,9 +34,11 @@ import {
   extractBaseBlockId,
   extractLoopIdFromSentinel,
   extractParallelIdFromSentinel,
+  stripOuterBranchSuffix,
 } from '@/executor/utils/subflow-node-id-codec'
 import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
 import type { VariableResolver } from '@/executor/variables/resolver'
+import { codeNetworkFor } from '@/tools/side-effects'
 
 const logger = createLogger('LoopOrchestrator')
 
@@ -805,16 +813,35 @@ export class LoopOrchestrator {
         return match
       })
 
-      vmResult = await executeInIsolatedVM({
-        code: `return Boolean(${evaluatedCondition})`,
-        params: {},
-        envVars: {},
-        contextVariables: {},
-        timeoutMs: LOOP_CONDITION_TIMEOUT_MS,
-        requestId: generateRequestId(),
-        ownerKey: `user:${ctx.userId}`,
-        ownerWeight: 1,
-      })
+      const workflowLoopId = stripOuterBranchSuffix(loopId)
+      const codeNetwork = ctx.sideEffects
+        ? codeNetworkFor({
+            executionContext: ctx,
+            site: {
+              workflowId: ctx.workflowId,
+              blockId: workflowLoopId,
+              blockName:
+                ctx.workflow?.blocks.find((block) => block.id === workflowLoopId)?.metadata?.name ??
+                workflowLoopId,
+              blockType: BlockType.LOOP,
+            },
+            params: {},
+            registry: ctx.resolvedSecretTraceRegistry,
+          })
+        : undefined
+      vmResult = await executeInIsolatedVM(
+        {
+          code: `return Boolean(${evaluatedCondition})`,
+          params: {},
+          envVars: {},
+          contextVariables: {},
+          timeoutMs: LOOP_CONDITION_TIMEOUT_MS,
+          requestId: generateRequestId(),
+          ownerKey: `user:${ctx.userId}`,
+          ownerWeight: 1,
+        },
+        { fetchPolicy: codeNetwork?.fetchPolicy }
+      )
     } catch (error) {
       return await this.failConditionEvaluation(ctx, loopId, scope, error)
     }

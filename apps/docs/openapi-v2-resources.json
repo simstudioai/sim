@@ -6458,6 +6458,7 @@
                           "send": {
                             "toolId": "slack_message",
                             "toolName": "Slack Send Message",
+                            "effect": "write",
                             "description": "Send a message to a Slack channel.",
                             "inputs": {
                               "text": {
@@ -6488,6 +6489,7 @@
                             "name": "Slack Send Message",
                             "description": "Send a message to a Slack channel.",
                             "version": "1.0.0",
+                            "effect": "write",
                             "hostedApiKey": "none",
                             "oauth": {
                               "required": true,
@@ -6706,6 +6708,7 @@
                           "name": "Slack Send Message",
                           "description": "Send a message to a Slack channel.",
                           "version": "1.0.0",
+                          "effect": "write",
                           "hostedApiKey": "none",
                           "oauth": {
                             "required": true,
@@ -6815,6 +6818,7 @@
                         "name": "Slack Send Message",
                         "description": "Send a message to a Slack channel.",
                         "version": "1.0.0",
+                        "effect": "write",
                         "hostedApiKey": "none",
                         "oauth": {
                           "required": true,
@@ -21943,6 +21947,11 @@
             "description": "Tool version.",
             "type": "string"
           },
+          "effect": {
+            "type": "string",
+            "enum": ["read", "write"],
+            "description": "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no asynchronous provider job or query execution started (one with its own id that can keep running, even briefly; a synchronous read-only query is fine); no run, conversation, history item, or other resource left in an account; no contact data revealed for credits; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input. Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic lookups and verifications that only spend lookup credits are `read`."
+          },
           "hostedApiKey": {
             "type": "string",
             "enum": ["always", "conditional", "none"],
@@ -21992,7 +22001,7 @@
             "description": "Fields the tool produces."
           }
         },
-        "required": ["id", "name", "description", "hostedApiKey", "params", "outputs"],
+        "required": ["id", "name", "description", "effect", "hostedApiKey", "params", "outputs"],
         "additionalProperties": false,
         "title": "Tool",
         "description": "A built-in tool with its declared parameters and outputs."
@@ -22129,6 +22138,11 @@
             "description": "Authored guidance on using the block correctly.",
             "type": "string"
           },
+          "effect": {
+            "description": "The block's effect: `write` when it runs tools its user chooses (an Agent's tools) or any of its tools writes, else `read`. Absent for a block with no tools.",
+            "type": "string",
+            "enum": ["read", "write"]
+          },
           "inputSchema": {
             "type": "array",
             "items": {
@@ -22189,6 +22203,11 @@
                 "toolName": {
                   "description": "Display name of that tool.",
                   "type": "string"
+                },
+                "effect": {
+                  "description": "That tool's effect.",
+                  "type": "string",
+                  "enum": ["read", "write"]
                 },
                 "description": {
                   "description": "What the operation does.",
@@ -22253,11 +22272,47 @@
                     "properties": {
                       "type": {
                         "type": "string",
-                        "description": "Value type of the output."
+                        "description": "Value type of the output field."
                       },
                       "description": {
-                        "description": "What the output holds.",
+                        "description": "What the field holds.",
                         "type": "string"
+                      },
+                      "properties": {
+                        "description": "Members of an object-typed output, keyed by field name.",
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "description": "Nested output field, in this same shape."
+                        }
+                      },
+                      "items": {
+                        "description": "Element shape of an array-typed output.",
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "Element value type."
+                          },
+                          "description": {
+                            "description": "What an element holds.",
+                            "type": "string"
+                          },
+                          "properties": {
+                            "description": "Members of an object-typed element, keyed by field name.",
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "description": "Nested output field, in this same shape."
+                            }
+                          }
+                        },
+                        "required": ["type"],
+                        "additionalProperties": false
                       }
                     },
                     "required": ["type"],
@@ -22381,11 +22436,47 @@
               "properties": {
                 "type": {
                   "type": "string",
-                  "description": "Value type of the output."
+                  "description": "Value type of the output field."
                 },
                 "description": {
-                  "description": "What the output holds.",
+                  "description": "What the field holds.",
                   "type": "string"
+                },
+                "properties": {
+                  "description": "Members of an object-typed output, keyed by field name.",
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "description": "Nested output field, in this same shape."
+                  }
+                },
+                "items": {
+                  "description": "Element shape of an array-typed output.",
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Element value type."
+                    },
+                    "description": {
+                      "description": "What an element holds.",
+                      "type": "string"
+                    },
+                    "properties": {
+                      "description": "Members of an object-typed element, keyed by field name.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "description": "Nested output field, in this same shape."
+                      }
+                    }
+                  },
+                  "required": ["type"],
+                  "additionalProperties": false
                 }
               },
               "required": ["type"],
@@ -22487,6 +22578,7 @@
                 "send": {
                   "toolId": "slack_message",
                   "toolName": "Slack Send Message",
+                  "effect": "write",
                   "description": "Send a message to a Slack channel.",
                   "inputs": {
                     "text": {
@@ -22517,6 +22609,7 @@
                   "name": "Slack Send Message",
                   "description": "Send a message to a Slack channel.",
                   "version": "1.0.0",
+                  "effect": "write",
                   "hostedApiKey": "none",
                   "oauth": {
                     "required": true,
@@ -22585,6 +22678,11 @@
             "description": "Tool version.",
             "type": "string"
           },
+          "effect": {
+            "type": "string",
+            "enum": ["read", "write"],
+            "description": "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no asynchronous provider job or query execution started (one with its own id that can keep running, even briefly; a synchronous read-only query is fine); no run, conversation, history item, or other resource left in an account; no contact data revealed for credits; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input. Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic lookups and verifications that only spend lookup credits are `read`."
+          },
           "hostedApiKey": {
             "type": "string",
             "enum": ["always", "conditional", "none"],
@@ -22614,7 +22712,7 @@
             "additionalProperties": false
           }
         },
-        "required": ["id", "name", "description", "hostedApiKey"],
+        "required": ["id", "name", "description", "effect", "hostedApiKey"],
         "additionalProperties": false,
         "title": "Tool summary",
         "description": "List view of a built-in tool: identity, auth, and key hosting."
@@ -22653,6 +22751,7 @@
                 "name": "Slack Send Message",
                 "description": "Send a message to a Slack channel.",
                 "version": "1.0.0",
+                "effect": "write",
                 "hostedApiKey": "none",
                 "oauth": {
                   "required": true,
@@ -22684,6 +22783,7 @@
               "name": "Slack Send Message",
               "description": "Send a message to a Slack channel.",
               "version": "1.0.0",
+              "effect": "write",
               "hostedApiKey": "none",
               "oauth": {
                 "required": true,
@@ -32795,6 +32895,11 @@
                             "description": "Hidden from the output picker.",
                             "type": "boolean"
                           },
+                          "mayBeText": {
+                            "description": "A `json` or `any` output whose value can still be text at run time.",
+                            "type": "boolean",
+                            "const": true
+                          },
                           "properties": {
                             "description": "Nested outputs by name, each of this same shape.",
                             "type": "object",
@@ -32855,6 +32960,23 @@
                         "additionalProperties": false
                       }
                     },
+                    "effect": {
+                      "description": "`read` when every tool the block can run changes nothing outside Sim, else `write`. Absent for a block with no `tools.access`.",
+                      "type": "string",
+                      "enum": ["read", "write"]
+                    },
+                    "operationEffects": {
+                      "description": "Per operation id: its tool's effect, where it differs from `effect`.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string",
+                        "enum": ["read", "write"],
+                        "description": "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no asynchronous provider job or query execution started (one with its own id that can keep running, even briefly; a synchronous read-only query is fine); no run, conversation, history item, or other resource left in an account; no contact data revealed for credits; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input. Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic lookups and verifications that only spend lookup credits are `read`."
+                      }
+                    },
                     "dynamicOutputs": {
                       "description": "Present when outputs derive from a param at run time.",
                       "type": "object",
@@ -32871,6 +32993,13 @@
                       },
                       "required": ["source", "param"],
                       "additionalProperties": false
+                    },
+                    "errorOutputs": {
+                      "description": "Text outputs the block writes only when it fails into an error edge, beside `error`.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "graph": {
                       "type": "object",
@@ -32920,65 +33049,6 @@
                       "required": ["canBeTarget", "errorPort", "container", "annotationOnly"],
                       "additionalProperties": false,
                       "description": "Edge rules for the block."
-                    },
-                    "legacyIds": {
-                      "description": "Field id renames applied on load.",
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "from": {
-                            "type": "string",
-                            "description": "Legacy field id."
-                          },
-                          "to": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ],
-                            "description": "Current field id, or null when removed."
-                          },
-                          "whenOperation": {
-                            "description": "Operations the rename applies to.",
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "conditional": {
-                            "description": "Applies only to some values.",
-                            "type": "boolean",
-                            "const": true
-                          }
-                        },
-                        "required": ["from", "to"],
-                        "additionalProperties": false,
-                        "description": "One field id rename."
-                      }
-                    },
-                    "legacyCanonicalIds": {
-                      "description": "Basic/advanced pair id renames applied on load.",
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "from": {
-                            "type": "string",
-                            "description": "Legacy pair id."
-                          },
-                          "to": {
-                            "type": "string",
-                            "description": "Current pair id."
-                          }
-                        },
-                        "required": ["from", "to"],
-                        "additionalProperties": false,
-                        "description": "One pair id rename."
-                      }
                     },
                     "paramAliases": {
                       "description": "The name source writes for a param, by param name: oauthCredential → credential.",
@@ -33830,6 +33900,11 @@
                           "hiddenFromDisplay": {
                             "description": "Hidden from the output picker.",
                             "type": "boolean"
+                          },
+                          "mayBeText": {
+                            "description": "A `json` or `any` output whose value can still be text at run time.",
+                            "type": "boolean",
+                            "const": true
                           },
                           "properties": {
                             "description": "Nested outputs by name, each of this same shape.",
@@ -34689,6 +34764,11 @@
                       "hiddenFromDisplay": {
                         "description": "Hidden from the output picker.",
                         "type": "boolean"
+                      },
+                      "mayBeText": {
+                        "description": "A `json` or `any` output whose value can still be text at run time.",
+                        "type": "boolean",
+                        "const": true
                       },
                       "properties": {
                         "description": "Nested outputs by name, each of this same shape.",

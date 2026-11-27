@@ -14,11 +14,12 @@ export const slackListChannelsTool: InternalToolConfig<
   SlackListChannelsResponse
 > = {
   id: 'slack_list_channels',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Slack List Channels',
   description:
     'List one page of accessible public and private Slack channels. Pass the returned nextCursor as cursor to fetch the next page.',
   version: '1.3.1',
+  effect: 'read',
 
   oauth: {
     required: true,

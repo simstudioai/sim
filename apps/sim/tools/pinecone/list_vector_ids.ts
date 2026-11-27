@@ -6,6 +6,7 @@ export const listVectorIdsTool: ToolConfig<PineconeListVectorIdsParams, Pinecone
   name: 'Pinecone List Vector IDs',
   description: 'List vector IDs in a Pinecone namespace by prefix (serverless indexes only)',
   version: '1.0',
+  effect: 'read',
 
   params: {
     indexHost: {

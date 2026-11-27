@@ -26,6 +26,7 @@ export const planeUnarchiveWorkItemTool: ToolConfig<
   name: 'Plane Unarchive a work item',
   description: 'Unarchive a work item in Plane. Requires API v2.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

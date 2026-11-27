@@ -30,6 +30,7 @@ export const sportmonksMotorsportGetDriverTool: ToolConfig<
   name: 'Get Driver by ID',
   description: 'Retrieve a single motorsport driver by their ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

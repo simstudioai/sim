@@ -9,6 +9,7 @@ export const spotifySkipPreviousTool: ToolConfig<
   name: 'Spotify Skip to Previous',
   description: 'Skip to the previous track on Spotify.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

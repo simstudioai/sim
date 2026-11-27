@@ -11,6 +11,7 @@ export const createBusinessPartnerTool: InternalToolConfig<
   description:
     'Create a business partner in SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner). For Person category 1 provide FirstName and LastName. For Organization category 2 provide OrganizationBPName1.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     subdomain: {
       type: 'string',

@@ -21,6 +21,7 @@ export const helpScoutListTagsTool: ToolConfig<HelpScoutListTagsParams, HelpScou
     name: 'Help Scout List Tags',
     description: 'List the tags used across all Help Scout inboxes, in alphabetical order.',
     version: '1.0.0',
+    effect: 'read',
     oauth: { required: true, provider: 'helpscout' },
     errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
     params: {

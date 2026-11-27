@@ -10,6 +10,7 @@ import { printError } from '#sim-cli/output/io'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
+import { simInvocation } from '../../runtime/run-next'
 import { searchTasks } from '../search'
 import { removeStagingOnSignal } from './files-get'
 import { SourceDirError } from './local-errors'
@@ -33,6 +34,7 @@ import {
 import { sourceExitCodesHelp } from './source-exit-codes'
 import {
   assertSdkMajor,
+  editLoop,
   finishTree,
   loadCatalog,
   loadWorkspaceTypes,
@@ -40,7 +42,7 @@ import {
   sourceTreeChange,
   withSourceExitCode,
 } from './source-tree'
-import { findingsOutput } from './source-ui'
+import { type Diagnostic, findingsOutput } from './source-ui'
 import {
   removedWorkflowRecords,
   unrecordedFoldersWarning,
@@ -130,7 +132,7 @@ async function writeWorkspaceSource(
   dir: string,
   source: WorkspaceSource,
   force: boolean
-): Promise<{ written: number; removed: number; guide: string; primer: string }> {
+): Promise<{ written: number; removed: number; guide: string; runFindings: Diagnostic[] }> {
   assertWorkspacePaths(Object.keys(source.files))
   assertListedBlobs(source.blobs)
   const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
@@ -177,12 +179,11 @@ async function writeWorkspaceSource(
     loadWorkspaceTypes(client, source.workspaceId, localDeclarations(source.files)),
   ])
   assertSdkMajor(catalog)
-  const { records: workflowRecords, unrecorded } = await workflowFolderRecords(
-    client,
-    source.workspaceId,
-    catalog,
-    source.files
-  )
+  const {
+    records: workflowRecords,
+    runFindings,
+    unrecorded,
+  } = await workflowFolderRecords(client, source.workspaceId, catalog, source.files)
   // A get that leaves the workflows unread keeps the blocks those on disk type-check against.
   const tree = await sourceTreeChange(
     dir,
@@ -276,7 +277,7 @@ async function writeWorkspaceSource(
       written: summary.files,
       removed: gone.size,
       guide: summary.guide,
-      primer: summary.primer,
+      runFindings,
     }
   } finally {
     if (partial) await rm(partial, { recursive: true, force: true })
@@ -345,7 +346,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     .allowExcessArguments(false)
     .description('Write a workspace as a source directory')
     .addHelpText('after', GET_HELP)
-    .action(async (options: { dir: string; only?: string; force?: boolean }) => {
+    .action(async (options: { dir: string; only?: string; force?: boolean }, invoked: Command) => {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
       await withSourceDirLock(options.dir, async () => {
@@ -359,8 +360,8 @@ export function attachWorkspaceSourceGet(source: Command): void {
             options.dir,
             typeof recorded === 'string' ? recorded : null,
             profile,
-            (readFrom, named) =>
-              `Get ${named} into another directory, or run the get without --workspace to refresh ${readFrom}; to apply this directory to ${named}, use \`sim workspaces source apply --to ${named}\`.`
+            (readFrom, named, setting) =>
+              `Get ${named} into another directory, or run the get without ${setting} to refresh ${readFrom}; to apply this directory to ${named}, use \`sim workspaces source apply --to ${named}\`.`
           ) ?? undefined
         )
         const { data } = await client
@@ -372,8 +373,9 @@ export function attachWorkspaceSourceGet(source: Command): void {
             throw withSourceExitCode(error)
           })
         const result = await writeWorkspaceSource(client, options.dir, data, options.force === true)
+        const diagnostics = [...data.diagnostics, ...result.runFindings]
         const findings = findingsOutput(profile.output, false, options.dir)
-        findings.print(data.diagnostics)
+        findings.print(diagnostics)
         for (const { kind, key, reason } of data.skipped) {
           printError(
             `Skipped ${kind} ${key}: ${reason} It is not written here, and an apply keeps it as the server has it (${WORKSPACE_SKIPPED_FILE} lists it).`
@@ -388,8 +390,8 @@ export function attachWorkspaceSourceGet(source: Command): void {
           removed: result.removed,
           skipped: data.skipped.length,
           guide: result.guide,
-          primer: result.primer,
-          ...findings.result(data.diagnostics),
+          editLoop: editLoop('workspace', options.dir, simInvocation(invoked)),
+          ...findings.result(diagnostics),
         })
       })
     })

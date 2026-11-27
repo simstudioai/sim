@@ -26,6 +26,7 @@ export const harmonicGetEmailEnrichmentJobTool: ToolConfig<
   description:
     'Check a Harmonic bulk email enrichment job. Per-person results appear once the job is terminal; fetch the emails with Get Person or Batch Get People.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 

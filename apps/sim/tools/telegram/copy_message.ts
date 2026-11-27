@@ -13,6 +13,7 @@ export const telegramCopyMessageTool: ToolConfig<
   description:
     'Copy a message to another Telegram chat without a forward header through the Telegram Bot API.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

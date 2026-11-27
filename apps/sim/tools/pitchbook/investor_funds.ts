@@ -9,6 +9,7 @@ export const pitchbookInvestorFundsTool: ToolConfig<PitchbookProfileParams, Pitc
   description:
     'Retrieve the funds an investor manages, with open and closed counts and the min, median, and max fund size',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

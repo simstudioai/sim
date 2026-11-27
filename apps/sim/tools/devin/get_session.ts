@@ -10,6 +10,7 @@ export const devinGetSessionTool: ToolConfig<DevinGetSessionParams, DevinGetSess
   description:
     'Retrieve details of an existing Devin session including status, tags, pull requests, and structured output.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {

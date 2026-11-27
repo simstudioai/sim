@@ -7,6 +7,7 @@ export const searchTool: ToolConfig<DuckDuckGoSearchParams, DuckDuckGoSearchResp
   description:
     'Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, and related topics for your query. Free to use without an API key.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

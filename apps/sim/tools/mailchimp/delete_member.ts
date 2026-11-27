@@ -26,6 +26,7 @@ export const mailchimpDeleteMemberTool: ToolConfig<
   description:
     'Archive a member from a Mailchimp audience without permanently deleting their data.',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

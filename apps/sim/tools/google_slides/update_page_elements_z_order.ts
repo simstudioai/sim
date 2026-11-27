@@ -29,6 +29,7 @@ export const updatePageElementsZOrderTool: ToolConfig<
   name: 'Update Z-Order in Google Slides',
   description: 'Bring elements to front, send to back, or step them one layer forward/backward.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

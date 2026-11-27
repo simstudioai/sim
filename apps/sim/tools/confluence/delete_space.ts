@@ -27,6 +27,7 @@ export const confluenceDeleteSpaceTool: InternalToolConfig<
   name: 'Confluence Delete Space',
   description: 'Delete a Confluence space.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

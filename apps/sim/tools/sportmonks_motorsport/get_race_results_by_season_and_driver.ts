@@ -38,6 +38,7 @@ export const sportmonksMotorsportGetRaceResultsBySeasonAndDriverTool: ToolConfig
   description:
     'Retrieve race results (stages with fixtures, lineups and lineup details) for a season and driver from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -12,6 +12,7 @@ export const netsuiteListRecordsTool: InternalToolConfig<
   description:
     'List one page of a NetSuite record collection, optionally filtered with a q expression.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

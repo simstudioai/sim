@@ -15,6 +15,7 @@ export const getSecuritySignalTool: ToolConfig<GetSecuritySignalParams, GetSecur
     description:
       'Get the details of a single Cloud SIEM security signal. Requires the `security_monitoring_signals_read` permission.',
     version: '1.0.0',
+    effect: 'read',
     oauth: DATADOG_CREDENTIAL_OAUTH,
 
     params: {

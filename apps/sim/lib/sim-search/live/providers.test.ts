@@ -5,8 +5,9 @@ import {
   withSearchProviderDiagnostics,
 } from '@/lib/knowledge/search/diagnostics'
 import { readGitHub, searchGitHub } from '@/lib/sim-search/live/github'
-import { searchCalendar, searchDrive } from '@/lib/sim-search/live/google'
+import { searchCalendar, searchDrive, searchGmail } from '@/lib/sim-search/live/google'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import { filtersByPerson } from '@/lib/sim-search/live/providers'
 import { searchSlack } from '@/lib/sim-search/live/slack'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
@@ -104,6 +105,56 @@ describe('native search endpoints', () => {
       '(launch) repo:org/repo is:issue updated:2026-09-20T00:00:00.000Z..2026-09-24T00:00:00.000Z',
       '(launch) repo:org/repo is:pull-request updated:2026-09-20T00:00:00.000Z..2026-09-24T00:00:00.000Z',
     ])
+  })
+  it('refuses a person filter beside a native involves: that GitHub would OR into a wider search', async () => {
+    const api = client()
+    await expect(
+      searchGitHub(api, {
+        ...input,
+        involving: 'me',
+        native: { provider: 'github', query: 'repo:org/repo involves:octocat', kind: 'issues' },
+      })
+    ).rejects.toThrow('ORs repeated involves:')
+    expect(api.json.mock.calls.some(([path]) => path.startsWith('/search/'))).toBe(false)
+  })
+  it('keeps a Gmail person group intact when the address holds Gmail operator characters', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ messages: [] })
+    await searchGmail(api, { ...input, query: '', involving: 'a}{b|c@example.com' })
+    const address = '"a}{b|c@example.com"'
+    expect(api.json.mock.calls[0]?.[1]?.query?.q).toBe(
+      `{from:${address} to:${address} cc:${address}}`
+    )
+  })
+  it('skips Slack for a person found by email unless the account can look members up by email', () => {
+    expect(filtersByPerson('slack', 'me', [])).toBe(true)
+    expect(filtersByPerson('slack', 'jane@example.com', [])).toBe(false)
+    expect(filtersByPerson('slack', 'jane@example.com', ['users:read.email'])).toBe(true)
+  })
+  it('keeps only calendar events a person organizes or attends without declining', async () => {
+    const api = client()
+    const event = (id: string, extra: Record<string, unknown>) => ({
+      id,
+      summary: id,
+      start: { dateTime: '2026-09-24T09:00:00Z' },
+      ...extra,
+    })
+    const me = 'member@example.com'
+    api.json.mockImplementation(async (path) => {
+      if (path.endsWith('/calendarList')) return { items: [{ id: me, primary: true }] }
+      if (path.endsWith('/calendars/primary')) return { id: me }
+      return {
+        items: [
+          event('organized', { organizer: { email: me } }),
+          event('attended', { attendees: [{ email: me, responseStatus: 'accepted' }] }),
+          event('declined', { attendees: [{ email: me, responseStatus: 'declined' }] }),
+          // A shared calendar's own copy marks its owner, not the caller, as self.
+          event('shared', { organizer: { self: true, email: 'jane@example.com' } }),
+        ],
+      }
+    })
+    const result = await searchCalendar(api, { ...input, query: '', involving: 'me' })
+    expect(result.documents.map(({ id }) => id)).toEqual(['organized', 'attended'])
   })
   it('bounds GitHub commit search dates to one author-date range', async () => {
     const api = client()

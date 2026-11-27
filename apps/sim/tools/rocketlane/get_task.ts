@@ -15,6 +15,7 @@ export const rocketlaneGetTaskTool: ToolConfig<RocketlaneGetTaskParams, Rocketla
   name: 'Rocketlane Get Task',
   description: 'Retrieve detailed information about a Rocketlane task by its unique identifier',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

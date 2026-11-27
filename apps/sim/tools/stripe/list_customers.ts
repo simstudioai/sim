@@ -9,6 +9,7 @@ export const stripeListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
   name: 'Stripe List Customers',
   description: 'List all customers',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

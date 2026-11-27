@@ -9,6 +9,7 @@ export const rampGetBillTool: ToolConfig<RampGetBillParams, RampGetBillResponse>
   name: 'Ramp Get Bill',
   description: 'Fetch a bill in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

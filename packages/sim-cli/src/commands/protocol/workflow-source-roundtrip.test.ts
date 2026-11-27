@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import {
   existsSync,
   mkdirSync,
@@ -40,6 +39,7 @@ vi.mock('../../context', async () => {
   return {
     globalsOf: () => ({}),
     profileFrom: () => profile,
+    actingProfileFrom: () => profile,
     clientFrom: () => ({ client: new SimClient(profile), profile }),
   }
 })
@@ -110,7 +110,7 @@ function appliedResponse(
       workflowId,
       workflowName: 'W',
       workspaceId: WORKSPACE_ID,
-      dryRun: false,
+      dry: false,
       applied: true,
       diff: {
         noop: false,
@@ -181,6 +181,9 @@ const MANIFEST = {
   knowledgeBases: [],
   credentials: [{ key: 'support-slack', id: 'c-1', name: 'Support Slack', provider: 'slack' }],
   workflows: [],
+  skills: [],
+  customTools: [],
+  mcpServers: [],
   env: ['CRM_KEY'],
   truncated: false,
 }
@@ -673,24 +676,6 @@ describe('a get into a directory that already holds source', () => {
     expect(read('functions/score.js')).toBe('return 2\r\n')
   })
 
-  it('replaces unedited CRLF function code an older CLI recorded with its raw digest', async () => {
-    const crlf = { ...FILES, 'functions/score.js': 'return 1\r\n' }
-    server.source = () => json(sourceResponse(crlf))
-    await get()
-    const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex')
-    writeFileSync(
-      join(dir, '.sim/written.json'),
-      JSON.stringify({
-        version: 1,
-        files: Object.fromEntries(Object.entries(crlf).map(([path, text]) => [path, sha256(text)])),
-      })
-    )
-
-    await get()
-
-    expect(read('functions/score.js')).toBe('return 1\r\n')
-  })
-
   it('refuses to overwrite an unapplied edit, such as the one a stale apply refused', async () => {
     await get()
     writeFileSync(join(dir, 'workflow.ts'), EDITED)
@@ -1002,7 +987,8 @@ const EVERY_WITHHELD_BUILDER = [
   '',
 ].join('\n')
 
-const check = (...flags: string[]) => sim('workflows', 'source', 'check', '--dir', dir, ...flags)
+const check = (...flags: string[]) =>
+  sim('workflows', 'source', 'check', '--dir', dir, '--no-types', ...flags)
 
 function checked(): { errors: number; warnings: number; diagnostics: unknown[] } {
   return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
@@ -1046,7 +1032,7 @@ describe('checking a workflow holding a type the workspace catalog withholds', (
   it('finds what the dry run finds for every builder only the workflow catalog declares', async () => {
     serve(EVERY_WITHHELD_BUILDER)
     await get()
-    const dryRun = compileWorkflow({
+    const dry = compileWorkflow({
       entry: { path: 'workflow.ts', text: EVERY_WITHHELD_BUILDER },
       files: new Map(),
       catalog: CATALOG,
@@ -1058,18 +1044,16 @@ describe('checking a workflow holding a type the workspace catalog withholds', (
     expect(WITHHELD_BUILDERS).toEqual(
       expect.arrayContaining(['table.insertRow', 'knowledge.search'])
     )
-    expect(dryRun.map(({ code }) => code)).not.toContain('E_UNKNOWN_BUILDER')
+    expect(dry.map(({ code }) => code)).not.toContain('E_UNKNOWN_BUILDER')
     expect(
       (checked().diagnostics as Array<{ code: string; message: string; line?: number }>).map(
         ({ code, message, line }) => ({ code, message, line })
       )
-    ).toEqual(dryRun)
+    ).toEqual(dry)
   })
 
   it('caches each catalog once by its hash, fetching the workflow catalog only while uncached', async () => {
     const cacheDir = join(root, 'config/cache/source-catalog')
-    mkdirSync(join(cacheDir, WORKSPACE_ID), { recursive: true })
-    writeFileSync(join(cacheDir, `${WORKSPACE_ID}.json`), '{}')
     serve(TICKET_ROUTER)
     const queries: string[] = []
     const answer = server.catalog
@@ -1144,7 +1128,8 @@ describe('checking wiring between blocks the lock binds', () => {
     process.exitCode = undefined
   })
 
-  const check = (...flags: string[]) => sim('workflows', 'source', 'check', '--dir', dir, ...flags)
+  const check = (...flags: string[]) =>
+    sim('workflows', 'source', 'check', '--dir', dir, '--no-types', ...flags)
 
   function codes(): string[] {
     const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')

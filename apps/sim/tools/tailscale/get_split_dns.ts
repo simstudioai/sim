@@ -12,6 +12,7 @@ export const tailscaleGetSplitDnsTool: ToolConfig<
   name: 'Tailscale Get Split DNS',
   description: 'Get split DNS resolvers',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

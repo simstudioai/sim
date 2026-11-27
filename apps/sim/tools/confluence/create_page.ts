@@ -1,4 +1,6 @@
 import { CONTENT_BODY_OUTPUT_PROPERTIES, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
+import { isNumericConfluenceSpaceId } from '@/tools/confluence/utils'
+import { dryRunId } from '@/tools/dry-run'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreatePageParams {
@@ -34,6 +36,7 @@ export const confluenceCreatePageTool: InternalToolConfig<
   name: 'Confluence Create Page',
   description: 'Create a new page in a Confluence space.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -98,6 +101,22 @@ export const confluenceCreatePageTool: InternalToolConfig<
         parentId: params.parentId,
       }
     },
+  },
+
+  /**
+   * A dry run's placeholder holds the title of the current page the call creates, the space it
+   * names by id (a space key is resolved live) and the parent it names (without one, Confluence
+   * picks the space's homepage); its id is a placeholder.
+   */
+  dryRunOutput: (params) => {
+    const spaceId = String(params.spaceId).trim()
+    return {
+      pageId: dryRunId('page'),
+      title: params.title,
+      status: 'current',
+      ...(isNumericConfluenceSpaceId(spaceId) ? { spaceId } : {}),
+      ...(params.parentId ? { parentId: params.parentId } : {}),
+    }
   },
 
   transformResponse: async (response: Response) => {

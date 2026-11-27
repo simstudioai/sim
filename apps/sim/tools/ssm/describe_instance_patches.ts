@@ -13,6 +13,7 @@ export const describeInstancePatchesTool: InternalToolConfig<
   name: 'SSM Describe Instance Patches',
   description: 'List the patches reported for one managed node',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

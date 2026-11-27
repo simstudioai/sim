@@ -24,6 +24,7 @@ export const listRevisionsTool: ToolConfig<
   name: 'List Google Drive Revisions',
   description: 'List the revision history of a file in Google Drive',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

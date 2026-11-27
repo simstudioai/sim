@@ -95,8 +95,14 @@ export async function searchLinear(
   const bounds = nativeDateBounds(input)
   const direction = dateSortDirection(input.filters)
   const backwards = direction === 'asc'
+  const person = input.involving
+    ? input.involving === 'me'
+      ? { isMe: { eq: true } }
+      : { email: { eqIgnoreCase: input.involving } }
+    : undefined
   const filter: Record<string, unknown> = {
     ...(input.native?.project ? { project: { id: { eq: input.native.project } } } : {}),
+    ...(person ? { or: [{ assignee: person }, { creator: person }] } : {}),
     ...(bounds.start || bounds.end
       ? {
           updatedAt: {
@@ -167,6 +173,33 @@ export async function searchLinear(
         ? ' Linear omitted its continuation; narrow the query for more results.'
         : ''),
   }
+}
+
+/**
+ * The issue a link's key names in the account's own workspace, or undefined when the account's
+ * workspace is another one: issue keys repeat across Linear workspaces.
+ */
+export async function linearIssueReference(
+  client: NativeClient,
+  workspace: string,
+  issueKey: string
+): Promise<Pick<NativeDocument, 'id' | 'container' | 'kind'> | undefined> {
+  const data = await linearQuery(
+    client,
+    `
+    query LocateLinearIssue($id: String!) {
+      issue(id: $id) { id url team { id } }
+    }
+  `,
+    { id: issueKey }
+  )
+  const issue = object(data.issue)
+  const id = string(issue.id)
+  const url = linearUrl(issue.url)
+  if (!UUID.test(id) || !url) return undefined
+  if (new URL(url).pathname.split('/')[1]?.toLowerCase() !== workspace) return undefined
+  const team = string(object(issue.team).id)
+  return { id, kind: 'issue', ...(team ? { container: team } : {}) }
 }
 
 export async function readLinear(client: NativeClient, id: string): Promise<NativeDocument> {

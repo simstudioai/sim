@@ -28,6 +28,7 @@ export const listArchiveReasonsTool: ToolConfig<
   name: 'Ashby List Archive Reasons',
   description: 'Lists all archive reasons configured in Ashby.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

@@ -30,6 +30,7 @@ export const sportmonksMotorsportGetStageTool: ToolConfig<
   name: 'Get Stage by ID',
   description: 'Retrieve a single motorsport stage (race weekend) by its ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

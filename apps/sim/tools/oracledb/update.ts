@@ -14,6 +14,7 @@ export const oracleUpdateTool: InternalToolConfig<OracleUpdateParams, OracleUpda
   description:
     'Update Oracle Database rows selected by a required WHERE expression, using bound values for changed columns',
   version: '1.0.0',
+  effect: 'write',
   oauth: oracleDatabaseOAuth,
   params: {
     ...ORACLE_CONNECTION_PARAMS,

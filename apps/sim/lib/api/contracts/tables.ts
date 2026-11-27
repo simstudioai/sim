@@ -49,13 +49,21 @@ import {
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
+/** Column types the server accepts but the public documents leave out. */
+const UNDOCUMENTED_COLUMN_TYPES: readonly string[] = ['ttl']
+
 /**
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot
  * send arbitrary strings the server would reject downstream.
  */
 export const columnTypeSchema = z
   .enum(COLUMN_TYPES)
-  .meta({ omitEnumValuesFromOpenApi: ['ttl'] as const })
+  .meta({ omitEnumValuesFromOpenApi: UNDOCUMENTED_COLUMN_TYPES })
+
+/** The sentence naming the public column types, for the column inputs' help. */
+export const COLUMN_TYPES_HELP = `A column's type is one of ${COLUMN_TYPES.filter(
+  (type) => !UNDOCUMENTED_COLUMN_TYPES.includes(type)
+).join(', ')}; a select column also takes options.`
 
 /** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({
@@ -901,6 +909,12 @@ export const updateRowsByFilterBodySchema = z.object({
     .describe('Private encrypted secret provenance for trusted internal callers.'),
 })
 
+/**
+ * The keys of a row write that name no column, which a lax name-keyed write drops instead of
+ * refusing. Only the workflow Table tools' writes report it; the grid's routes never do.
+ */
+const ignoredColumnsSchema = z.array(z.string()).optional()
+
 const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
   z.object({
     success: z.literal(true),
@@ -1225,6 +1239,7 @@ export const insertTableRowsContract = defineRouteContract({
         z.object({
           row: tableRowSchema,
           message: z.string(),
+          ignoredColumns: ignoredColumnsSchema,
         })
       ),
       successResponseSchema(
@@ -1232,6 +1247,7 @@ export const insertTableRowsContract = defineRouteContract({
           rows: z.array(tableRowSchema),
           insertedCount: z.number(),
           message: z.string(),
+          ignoredColumns: ignoredColumnsSchema,
         })
       ),
     ]),
@@ -1423,6 +1439,7 @@ export const upsertTableRowContract = defineRouteContract({
         row: tableRowWireSchema,
         operation: z.enum(['insert', 'update']),
         message: z.string(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },
@@ -1455,6 +1472,7 @@ export const updateTableRowContract = defineRouteContract({
       z.object({
         row: tableRowWireSchema,
         message: z.string(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },
@@ -1489,6 +1507,7 @@ export const updateTableRowsByFilterContract = defineRouteContract({
         message: z.string(),
         updatedCount: z.number(),
         updatedRowIds: z.array(z.string()).optional(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },

@@ -7,6 +7,7 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
   name: 'APIFY Run Task',
   description: 'Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)',
   version: '1.0.0',
+  effect: 'write',
   oauth: APIFY_CREDENTIAL_OAUTH,
 
   params: {

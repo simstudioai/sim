@@ -13,6 +13,7 @@ export const agiloftGetChoiceLineIdTool: InternalToolConfig<
   description:
     'Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHERE clauses against choice fields.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     instanceUrl: {

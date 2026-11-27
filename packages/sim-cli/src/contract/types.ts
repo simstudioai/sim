@@ -51,12 +51,20 @@ export interface FlagSpec {
    */
   hiddenAliases?: readonly string[]
   /**
-   * The list holds workspace file ids or `files/…` paths, so an inline value written as a JSON
-   * array (`["wf_a","wf_b"]`) or joined with commas (`wf_a,wf_b`) is read as its entries.
-   * Unambiguous because an id is `[A-Za-z0-9_-]` and a path starts with `files/`: neither starts
-   * with `[`, and a comma splits only a value with no `/`, so a path keeps a comma in its name.
+   * How a {@link list} reads one inline value as entries; every list reads a JSON array of
+   * strings (`["a","b"]`) as its entries.
+   *
+   * - unset: ids, so a comma-joined run (`a,b`) is its entries too.
+   * - `text`: a value may hold a comma of its own (a pip requirement `requests>=2,<3`, an output
+   *   selector naming a block `Draft, Review`), so a comma never splits it. A folder path list
+   *   reads this way without saying so.
+   * - `fileReferences`: workspace file ids or `files/…` paths. A comma splits ids, never a value
+   *   holding a `/`, so a path (`files/…`, `/files/…`) keeps a comma in its name.
+   *
+   * Outside `text`, a value starting `[` that is not a JSON array of strings is refused, so a
+   * shell that stripped the quotes never sends `[a,b]` as one id.
    */
-  fileReferences?: true
+  listValues?: 'text' | 'fileReferences'
   /**
    * Accept one or more space-separated values, or `@path` / `@-` with one
    * value per line.
@@ -106,6 +114,11 @@ export interface FlagSpec {
   rowCap?: true
   /** Overrides the help text otherwise taken from the OpenAPI description. */
   describe?: string
+  /**
+   * A minimal valid value of a JSON flag, quoted for a shell, which the refusal of a value of the
+   * wrong shape shows in place of a generic `'[{"key":"value"}]'`.
+   */
+  example?: string
   /**
    * Value sent when the caller passes nothing, in place of the server's default.
    *
@@ -173,8 +186,6 @@ export interface FlagSpec {
    * owns that instead.
    */
   omit?: boolean
-  /** Accept and send this generated field, but hide its low-level flag from help. */
-  hidden?: boolean
 }
 
 /** How a route path parameter is exposed as a required named option. */
@@ -315,19 +326,17 @@ export interface CommandSpec {
   /** Dot path to a nested result array rendered as the command's human list. */
   itemsPath?: string
   /**
-   * A page-envelope field that qualifies the whole list, stated once for the
-   * human formats.
+   * A top-level page-envelope field that qualifies the whole list.
    *
    * `billing logs` answers a different question depending on the credential —
    * an OAuth login or personal key sees the caller's own events, while a
    * workspace key sees the whole workspace ledger. The response says which. The value
-   * belongs to the query rather than to any row, so it is not a column; it goes
-   * to stderr so that a `--output text` consumer cutting tab-separated fields
-   * still reads only rows. `json` and `yaml` print the unwrapped `data` array
-   * and so drop the field too, which is why the note is not limited to the
-   * human formats — see `runtime/result`.
+   * belongs to the query rather than to any row, so it is not a column: `json` and
+   * `yaml` carry it beside `data` and `nextCursor` under its wire name, and the human
+   * formats state it once on stderr as `label`, so a `--output text` consumer cutting
+   * tab-separated fields still reads only rows — see `runtime/result`.
    */
-  pageNote?: { path: string; label: string }
+  pageNote?: { field: string; label: string }
   /** Allow an optional workspaceId field to omit the configured workspace filter. */
   allWorkspaces?: boolean
   /**
@@ -335,6 +344,12 @@ export interface CommandSpec {
    * the point is that the caller can tell whether they meant it.
    */
   confirm?: string
+  /**
+   * The `confirm` text when the caller listed what the command acts on (`--row a --row b`), so the
+   * refusal says what it is about to destroy: `field` is the list's request field, and `text`
+   * takes how many entries it holds (`null` when they are read from a file).
+   */
+  confirmListed?: { field: string; text: (count: number | null) => string }
   /**
    * Accept `-y/--yes` without a `confirm` gate, as a no-op: a write callers run beside confirmed
    * ones (a deploy after `workflows source apply --yes`) takes the flag they pass there.

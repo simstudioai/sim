@@ -3,9 +3,9 @@ import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import { generateShortId } from '@sim/utils/id'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import {
+  EVENTLESS_EXECUTION_TRIGGERS,
   isSimRuleEventType,
   SIM_RULE_COOLDOWN_HOURS,
-  SIM_TRIGGER_PROVIDER,
 } from '@/lib/workspace-events/constants'
 import {
   buildDeployEventPayload,
@@ -82,12 +82,12 @@ function matchesWorkflowScope(config: SimSubscriptionConfig, sourceWorkflowId: s
  *
  * Fire-and-forget: errors are logged and never thrown, so event emission can
  * never break the source execution. Executions started by the Sim trigger
- * itself never emit (loop prevention).
+ * itself never emit (loop prevention), and neither do test runs.
  */
 export async function emitExecutionCompletedEvent(log: WorkflowExecutionLog): Promise<void> {
   try {
     if (!log.workflowId) return
-    if (log.trigger === SIM_TRIGGER_PROVIDER) return
+    if (EVENTLESS_EXECUTION_TRIGGERS.includes(log.trigger)) return
 
     const workflowContext = await getActiveWorkflowContext(log.workflowId)
     if (!workflowContext?.workspaceId) return

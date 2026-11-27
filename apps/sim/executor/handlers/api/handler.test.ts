@@ -50,6 +50,7 @@ describe('ApiBlockHandler', () => {
       name: 'HTTP Request Tool',
       description: 'Makes an HTTP request',
       version: '1.0',
+      effect: 'write',
       params: {
         url: { type: 'string', required: true },
         method: { type: 'string', default: 'GET' },

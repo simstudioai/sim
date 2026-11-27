@@ -16,6 +16,7 @@ export const replyToEmailTool: ToolConfig<InstantlyReplyToEmailParams, Instantly
   name: 'Instantly Reply To Email',
   description: 'Sends an Instantly V2 reply to an existing Unibox email.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

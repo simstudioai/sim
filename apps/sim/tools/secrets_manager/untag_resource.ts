@@ -13,6 +13,7 @@ export const untagResourceTool: InternalToolConfig<
   name: 'Secrets Manager Untag Resource',
   description: 'Remove tags from a secret in AWS Secrets Manager',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

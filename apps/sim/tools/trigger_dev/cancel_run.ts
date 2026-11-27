@@ -12,6 +12,7 @@ export const triggerDevCancelRunTool: ToolConfig<
   description:
     'Cancel an in-progress Trigger.dev run. Has no effect if the run is already completed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

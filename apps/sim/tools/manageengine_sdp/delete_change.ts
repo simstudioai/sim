@@ -9,6 +9,7 @@ export const manageengineSdpDeleteChangeTool: ToolConfig<SdpDeleteChangeParams, 
   name: 'ManageEngine SDP Delete Change',
   description: 'Delete a ManageEngine ServiceDesk Plus Cloud change and its associated notes.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

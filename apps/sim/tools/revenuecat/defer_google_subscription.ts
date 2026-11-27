@@ -19,6 +19,7 @@ export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
   description:
     'Defer a Google Play subscription by extending its billing date by a number of days (Google Play only)',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

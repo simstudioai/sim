@@ -16,6 +16,7 @@ export const getConditionalAccessPolicyTool: ToolConfig<
   description:
     'Get a single conditional access policy by ID, including the conditions it matches and the controls it enforces. Read-only.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

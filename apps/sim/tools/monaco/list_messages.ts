@@ -24,6 +24,7 @@ export const monacoListMessagesTool: ToolConfig<
   description:
     "List the email and LinkedIn conversation history for a contact or account as one recency-ordered feed, one row per conversation. Pass a row's conversation_id and channel to Get Conversation for the full thread. Paginates with a cursor.",
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

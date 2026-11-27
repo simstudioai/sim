@@ -14,6 +14,7 @@ export const getConfigurationTool: InternalToolConfig<
   description:
     'Retrieve the latest deployed configuration for an AppConfig application, environment, and profile',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

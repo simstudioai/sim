@@ -6,6 +6,7 @@ export const spotifySkipNextTool: ToolConfig<SpotifySkipNextParams, SpotifySkipN
   name: 'Spotify Skip to Next',
   description: 'Skip to the next track on Spotify.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

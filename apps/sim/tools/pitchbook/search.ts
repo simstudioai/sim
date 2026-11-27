@@ -18,6 +18,7 @@ export const pitchbookSearchTool: ToolConfig<
   description:
     'Search across every PitchBook entity type at once by name, PitchBook ID, website, or ticker. Use this to resolve a company, investor, or fund to its PitchBook ID before calling a profile operation.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

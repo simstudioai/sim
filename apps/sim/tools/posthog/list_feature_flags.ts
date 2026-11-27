@@ -39,6 +39,7 @@ export const listFeatureFlagsTool: ToolConfig<
   name: 'PostHog List Feature Flags',
   description: 'List all feature flags in a PostHog project',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

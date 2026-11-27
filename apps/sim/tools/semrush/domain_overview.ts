@@ -17,6 +17,7 @@ export const semrushDomainOverviewTool: ToolConfig<
   description:
     'Get the Semrush rank plus organic and paid search totals for a domain in one regional database.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

@@ -23,6 +23,7 @@ export const affinityListListFieldsTool: ToolConfig<
   description:
     'List the fields available on one list, including its list-specific columns. Use these Field IDs when reading or writing list entries.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

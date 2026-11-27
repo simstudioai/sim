@@ -1,3 +1,4 @@
+import { dryRunId } from '@/tools/dry-run'
 import type { GmailSendParams, GmailToolResponse } from '@/tools/gmail/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const gmailSendTool: InternalToolConfig<GmailSendParams, GmailToolRespons
   name: 'Gmail Send',
   description: 'Send emails using Gmail',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -149,8 +151,8 @@ export const gmailSendV2Tool: InternalToolConfig<GmailSendParams, GmailSendV2Res
   name: 'Gmail Send',
   description: 'Send emails using Gmail.',
   version: '2.0.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'to', label: 'To', target: true },
@@ -166,6 +168,12 @@ export const gmailSendV2Tool: InternalToolConfig<GmailSendParams, GmailSendV2Res
   oauth: gmailSendTool.oauth,
   params: gmailSendTool.params,
   operation: gmailSendTool.operation,
+  /** A dry run's placeholder holds the thread a reply names; its message id is a placeholder. */
+  dryRunOutput: (params) => {
+    const threadId = params.threadId?.trim()
+    return { id: dryRunId('message'), ...(threadId ? { threadId } : {}) }
+  },
+
   transformResponse: async (response) => {
     const legacy = await gmailSendTool.transformResponse!(response)
     if (!legacy.success) {

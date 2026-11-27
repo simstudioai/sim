@@ -12,6 +12,7 @@ export const pitchbookLimitedPartnerCommitmentPreferencesTool: ToolConfig<
   description:
     'Retrieve what a limited partner commits to: preferred commitment size, fund types, and geographies',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

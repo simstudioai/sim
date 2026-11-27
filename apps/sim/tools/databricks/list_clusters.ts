@@ -15,6 +15,7 @@ export const listClustersTool: ToolConfig<
   description:
     'List a page of clusters in a Databricks workspace including their state, configuration, and resource details.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

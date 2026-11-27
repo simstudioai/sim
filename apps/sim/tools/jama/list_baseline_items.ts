@@ -25,6 +25,7 @@ export const jamaListBaselineItemsTool: ToolConfig<
   name: 'Jama List Baseline Items',
   description: "List Baseline Items in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

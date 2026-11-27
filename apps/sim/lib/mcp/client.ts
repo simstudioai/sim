@@ -10,6 +10,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { isPrivateIp } from '@sim/security/ssrf'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { captureOutboundScopeFallback } from '@/lib/core/network/context.server'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
@@ -31,6 +32,7 @@ import {
   type McpSecurityPolicy,
   type McpServerConfig,
   type McpTool,
+  type McpToolAnnotations,
   type McpToolCall,
   type McpToolResult,
   type McpToolsChangedCallback,
@@ -78,6 +80,17 @@ interface McpClientConnectOptions {
 interface McpToolCallOptions {
   signal?: AbortSignal
   timeoutMs?: number
+}
+
+/** A tool's declared `annotations`, only the boolean hints Sim reads; undefined when none. */
+function readMcpToolAnnotations(value: unknown): McpToolAnnotations | undefined {
+  if (!isRecordLike(value)) return undefined
+  const annotations: McpToolAnnotations = {}
+  if (typeof value.readOnlyHint === 'boolean') annotations.readOnlyHint = value.readOnlyHint
+  if (typeof value.destructiveHint === 'boolean') {
+    annotations.destructiveHint = value.destructiveHint
+  }
+  return Object.keys(annotations).length > 0 ? annotations : undefined
 }
 
 export class McpClient {
@@ -388,11 +401,13 @@ export class McpClient {
             break
           }
           const outputSchema = readMcpToolOutputSchema(tool.outputSchema)
+          const annotations = readMcpToolAnnotations(tool.annotations)
           tools.push({
             name: tool.name,
             description: tool.description,
             inputSchema: tool.inputSchema as McpTool['inputSchema'],
             ...(outputSchema ? { outputSchema } : {}),
+            ...(annotations ? { annotations } : {}),
             serverId: this.config.id,
             serverName: this.config.name,
           })

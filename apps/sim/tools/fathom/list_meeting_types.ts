@@ -13,6 +13,7 @@ export const listMeetingTypesTool: ToolConfig<
   name: 'Fathom List Meeting Types',
   description: 'List meeting types configured in your Fathom organization.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FATHOM_CREDENTIAL_OAUTH,
 
   params: {

@@ -35,6 +35,7 @@ export const kalshiGetSettlementsTool: ToolConfig<
   name: 'Get Settlements from Kalshi',
   description: 'Retrieve your portfolio settlement history from Kalshi',
   version: '1.0.0',
+  effect: 'read',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
@@ -189,6 +190,7 @@ export const kalshiGetSettlementsV2Tool: ToolConfig<
   name: 'Get Settlements from Kalshi V2',
   description: 'Retrieve your portfolio settlement history from Kalshi',
   version: '2.0.0',
+  effect: 'read',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {

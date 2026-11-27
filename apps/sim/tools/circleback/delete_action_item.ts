@@ -21,6 +21,7 @@ export const deleteActionItemTool: ToolConfig<
   name: 'Circleback Delete Action Item',
   description: 'Deletes a Circleback action item. Returns the deleted action item.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

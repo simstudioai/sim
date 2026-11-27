@@ -13,6 +13,7 @@ export const quickbooksDownloadTransactionPdfTool: InternalToolConfig<
   name: 'QuickBooks Download Transaction PDF',
   description: 'Download a supported QuickBooks transaction as a bounded PDF file',
   version: '1.0.0',
+  effect: 'read',
   params: {
     accessToken: {
       type: 'string',

@@ -33,6 +33,7 @@ export const quickbooksCreateCustomerTool: ToolConfig<
   name: 'QuickBooks Create Customer',
   description: 'Create a customer in the connected QuickBooks Online company',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

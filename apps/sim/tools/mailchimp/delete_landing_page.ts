@@ -20,6 +20,7 @@ export const mailchimpDeleteLandingPageTool: ToolConfig<
   name: 'Delete Landing Page from Mailchimp',
   description: 'Delete a landing page from Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

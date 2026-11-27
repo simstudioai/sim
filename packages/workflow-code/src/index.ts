@@ -1,8 +1,11 @@
 export { decodeAnchor, encodeAnchor } from './anchors'
-export { babelErrorShape } from './babel'
+export { babelErrorShape, babelMessage } from './babel'
 export { type CanonicalizeResult, canonicalize, canonicalizeUnderLock } from './canonicalize'
 export { toolModes } from './canonicalize/modes'
-export { builderOutputSchemas, executableInactiveParams } from './catalog/activity'
+export {
+  builderProducedOutputs,
+  executableInactiveParams,
+} from './catalog/activity'
 export { compactBlockCatalog } from './catalog/compact'
 export type {
   BlockCatalog,
@@ -11,7 +14,6 @@ export type {
   CatalogBuilder,
   CatalogCondition,
   CatalogDynamicOutputs,
-  CatalogLegacyId,
   CatalogOption,
   CatalogOutput,
   CatalogStructuredKind,
@@ -31,22 +33,34 @@ export {
   expandBlockCatalog,
 } from './catalog/view'
 export {
+  type ChildResultNode,
+  type ChildResults,
+  canonicalResultNode,
+  compiledResultNode,
+  folderCompileInput,
+  resolveChildResults,
+} from './child-results'
+export {
   checkCodeFileBijection,
+  codeFileLanguage,
+  codeFileRefs,
   createJsContextScanner,
+  ENV_VAR_NAME,
   formatStoredPath,
   fromCodeFile,
   isIdentifierName,
   parseStoredPath,
 } from './code-files'
-export { type CompileResult, compileWorkflow, type StoredEdgeRef } from './compile'
+export {
+  type CompileInput,
+  type CompileResult,
+  compileWorkflow,
+  type StoredEdgeRef,
+  type UntypedJsonField,
+} from './compile'
 export { codePointLabel, scriptName } from './compile/characters'
 export { didYouMean, suggestBuilder } from './compile/hints'
-export {
-  babelMessage,
-  bracketDepthOverflow,
-  sdkHeader,
-  sourceDepthOverflow,
-} from './compile/parse'
+export { bracketDepthOverflow, sdkHeader, sourceDepthOverflow } from './compile/parse'
 export { LineIndex } from './compile/report'
 export {
   type ApplyDiagnosticCode,
@@ -73,7 +87,8 @@ export {
 export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export { readsIterationOutOfScope, type ScopeNode } from './iteration-scope'
-export { parseJsonField } from './json-fields'
+export { type ChildResultFields, parseJsonField } from './json-fields'
+export { parseJsonContainer } from './json-text'
 export {
   type DefinedField,
   fieldNames,
@@ -114,10 +129,14 @@ export type {
   Value,
 } from './model'
 export { isResourceKind } from './model'
-export { assignIdentifiers, printWorkflow } from './print'
+export { assignIdentifiers, printWorkflow, referencedHeads } from './print'
 export { hasSuspiciousCharacter, printKey, printNumber, quoteString } from './print/strings'
-export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
-export { respondsOnEveryRun } from './responds'
+export { getOwn, invertRecord, setOrDelete, setOwn } from './records'
+export {
+  calledWorkflowKey,
+  calledWorkflowKeys,
+  respondsOnEveryRun,
+} from './responds'
 export { JS_RESERVED_WORDS, RESPONSE_OUTPUTS, SDK_CORE_EXPORTS } from './sdk'
 export { holdsSecret, withoutAuthScheme } from './secrets'
 export {

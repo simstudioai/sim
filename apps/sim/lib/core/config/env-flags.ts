@@ -25,6 +25,7 @@ import {
 } from '@sim/utils/sandbox-references'
 import { resolveCostMultiplier } from './cost-multiplier'
 import {
+  readProjectedBoolean,
   readProjectedEnterpriseFeatures,
   readProjectedRegistrationMode,
 } from './deployment-projection'
@@ -120,18 +121,23 @@ export const isCopilotToolPermissionsEnabled = isTruthy(env.COPILOT_TOOL_PERMISS
 export const isMothershipBenchmarkEnabled = isTruthy(env.MOTHERSHIP_BENCHMARK_ENABLED)
 
 /**
- * Is billing enforcement enabled.
- *
- * Server code reads `BILLING_ENABLED`. Server-only vars never reach browser
- * bundles, so client evaluation reads the `NEXT_PUBLIC_BILLING_ENABLED` twin
- * (via `window.__ENV`, populated by `<PublicEnvScript>`) — reading
- * `env.BILLING_ENABLED` in client code is always `undefined`. Deployments must
- * set both vars together.
+ * A server-only switch: `serverValue` on the server; in the browser, which never
+ * sees server variables, the server's answer from the deployment-shape projection
+ * on `<html>` (`./deployment-projection`), off on a document without one.
  */
-export const isBillingEnabled =
-  typeof window === 'undefined'
-    ? isTruthy(env.BILLING_ENABLED)
-    : isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+function resolveServerSwitch(
+  serverValue: Parameters<typeof isTruthy>[0],
+  projectedKey: string
+): boolean {
+  return typeof window === 'undefined'
+    ? isTruthy(serverValue)
+    : (readProjectedBoolean(projectedKey) ?? false)
+}
+
+/**
+ * Is billing enforcement enabled (`BILLING_ENABLED`).
+ */
+export const isBillingEnabled = resolveServerSwitch(env.BILLING_ENABLED, 'billingEnabled')
 
 /**
  * Is email verification enabled
@@ -297,16 +303,14 @@ export const isAppConfigEnabled =
  * off there until review lands; a self-hosted deployment pointing at its own
  * (unlisted) Slack app can opt in.
  *
- * Server code reads `SLACK_EXTENDED_SCOPES`. Server-only vars never reach browser
- * bundles, so client evaluation reads the `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES`
- * twin (see {@link isBillingEnabled}) — deployments must set both together. The
- * server value decides the grant; the client value only decides what the credential
- * pickers advertise and treat as missing.
+ * Read from `SLACK_EXTENDED_SCOPES`. The server value decides the grant; the
+ * browser value only decides what the credential pickers advertise and treat as
+ * missing.
  */
-export const isSlackExtendedScopesEnabled =
-  typeof window === 'undefined'
-    ? isTruthy(env.SLACK_EXTENDED_SCOPES)
-    : isTruthy(getEnv('NEXT_PUBLIC_SLACK_EXTENDED_SCOPES'))
+export const isSlackExtendedScopesEnabled = resolveServerSwitch(
+  env.SLACK_EXTENDED_SCOPES,
+  'slackExtendedScopes'
+)
 
 /**
  * Is Trigger.dev enabled for async job processing
@@ -555,16 +559,24 @@ export const isAzureConfigured = isTruthy(getEnv('NEXT_PUBLIC_AZURE_CONFIGURED')
 export const isCohereConfigured = isTruthy(getEnv('NEXT_PUBLIC_COHERE_CONFIGURED'))
 
 /**
- * Are invitations disabled globally
- * When true, workspace invitations are disabled for all users
+ * Are workspace invitations disabled for every user (`DISABLE_INVITATIONS`).
  */
-export const isInvitationsDisabled = isTruthy(env.DISABLE_INVITATIONS)
+export const isInvitationsDisabled = resolveServerSwitch(
+  env.DISABLE_INVITATIONS,
+  'invitationsDisabled'
+)
 
 /**
- * Is public API access disabled globally
- * When true, the public API toggle is hidden and public API access is blocked
+ * Is public API access disabled for every workspace (`DISABLE_PUBLIC_API`): the
+ * public API toggle is hidden and public API access is blocked.
  */
-export const isPublicApiDisabled = isTruthy(env.DISABLE_PUBLIC_API)
+export const isPublicApiDisabled = resolveServerSwitch(env.DISABLE_PUBLIC_API, 'publicApiDisabled')
+
+/**
+ * Is the E2B code-execution provider switched on (`E2B_ENABLED`). Pi's cloud modes
+ * run in an E2B sandbox and stay hidden without it.
+ */
+export const isE2bEnabled = resolveServerSwitch(env.E2B_ENABLED, 'e2bEnabled')
 
 /**
  * Is Google OAuth login disabled

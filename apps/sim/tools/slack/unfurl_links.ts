@@ -7,6 +7,7 @@ export const slackUnfurlLinksTool = createSlackWebApiTool({
   name: 'Slack Unfurl Links',
   description:
     'Attach custom previews to links already shared in a message. Configure the relevant unfurl domains in your Slack app.',
+  effect: 'write',
   endpoint: 'chat.unfurl',
   method: 'POST',
   oauth: {

@@ -12,6 +12,7 @@ export const getVaultTool: InternalToolConfig<
   name: '1Password Get Vault',
   description: 'Get details of a specific vault by ID',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     connectionMode: {

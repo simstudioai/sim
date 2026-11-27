@@ -19,6 +19,7 @@ export const unshareCalendarTool: ToolConfig<
   name: 'Google Calendar Remove Sharing',
   description: 'Revoke an access control rule (sharing) from a calendar',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -98,6 +99,7 @@ export const unshareCalendarV2Tool: ToolConfig<
   name: 'Google Calendar Remove Sharing',
   description: 'Revoke an access control rule (sharing) from a calendar.',
   version: '2.0.0',
+  effect: 'write',
   oauth: unshareCalendarTool.oauth,
   params: unshareCalendarTool.params,
   request: unshareCalendarTool.request,

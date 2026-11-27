@@ -34,6 +34,7 @@ export const sportmonksGetAllFixturesTool: ToolConfig<
   name: 'Get All Fixtures',
   description: 'Retrieve all football fixtures available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

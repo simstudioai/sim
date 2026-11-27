@@ -22,6 +22,7 @@ export const helpScoutGetCurrentUserTool: ToolConfig<
   name: 'Help Scout Get Current User',
   description: 'Get the Help Scout user the connection acts as, and its company ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

@@ -22,6 +22,7 @@ export const zoominfoSearchCompaniesTool: InternalToolConfig<
   name: 'ZoomInfo Search Companies',
   description: 'Search the ZoomInfo company database by name, industry, location, and size.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {

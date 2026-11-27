@@ -11,9 +11,15 @@ import { edgeTupleKey, encodeAnchor, portKey } from '../anchors'
 import { literalText } from '../babel'
 import { compareEdges } from '../canonicalize/edges'
 import type { BlockCatalog } from '../catalog/types'
+import { parseStoredPath } from '../code-files/ref-path'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import type { LocatedDiagnostic, SourceSpan } from '../diagnostics/frame'
-import { jsonFieldText, type RefTypeScope, refValueKind } from '../json-fields'
+import {
+  type ChildResultFields,
+  jsonFieldText,
+  type RefTypeScope,
+  refValueKind,
+} from '../json-fields'
 import { lockIdentRenames, type SourceHints, type WorkflowLockV1 } from '../lock'
 import { renamedReferenceRewriter } from '../materialize/values'
 import type {
@@ -24,10 +30,12 @@ import type {
   CanonicalWorkflow,
   CanonicalWorkflowMeta,
   PortKey,
+  SubBlockId,
   VarKey,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { OLDEST_SDK_MAJOR, SDK_MODULE } from '../sdk'
+import { childResultScope } from '../responds'
+import { SDK_MODULE } from '../sdk'
 import { compileBlock } from './blocks'
 import { checkStorableLiterals, checkStorableText } from './characters'
 import { CommentCollector } from './comments'
@@ -87,6 +95,14 @@ export interface CompileInput {
    */
   storedUnreadEdges?: ReadonlyArray<StoredEdgeRef>
   /**
+   * With `storedUnread`, the JSON fields that held a bare reference nothing types when that lock
+   * was written, by lock key (a get's printed source compiled: `CompileResult.untypedJsonFields`).
+   * Such a reference reports no `W_JSON_REF_UNTYPED` while its field compiles to the text it held,
+   * through the lock's renames, as one the stored workflow holds does against `stored`. Absent,
+   * every untyped reference is reported.
+   */
+  storedUnreadUntypedFields?: ReadonlyArray<UntypedJsonField>
+  /**
    * Stored block keys the source renamed, stored key → source key (`lockIdentRenames`, which the
    * server computes against `stored`; with `storedUnread` the compile computes them itself). An
    * apply rewrites every `<stored.path>` to the new key, so a code file's `$ref.<stored key>`
@@ -103,6 +119,13 @@ export interface CompileInput {
    * `W_ENV_UNKNOWN` hint points at; absent, the hint points at the workspace's env variables.
    */
   envDeclaredIn?: string
+  /**
+   * By child workflow key, the fields of the data that child responds with on every run
+   * (`childResultFields` of its compiled workflow). A call's `<call.result.data.<field>>` is then
+   * typed by that field, so a JSON field stores it quoted when it is text and bare otherwise
+   * instead of reporting `W_JSON_REF_UNTYPED`. Absent, such a reference is untyped.
+   */
+  childResults?: ReadonlyMap<string, ChildResultFields>
 }
 
 /** The compiled workflow (or `null` after an error) with its diagnostics, spans and lock hints. */
@@ -143,6 +166,24 @@ export interface CompileResult {
    * `CompileInput.storedUnreadEdges`.
    */
   edges: StoredEdgeRef[]
+  /**
+   * Where the wiring that denotes each of {@link edges} is written, by the same index: its
+   * statement, or the container callback an implied start edge comes from.
+   */
+  edgeSpans: SourceSpan[]
+  /**
+   * Every JSON field holding a bare reference nothing types, reported or not, by block key: what
+   * an offline check records of a get's printed source as `CompileInput.storedUnreadUntypedFields`.
+   */
+  untypedJsonFields: UntypedJsonField[]
+}
+
+/** A JSON field holding bare references nothing types: the text it stores and those references. */
+export interface UntypedJsonField {
+  block: BlockKey
+  param: SubBlockId
+  value: string
+  refs: string[]
 }
 
 /** One edge as `CompileInput.storedUnreadEdges` names it: block keys and the port's `portKey`. */
@@ -451,47 +492,68 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
     sdkMajor,
     envReferences: [],
     edges: [],
+    edgeSpans: [],
+    untypedJsonFields: [],
   }
 }
 
 const BYTE_ORDER_MARK = '\uFEFF'
 
-/**
- * The stored workflow as the source names it: `block` looks a block up by its source key (under
- * that key in a stored model re-keyed by the renames, else under its stored key) and `holds` says
- * whether a param holds `value` already, both through the block renames of the apply (`renamed`,
- * stored key → source key), whose reference rewrites are no edit of the source.
- */
-interface StoredView {
-  block(key: BlockKey): CanonicalBlock | undefined
-  holds(key: BlockKey, param: string, value: string): boolean
+/** The display name of the block a stored reference (`<score.result.v>`) reads, if it names one. */
+function readBlockName(ctx: CompileContext, token: string): string | null {
+  const [head] = parseStoredPath(token.slice(1, -1)) ?? []
+  return head?.kind === 'name' ? (ctx.declsByKey.get(head.name)?.name ?? null) : null
 }
 
-function storedView(
+/** What the stored workflow says of a bare reference nothing types: see {@link untypedRefHeld}. */
+type UntypedRefHistory = 'held' | 'retyped' | 'new'
+
+/**
+ * What the stored workflow says of a bare reference nothing types (`token`, in JSON field `param`
+ * of source block `key`, which now stores `value`), through the block renames of the apply
+ * (`renamed`, stored key → source key), whose reference rewrites are no edit of the source:
+ * `held` when it already holds it that way, `retyped` when the field is unchanged but the
+ * Function it reads typed it before this edit, else `new`. Against `stored`, the field stores
+ * `value` already and the stored code of the Function it reads typed it or not: one that now
+ * returns something unreadable where it returned a number makes the same bare token break the
+ * JSON. Against what an offline check recorded of the printed source (`unread`), the field held
+ * `value` and this reference, untyped or not, when the lock was written.
+ */
+function untypedRefHeld(
   stored: CanonicalWorkflow | undefined,
+  unread: ReadonlyArray<UntypedJsonField> | undefined,
   renamed: ReadonlyMap<BlockKey, BlockKey>
-): StoredView {
+): (key: BlockKey, param: SubBlockId, value: string, token: string) => UntypedRefHistory {
   const storedKeyOf = new Map([...renamed].map(([from, to]) => [to, from]))
   const rewrite = renamedReferenceRewriter([...renamed].map(([from, to]) => ({ from, to })))
-  const block = (key: BlockKey) => {
-    if (!stored) return undefined
+  /** `lookup` of the source key, else of the stored key it was renamed from. */
+  const throughRenames = <T>(key: BlockKey, lookup: (key: BlockKey) => T | undefined) => {
     const storedKey = storedKeyOf.get(key)
-    return (
-      getOwn(stored.blocks, key) ??
-      (storedKey === undefined ? undefined : getOwn(stored.blocks, storedKey))
-    )
+    return lookup(key) ?? (storedKey === undefined ? undefined : lookup(storedKey))
   }
-  return {
-    block,
-    holds: (key, param, value) => {
+  if (stored) {
+    const block = (key: BlockKey) =>
+      throughRenames(key, (candidate) => getOwn(stored.blocks, candidate))
+    return (key, param, value, token) => {
       const held = block(key)
       const storedParam = held ? getOwn(held.params, param) : undefined
-      return (
-        storedParam?.kind === 'value' &&
-        typeof storedParam.value === 'string' &&
-        rewrite(storedParam.value) === value
-      )
-    },
+      if (
+        storedParam?.kind !== 'value' ||
+        typeof storedParam.value !== 'string' ||
+        rewrite(storedParam.value) !== value
+      ) {
+        return 'new'
+      }
+      return referencedResultKind(token, block) === undefined ? 'held' : 'retyped'
+    }
+  }
+  const fields = new Map(
+    (unread ?? []).map((field) => [`${field.block}\u0000${field.param}`, field])
+  )
+  return (key, param, value, token) => {
+    const field = throughRenames(key, (candidate) => fields.get(`${candidate}\u0000${param}`))
+    if (field === undefined || rewrite(field.value) !== value) return 'new'
+    return field.refs.some((ref) => rewrite(ref) === token) ? 'held' : 'retyped'
   }
 }
 
@@ -539,20 +601,16 @@ function compileEntry(
         hint: `Start the file with // @sim-sdk ${input.sdkMajor}.`,
       }
     )
-  } else if (parsed.sdkMajor > input.sdkMajor) {
+  } else if (parsed.sdkMajor !== input.sdkMajor) {
     reporter.report(
       'E_SDK_MAJOR',
-      `This file targets SDK ${parsed.sdkMajor}; this server supports up to ${input.sdkMajor}.`,
-      { file, start: 0, end: parsed.headerEnd },
-      { hint: `Write // @sim-sdk ${input.sdkMajor}, or update Sim.` }
-    )
-  } else if (parsed.sdkMajor < OLDEST_SDK_MAJOR) {
-    reporter.report(
-      'E_SDK_MAJOR_OLD',
-      `This file targets SDK ${parsed.sdkMajor}; this server supports SDK ${OLDEST_SDK_MAJOR} to ${input.sdkMajor}.`,
+      `This file targets SDK ${parsed.sdkMajor}; this server reads SDK ${input.sdkMajor}.`,
       { file, start: 0, end: parsed.headerEnd },
       {
-        hint: `Rewrite the file for SDK ${input.sdkMajor}: run sim workflows source get to print it again.`,
+        hint:
+          parsed.sdkMajor > input.sdkMajor
+            ? `Write // @sim-sdk ${input.sdkMajor}, or update Sim.`
+            : `Write // @sim-sdk ${input.sdkMajor}: run sim workflows source get to print the file again.`,
       }
     )
   }
@@ -709,39 +767,49 @@ function compileEntry(
     })
   }
 
-  const unread = input.stored === undefined ? input.storedUnread : undefined
-  const unreadRenames = unread
-    ? lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key))
+  const unreadRenames = storedUnread
+    ? lockIdentRenames(hints, storedUnread, (key) => Object.hasOwn(storedUnread.blocks, key))
     : new Map<BlockKey, BlockKey>()
   const renamed = new Map([...unreadRenames, ...(input.renamedKeys ?? [])])
   checkCodeFileRefs(ctx, renamed)
   checkUnresolvedTags(ctx, renamed)
-  const stored = storedView(input.stored, renamed)
+  const heldUntyped = untypedRefHeld(
+    input.stored,
+    storedUnread && input.storedUnreadUntypedFields,
+    renamed
+  )
 
   const refTypes: RefTypeScope = {
     catalog: input.catalog,
     block: (key) => compiled.get(key),
     variable: (key) => ctx.variables.get(key),
+    childResult: childResultScope((key) => compiled.get(key), input.childResults),
   }
   const isString = (token: string) => refValueKind(token, refTypes) === 'string'
   /** Bare references nothing types, reported once the unknown paths are known (see below). */
-  const untyped: Array<{ token: string; range: Range; blockKey: BlockKey }> = []
+  const untyped: Array<{ token: string; range: Range; blockKey: BlockKey; retyped: boolean }> = []
+  const untypedJsonFields: UntypedJsonField[] = []
   for (const { params, id, tree, refs } of ctx.jsonFields) {
     const value = jsonFieldText(tree, isString)
     setOwn(params, id, { kind: 'value', value })
-    for (const ref of refs) {
-      if (refValueKind(ref.token, refTypes) !== 'untyped') continue
-      const returned = referencedResultKind(ref.token, refTypes.block)
-      if (returned === 'typed') continue
-      // An unchanged field stays quiet only while what it reads is too: a Function that now
-      // returns text where it returned a number makes the same bare token break the JSON.
-      if (
-        stored.holds(ref.blockKey, id, value) &&
-        referencedResultKind(ref.token, stored.block) === returned
-      ) {
-        continue
-      }
-      untyped.push({ token: ref.token, range: ref.range, blockKey: ref.blockKey })
+    const untypedRefs = refs.filter((ref) => refValueKind(ref.token, refTypes) === 'untyped')
+    const [first] = untypedRefs
+    if (!first) continue
+    untypedJsonFields.push({
+      block: first.blockKey,
+      param: id,
+      value,
+      refs: untypedRefs.map((ref) => ref.token),
+    })
+    for (const ref of untypedRefs) {
+      const history = heldUntyped(ref.blockKey, id, value, ref.token)
+      if (history === 'held') continue
+      untyped.push({
+        token: ref.token,
+        range: ref.range,
+        blockKey: ref.blockKey,
+        retyped: history === 'retyped',
+      })
     }
   }
 
@@ -750,9 +818,9 @@ function compileEntry(
   const edges = new EdgeCollector(
     ctx,
     compiled,
-    unread && {
+    storedUnread && {
       lockKeys: new Map([
-        ...Object.keys(unread.blocks).map((key) => [key, key] as const),
+        ...Object.keys(storedUnread.blocks).map((key) => [key, key] as const),
         ...[...unreadRenames].map(([lockKey, key]) => [key, lockKey] as const),
       ]),
       ...(input.storedUnreadEdges
@@ -776,24 +844,24 @@ function compileEntry(
   }
   checkErrorOutputRefs(ctx, erroring)
   // A reference to an output that does not exist, or to `x.error` where nothing errors, is that
-  // one finding: whether text there would break the JSON is moot until the path is fixed. An input
+  // one finding: whether text there stays text is moot until the path is fixed. An input
   // the start does not declare is not: a caller may still pass text there.
   const unknownAt = new Set([
-    ...reporter.diagnostics
-      .filter((d) => d.code === 'W_UNKNOWN_OUTPUT_PATH' || d.code === 'W_UNRESOLVED_REF')
-      .map((d) => `${d.span.file}:${d.span.start}`),
+    ...reporter.reportedAt('W_UNKNOWN_OUTPUT_PATH'),
+    ...reporter.reportedAt('W_UNRESOLVED_REF'),
     ...ctx.errorOutputRefs
       .filter(({ target }) => !erroring.has(target.key))
       .map(({ at }) => `${at.file}:${at.start}`),
   ])
   for (const ref of untyped) {
     if (unknownAt.has(`${ref.range.file}:${ref.range.start}`)) continue
+    const reads = ref.retyped ? readBlockName(ctx, ref.token) : null
     reporter.report(
       'W_JSON_REF_UNTYPED',
-      `Nothing declares the type of ${ref.token}; it is stored bare, so a string value would break the JSON.`,
+      `${reads ? `${reads} no longer declares what ${ref.token} holds (its code did before this edit)` : `Nothing declares the type of ${ref.token}`}; it is stored bare, so text that reads as JSON (123, true) would become that value, not text.`,
       ref.range,
       {
-        hint: `Leave it bare when it holds an array, object, number or boolean (it is spliced in as JSON); only when it holds text write t\`\${${text.slice(ref.range.start, ref.range.end)}}\`.`,
+        hint: `Text: write t\`\${${text.slice(ref.range.start, ref.range.end)}}\` to keep it text. An array, object, number or boolean: leave it bare, and make its source say so to drop this warning (a Function returning Number(…) or a literal, an agent responseFormat field).`,
         blockKey: ref.blockKey,
       }
     )
@@ -807,7 +875,8 @@ function compileEntry(
   const spans: Partial<Record<AnchorKey, SourceSpan>> = {}
   for (const [key, span] of ctx.spans) spans[key] = span
 
-  const sortedEdges = [...edges.edges].sort(compareEdges)
+  const written = edges.written().sort((a, b) => compareEdges(a.edge, b.edge))
+  const sortedEdges = written.map(({ edge }) => edge)
   const workflow: CanonicalWorkflow | null =
     reporter.hasErrors || !workflowHeader
       ? null
@@ -830,5 +899,7 @@ function compileEntry(
     sdkMajor: parsed.sdkMajor,
     envReferences: [...ctx.envReferences].sort(compareStrings),
     edges: sortedEdges.map((edge) => ({ from: edge.from, port: portKey(edge.port), to: edge.to })),
+    edgeSpans: written.map(({ node }) => reporter.span(rangeOf(ctx, node))),
+    untypedJsonFields,
   }
 }

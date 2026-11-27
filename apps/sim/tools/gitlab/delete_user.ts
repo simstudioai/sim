@@ -11,6 +11,7 @@ export const gitlabDeleteUserTool: ToolConfig<GitLabDeleteUserParams, GitLabDele
   description:
     'Delete a GitLab user. Requires an administrator token with admin_mode on the instance.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

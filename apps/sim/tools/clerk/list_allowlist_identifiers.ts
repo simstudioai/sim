@@ -18,6 +18,7 @@ export const clerkListAllowlistIdentifiersTool: ToolConfig<
   name: 'List Allowlist Identifiers from Clerk',
   description: 'List email/phone/web3-wallet identifiers on your Clerk instance allowlist',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

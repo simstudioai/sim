@@ -15,6 +15,7 @@ export const gaugeListOrganizationsTool: ToolConfig<
   name: 'Gauge List Organizations',
   description: 'List organizations and agency clients accessible to the connected API key.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

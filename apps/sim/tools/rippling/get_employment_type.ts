@@ -8,6 +8,7 @@ export const ripplingGetEmploymentTypeTool: ToolConfig<RipplingGetEmploymentType
   name: 'Rippling Get Employment Type',
   description: 'Get a specific employment type by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

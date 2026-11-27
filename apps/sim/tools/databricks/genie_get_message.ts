@@ -23,6 +23,7 @@ export const genieGetMessageTool: ToolConfig<
   description:
     "Get a Genie message's status and answer, including the generated SQL, visualizations, and suggested follow-up questions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: GENIE_MESSAGE_PARAMS,

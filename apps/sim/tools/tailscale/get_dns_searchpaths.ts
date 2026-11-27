@@ -15,6 +15,7 @@ export const tailscaleGetDnsSearchpathsTool: ToolConfig<
   name: 'Tailscale Get DNS Search Paths',
   description: 'Get the DNS search domains configured for the tailnet',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

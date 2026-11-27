@@ -9,6 +9,7 @@ export const listEventsTool: ToolConfig<LumaListEventsParams, LumaListEventsResp
   description:
     'List events from your Luma calendar with optional date range filtering, sorting, and pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {

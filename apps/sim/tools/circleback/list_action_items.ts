@@ -25,6 +25,7 @@ export const listActionItemsTool: ToolConfig<
   description:
     'Lists action items across the authenticated user meetings, filtered by assignee, status, tags, and attendees. Defaults to incomplete action items assigned to the API key owner.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

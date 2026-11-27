@@ -14,6 +14,7 @@ export const squareSearchInvoicesTool: ToolConfig<SearchInvoicesParams, InvoiceL
   name: 'Square Search Invoices',
   description: 'Search invoices across one or more locations',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

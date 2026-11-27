@@ -14,6 +14,7 @@ export const agentphoneDeleteContactTool: ToolConfig<
   name: 'Delete Contact',
   description: 'Delete a contact by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

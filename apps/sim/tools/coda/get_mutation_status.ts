@@ -19,6 +19,7 @@ export const codaGetMutationStatusTool: ToolConfig<
   description:
     'Check whether a queued Coda change (row, page, publish, or automation request) has been applied. Status is kept for about a day.',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

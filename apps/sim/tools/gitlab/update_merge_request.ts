@@ -16,6 +16,7 @@ export const gitlabUpdateMergeRequestTool: ToolConfig<
   name: 'GitLab Update Merge Request',
   description: 'Update an existing merge request in a GitLab project',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

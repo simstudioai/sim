@@ -17,6 +17,7 @@ export const deleteTaskTool: ToolConfig<
   name: 'Delete Microsoft Planner Task',
   description: 'Delete a task from Microsoft Planner',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

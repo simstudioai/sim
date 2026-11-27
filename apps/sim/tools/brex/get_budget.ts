@@ -9,6 +9,7 @@ export const brexGetBudgetTool: ToolConfig<BrexGetBudgetParams, BrexGetBudgetRes
   name: 'Brex Get Budget',
   description: 'Get a Brex budget by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

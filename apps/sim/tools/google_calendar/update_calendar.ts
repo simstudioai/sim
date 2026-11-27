@@ -50,6 +50,7 @@ export const updateCalendarTool: ToolConfig<
   name: 'Google Calendar Update Calendar',
   description: "Update a secondary calendar's metadata (title, description, location, time zone)",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -151,6 +152,7 @@ export const updateCalendarV2Tool: ToolConfig<
   name: 'Google Calendar Update Calendar',
   description: "Update a secondary calendar's metadata.",
   version: '2.0.0',
+  effect: 'write',
   oauth: updateCalendarTool.oauth,
   params: updateCalendarTool.params,
   request: updateCalendarTool.request,

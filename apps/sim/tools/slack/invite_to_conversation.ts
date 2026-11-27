@@ -13,6 +13,7 @@ export const slackInviteToConversationTool: ToolConfig<
   name: 'Slack Invite to Conversation',
   description: 'Invite one or more users to a Slack channel. Supports up to 100 users at a time.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

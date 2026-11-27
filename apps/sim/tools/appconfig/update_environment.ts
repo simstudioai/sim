@@ -13,6 +13,7 @@ export const updateEnvironmentTool: InternalToolConfig<
   name: 'AppConfig Update Environment',
   description: 'Update the name or description of an AWS AppConfig environment',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

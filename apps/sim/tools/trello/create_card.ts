@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
+import { dryRunId } from '@/tools/dry-run'
 import {
   extractTrelloErrorMessage,
   mapTrelloCard,
@@ -14,6 +15,7 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
   name: 'Trello Create Card',
   description: 'Create a new card in a Trello list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -134,6 +136,19 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
       return body
     },
   },
+
+  /**
+   * A dry run's placeholder holds the card the call creates, named and described as it asks,
+   * in the list it names; its id is a placeholder.
+   */
+  dryRunOutput: (params) => ({
+    card: {
+      id: dryRunId('card'),
+      name: params.name,
+      ...(params.desc ? { desc: params.desc } : {}),
+      idList: params.listId.trim(),
+    },
+  }),
 
   transformResponse: async (response) => {
     const data = await response.json().catch(() => null)

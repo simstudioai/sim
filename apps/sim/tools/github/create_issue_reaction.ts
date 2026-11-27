@@ -32,6 +32,7 @@ export const createIssueReactionTool: ToolConfig<
   name: 'GitHub Create Issue Reaction',
   description: 'Add a reaction to an issue',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -122,6 +123,7 @@ export const createIssueReactionV2Tool: ToolConfig<CreateIssueReactionParams, an
   name: createIssueReactionTool.name,
   description: createIssueReactionTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createIssueReactionTool.params,
   request: createIssueReactionTool.request,

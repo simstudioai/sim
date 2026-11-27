@@ -347,12 +347,21 @@ async function checkChat(
   }
 }
 
+/** The stored draft's blocks of workflow `workflowId`, as an edit's `blocks`: id to normalized name. */
+async function draftBlocks(
+  ctx: PlanContext,
+  workflowId: string
+): Promise<ReadonlyMap<string, string>> {
+  const { nameOf } = await readBlockNames(ctx, workflowId)
+  return new Map([...nameOf].map(([id, name]) => [id, normalizeWorkflowBlockName(name)]))
+}
+
 /**
- * Checks a chat this apply keeps unchanged against the graph an edit leaves: the chat stores its
- * outputs by block id, so an edit that deletes a block and adds one under the same name leaves
- * it answering from a block that no longer exists. Every output whose block is still there is
- * fine. One whose block is gone is re-created when exactly one block of the edited graph has its
- * name: counted, so the chat is written again, its outputs resolved to that block. When several
+ * Checks a chat this apply keeps unchanged against the draft going live (the graph an edit leaves,
+ * or a stored draft an earlier edit left): the chat stores its outputs by block id, so an edit
+ * that deletes a block and adds one under the same name leaves it answering from a block that no
+ * longer exists. Every output whose block is still there is fine. One whose block is gone is
+ * re-created when exactly one block of that draft has its name: counted, so the chat is written again, its outputs resolved to that block. When several
  * share it, it refuses (`E_DEPLOY_CHAT_OUTPUT`). A kept chat declares the names it stores, so one
  * no block has is refused by {@link checkChat}'s name check, which runs as well; both before
  * anything goes live.
@@ -606,15 +615,15 @@ async function planDeployment(
     }
   }
   if (next.action === 'noop') return next
-  if (
-    state?.chat &&
-    decl.chat &&
-    detail.chat === undefined &&
-    detail.deploy &&
-    draftEdited &&
-    workflowChange?.blocks
-  ) {
-    if (checkKeptOutputs(next, state.chat.outputs, workflowChange.blocks) > 0) {
+  // A kept chat going live with a new draft: the one this apply's edit leaves, or a stored draft
+  // that differs from the live version (an earlier apply's edit, deployed now).
+  if (state?.chat && decl.chat && detail.chat === undefined && detail.deploy) {
+    const blocks = draftEdited
+      ? workflowChange?.blocks
+      : workflowId
+        ? await draftBlocks(ctx, workflowId)
+        : undefined
+    if (blocks && checkKeptOutputs(next, state.chat.outputs, blocks) > 0) {
       detail.chat = 'replace'
       next.fields = [...(next.fields ?? []), 'chat outputs']
     }
@@ -630,9 +639,9 @@ async function planDeployment(
       }),
     }
   }
-  // A chat the apply keeps goes live with the edited draft all the same.
-  const publishesEditedDraft = detail.deploy && draftEdited
-  if (decl.chat && (writesChat || publishesEditedDraft)) {
+  // A chat the apply keeps goes live with the published draft all the same, edited by this apply
+  // or an earlier one: its outputs must name blocks that draft has.
+  if (decl.chat && (writesChat || detail.deploy)) {
     await checkChat(next, decl.chat, ctx, {
       workflowId,
       writesChat,

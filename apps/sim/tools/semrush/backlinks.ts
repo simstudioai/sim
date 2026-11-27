@@ -30,6 +30,7 @@ export const semrushBacklinksTool: ToolConfig<SemrushBacklinksParams, SemrushBac
   description:
     'List the backlinks pointing at a domain, subdomain, or URL, with source page, anchor, and authority.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

@@ -47,6 +47,7 @@ export const contextDevScreenshotTool: ToolConfig<
   name: 'Context.dev Screenshot',
   description: 'Capture a screenshot of any web page and store it as a downloadable image file.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevScreenshotParams>(),
 

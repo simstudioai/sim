@@ -21,6 +21,7 @@ export const kalshiGetTradesTool: ToolConfig<KalshiGetTradesParams, KalshiGetTra
   name: 'Get Trades from Kalshi',
   description: 'Retrieve recent trades across all markets',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     limit: {
@@ -122,6 +123,7 @@ export const kalshiGetTradesV2Tool: ToolConfig<KalshiGetTradesV2Params, KalshiGe
     description:
       'Retrieve recent trades with additional filtering options with trade identifiers and fixed-point counts',
     version: '2.0.0',
+    effect: 'read',
 
     params: {
       ticker: {

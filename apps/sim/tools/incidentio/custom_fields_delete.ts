@@ -11,6 +11,7 @@ export const customFieldsDeleteTool: ToolConfig<
   name: 'incident.io Custom Fields Delete',
   description: 'Delete a custom field from incident.io.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

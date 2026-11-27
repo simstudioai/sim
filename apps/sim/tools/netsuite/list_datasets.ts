@@ -12,6 +12,7 @@ export const netsuiteListDatasetsTool: InternalToolConfig<
   description:
     'List one page of SuiteAnalytics Workbook datasets available to the authenticated role.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

@@ -17,6 +17,7 @@ export const semrushBatchKeywordOverviewTool: ToolConfig<
   description:
     'Get search volume, CPC, competition, difficulty, and intent for up to 100 keywords at once.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

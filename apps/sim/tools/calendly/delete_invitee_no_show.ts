@@ -14,6 +14,7 @@ export const deleteInviteeNoShowTool: ToolConfig<
   name: 'Calendly Unmark Invitee No-Show',
   description: 'Remove the no-show status from an invitee',
   version: '1.0.0',
+  effect: 'write',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

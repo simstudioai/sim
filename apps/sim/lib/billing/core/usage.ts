@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, userStats } from '@sim/db/schema'
+import { member, organization, subscription as subscriptionTable, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
@@ -22,22 +22,23 @@ import {
 } from '@/lib/billing/core/reporting-period'
 import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import { formatCredits } from '@/lib/billing/credits/conversion'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
-import {
-  getPlanWeeklyRefreshDollars,
-  isEnterprise,
-  isFree,
-  isPaid,
-} from '@/lib/billing/plan-helpers'
+import { isEnterprise, isFree, isPaid, isTeam } from '@/lib/billing/plan-helpers'
+import type { OrgAllowanceInput } from '@/lib/billing/subscriptions/utils'
 import {
   canEditUsageLimit,
+  formatTrialEndDate,
   getFreeTierAllowance,
   getFreeTierLimit,
+  getOrgIncludedUsageDollars,
   getPerUserMinimumLimit,
-  getPlanPricing,
+  getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
   isOrgScopedSubscription,
+  isTrialingSubscription,
+  resolveBillingInterval,
 } from '@/lib/billing/subscriptions/utils'
 import type { UsageData, UsageLimitInfo } from '@/lib/billing/types'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
@@ -116,44 +117,65 @@ export async function getOrgLastPeriodCost(
  */
 export async function getOrgUsageLimit(
   organizationId: string,
-  plan: string,
-  seats: number | null,
+  subscription: OrgLimitSubscription,
   executor: DbClient = db
 ): Promise<OrgUsageLimitResult> {
   return (
-    (await findOrgUsageLimit(organizationId, plan, seats, executor)) ??
-    calculateOrgUsageLimit(organizationId, plan, seats, null)
+    (await findOrgUsageLimit(organizationId, subscription, executor)) ??
+    calculateOrgUsageLimit(organizationId, subscription, null)
   )
 }
 
+/**
+ * The subscription fields that decide an organization's usage-limit floor. A caller holding only a
+ * snapshot passes `id`, and an annual Team's recorded seat-months are read from the row.
+ */
+type OrgLimitSubscription = OrgAllowanceInput & { plan: string; id?: string }
+
 async function findOrgUsageLimit(
   organizationId: string,
-  plan: string,
-  seats: number | null,
+  subscription: OrgLimitSubscription,
   executor: DbClient = db
 ): Promise<OrgUsageLimitResult | null> {
-  const [orgData] = await executor
-    .select({ orgUsageLimit: organization.orgUsageLimit })
-    .from(organization)
-    .where(eq(organization.id, organizationId))
-    .limit(1)
+  const needsRecordedAllowance =
+    subscription.id !== undefined &&
+    subscription.allowanceSeatMonths === undefined &&
+    isTeam(subscription.plan) &&
+    resolveBillingInterval(subscription) === 'year'
+  const [[orgData], [recordedAllowance]] = await Promise.all([
+    executor
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1),
+    needsRecordedAllowance
+      ? executor
+          .select({
+            periodStart: subscriptionTable.periodStart,
+            allowancePeriodStart: subscriptionTable.allowancePeriodStart,
+            allowanceSeatMonths: subscriptionTable.allowanceSeatMonths,
+          })
+          .from(subscriptionTable)
+          .where(eq(subscriptionTable.id, subscription.id ?? ''))
+          .limit(1)
+      : Promise.resolve([]),
+  ])
 
   if (!orgData) return null
 
   return calculateOrgUsageLimit(
     organizationId,
-    plan,
-    seats,
+    { ...subscription, ...recordedAllowance },
     orgData.orgUsageLimit ? toNumber(toDecimal(orgData.orgUsageLimit)) : null
   )
 }
 
 function calculateOrgUsageLimit(
   organizationId: string,
-  plan: string,
-  seats: number | null,
+  subscription: OrgLimitSubscription,
   configured: number | null
 ): OrgUsageLimitResult {
+  const { plan, seats } = subscription
   if (isEnterprise(plan)) {
     // Enterprise: Use configured limit directly (no per-seat minimum)
     if (configured !== null) {
@@ -163,10 +185,9 @@ function calculateOrgUsageLimit(
     return { limit: 0, minimum: 0 }
   }
 
-  const { basePrice } = getPlanPricing(plan)
   // `||` not `??` — 0 is never a valid seat count for a paid sub.
   const seatCount = seats || 1
-  const minimum = seatCount * basePrice
+  const minimum = getOrgIncludedUsageDollars(subscription)
 
   if (configured !== null) {
     return { limit: Math.max(configured, minimum), minimum }
@@ -387,12 +408,7 @@ async function getResolvedUserUsageData(
     let limit: number
 
     if (orgScoped && subscription) {
-      const orgLimit = await getOrgUsageLimit(
-        subscription.referenceId,
-        subscription.plan,
-        subscription.seats,
-        executor
-      )
+      const orgLimit = await getOrgUsageLimit(subscription.referenceId, subscription, executor)
       limit = orgLimit.limit
 
       lastPeriodCost = await getOrgLastPeriodCost(subscription.referenceId, executor)
@@ -413,7 +429,7 @@ async function getResolvedUserUsageData(
 
     let weeklyRefreshConsumed = 0
     if (subscription && isPaid(subscription.plan) && billingPeriodStart) {
-      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+      const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(subscription)
       if (weeklyRefreshDollars > 0) {
         weeklyRefreshConsumed = await computeWeeklyRefreshConsumed(
           {
@@ -485,11 +501,7 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
     let canEdit: boolean
 
     if (orgScoped && subscription) {
-      const orgLimit = await getOrgUsageLimit(
-        subscription.referenceId,
-        subscription.plan,
-        subscription.seats
-      )
+      const orgLimit = await getOrgUsageLimit(subscription.referenceId, subscription)
       currentLimit = orgLimit.limit
       minimumLimit = orgLimit.minimum
       canEdit = false
@@ -540,6 +552,15 @@ export async function updateUserUsageLimit(
       return { success: false, error: 'Free plan users cannot edit usage limits' }
     }
 
+    if (!canEditUsageLimit(subscription)) {
+      return {
+        success: false,
+        error: isTrialingSubscription(subscription)
+          ? 'Usage limits can be changed once your trial ends'
+          : 'An active subscription is required to edit usage limits',
+      }
+    }
+
     const billingStatus = await getEffectiveBillingStatus(userId)
     if (!hasUsableSubscriptionAccess(subscription.status, billingStatus.billingBlocked)) {
       return { success: false, error: 'An active subscription is required to edit usage limits' }
@@ -559,7 +580,7 @@ export async function updateUserUsageLimit(
     if (newLimit < minimumLimit) {
       return {
         success: false,
-        error: `Usage limit cannot be below plan minimum of $${minimumLimit}`,
+        error: `Usage limit cannot be below your plan's ${formatCredits(minimumLimit)} included credits`,
       }
     }
 
@@ -607,11 +628,7 @@ export async function getUserUsageLimit(
       : await getHighestPrioritySubscription(userId)
 
   if (isOrgScopedSubscription(subscription, userId) && subscription) {
-    const orgLimit = await findOrgUsageLimit(
-      subscription.referenceId,
-      subscription.plan,
-      subscription.seats
-    )
+    const orgLimit = await findOrgUsageLimit(subscription.referenceId, subscription)
 
     if (!orgLimit) {
       throw new Error(`Organization not found: ${subscription.referenceId} for user: ${userId}`)
@@ -729,6 +746,11 @@ async function forfeitFreeTierAllowance(executor: DbOrTx, userId: string): Promi
 /**
  * Syncs the user's personal billing pool from their exact personal subscription.
  * Organization subscriptions have a separate pool and never clear personal limits.
+ *
+ * A paid plan only ever raises the limit to its base plus prepaid credits, keeping any higher
+ * limit the user chose. Every other pool is set exactly: the free allowance, or a trial's fixed
+ * allowance, which also lowers a limit left higher by an earlier plan. A trial that converts is
+ * raised to the plan's base on the sync that follows.
  */
 export async function syncUsageLimitsFromSubscription(
   userId: string,
@@ -746,13 +768,15 @@ export async function syncUsageLimitsFromSubscription(
   const baseLimit = toDecimal(
     getPerUserMinimumLimit(subscription, currentUserStats[0].freeTierEligible)
   ).toString()
-  const hasEntitledPersonalSubscription =
-    subscription !== null && hasPaidSubscriptionStatus(subscription.status)
+  const raisesOnly =
+    subscription !== null &&
+    hasPaidSubscriptionStatus(subscription.status) &&
+    !isTrialingSubscription(subscription)
   const liveMinimum = sql`${baseLimit}::numeric + ${userStats.creditBalance}`
   await executor
     .update(userStats)
     .set({
-      currentUsageLimit: hasEntitledPersonalSubscription
+      currentUsageLimit: raisesOnly
         ? sql`greatest(coalesce(${userStats.currentUsageLimit}, 0), ${liveMinimum})`
         : liveMinimum,
       usageLimitUpdatedAt: new Date(),
@@ -760,16 +784,16 @@ export async function syncUsageLimitsFromSubscription(
     .where(
       and(
         eq(userStats.userId, userId),
-        hasEntitledPersonalSubscription
+        raisesOnly
           ? sql`coalesce(${userStats.currentUsageLimit}, 0) < ${liveMinimum}`
           : sql`${userStats.currentUsageLimit} is distinct from ${liveMinimum}`
       )
     )
 
   logger.info(
-    hasEntitledPersonalSubscription
+    raisesOnly
       ? 'Synchronized plan-plus-prepaid minimum'
-      : 'Reset limit to free-plus-prepaid minimum',
+      : 'Set limit to the free or trial allowance plus prepaid',
     { userId, baseLimit: Number(baseLimit) }
   )
 }
@@ -806,7 +830,7 @@ export async function getEffectiveCurrentPeriodCost(
     return rawCost
   }
 
-  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+  const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(subscription)
   if (weeklyRefreshDollars <= 0) return rawCost
 
   const refreshConsumed = await computeWeeklyRefreshConsumed(
@@ -852,6 +876,8 @@ export async function maybeSendUsageThresholdEmail(params: {
   /** Cost this completion recorded; one that recorded nothing cannot move usage. */
   costDelta: number
   limit: number
+  /** Set during a free trial, whose allowance is fixed until the trial ends. */
+  trialEnd?: Date | null
 }): Promise<void> {
   try {
     if (!isBillingEnabled) return
@@ -877,6 +903,7 @@ export async function maybeSendUsageThresholdEmail(params: {
 
     const baseUrl = getBaseUrl()
     const isFreeUser = params.planName === 'Free'
+    const trialEndsOn = params.trialEnd ? formatTrialEndDate(params.trialEnd) : undefined
 
     const upgradeCreditsLink = params.workspaceId
       ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
@@ -903,11 +930,12 @@ export async function maybeSendUsageThresholdEmail(params: {
           currentUsage,
           limit: params.limit,
           ctaLink,
+          trialEndsOn,
         })
 
         await sendEmail({
           to: email,
-          subject: getEmailSubject('usage-threshold'),
+          subject: getEmailSubject(trialEndsOn ? 'trial-usage-threshold' : 'usage-threshold'),
           html,
           emailType: 'notifications',
         })
@@ -966,13 +994,16 @@ export async function maybeSendUsageThresholdEmail(params: {
               currentUsage,
               limit: params.limit,
               ctaLink: billingSettingsLink,
+              trialEndsOn,
             })
 
         await sendEmail({
           to: email,
           subject: useFreeCopy
             ? getEmailSubject('free-tier-exhausted')
-            : getLimitEmailSubject('credits', 'reached'),
+            : trialEndsOn
+              ? getEmailSubject('trial-credits-exhausted')
+              : getLimitEmailSubject('credits', 'reached'),
           html,
           emailType: 'notifications',
         })

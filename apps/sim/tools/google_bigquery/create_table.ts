@@ -13,6 +13,7 @@ export const googleBigQueryCreateTableTool: ToolConfig<
   name: 'BigQuery Create Table',
   description: 'Create a new table in a Google BigQuery dataset',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

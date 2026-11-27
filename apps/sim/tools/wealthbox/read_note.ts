@@ -7,6 +7,7 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
   name: 'Read Wealthbox Note',
   description: 'Read content from a Wealthbox note',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -14,6 +14,7 @@ export const linearDeleteProjectStatusTool: ToolConfig<
   description:
     'Archive a project status in Linear (Linear does not support deleting one). The status must have no active projects and must not be the last status of its type.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

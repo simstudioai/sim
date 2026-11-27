@@ -37,6 +37,7 @@ export const describeWorkflowTool: ToolConfig<
   description:
     'Get the current state of a Temporal workflow execution, including status, timing, memo, search attributes, and pending activities.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     serverUrl: {

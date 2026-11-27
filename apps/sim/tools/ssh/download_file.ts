@@ -11,6 +11,7 @@ export const downloadFileTool = {
   name: 'SSH Download File',
   description: 'Download a file from a remote SSH server',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

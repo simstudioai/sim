@@ -7,6 +7,7 @@ export const deleteVectorsTool: ToolConfig<PineconeDeleteVectorsParams, Pinecone
   name: 'Pinecone Delete Vectors',
   description: 'Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete all',
   version: '1.0',
+  effect: 'write',
 
   params: {
     indexHost: {

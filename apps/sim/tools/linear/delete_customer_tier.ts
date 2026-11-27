@@ -13,6 +13,7 @@ export const linearDeleteCustomerTierTool: ToolConfig<
   name: 'Linear Delete Customer Tier',
   description: 'Delete a customer tier in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

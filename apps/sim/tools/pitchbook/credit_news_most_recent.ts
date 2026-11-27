@@ -17,6 +17,7 @@ export const pitchbookCreditNewsMostRecentTool: ToolConfig<
   description:
     'Retrieve the most recently published credit analysis articles and their descriptions, without article bodies',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

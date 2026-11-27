@@ -11,6 +11,7 @@ export const rootlyListSchedulesTool: ToolConfig<
   name: 'Rootly List Schedules',
   description: 'List on-call schedules from Rootly with optional search filtering.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

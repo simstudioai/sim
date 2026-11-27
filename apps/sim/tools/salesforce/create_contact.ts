@@ -17,6 +17,7 @@ export const salesforceCreateContactTool: ToolConfig<
   name: 'Create Contact in Salesforce',
   description: 'Create a new contact in Salesforce CRM',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'salesforce' },
 

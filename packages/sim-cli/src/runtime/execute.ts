@@ -1,14 +1,13 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import type { Command } from 'commander'
-import { writeStderr } from '#sim-cli/output/io'
-import { styles } from '#sim-cli/output/presentation'
 import {
   assertWorkspaceOperationOutcome,
   readWorkspaceOperation,
   waitWorkspaceOperation,
   workspaceWaitTimeout,
 } from '../commands/protocol/workspace-operation-wait'
-import type { ResolvedProfile } from '../config/index'
+import { isMachineFormat, type ResolvedProfile } from '../config/index'
 import type { CommandSpec } from '../contract/types'
 import type { GetWorkspaceOperationResponse, V2OperationName } from '../generated/v2-api'
 import { assertCursorAdvances, pageProgress, SimApiError, type V2Page } from '../http/client'
@@ -16,14 +15,19 @@ import { safeOneLine } from '../output/render'
 import { connect } from './called-operations'
 import { camel } from './derive'
 import { DEFAULT_PAGE_SIZE, defaultListLimit } from './options'
-import { warnRenamedFlag } from './renamed'
+import { renameWarningOptions, warnRenamedFlag } from './renamed'
 import {
+  type BuiltRequest,
   buildRequest,
   cursorSlot,
   flagNameFor,
+  flagSpecFor,
+  inlineShapeRefusal,
   isProfileWorkspacePath,
+  namesFile,
   otherSpellings,
   PROFILE_INJECTED_FIELD,
+  readListFlag,
   trailingListField,
 } from './request'
 import { foldPageEnvelope, renderPage, renderResult } from './result'
@@ -214,16 +218,13 @@ function lengthOf(value: unknown): number {
 }
 
 /**
- * One line of context a successful result deserves, on stderr, in every format.
+ * One line of context a successful result deserves, placed by {@link renderResult}.
  *
  * `workflows chat publish` defaults `authType` to `public`, so a caller who
  * never typed `--auth-type` has just put a chat on the open internet, and the
  * result — `authType: public` among a dozen other fields of the record — does
- * not make that leap out. The note is printed whether the default or an
+ * not make that leap out. The note is given whether the default or an
  * explicit `--auth-type public` chose it: the exposure is the same either way.
- * stderr, so `sim workflows chat publish … --output json | jq` still reads
- * exactly the record; every format gets it because a JSON consumer is the one
- * least likely to look at the record.
  *
  * Judged on the response first and the request second: the server states what
  * it stored, and a body that omitted the field landed on the server's default.
@@ -232,32 +233,65 @@ const RESULT_NOTES: Readonly<
   Partial<
     Record<
       V2OperationName,
-      (payload: Record<string, unknown>, body: Record<string, unknown> | undefined) => string | null
+      (payload: Record<string, unknown>, request: BuiltRequest) => string | undefined
     >
   >
 > = {
-  replaceWorkflowChatDeployment: (payload, body) => {
+  replaceWorkflowChatDeployment: (payload, { body }) => {
     const authType = payload.authType ?? body?.authType ?? 'public'
     return authType === 'public'
-      ? 'note: auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
-      : null
+      ? 'auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
+      : undefined
+  },
+  /**
+   * `blocks get table` answers with `table_v2`, the type an add takes, and an add of the base
+   * type is refused. The resolved `id` is one field of a long record, and an agent's jq filter
+   * over `configuration` dropped it, so the add that followed said `table`.
+   */
+  getBlock: (payload, { params }) => {
+    const requested = params.blockId
+    return typeof payload.id === 'string' && requested !== undefined && payload.id !== requested
+      ? `"${requested}" reads as "${payload.id}", its current version; add it as {"type":"${payload.id}"}.`
+      : undefined
   },
 }
 
-/** Writes the operation's result note to stderr, when it has one and the result calls for it. */
-function writeResultNote(
+/**
+ * What a `confirm` command is about to do: its `confirmListed` text when the caller listed the
+ * entries, counted as the request reads the list (a comma list or a JSON array too; a file is read
+ * only once confirmed, so its count is unknown), else `confirm`. A list the request would refuse
+ * keeps `confirm`, for the request to name the mistake.
+ */
+async function confirmText(
   operation: V2OperationName,
-  payload: unknown,
-  body: Record<string, unknown> | undefined
-): void {
-  const note = RESULT_NOTES[operation]
-  if (!note) return
-  const record =
-    payload && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : {}
-  const message = note(record, body)
-  if (message) writeStderr(styles().dim(`${message}\n`))
+  spec: CommandSpec,
+  flags: Record<string, unknown>
+): Promise<string | undefined> {
+  const listed = spec.confirmListed
+  const flagName = listed ? flagNameFor(operation, listed.field) : undefined
+  const raw = flagName ? flags[camel(flagName)] : undefined
+  if (!listed || !flagName || raw === undefined) return spec.confirm
+  const values = Array.isArray(raw) ? raw : [raw]
+  if (values.some((value) => typeof value === 'string' && namesFile(value))) {
+    return listed.text(null)
+  }
+  try {
+    return listed.text(
+      (await readListFlag(raw, flagSpecFor(operation, listed.field), flagName)).length
+    )
+  } catch {
+    return spec.confirm
+  }
+}
+
+/**
+ * Whether a bulk call its check failed still committed part of its batch. Only an invitation
+ * batch fails a partial success; every other check fails a total miss alone.
+ */
+function committedPart(operation: V2OperationName, payload: unknown): boolean {
+  if (operation !== 'createWorkspaceInvitations') return false
+  const { successful, added, invitations } = toRecord(payload)
+  return lengthOf(successful) + lengthOf(added) + lengthOf(invitations) > 0
 }
 
 /** The one-line explanation of a bulk call that changed nothing, or `null`. */
@@ -373,6 +407,7 @@ function assertSelectorIsUsable(operation: V2OperationName, flags: Record<string
  * reading of "the documented one wins" is more likely to be the intended one.
  */
 function foldOtherSpellings(
+  host: Command,
   operation: V2OperationName,
   commandSpec: CommandSpec,
   flags: Record<string, unknown>
@@ -388,7 +423,7 @@ function foldOtherSpellings(
           0
         )
       }
-      if (renamed) warnRenamedFlag(name, current)
+      if (renamed) warnRenamedFlag(host, name, current)
       flags[camel(current)] = supplied
     }
   }
@@ -397,13 +432,15 @@ function foldOtherSpellings(
 /**
  * A 404 from a request scoped to the resolved workspace, stating which workspace was searched and
  * where that came from: a table or file that lives in another workspace answers only "not found",
- * and a workspace taken from the profile or `SIM_WORKSPACE` is not on the command line to check.
+ * and a workspace taken from the profile, `SIM_WORKSPACE` or the source directory the command runs
+ * in is not on the command line to check.
  */
 function withSearchedWorkspace(error: unknown, profile: ResolvedProfile): unknown {
   if (!(error instanceof SimApiError) || error.status !== 404 || !profile.workspaceId) return error
   const source = profile.sources.workspaceId
-  const from =
-    source === 'env'
+  const from = profile.workspaceDirectory
+    ? `, the workspace of the source directory ${safeOneLine(profile.workspaceDirectory)}; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
+    : source === 'env'
       ? ', from SIM_WORKSPACE; pass -w <workspaceId> to search another'
       : source === 'config'
         ? `, the workspace of profile "${safeOneLine(profile.name)}"; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
@@ -455,22 +492,32 @@ export async function executeOperation(
     requestFlags[camel(name)] = trailingValues
   }
 
-  foldOtherSpellings(operation, commandSpec, requestFlags)
+  foldOtherSpellings(host, operation, commandSpec, requestFlags)
   assertCapIsUsable(operation, requestFlags)
   assertSelectorIsUsable(operation, requestFlags)
 
   /**
    * A dry run writes nothing, so it never needs the destructive confirmation.
    *
-   * The gate exists to stop a caller discarding work by accident; `--dry-run`
+   * The gate exists to stop a caller discarding work by accident; `--dry`
    * is how a caller checks what a command WOULD do, and demanding `--yes` to
    * preview a change teaches people to pass `--yes` reflexively — which is
-   * exactly the habit the gate depends on not forming. `dryRun` is a v2-wide
+   * exactly the habit the gate depends on not forming. `dry` is a v2-wide
    * contract flag meaning "persist nothing", so this holds for every command
    * that accepts it rather than being a per-command exemption.
+   *
+   * A JSON flag typed inline with the wrong shape is named in the same refusal,
+   * so one retry fixes both.
    */
-  if (commandSpec.confirm && !requestFlags.yes && requestFlags.dryRun !== true) {
-    throw new SimApiError(`${commandSpec.confirm} Re-run with --yes to confirm.`, 0)
+  if (commandSpec.confirm && !requestFlags.yes && requestFlags.dry !== true) {
+    const misshapen = inlineShapeRefusal(operation, requestFlags)
+    const confirm = await confirmText(operation, commandSpec, requestFlags)
+    throw new SimApiError(
+      misshapen
+        ? `${misshapen} Also pass --yes: ${confirm}`
+        : `${confirm} Re-run with --yes to confirm.`,
+      0
+    )
   }
 
   if (commandSpec.allWorkspaces && requestFlags.allWorkspaces && requestFlags.workspace) {
@@ -575,7 +622,9 @@ export async function executeOperation(
     } finally {
       progress.finish()
     }
-    renderPage(profile.output, { data: rows, nextCursor: cursor }, commandSpec, envelope)
+    renderPage(profile.output, { data: rows, nextCursor: cursor }, commandSpec, envelope, {
+      ...renameWarningOptions(host),
+    })
     return
   }
 
@@ -656,27 +705,42 @@ export async function executeOperation(
         report
       ))
     payload = report
-    renderResult(operation, profile.output, payload, commandSpec)
+    renderResult(operation, profile.output, payload, commandSpec, {
+      ...renameWarningOptions(host),
+    })
     assertWorkspaceOperationOutcome(report, timedOut)
     return
+  }
+  const bulkFailure = bulkFailureMessage(operation, payload, request.body)
+  // A failure that committed nothing prints one document in a machine format: the refusal,
+  // carrying the result that explains it and the invocation's warnings as the result's `note`
+  // would. A batch that committed part prints its result first, as a failed run does.
+  if (bulkFailure && isMachineFormat(profile.output) && !committedPart(operation, payload)) {
+    const { warnings, warningsDelivered } = renameWarningOptions(host)
+    const details =
+      warnings.length > 0 ? { ...toRecord(payload), note: warnings.join('\n') } : payload
+    warningsDelivered()
+    throw new SimApiError(bulkFailure, 0, null, details)
   }
   renderResult(
     operation,
     profile.output,
     payload,
     commandSpec,
-    { expandedTrace: requestFlags.trace === true },
+    {
+      expandedTrace: requestFlags.trace === true,
+      note: RESULT_NOTES[operation]?.(toRecord(payload), request),
+      ...renameWarningOptions(host),
+    },
     // The envelope, not just the payload: a list that does not paginate states
     // its own truncation there, and unwrapping `data` discarded it.
     result
   )
-  writeResultNote(operation, payload, request.body)
 
   // Printed first, then failed, for the reason `followRun` gives: the envelope
   // carries the block outputs that explain *why* the run failed, and exiting
   // before writing it would leave a piped consumer an exit code and nothing to
   // read.
-  const failure =
-    runFailureMessage(operation, payload) ?? bulkFailureMessage(operation, payload, request.body)
+  const failure = runFailureMessage(operation, payload) ?? bulkFailure
   if (failure) throw new SimApiError(failure, 0)
 }

@@ -37,6 +37,7 @@ export const invokeFunctionTool: ToolConfig<
   name: 'Supabase Invoke Edge Function',
   description: 'Invoke a Supabase Edge Function over HTTP',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

@@ -88,11 +88,23 @@ export interface McpToolSchema {
   [key: string]: unknown
 }
 
+/**
+ * The behaviour hints a server declares for a tool, only those Sim reads and only as booleans.
+ * Hints are the server's claim, which Sim cannot verify, so a dry run reports them and never acts
+ * on them.
+ */
+export interface McpToolAnnotations {
+  readOnlyHint?: boolean
+  destructiveHint?: boolean
+}
+
 /** SDK `Tool` plus the server context Sim tracks. */
 export interface McpTool extends Pick<Tool, 'name' | 'description'> {
   inputSchema: McpToolSchema
   /** The `structuredContent` shape the tool declares, absent when it declares none. */
   outputSchema?: McpToolSchema
+  /** Absent when the tool declares no hint Sim reads. */
+  annotations?: McpToolAnnotations
   canonicalServerId?: string
   serverId: string
   serverName: string

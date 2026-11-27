@@ -18,6 +18,7 @@ export const markNsfwTool: ToolConfig<RedditMarkNsfwParams, RedditMarkNsfwRespon
   name: 'Mark Reddit Post NSFW',
   description: 'Mark a Reddit post as NSFW (not safe for work)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -101,6 +102,7 @@ export const unmarkNsfwTool: ToolConfig<RedditMarkNsfwParams, RedditMarkNsfwResp
   name: 'Unmark Reddit Post NSFW',
   description: 'Remove the NSFW (not safe for work) mark from a Reddit post',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

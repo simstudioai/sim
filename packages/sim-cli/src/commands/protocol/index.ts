@@ -14,13 +14,19 @@ import { attachKnowledgeExport } from './knowledge-export'
 import { attachKnowledgeImport } from './knowledge-import'
 import { attachLogsFollow } from './logs-follow'
 import { attachResourceDirectoryCommands } from './resource-directory'
-import { WORKFLOW_SOURCE_LOOP_HELP, WORKSPACE_SOURCE_LOOP_HELP } from './source-loop-help'
+import {
+  WORKSPACE_SOURCE_LOOP_HELP,
+  workflowSourceLoopHelp,
+  workflowSourceScopeHelp,
+} from './source-loop-help'
+import { primerSurface } from './source-primer'
 import { attachTableImport } from './tables-import'
 import { attachWorkflowRunFollow } from './workflow-run-follow'
 import { attachWorkflowRunGet } from './workflow-run-get'
 import { attachWorkflowRunWait } from './workflow-run-wait'
 import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
 import { attachWorkflowSourceCheck } from './workflow-source-check'
+import { attachWorkflowSourceFind } from './workflow-source-find'
 import { attachWorkflowSourceGet } from './workflow-source-get'
 import { attachWorkflowSourceParams } from './workflow-source-params'
 import { attachWorkflowSourceDiff, attachWorkflowSourceStatus } from './workflow-source-status'
@@ -94,7 +100,8 @@ export function attachProtocolCommands(program: Command): void {
   const source = group(workflows, 'source').description(
     'Read and apply a workflow as TypeScript source (preview)'
   )
-  source.addHelpText('after', WORKFLOW_SOURCE_LOOP_HELP)
+  source.addHelpText('before', () => workflowSourceScopeHelp(primerSurface()))
+  source.addHelpText('after', () => workflowSourceLoopHelp(primerSurface()))
   attachWorkflowSourceGet(source)
   attachWorkflowSourceApply(source)
   attachWorkflowSourceCreate(source)
@@ -102,6 +109,7 @@ export function attachProtocolCommands(program: Command): void {
   attachWorkflowSourceStatus(source)
   attachWorkflowSourceDiff(source)
   attachWorkflowSourceParams(source)
+  attachWorkflowSourceFind(source)
 
   const workspaces = group(program, 'workspaces')
   attachWorkspaceOperationWait(group(workspaces, 'operations'))

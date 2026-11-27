@@ -19,6 +19,7 @@ export const checkrGetProgramTool: ToolConfig<CheckrProgramIdParams, CheckrProgr
   name: 'Checkr Get Program',
   description: 'Retrieve a program by ID, including its package and geo IDs.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

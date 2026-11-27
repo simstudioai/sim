@@ -14,6 +14,7 @@ export const describeVpcsTool: InternalToolConfig<Ec2DescribeVpcsParams, Ec2Desc
     name: 'EC2 Describe VPCs',
     description: 'List VPCs with their CIDR blocks and state',
     version: '1.0.0',
+    effect: 'read',
     oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {

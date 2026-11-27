@@ -15,6 +15,7 @@ export const uploadCandidateFileTool: InternalToolConfig<Params, AshbyGetCandida
   name: 'Ashby Upload Candidate File',
   description: 'Securely uploads a file and attaches it to an Ashby candidate.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

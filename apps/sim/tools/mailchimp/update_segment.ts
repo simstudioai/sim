@@ -32,6 +32,7 @@ export const mailchimpUpdateSegmentTool: ToolConfig<
   name: 'Update Segment in Mailchimp Audience',
   description: 'Update an existing segment in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

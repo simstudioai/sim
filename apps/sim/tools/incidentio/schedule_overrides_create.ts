@@ -13,6 +13,7 @@ export const scheduleOverridesCreateTool: ToolConfig<
   name: 'Create Schedule Override',
   description: 'Create a new schedule override in incident.io',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

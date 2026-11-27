@@ -34,6 +34,7 @@ export const sportmonksGetVenuesTool: ToolConfig<
   name: 'Get Venues',
   description: 'Retrieve all football venues available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -7,6 +7,7 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
   name: 'Write Wealthbox Task',
   description: 'Create a Wealthbox task',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

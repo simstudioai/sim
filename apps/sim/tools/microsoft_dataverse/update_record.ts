@@ -25,6 +25,7 @@ export const dataverseUpdateRecordTool: ToolConfig<
   description:
     'Update an existing record in a Microsoft Dataverse table. Only send the columns you want to change.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

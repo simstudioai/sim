@@ -154,18 +154,18 @@ jobs:
         working-directory: apps/desktop
         run: bunx playwright install chromium
 
-      # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
+      # The terminal-cancel suite drives a real tmux server and fails when tmux is missing.
       - name: Install tmux
         run: brew install tmux
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
         run: bun run ../../scripts/desktop-e2e.ts ${{ matrix.shard }}/${{ strategy.job-total }}
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/desktop-smoke.json
-          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
-          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
-          CONTINUE_SIGN_IN_REPORT_PATH: test-results/continue-sign-in-report.json
 
       - name: Upload test results
         if: failure()
@@ -241,17 +241,16 @@ jobs:
         working-directory: apps/desktop
         run: bunx playwright install chromium
 
-      # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
+      # The terminal-cancel suite drives a real tmux server and fails when tmux is missing.
       - name: Install tmux
         run: brew install tmux
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
         run: bunx playwright test
-        env:
-          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
-          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
-          CONTINUE_SIGN_IN_REPORT_PATH: test-results/continue-sign-in-report.json
 
       - name: Upload test results
         if: failure()

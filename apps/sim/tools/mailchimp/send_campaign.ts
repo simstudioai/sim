@@ -23,6 +23,7 @@ export const mailchimpSendCampaignTool: ToolConfig<
   name: 'Send Campaign in Mailchimp',
   description: 'Send a Mailchimp campaign',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

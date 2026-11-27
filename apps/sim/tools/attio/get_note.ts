@@ -11,6 +11,7 @@ export const attioGetNoteTool: ToolConfig<AttioGetNoteParams, AttioGetNoteRespon
   name: 'Attio Get Note',
   description: 'Get a single note by ID from Attio',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

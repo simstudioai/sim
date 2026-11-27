@@ -10,6 +10,7 @@ export const vercelListWebhooksTool: ToolConfig<
   name: 'Vercel List Webhooks',
   description: 'List webhooks for a Vercel project or team',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

@@ -23,6 +23,7 @@ export const slackEphemeralMessageTool: InternalToolConfig<
   description:
     'Send an ephemeral message visible only to a specific user in a channel. Optionally reply in a thread. The message does not persist across sessions.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

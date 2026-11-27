@@ -144,10 +144,7 @@ export function sourceFingerprintSchema(field: string) {
 }
 
 export const sourceBaseSchema = withExtensions({
-  version: z
-    .literal(1)
-    .default(1)
-    .describe('Base format version; a base written before it existed reads as 1.'),
+  version: z.literal(1).describe('Base format version.'),
   workflowId: z
     .string()
     .min(1, 'base.workflowId cannot be empty')

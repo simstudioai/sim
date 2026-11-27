@@ -17,6 +17,7 @@ export const pipedriveUpdateActivityTool: ToolConfig<
   name: 'Update Activity in Pipedrive',
   description: 'Update an existing activity (task) in Pipedrive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

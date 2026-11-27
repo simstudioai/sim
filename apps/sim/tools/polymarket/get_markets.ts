@@ -24,6 +24,7 @@ export const polymarketGetMarketsTool: ToolConfig<
   name: 'Get Markets from Polymarket',
   description: 'Retrieve a list of prediction markets from Polymarket with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     closed: {

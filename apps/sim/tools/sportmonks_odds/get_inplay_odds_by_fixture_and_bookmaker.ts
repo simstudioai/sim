@@ -32,6 +32,7 @@ export const sportmonksOddsGetInplayOddsByFixtureAndBookmakerTool: ToolConfig<
   description:
     'Retrieve live (in-play) odds for a fixture from a specific bookmaker via the Sportmonks Odds API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

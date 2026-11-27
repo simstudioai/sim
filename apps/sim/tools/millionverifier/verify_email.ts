@@ -30,6 +30,7 @@ export const verifyEmailTool: ToolConfig<
   name: 'MillionVerifier Verify Email',
   description: 'Verify the deliverability of an email address. Uses one verification credit.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: millionverifierHosting<MillionVerifierVerifyEmailParams>((_params, output) =>
     BILLED_STATUSES.has(String(output.status)) ? 1 : 0

@@ -18,6 +18,7 @@ export const getCampaignTool: ToolConfig<SmartleadCampaignIdParams, SmartleadCam
   name: 'Smartlead Get Campaign',
   description: 'Retrieves a single Smartlead campaign by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

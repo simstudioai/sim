@@ -13,6 +13,7 @@ export const deleteHostedConfigurationVersionTool: InternalToolConfig<
   name: 'AppConfig Delete Hosted Configuration Version',
   description: 'Delete a specific hosted configuration version from an AppConfig profile',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

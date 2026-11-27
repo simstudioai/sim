@@ -15,9 +15,9 @@ import {
 } from '@/lib/billing/core/subscription'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { isSubscriptionCycleCloseCurrent } from '@/lib/billing/cycle-close'
-import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
   hasUsableSubscriptionAccess,
+  invoicesOverage,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
@@ -260,7 +260,7 @@ export async function checkAndBillOverageThreshold(
       return noOp(options, 'no-subscription')
     }
 
-    if (isFree(userSubscription.plan) || isEnterprise(userSubscription.plan)) {
+    if (!invoicesOverage(userSubscription)) {
       return noOp(options, 'plan-ineligible')
     }
 
@@ -300,6 +300,8 @@ export async function checkAndBillOverageThreshold(
       plan: userSubscription.plan,
       referenceId: userSubscription.referenceId,
       seats: userSubscription.seats,
+      metadata: userSubscription.metadata,
+      billingInterval: userSubscription.billingInterval,
       periodStart: userSubscription.periodStart,
       periodEnd: userSubscription.periodEnd,
     })
@@ -546,7 +548,7 @@ async function checkAndBillOrganizationOverageThreshold(
       return noOp(options, 'no-subscription')
     }
 
-    if (isEnterprise(orgSubscription.plan) || isFree(orgSubscription.plan)) {
+    if (!invoicesOverage(orgSubscription)) {
       logger.debug('Organization plan not eligible for overage billing, skipping', {
         organizationId,
         plan: orgSubscription.plan,
@@ -633,8 +635,15 @@ async function checkAndBillOrganizationOverageThreshold(
       baseSubscriptionAmount: basePrice,
       effectiveUsage: effectiveTeamUsage,
     } = await computeOrgOverageAmount({
-      plan: orgSubscription.plan,
-      seats: orgSubscription.seats ?? null,
+      subscription: {
+        plan: orgSubscription.plan,
+        seats: orgSubscription.seats ?? null,
+        metadata: orgSubscription.metadata,
+        billingInterval: orgSubscription.billingInterval,
+        periodStart: orgSubscription.periodStart,
+        allowancePeriodStart: orgSubscription.allowancePeriodStart,
+        allowanceSeatMonths: orgSubscription.allowanceSeatMonths,
+      },
       periodStart: orgSubscription.periodStart ?? null,
       periodEnd: orgSubscription.periodEnd ?? null,
       organizationId,
@@ -852,8 +861,8 @@ async function checkAndBillOrganizationOverageThreshold(
           customerId,
           stripeSubscriptionId,
           amountCents,
-          description: `Team threshold overage billing – ${billingPeriod}`,
-          itemDescription: `Team usage overage ($${amountToBill.toFixed(2)})`,
+          description: `Organization threshold overage billing – ${billingPeriod}`,
+          itemDescription: `Organization usage overage ($${amountToBill.toFixed(2)})`,
           billingPeriod,
           invoiceIdemKeyStem: `threshold-overage-org-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
           itemIdemKeyStem: `threshold-overage-org-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,

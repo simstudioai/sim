@@ -22,6 +22,7 @@ export const affinityListListEntryFieldValueChangesTool: ToolConfig<
   description:
     'Page through the history of one list row — who changed which field, when, and to what.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

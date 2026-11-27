@@ -16,6 +16,7 @@ export const getLeadTool: ToolConfig<InstantlyGetLeadParams, InstantlyLeadRespon
   name: 'Instantly Get Lead',
   description: 'Retrieves an Instantly V2 lead by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

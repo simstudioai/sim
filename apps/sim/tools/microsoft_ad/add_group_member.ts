@@ -13,6 +13,7 @@ export const addGroupMemberTool: ToolConfig<
   name: 'Add Azure AD Group Member',
   description: 'Add a member to a group in Azure AD (Microsoft Entra ID)',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

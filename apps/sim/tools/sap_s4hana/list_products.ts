@@ -8,6 +8,7 @@ export const listProductsTool: InternalToolConfig<ListProductsParams, SapS4HanaR
   description:
     'List products (materials) from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

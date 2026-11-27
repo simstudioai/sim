@@ -7,6 +7,7 @@ export const deleteGroupTool: ToolConfig<GoogleGroupsDeleteParams, GoogleGroupsR
   name: 'Google Groups Delete Group',
   description: 'Delete a Google Group',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

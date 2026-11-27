@@ -54,6 +54,7 @@ export const mondayCreateColumnTool: ToolConfig<
   name: 'Monday Create Column',
   description: 'Create a new column on a Monday.com board',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

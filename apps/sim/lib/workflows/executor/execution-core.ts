@@ -59,9 +59,11 @@ import type {
   ChildWorkflowContext,
   ContextExtensions,
   ExecutionCallbacks,
+  ExecutionMetadata,
   ExecutionTestHooks,
   IterationContext,
   SerializableExecutionState,
+  SideEffectPolicy,
 } from '@/executor/execution/types'
 import type { ExecutionResult, StartBlockRunMetadata } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -79,6 +81,7 @@ import {
 } from '@/executor/utils/subflow-node-id-codec'
 import { Serializer } from '@/serializer'
 import type { SerializedWorkflow } from '@/serializer/types'
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
 const logger = createLogger('ExecutionCore')
 
@@ -147,6 +150,8 @@ export interface ExecuteWorkflowCoreOptions {
   base64MaxBytes?: number
   stopAfterBlockId?: string
   testHooks?: ExecutionTestHooks
+  /** A dry run's or workflow test's handling of writes; every child execution inherits it. */
+  sideEffects?: SideEffectPolicy
   /** Trusted encrypted provenance captured by a server-only pre-execution boundary. */
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /** Immutable deployment admitted by the durable parent log for a resumed execution. */
@@ -311,18 +316,37 @@ export function wasExecutionFinalizedByCore(error: unknown, executionId?: string
 }
 
 /**
+ * What a run records on its log's trigger: its correlation, a dry run's overrides, which a rerun
+ * of it reads back, and, for any run with a side-effect policy (a dry run or a workflow test),
+ * `placeholdersRecorded`, which says its block states mark each block it answered with a
+ * placeholder (a run logged before they did has no marks).
+ */
+function logTriggerData(
+  metadata: ExecutionMetadata,
+  sideEffects: SideEffectPolicy | undefined
+): Record<string, unknown> | undefined {
+  if (!metadata.correlation && !metadata.overrides && !sideEffects) return undefined
+  return {
+    ...(metadata.correlation ? { correlation: metadata.correlation } : {}),
+    ...(metadata.overrides ? { overrides: metadata.overrides } : {}),
+    ...(sideEffects ? { placeholdersRecorded: true } : {}),
+  }
+}
+
+/**
  * Counts a settled run — completed, failed, or cancelled alike — on the
  * workflow and stamps `lastRunAt`. Paused runs are not settled and are counted
  * when they finish. Awaited from the finalization path rather than fired and
  * forgotten, so a process reload after the log write cannot drop it. A run
- * whose workspace or workflow was deleted has no row left to count on.
+ * whose workspace or workflow was deleted has no row left to count on, and a
+ * test run (a dry run or a workflow test) changes nothing beyond its own log.
  */
 async function recordSettledRun(
   workflowId: string,
   requestId: string,
   loggingSession: LoggingSession
 ): Promise<void> {
-  if (loggingSession.getDeletedScope()) return
+  if (loggingSession.getDeletedScope() || loggingSession.getTriggerType() === TEST_TRIGGER) return
   try {
     await updateWorkflowRunCounts(workflowId)
   } catch (error) {
@@ -665,6 +689,7 @@ async function executeWorkflowCoreImpl(
     includeFileBase64,
     base64MaxBytes,
     testHooks,
+    sideEffects,
     runFromBlock,
     resumeDeploymentVersionId,
     draftState,
@@ -888,7 +913,7 @@ async function executeWorkflowCoreImpl(
       billingAttribution: metadata.billingAttribution,
       workspaceId: providedWorkspaceId,
       variables,
-      triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
+      triggerData: logTriggerData(metadata, sideEffects),
       skipLogCreation,
       deploymentVersionId,
       workflowState: loadedWorkflow && {
@@ -1329,6 +1354,7 @@ async function executeWorkflowCoreImpl(
       base64MaxBytes,
       stopAfterBlockId: resolvedStopAfterBlockId,
       ...(testHooks ? { testHooks } : {}),
+      ...(sideEffects ? { sideEffects } : {}),
       onChildWorkflowInstanceReady,
       callChain: metadata.callChain,
       // The live block stream has a single known, authenticated Sim viewer only on
@@ -1445,7 +1471,7 @@ async function executeWorkflowCoreImpl(
         billingAttribution: metadata.billingAttribution,
         workspaceId: providedWorkspaceId,
         variables: {},
-        triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
+        triggerData: logTriggerData(metadata, sideEffects),
         skipLogCreation,
         deploymentVersionId,
       })

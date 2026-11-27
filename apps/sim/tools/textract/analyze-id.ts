@@ -14,6 +14,7 @@ export const textractAnalyzeIdTool: InternalToolConfig<
   name: 'AWS Textract Analyze ID',
   description: 'Extract identity document fields using AWS Textract AnalyzeID',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

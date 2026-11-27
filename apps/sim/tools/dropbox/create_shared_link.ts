@@ -12,6 +12,7 @@ export const dropboxCreateSharedLinkTool: ToolConfig<
   name: 'Dropbox Create Shared Link',
   description: 'Create a shareable link for a file or folder in Dropbox',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

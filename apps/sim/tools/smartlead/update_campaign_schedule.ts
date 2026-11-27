@@ -33,6 +33,7 @@ export const updateCampaignScheduleTool: ToolConfig<
   description:
     'Sets the sending window, timezone, and throughput limits for a Smartlead campaign. A campaign cannot be started until a schedule exists.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

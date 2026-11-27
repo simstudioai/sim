@@ -34,6 +34,7 @@ export const sportmonksGetRefereesTool: ToolConfig<
   name: 'Get Referees',
   description: 'Retrieve all football referees available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

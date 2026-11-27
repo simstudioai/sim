@@ -13,6 +13,7 @@ export const createPrehireTool: InternalToolConfig<
   description:
     'Create a new pre-hire (applicant) record in Workday. This is typically the first step before hiring an employee.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     tenantUrl: {

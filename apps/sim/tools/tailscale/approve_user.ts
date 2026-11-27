@@ -12,6 +12,7 @@ export const tailscaleApproveUserTool: ToolConfig<
   name: 'Tailscale Approve User',
   description: 'Approve a pending user to join the tailnet',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

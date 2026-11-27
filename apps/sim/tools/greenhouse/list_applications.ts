@@ -13,6 +13,7 @@ export const greenhouseListApplicationsTool: ToolConfig<
   name: 'Greenhouse List Applications',
   description: 'Lists applications from Greenhouse with optional filtering by job, status, or date',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

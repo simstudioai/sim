@@ -24,10 +24,10 @@ export const v2GetWorkflowSourceContract = defineRouteContract({
 
 const applyWorkflowSourceQuerySchema = z
   .object({
-    dryRun: booleanQueryFlagSchema
+    dry: booleanQueryFlagSchema
       .optional()
       .describe(
-        'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.'
+        'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.'
       ),
     allowDelete: booleanQueryFlagSchema
       .optional()
@@ -230,7 +230,7 @@ const applyWorkflowSourceDataSchema = z
   .object({
     workflowId: z.string().describe('Workflow id.'),
     workspaceId: z.string().describe('Workspace id.'),
-    dryRun: z.boolean().describe('True when nothing was written because `dryRun` was set.'),
+    dry: z.boolean().describe('True when nothing was written because `dry` was set.'),
     applied: z
       .boolean()
       .describe(
@@ -253,9 +253,19 @@ const applyWorkflowSourceDataSchema = z
         'Block key → id for new blocks whose id was minted rather than taken from the lock.'
       ),
     notes: z.array(z.string()).describe('Non-fatal notes about the write.'),
+    deployedVersion: z
+      .number()
+      .int()
+      .positive()
+      .nullable()
+      .describe(
+        'The live deployment version `needsRedeployment` compares the draft against, or null when the workflow is not deployed.'
+      ),
     needsRedeployment: z
       .boolean()
-      .describe('Whether the draft now differs from the live deployment; apply never deploys.'),
+      .describe(
+        'Whether the draft now differs from the live deployment; apply never deploys. False when nothing is deployed, so read it beside `deployedVersion`.'
+      ),
   })
   .describe('The outcome of applying workflow source.')
 

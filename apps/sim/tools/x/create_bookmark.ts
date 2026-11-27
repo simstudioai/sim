@@ -9,6 +9,7 @@ export const xCreateBookmarkTool: ToolConfig<XCreateBookmarkParams, XCreateBookm
   name: 'X Create Bookmark',
   description: 'Bookmark a tweet for the authenticated user',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

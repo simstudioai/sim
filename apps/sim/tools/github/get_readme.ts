@@ -9,6 +9,7 @@ export const getReadmeTool: ToolConfig<GetReadmeParams, ReadmeResponse> = {
   description:
     'Get the preferred README for a GitHub repository, with its content decoded to plain text.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -120,6 +121,7 @@ export const getReadmeV2Tool: ToolConfig<GetReadmeParams, any> = {
   name: getReadmeTool.name,
   description: getReadmeTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getReadmeTool.params,
   request: getReadmeTool.request,

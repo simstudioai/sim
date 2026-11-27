@@ -13,6 +13,7 @@ export const attioCreateWebhookTool: ToolConfig<
   name: 'Attio Create Webhook',
   description: 'Create a webhook in Attio to receive event notifications',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

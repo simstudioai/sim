@@ -10,6 +10,7 @@ export const updateTemplateTool: InternalToolConfig<
   name: 'SES Update Template',
   description: 'Update the subject, HTML, and text content of an existing SES email template',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

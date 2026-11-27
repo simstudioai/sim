@@ -17,6 +17,7 @@ export const pitchbookPeopleSearchTool: ToolConfig<
   name: 'PitchBook People Search',
   description: 'Search PitchBook for people by name, employer, position, education, and location',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

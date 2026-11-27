@@ -14,6 +14,7 @@ export const discordDeleteChannelTool: ToolConfig<
   name: 'Discord Delete Channel',
   description: 'Delete a Discord channel',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

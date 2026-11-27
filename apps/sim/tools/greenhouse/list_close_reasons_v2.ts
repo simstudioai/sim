@@ -20,6 +20,7 @@ export const greenhouseListCloseReasonsV2Tool: ToolConfig<
   name: 'Greenhouse List Close Reasons',
   description: 'Lists one page of close reasons with cursor pagination and documented filters.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

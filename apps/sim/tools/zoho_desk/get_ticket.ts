@@ -15,6 +15,7 @@ export const zohoDeskGetTicketTool: ToolConfig<ZohoDeskGetTicketParams, ZohoDesk
   name: 'Zoho Desk Get Ticket',
   description: 'Retrieve a single Zoho Desk ticket by ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'zoho-desk' },
 

@@ -22,6 +22,7 @@ export const createCampaignTool: ToolConfig<
   name: 'Email Bison Create Campaign',
   description: 'Creates a new Email Bison campaign.',
   version: '1.0.0',
+  effect: 'write',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

@@ -15,6 +15,7 @@ export const updateLabelTool: ToolConfig<JotformUpdateLabelParams, JotformUpdate
   name: 'Jotform Update Label',
   description: 'Rename a Jotform label or change its color.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

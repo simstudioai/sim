@@ -17,6 +17,7 @@ export const crowdstrikeDeleteRtrSessionTool: InternalToolConfig<
   description:
     'Close an open CrowdStrike Falcon Real Time Response session (DELETE /real-time-response/entities/sessions/v1). Requires the "Real time response: Read" API scope.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

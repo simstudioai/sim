@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "engines": {
     "bun": ">=1.4.4",
-    "node": ">=20.0.0"
+    "node": "^22.18.0 || >=24.11.0"
   },
   "exports": {
     ".": {
@@ -21,6 +21,10 @@
     "./diagnostics/codes": {
       "types": "./src/diagnostics/codes.ts",
       "default": "./src/diagnostics/codes.ts"
+    },
+    "./json-text": {
+      "types": "./src/json-text.ts",
+      "default": "./src/json-text.ts"
     },
     "./code-files/references": {
       "types": "./src/code-files/references.ts",

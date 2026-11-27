@@ -13,6 +13,7 @@ export const vantaListTestsTool: InternalToolConfig<VantaListTestsParams, VantaL
     description:
       'List the automated compliance tests in a Vanta account, with filters for status, framework, integration, control, owner, and category',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

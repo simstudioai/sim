@@ -36,6 +36,7 @@ export const textractParserTool: InternalToolConfig<TextractParserInput, Textrac
   name: 'AWS Textract Parser',
   description: 'Parse documents using AWS Textract OCR and document analysis',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

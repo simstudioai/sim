@@ -14,6 +14,7 @@ export const freebusyTool: ToolConfig<
   name: 'Google Calendar Free/Busy',
   description: 'Query free/busy information for one or more Google Calendars',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -125,10 +126,11 @@ export const freebusyV2Tool: ToolConfig<
   GoogleCalendarFreeBusyV2Response
 > = {
   id: 'google_calendar_freebusy_v2',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Google Calendar Free/Busy',
   description: 'Query free/busy information for one or more Google Calendars.',
   version: '2.0.0',
+  effect: 'read',
   oauth: freebusyTool.oauth,
   params: freebusyTool.params,
   request: freebusyTool.request,

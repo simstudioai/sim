@@ -14,6 +14,7 @@ export const markReadTool: ToolConfig<WhatsAppMarkReadParams, WhatsAppMarkReadRe
   description:
     'Mark a received WhatsApp message as read so the sender sees blue checkmarks, optionally showing a typing indicator.',
   version: '1.0.0',
+  effect: 'write',
   oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {

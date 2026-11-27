@@ -9,6 +9,7 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
   description:
     'List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, reason, requester, branch, or time range, and page with a continuation token.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

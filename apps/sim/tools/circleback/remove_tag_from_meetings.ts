@@ -22,6 +22,7 @@ export const removeTagFromMeetingsTool: ToolConfig<
   description:
     'Removes a Circleback tag from one or more meetings and returns the updated meetings.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

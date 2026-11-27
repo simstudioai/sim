@@ -20,7 +20,7 @@ import { formatDate } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
-import { CREDIT_MULTIPLIER, formatCreditCost } from '@/lib/billing/credits/conversion'
+import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import {
   getCoveredUsage,
   getIsOnDemandActive,
@@ -28,10 +28,9 @@ import {
   isOnDemandOffDisabled,
 } from '@/lib/billing/on-demand'
 import {
+  formatMonthlyPlanPrice,
   getDisplayPlanName,
-  getPlanTierCredits,
   getPlanTierDollars,
-  getPlanWeeklyRefreshDollars,
   isEnterprise,
   isFree,
   isPaid,
@@ -40,13 +39,17 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   getEffectiveSeats,
+  getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
+  isTrialingSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AwsMarketplaceSubscriptionSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/aws-marketplace-subscription-section/aws-marketplace-subscription-section'
 import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/credit-usage-section/credit-usage-section'
+import { EnterprisePaymentMethodRow } from '@/app/workspace/[workspaceId]/settings/components/billing/components/enterprise-payment-method-row/enterprise-payment-method-row'
+import { EnterpriseSeatsSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/enterprise-seats-section/enterprise-seats-section'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -61,6 +64,7 @@ import {
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import {
+  useEndProTrial,
   useInvoices,
   useOpenBillingPortal,
   useSubscriptionData,
@@ -79,6 +83,12 @@ const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
   open: { variant: 'amber', label: 'Open' },
   uncollectible: { variant: 'red', label: 'Uncollectible' },
   void: { variant: 'gray', label: 'Void' },
+}
+
+function getPeriodEndLabel(isCancelledAtPeriodEnd: boolean, isTrialing: boolean): string {
+  if (isCancelledAtPeriodEnd) return 'Access until'
+  if (isTrialing) return 'Free trial ends'
+  return 'Next billing date'
 }
 
 /** Resolve a Stripe invoice status to its badge presentation. */
@@ -158,8 +168,12 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const { data: session } = useSession()
   const betterAuthSubscription = useSubscription()
   const openBillingPortal = useOpenBillingPortal()
+  const endProTrial = useEndProTrial()
 
   const organizationBilling = organizationBillingData?.data
+  const enterpriseSelfServe = isOrganizationScope
+    ? (organizationBilling?.enterpriseSelfServe ?? null)
+    : null
   const upgradeWorkspaceId = isOrganizationScope
     ? organizationBilling?.upgradeWorkspaceId
     : subscriptionData?.data?.upgradeWorkspaceId
@@ -237,7 +251,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const planIncludedAmount =
     subscription.isOrgScoped && organizationBilling
       ? organizationBilling.minimumBillingAmount
-      : getPlanTierCredits(subscription.plan) / CREDIT_MULTIPLIER
+      : (subscriptionData?.data?.includedUsage ?? 0)
 
   const effectiveUsageLimit =
     subscription.isOrgScoped && organizationBilling
@@ -281,6 +295,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     covered,
   })
 
+  const hasUsablePaidAccess = subscription.isPaid
+    ? hasUsableSubscriptionAccess(subscription.status, isBlocked)
+    : false
+
   const permissions = getSubscriptionPermissions(
     {
       isFree: subscription.isFree,
@@ -289,15 +307,23 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       isEnterprise: subscription.isEnterprise,
       isPaid: subscription.isPaid,
       isOrgScoped: subscription.isOrgScoped,
+      isEnterpriseSelfServe: enterpriseSelfServe !== null,
+      hasUsableAccess: hasUsablePaidAccess,
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
     { isTeamAdmin, userRole: userRole || 'member' }
   )
 
-  const hasUsablePaidAccess = subscription.isPaid
-    ? hasUsableSubscriptionAccess(subscription.status, isBlocked)
-    : false
+  /** A failed payment or an open dispute pauses the plan's usage. */
+  const hasPaymentProblem = subscription.isPaid && !hasUsablePaidAccess
+  const billingBlockedReason = isOrganizationScope
+    ? organizationBilling?.billingBlockedReason
+    : subscriptionData?.data?.billingBlockedReason
+  const paymentProblemLabel =
+    billingBlockedReason === 'dispute'
+      ? 'Usage is paused while a payment dispute is open. Contact support to resolve it'
+      : 'Payment failed. Update your payment method to resume usage'
 
   const isTogglingOnDemand = updateUserLimit.isPending || updateOrgLimit.isPending
 
@@ -337,7 +363,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   }
 
   const handleOpenBillingPortal = () => {
-    if (!permissions.canEditUsageLimit) {
+    if (!permissions.canManageBilling) {
       toast.error("Can't manage payment method", {
         description: 'Only organization admins can manage billing.',
       })
@@ -375,7 +401,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   }
 
   const handleCancelSubscription = async () => {
-    if (!permissions.canEditUsageLimit) {
+    if (!permissions.canManageBilling) {
       toast.error("Can't cancel subscription", {
         description: 'Only organization admins can cancel the subscription.',
       })
@@ -403,7 +429,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   }
 
   const handleRestoreSubscription = async () => {
-    if (!permissions.canEditUsageLimit) {
+    if (!permissions.canManageBilling) {
       toast.error("Can't restore subscription", {
         description: 'Only organization admins can restore the subscription.',
       })
@@ -466,7 +492,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
         ? 'Choose a new plan for this organization'
         : subscription.isEnterprise
           ? 'Custom pricing'
-          : `$${getPlanTierDollars(subscription.plan)} per user/month, ${billingPeriod}`
+          : `${formatMonthlyPlanPrice(getPlanTierDollars(subscription.plan), billingInterval === 'year')}${isOrganizationScope ? ' per user' : ''}/month, ${billingPeriod}`
 
   const periodEnd = isOrganizationScope
     ? (organizationBilling?.billingPeriodEnd ?? null)
@@ -475,8 +501,9 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     ? organizationBilling?.cancelAtPeriodEnd === true
     : subscriptionData?.data?.cancelAtPeriodEnd === true
 
+  const isTrialing = isTrialingSubscription(subscription)
   const weeklyRefreshDollars =
-    getPlanWeeklyRefreshDollars(subscription.plan) *
+    getSubscriptionWeeklyRefreshDollars(subscription) *
     (isOrganizationScope ? subscription.seats || 1 : 1)
 
   const invoices = (invoicesData?.invoices ?? []).map((invoice) => ({
@@ -488,20 +515,19 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,
   }))
 
-  const canManageBilling = permissions.canEditUsageLimit
+  const canManageBilling = permissions.canManageBilling
   const canExplorePlans = permissions.showUpgradePlans
-  const showUsageLimit = subscription.isPaid && !subscription.isEnterprise
-  const showOnDemand = hasUsablePaidAccess && !subscription.isEnterprise
+  const hasEditableLimit = !subscription.isEnterprise || enterpriseSelfServe !== null
+  const showUsageLimit = subscription.isPaid && hasEditableLimit
+  const showOnDemand = hasUsablePaidAccess && hasEditableLimit && !isTrialing
 
   const usageLimitCurrent =
     subscription.isOrgScoped && organizationBilling
       ? organizationBilling.totalUsageLimit
       : usage.limit
 
-  const usageLimitMinimum =
-    subscription.isOrgScoped && organizationBilling
-      ? organizationBilling.minimumBillingAmount
-      : getPlanTierDollars(subscription.plan)
+  // A self-serve Enterprise limit cannot fall below what the contract already covers.
+  const usageLimitMinimum = enterpriseSelfServe ? covered : planIncludedAmount
   const explorePlansLabel = isOrganizationScope
     ? 'Explore organization plans'
     : 'Explore personal plans'
@@ -579,7 +605,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
               <Switch
                 id='on-demand-usage'
                 checked={isOnDemandActive}
-                disabled={isTogglingOnDemand || !canManageBilling}
+                disabled={isTogglingOnDemand || !permissions.canEditUsageLimit}
                 onCheckedChange={handleToggleOnDemand}
               />
             )}
@@ -614,11 +640,33 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             {periodEnd && (
               <div className='flex items-center justify-between'>
                 <span className='text-[var(--text-body)] text-small'>
-                  {isCancelledAtPeriodEnd ? 'Access until' : 'Next billing date'}
+                  {getPeriodEndLabel(isCancelledAtPeriodEnd, isTrialing)}
                 </span>
                 <span className='text-[var(--text-muted)] text-small'>
                   {new Date(periodEnd).toLocaleDateString()}
                 </span>
+              </div>
+            )}
+
+            {isTrialing && !isOrganizationScope && canManageBilling && !isCancelledAtPeriodEnd && (
+              <div className='flex items-center justify-between'>
+                <span className='text-[var(--text-body)] text-small'>
+                  End the trial and start paying today
+                </span>
+                <Chip
+                  disabled={endProTrial.isPending}
+                  onClick={() =>
+                    endProTrial.mutate(undefined, {
+                      onSuccess: () => toast.success('Your paid plan has started'),
+                      onError: (error) =>
+                        toast.error("Couldn't start your paid plan", {
+                          description: getErrorMessage(error, 'Please try again.'),
+                        }),
+                    })
+                  }
+                >
+                  Start paid plan
+                </Chip>
               </div>
             )}
 
@@ -631,15 +679,25 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
               </div>
             )}
 
-            <div className='flex items-center justify-between'>
-              <span className='text-[var(--text-body)] text-small'>Payment method</span>
-              <Chip
-                disabled={!canManageBilling || openBillingPortal.isPending}
-                onClick={handleOpenBillingPortal}
-              >
-                Manage in Stripe
-              </Chip>
-            </div>
+            {enterpriseSelfServe && billingOrganizationId ? (
+              <EnterprisePaymentMethodRow
+                organizationId={billingOrganizationId}
+                canManage={permissions.canManageEnterprisePayment}
+              />
+            ) : (
+              <div className='flex items-center justify-between'>
+                <span className='text-[var(--text-body)] text-small'>
+                  {hasPaymentProblem ? paymentProblemLabel : 'Payment method'}
+                </span>
+                <Chip
+                  variant={hasPaymentProblem ? 'primary' : undefined}
+                  disabled={!canManageBilling || openBillingPortal.isPending}
+                  onClick={handleOpenBillingPortal}
+                >
+                  Manage in Stripe
+                </Chip>
+              </div>
+            )}
 
             {!subscription.isEnterprise && (
               <div className='flex items-center justify-between'>
@@ -667,6 +725,13 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             )}
           </div>
         </SettingsSection>
+      )}
+
+      {enterpriseSelfServe && (
+        <EnterpriseSeatsSection
+          terms={enterpriseSelfServe}
+          billingInterval={billingInterval ?? 'year'}
+        />
       )}
 
       <AwsMarketplaceSubscriptionSection organizationId={billingOrganizationId} />

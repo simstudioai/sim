@@ -9,6 +9,7 @@ export const asanaGetProjectsTool: InternalToolConfig<
   name: 'Asana Get Projects',
   description: 'Retrieve all projects from an Asana workspace',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

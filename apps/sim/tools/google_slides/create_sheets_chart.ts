@@ -38,6 +38,7 @@ export const createSheetsChartTool: ToolConfig<CreateSheetsChartParams, CreateSh
     description:
       'Embed a chart from a Google Sheets spreadsheet onto a slide. LINKED charts can be refreshed; NOT_LINKED_IMAGE inserts a static image of the chart.',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: { required: true, provider: 'google-drive' },
 

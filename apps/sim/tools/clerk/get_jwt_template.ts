@@ -19,6 +19,7 @@ export const clerkGetJwtTemplateTool: ToolConfig<
   name: 'Get JWT Template from Clerk',
   description: 'Retrieve a single custom JWT template by ID from Clerk',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

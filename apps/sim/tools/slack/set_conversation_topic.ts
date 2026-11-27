@@ -13,6 +13,7 @@ export const slackSetConversationTopicTool: ToolConfig<
   name: 'Slack Set Conversation Topic',
   description: 'Set the topic for a Slack channel (max 250 characters).',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

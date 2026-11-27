@@ -11,6 +11,7 @@ export const netsuiteBatchCreateRecordsTool: InternalToolConfig<
   name: 'NetSuite Batch Create Records',
   description: 'Submit an asynchronous batch that creates up to 100 records of one type.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

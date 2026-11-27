@@ -27,6 +27,7 @@ export const logfireGetTraceTool: ToolConfig<LogfireGetTraceParams, LogfireRecor
   description:
     'Fetch every span and log belonging to a Logfire trace, ordered from earliest to latest, so a single request can be reconstructed end to end.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LOGFIRE_CREDENTIAL_OAUTH,
 
   params: {

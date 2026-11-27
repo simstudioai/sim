@@ -9,6 +9,7 @@ export const askAnythingTool: ToolConfig<GongAskAnythingParams, GongAskAnythingR
   description:
     'Ask a natural-language question about a CRM account, deal, contact, or lead. Gong answers from up to 60 calls and 500 emails associated with the entity. Consumes Gong credits.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

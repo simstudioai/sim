@@ -1,3 +1,4 @@
+import { JSON_TEXT_CONTAINER_TYPES, parseJsonContainer } from '@sim/workflow-code/json-text'
 import {
   normalizedStringify,
   sanitizeInputFormat,
@@ -57,6 +58,19 @@ export function shapeSubBlockValue(
 }
 
 /**
+ * JSON text in a field whose runtime parses it like the container it encodes (a child workflow's
+ * `inputMapping`, `JSON_TEXT_CONTAINER_TYPES`) is that container, so a change of encoding alone is
+ * no change to deploy. Every other field compares as stored, and the diff view still shows the
+ * encoding (`shapeSubBlockValue`).
+ */
+function decodeNativeContainer(value: unknown, spec: CanonicalFieldSpec | undefined): unknown {
+  if (typeof value !== 'string' || !spec?.type || !JSON_TEXT_CONTAINER_TYPES.has(spec.type)) {
+    return value
+  }
+  return parseJsonContainer(value) ?? value
+}
+
+/**
  * Resolves a stored subblock value to the configuration it actually represents.
  *
  * Returns `undefined` for a missing root value or an implicit trigger default.
@@ -80,7 +94,7 @@ export function canonicalizeSubBlockValue(
   stored: unknown,
   spec: CanonicalFieldSpec | undefined
 ): unknown {
-  const shaped = shapeSubBlockValue(subBlockId, stored, spec?.type)
+  const shaped = decodeNativeContainer(shapeSubBlockValue(subBlockId, stored, spec?.type), spec)
 
   /*
    * Root absence is canonicalized separately from structured values, where

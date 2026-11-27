@@ -12,6 +12,7 @@ export const userProfileTool: ToolConfig<AmplitudeUserProfileParams, AmplitudeUs
     description:
       'Get a user profile including properties, cohort memberships, and computed properties. Not available for EU data-residency projects.',
     version: '1.0.0',
+    effect: 'read',
     oauth: AMPLITUDE_PROFILE_CREDENTIAL_OAUTH,
 
     params: {

@@ -23,6 +23,7 @@ export const worksheetAddTool: ToolConfig<
   name: 'Add Worksheet to Microsoft Excel',
   description: 'Create a new worksheet (sheet) in a Microsoft Excel workbook',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

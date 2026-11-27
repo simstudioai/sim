@@ -11,6 +11,7 @@ export const getDriveItemTool: ToolConfig<SharepointToolParams, SharepointGetDri
   name: 'Get SharePoint Drive Item',
   description: 'Get metadata for a file or folder in a SharePoint document library',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

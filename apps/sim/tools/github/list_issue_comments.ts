@@ -10,6 +10,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
   name: 'GitHub Issue Comments Lister',
   description: 'List all comments on a GitHub issue',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -149,6 +150,7 @@ export const listIssueCommentsV2Tool: ToolConfig<ListIssueCommentsParams, any> =
   name: listIssueCommentsTool.name,
   description: listIssueCommentsTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listIssueCommentsTool.params,
   request: listIssueCommentsTool.request,

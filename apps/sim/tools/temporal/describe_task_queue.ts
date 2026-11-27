@@ -19,6 +19,7 @@ export const describeTaskQueueTool: ToolConfig<
   description:
     'List the workers currently polling a Temporal task queue, to check whether a workflow or activity has live workers.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     serverUrl: {

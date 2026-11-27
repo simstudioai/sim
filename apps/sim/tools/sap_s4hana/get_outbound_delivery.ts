@@ -15,6 +15,7 @@ export const getOutboundDeliveryTool: InternalToolConfig<
   description:
     'Retrieve a single outbound delivery by DeliveryDocument key from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=0002, A_OutbDeliveryHeader).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

@@ -10,6 +10,7 @@ export const listTagsTool: ToolConfig<DynatraceListTagsParams, DynatraceListTags
   name: 'Dynatrace List Tags',
   description: 'List the custom tags applied to the monitored entities an entity selector matches.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

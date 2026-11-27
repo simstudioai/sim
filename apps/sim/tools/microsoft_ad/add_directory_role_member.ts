@@ -14,6 +14,7 @@ export const addDirectoryRoleMemberTool: ToolConfig<
   description:
     'Grant a user an administrator role in Microsoft Entra ID. This is a privileged change that expands what the user can do across the tenant.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

@@ -34,6 +34,7 @@ export const sportmonksGetPrematchNewsTool: ToolConfig<
   name: 'Get Pre-Match News',
   description: 'Retrieve all pre-match news articles available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -9,6 +9,7 @@ export const deleteAudienceTool: ToolConfig<ThriveDeleteAudienceParams, ThriveDe
   name: 'Thrive Delete Audience',
   description: 'Delete an audience in Thrive (only if it has no child audiences).',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

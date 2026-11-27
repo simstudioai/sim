@@ -310,6 +310,9 @@ print compiles with zero errors.
 - Blocks are declared in topological order per scope; ties sort by trigger first, then hint
   `order`, then key. A ref that would point forward (a ref cycle) prints as literal text
   (`W_FORWARD_REF_LITERALIZED`).
+- Each wiring statement prints right under the last-declared block it names, so a block's incoming
+  edges sit under its declaration and its outgoing ones under each target: finding a block's edges
+  in a long file needs no search. Compile takes wiring anywhere after the blocks it names.
 - Idents come from hints, else `assignIdentifiers`.
 - Only active values print, and none equal to its default. A pair prints under its
   `canonicalParamId` (or its alias) and the value kind alone picks the member (see SYNTAX.md "Pair
@@ -401,9 +404,23 @@ A JSON code field (a `code` subBlock holding JSON text: an agent's `responseForm
 splices a reference's value into such text raw for a string and as JSON otherwise, so a bare
 reference in a literal is stored by its output type: quoted (`"<a.b>"`) when the catalog or the
 workflow types it `string`, bare (`<a.b>`) otherwise, and bare with `W_JSON_REF_UNTYPED` when
-nothing types it. A string in the literal (a template or plain string) is always a JSON string. The
+nothing types it. An output the catalog types `json` or `any` that can hold text (a Function's
+`result`, an HTTP `data`) is untyped unless the code says otherwise. A Function's `result` and
+`result.<field>` are typed by what its JavaScript certainly returns there (`refValueKind` reads
+`function-returns.ts`), so a text field is quoted at compile. The printer writes that stored
+quoted token back as `` t`${score.result.tier}` ``, not the bare reference: a type inferred from a
+Function's code (or a child workflow's Response data) changes with an edit to that other code, and
+a bare reference to it would then compile bare, so an edit to one block would silently rewrite
+the storage of every unedited block that reads it (`refDeclaresString`). A quoted token prints bare
+only when a declaration (the catalog, a variable's type, an input or response format) types it a
+string. At run time the resolver (`placeholderSplicer`) escapes a token inside a
+JSON string as string content and splices a bare one as JSON: a string becomes a JSON string unless
+it already reads as JSON (a string holding JSON text nests on purpose). So typing still matters for
+the one case the runtime cannot decide: text that reads as JSON (`12345`, `true`) stays text only
+when stored quoted. A string in the literal (a template or plain string) is always a JSON string. The
 printer writes stored text back as a literal only when serializing that literal reproduces the text
-byte for byte; print and compile decide each token's form through the same `refValueKind`. In a
+byte for byte; print and compile decide each token's form through the same `refValueKind`, the
+printer reading only declarations for a quoted one. In a
 pair, a list or object literal never lands in the JSON code member when the other member takes it
 as written (`table_v2`'s filter builder).
 
@@ -623,7 +640,8 @@ failures in `workflow_source_applied`, `workflow_source_dry_run` and `workspace_
 - Function code is one verbatim file per block: no imports, no shared modules, and `$ref`/`$env`
   are untyped globals in JavaScript. Source has no loops or helpers that generate blocks; the
   compiler accepts only the printed grammar.
-- Nothing runs locally. Checks happen on apply (or `--dry-run`); `tsc -p .` checks types only.
+- Nothing in the source runs. `source check` compiles and type-checks it offline; the server's
+  checks happen on apply (or `--dry`).
 - A comment inside an expression is hoisted to its enclosing anchor (`W_COMMENT_MOVED`).
 - Chat in the product does not write through source yet.
 

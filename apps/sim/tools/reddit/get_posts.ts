@@ -11,6 +11,7 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
   name: 'Get Reddit Posts',
   description: 'Fetch posts from a subreddit with different sorting options',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -27,6 +27,7 @@ export const fivetranListTransformationsTool: ToolConfig<
   description:
     'List Fivetran transformations (dbt Core and Quickstart) with their status, schedule, and last run times.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

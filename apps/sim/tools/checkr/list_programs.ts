@@ -25,6 +25,7 @@ export const checkrListProgramsTool: ToolConfig<
   name: 'Checkr List Programs',
   description: 'List programs, which group packages and geos, optionally filtered by name.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

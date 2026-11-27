@@ -37,6 +37,7 @@ export const outlookCalendarCreateEventTool: ToolConfig<
   name: 'Outlook Create Calendar Event',
   description: 'Create a new Outlook calendar event',
   version: '1.0.0',
+  effect: 'write',
 
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 

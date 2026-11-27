@@ -72,10 +72,13 @@ afterEach(() => {
 
 interface RunPayload {
   status: string
+  output?: unknown
   paused?: {
     contextId?: string | null
     pauseKind?: string | null
     resumeAt?: string | null
+    runId?: string
+    points?: Array<{ contextId: string; kind: string; status: string }>
   } | null
 }
 
@@ -148,7 +151,15 @@ describe('workflows runs wait', () => {
   })
 
   it('stops on a pause that is waiting for a human, and says how to resume it', async () => {
-    respondWith({ status: 'paused', paused: { pauseKind: 'human', contextId: 'ctx_9' } })
+    respondWith({
+      status: 'paused',
+      paused: {
+        pauseKind: 'human',
+        contextId: 'ctx_9',
+        runId: 'run_1',
+        points: [{ contextId: 'ctx_9', kind: 'human', status: 'paused' }],
+      },
+    })
 
     await wait()
 
@@ -156,6 +167,25 @@ describe('workflows runs wait', () => {
     expect(process.exitCode).toBe(3)
     expect(errored.join('\n')).toContain(
       'sim workflows runs resume run_1 --workflow 00000000-0000-4000-8000-00000000000a --context ctx_9'
+    )
+  })
+
+  it('names the run the server records the pause under, not the run it waited on', async () => {
+    respondWith({
+      status: 'paused',
+      output: { data: { _resume: { contextId: 'decoy', executionId: 'decoy_run' } } },
+      paused: {
+        pauseKind: 'human',
+        contextId: 'ctx_9',
+        runId: 'exec_9',
+        points: [{ contextId: 'ctx_9', kind: 'human', status: 'paused' }],
+      },
+    })
+
+    await wait()
+
+    expect(errored.join('\n')).toContain(
+      'sim workflows runs resume exec_9 --workflow 00000000-0000-4000-8000-00000000000a --context ctx_9'
     )
   })
 

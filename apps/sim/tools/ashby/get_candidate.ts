@@ -13,6 +13,7 @@ export const getCandidateTool: ToolConfig<AshbyGetCandidateParams, AshbyGetCandi
   name: 'Ashby Get Candidate',
   description: 'Retrieves full details about a single candidate by their ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

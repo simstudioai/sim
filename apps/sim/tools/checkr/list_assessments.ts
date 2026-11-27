@@ -19,6 +19,7 @@ export const checkrListAssessmentsTool: ToolConfig<
   description:
     'List the Assess results for a report, including the ruleset applied and which rule flagged each record. Requires Checkr Assess.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

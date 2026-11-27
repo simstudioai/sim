@@ -24,6 +24,7 @@ export const quickbooksVoidInvoiceTool: ToolConfig<
   name: 'QuickBooks Void Invoice',
   description: 'Void an invoice after explicit confirmation',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

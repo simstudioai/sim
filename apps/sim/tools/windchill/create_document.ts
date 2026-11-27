@@ -14,6 +14,7 @@ export const windchillCreateDocumentTool: InternalToolConfig<WindchillParams, Wi
   name: 'Windchill Create Document',
   description: 'Create one WT.Document',
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

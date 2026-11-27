@@ -24,6 +24,7 @@ export const monacoListAccountsTool: ToolConfig<
   name: 'Monaco List Accounts',
   description: 'List Monaco accounts with optional filters, sorting, and pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

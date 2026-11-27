@@ -43,6 +43,7 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
   name: 'Perplexity Chat',
   description: 'Generate completions using Perplexity AI chat models',
   version: '1.0',
+  effect: 'read',
 
   params: {
     systemPrompt: {

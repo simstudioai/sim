@@ -10,6 +10,7 @@ export const searchLocationsTool: InternalToolConfig<SearchLocationsParams, SapC
   name: 'SAP Concur Search Locations',
   description: 'Search Concur location reference data (GET /localities/v5/locations).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

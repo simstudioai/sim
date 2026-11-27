@@ -1,5 +1,5 @@
 import { type ScheduledPassResult, startScheduledPass } from '@/lib/core/async-jobs/scheduled-pass'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { createDetachedTouch } from '@/lib/core/utils/background'
@@ -27,8 +27,11 @@ export async function runActivityRollupMaintenance(): Promise<void> {
   const { runActivityRollupPass } = await import('@/lib/billing/activity-rollup/pass')
   await runActivityRollupPass({
     budgetMs: ACTIVITY_ROLLUP_PASS_BUDGET_MS,
-    backfillRowsPerSecond:
-      env.ACTIVITY_ROLLUP_BACKFILL_ROWS_PER_SECOND ?? DEFAULT_BACKFILL_ROWS_PER_SECOND,
+    backfillRowsPerSecond: envNumber(
+      env.ACTIVITY_ROLLUP_BACKFILL_ROWS_PER_SECOND,
+      DEFAULT_BACKFILL_ROWS_PER_SECOND,
+      { min: 1, integer: true }
+    ),
     backfillMinGapMs: BACKFILL_MIN_GAP_MS,
   })
 }

@@ -14,6 +14,7 @@ export const deleteIndexTool: ToolConfig<
   name: 'Elasticsearch Delete Index',
   description: 'Delete an index and all its documents. This operation is irreversible.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     deploymentType: {

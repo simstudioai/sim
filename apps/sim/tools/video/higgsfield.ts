@@ -7,6 +7,7 @@ export const higgsfieldVideoTool: InternalToolConfig<VideoParams, VideoResponse>
   name: 'Higgsfield Video',
   description: 'Generate videos with Kling, Seedance, MiniMax, and Hailuo models on Higgsfield',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     provider: {

@@ -19,6 +19,7 @@ export const powerbiGetDatasetTool: ToolConfig<PowerBIDatasetParams, PowerBIGetD
   name: 'Power BI Get Semantic Model',
   description: 'Get semantic model metadata from a Power BI workspace.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: { required: true, provider: 'microsoft-powerbi' },
   params: {

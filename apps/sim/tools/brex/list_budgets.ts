@@ -14,6 +14,7 @@ export const brexListBudgetsTool: ToolConfig<BrexPaginationParams, BrexListBudge
   name: 'Brex List Budgets',
   description: 'List budgets in the Brex account',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

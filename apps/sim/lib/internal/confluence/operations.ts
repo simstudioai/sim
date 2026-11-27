@@ -66,7 +66,7 @@ import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-
 import { processSingleFileToUserFile, type RawFileInput } from '@/lib/uploads/utils/file'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
-import { cleanHtmlContent } from '@/tools/confluence/utils'
+import { cleanHtmlContent, isNumericConfluenceSpaceId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluenceOperations')
@@ -130,7 +130,6 @@ function mappedLabels(value: unknown): JsonObject[] {
   })
 }
 
-const NUMERIC_SPACE_ID_PATTERN = /^[1-9][0-9]{0,19}$/
 const SPACE_STATUSES = ['current', 'archived'] as const
 
 function normalizedConfluenceSpaceKey(value: string): string {
@@ -163,14 +162,14 @@ async function resolveConfluenceSpaceId(
   signal?: AbortSignal
 ): Promise<string> {
   const spaceIdentifier = value.trim()
-  if (NUMERIC_SPACE_ID_PATTERN.test(spaceIdentifier)) return spaceIdentifier
+  if (isNumericConfluenceSpaceId(spaceIdentifier)) return spaceIdentifier
 
   const spaceKey = normalizedConfluenceSpaceKey(spaceIdentifier)
   const space = await findConfluenceSpaceByKey(client, spaceKey, signal)
   const resolvedId = space?.id
   if (
     (typeof resolvedId !== 'string' && typeof resolvedId !== 'number') ||
-    !NUMERIC_SPACE_ID_PATTERN.test(String(resolvedId))
+    !isNumericConfluenceSpaceId(String(resolvedId))
   ) {
     throw new ConfluenceOperationError(`Confluence space key "${spaceKey}" was not found`, 404)
   }
@@ -183,7 +182,7 @@ async function resolveConfluenceSpaceKey(
   signal?: AbortSignal
 ): Promise<string> {
   const spaceIdentifier = normalizedConfluenceSpaceKey(value)
-  if (!NUMERIC_SPACE_ID_PATTERN.test(spaceIdentifier)) return spaceIdentifier
+  if (!isNumericConfluenceSpaceId(spaceIdentifier)) return spaceIdentifier
 
   const space = await client.json(client.apiV2(`/spaces/${spaceIdentifier}`), {}, signal)
   if (typeof space.key !== 'string' || !space.key) {

@@ -3,6 +3,8 @@ import {
   requirePrincipalSubjectUserId,
   type WorkflowExecutionPrincipal,
 } from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import {
@@ -16,10 +18,14 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { resolveTriggerExecution } from '@/lib/workflows/application/run-workflow-from-copilot'
+import { type SideEffectsSummary, WriteStubPolicy } from '@/lib/workflows/dry-run'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import type { ExecutionTestHooks } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { attachAttemptedExecutionId } from '@/executor/utils/errors'
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
+
+const logger = createLogger('RunWorkflowForTest')
 
 export type WorkflowTestVersion = 'draft' | 'deployed'
 
@@ -39,12 +45,17 @@ export interface RunWorkflowForTestInput {
   triggerBlockId?: string
   testHooks: ExecutionTestHooks
   abortSignal: AbortSignal
+  /** What the run did with the writes it reached, once it ends, failed runs included. */
+  onSideEffects: (executionId: string, sideEffects: SideEffectsSummary) => void
 }
 
 /**
  * One workflow run inside a workflow test: the workflow's single runnable trigger, the
- * test's input, and its mocks installed as executor test hooks. Billed and logged like any
- * run, under the `test` trigger.
+ * test's input, and its mocks installed as executor test hooks. A write the test does not mock
+ * is not sent: as in a dry run, it is answered with a placeholder shaped like the tool's output,
+ * a `fetch` the workflow's code makes with any method but GET, HEAD or OPTIONS gets an empty 200,
+ * and a Human in the loop or Wait block is answered whole, so the run never pauses. Billed and
+ * logged like any run, under the `test` trigger.
  *
  * A step of the `workflow_tests.run` operation, which authorized the caller's write access to
  * the workspace before any test ran; nothing else may call it. Each nested run is not
@@ -66,7 +77,7 @@ export async function runWorkflowForTest(
       workflowInput: input.workflowInput,
       hasWorkflowInput: true,
       ...(input.triggerBlockId ? { triggerBlockId: input.triggerBlockId } : {}),
-      useMockPayload: false,
+      sample: false,
     },
     workspaceId: context.workspaceId,
   })
@@ -115,6 +126,7 @@ export async function runWorkflowForTest(
       )
     }
   }
+  const sideEffects = new WriteStubPolicy({ workflowId: context.workflowId })
   try {
     const result = await executeWorkflow(
       {
@@ -130,12 +142,13 @@ export async function runWorkflowForTest(
         enabled: true,
         principal,
         useDraftState,
-        workflowTriggerType: 'test',
+        workflowTriggerType: TEST_TRIGGER,
         enforceCredentialAccess: true,
         triggerBlockId: prepared.triggerBlockId,
         abortSignal: input.abortSignal,
         billingAttribution,
         testHooks: input.testHooks,
+        sideEffects,
       },
       executionId
     )
@@ -145,6 +158,14 @@ export async function runWorkflowForTest(
     throw error
   } finally {
     await releaseExecutionSlot(executionId)
+    try {
+      input.onSideEffects(executionId, sideEffects.summary())
+    } catch (error) {
+      logger.warn('Recording a test run’s side effects failed', {
+        executionId,
+        error: getErrorMessage(error),
+      })
+    }
   }
 }
 

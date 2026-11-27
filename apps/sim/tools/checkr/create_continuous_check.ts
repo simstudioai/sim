@@ -26,6 +26,7 @@ export const checkrCreateContinuousCheckTool: ToolConfig<
   description:
     'Enroll a candidate in continuous criminal or motor vehicle monitoring so new records trigger a report.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

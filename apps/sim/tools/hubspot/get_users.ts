@@ -10,6 +10,7 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
   name: 'Get Users from HubSpot',
   description: 'Retrieve all users from HubSpot account',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

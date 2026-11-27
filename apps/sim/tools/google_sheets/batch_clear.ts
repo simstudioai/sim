@@ -13,6 +13,7 @@ export const batchClearV2Tool: ToolConfig<
   name: 'Batch Clear Google Sheets V2',
   description: 'Clear multiple ranges in a Google Sheets spreadsheet in a single request',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

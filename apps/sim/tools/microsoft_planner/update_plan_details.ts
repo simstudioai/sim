@@ -19,6 +19,7 @@ export const updatePlanDetailsTool: ToolConfig<
   description:
     "Update a plan's category (color label) descriptions and shared-with user list in Microsoft Planner",
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

@@ -13,6 +13,7 @@
 import type { AnyColumn } from 'drizzle-orm'
 import { eq, like, or, type SQL } from 'drizzle-orm'
 import {
+  ANNUAL_DISCOUNT_RATE,
   CREDIT_TIERS,
   CREDITS_PER_DOLLAR,
   DEFAULT_PRO_TIER_COST_LIMIT,
@@ -105,6 +106,15 @@ export function getPlanTierDollars(plan: string | null | undefined): number {
   if (plan === 'pro') return DEFAULT_PRO_TIER_COST_LIMIT
   if (plan === 'team') return DEFAULT_TEAM_TIER_COST_LIMIT
   return 0
+}
+
+/**
+ * A plan's per-seat monthly price as shown to customers: the list price on monthly billing, or the
+ * annual price spread over twelve months, to the cent ($21.25, not $21).
+ */
+export function formatMonthlyPlanPrice(monthlyDollars: number, isAnnual: boolean): string {
+  const price = isAnnual ? monthlyDollars * (1 - ANNUAL_DISCOUNT_RATE) : monthlyDollars
+  return `$${Number.isInteger(price) ? price : price.toFixed(2)}`
 }
 
 /**

@@ -22,6 +22,7 @@ export const brexCreateBudgetTool: ToolConfig<
   name: 'Brex Create Budget',
   description: 'Create a new budget in the Brex account',
   version: '1.0.0',
+  effect: 'write',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

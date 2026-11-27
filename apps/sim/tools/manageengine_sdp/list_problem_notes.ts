@@ -23,6 +23,7 @@ export const manageengineSdpListProblemNotesTool: ToolConfig<
   name: 'ManageEngine SDP List Problem Notes',
   description: 'List the notes on a ManageEngine ServiceDesk Plus Cloud problem.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

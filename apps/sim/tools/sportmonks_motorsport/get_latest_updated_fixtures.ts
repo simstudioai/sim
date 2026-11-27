@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetLatestUpdatedFixturesTool: ToolConfig<
   name: 'Get Latest Updated Motorsport Fixtures',
   description: 'Retrieve the most recently updated motorsport fixtures (sessions) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

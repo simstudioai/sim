@@ -13,6 +13,7 @@ export const companyEnrichTool: ToolConfig<PdlCompanyEnrichParams, PdlCompanyEnr
   description:
     'Enrich a single company using People Data Labs. Match by name, website, LinkedIn URL, ticker, or PDL ID.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,

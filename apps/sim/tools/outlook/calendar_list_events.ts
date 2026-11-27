@@ -24,6 +24,7 @@ export const outlookCalendarListEventsTool: ToolConfig<
   name: 'Outlook List Calendar Events',
   description: 'List Outlook calendar events within a start/end time window',
   version: '1.0.0',
+  effect: 'read',
 
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 

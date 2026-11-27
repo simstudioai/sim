@@ -8,6 +8,7 @@ export const sendGridDeleteContactsTool: ToolConfig<DeleteContactParams, ToolRes
   name: 'SendGrid Delete Contacts',
   description: 'Delete one or more contacts from SendGrid',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

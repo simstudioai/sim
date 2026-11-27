@@ -7,6 +7,7 @@ export const slackRevokeCanvasAccessTool = createSlackWebApiTool({
   name: 'Slack Revoke Canvas Access',
   description:
     'Remove user or regular-channel access to a standalone canvas. Channel-granted access must be revoked at the channel level.',
+  effect: 'write',
   endpoint: 'canvases.access.delete',
   method: 'POST',
   oauth: { required: true, provider: 'slack', requiredScopes: ['canvases:write'] },

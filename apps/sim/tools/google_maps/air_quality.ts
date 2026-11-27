@@ -12,6 +12,7 @@ export const googleMapsAirQualityTool: ToolConfig<
   name: 'Google Maps Air Quality',
   description: 'Get current air quality data for a location',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

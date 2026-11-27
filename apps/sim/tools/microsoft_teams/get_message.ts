@@ -14,7 +14,8 @@ export const getMessageTool: ToolConfig<
   name: 'Get Microsoft Teams Message',
   description: 'Get a specific message from a Microsoft Teams chat or channel',
   version: '1.0',
-  assistant: { effect: 'read', version: 1 },
+  effect: 'read',
+  assistant: { version: 1 },
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

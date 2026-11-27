@@ -14,6 +14,7 @@ export const instagramPublishCarouselTool: InternalToolConfig<
   name: 'Instagram Publish Carousel',
   description: 'Publish a carousel of 2-10 images or videos from Sim files',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

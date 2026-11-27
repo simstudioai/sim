@@ -25,6 +25,7 @@ export const getCampaignAnalyticsTool: ToolConfig<
   description:
     'Retrieves lifetime performance totals for a Smartlead campaign — sends, opens, clicks, replies, bounces, and lead counts by state.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

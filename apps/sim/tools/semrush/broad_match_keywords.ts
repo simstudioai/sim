@@ -22,6 +22,7 @@ export const semrushBroadMatchKeywordsTool: ToolConfig<
   description:
     'Find broad-match and phrase-match variations of a seed keyword, with volume and difficulty.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

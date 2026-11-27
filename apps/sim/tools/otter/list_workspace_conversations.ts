@@ -25,6 +25,7 @@ export const otterListWorkspaceConversationsTool: ToolConfig<
   description:
     'List every conversation in an Otter workspace, most recent first. Requires an Otter Super Admin API key in a workspace with Super Admin enabled.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {

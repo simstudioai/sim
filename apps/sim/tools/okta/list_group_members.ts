@@ -20,6 +20,7 @@ export const oktaListGroupMembersTool: ToolConfig<
   name: 'List Group Members from Okta',
   description: 'List all members of a specific group in your Okta organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

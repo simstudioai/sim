@@ -18,6 +18,7 @@ export const spotifySaveAudiobooksTool: ToolConfig<
   name: 'Spotify Save Audiobooks',
   description: "Save audiobooks to the user's library.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

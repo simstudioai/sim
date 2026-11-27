@@ -14,6 +14,7 @@ export const telegramSendDocumentTool: InternalToolConfig<
   description:
     'Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the Telegram Bot API.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
 
   params: {

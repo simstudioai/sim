@@ -97,7 +97,7 @@ const HOME_JSON_LD = {
       '@id': `${SITE_URL}#software`,
       url: SITE_URL,
       name: 'Sim, The AI Workspace',
-      description: `Sim is the open-source AI workspace where companies build, distribute, and govern AI agents in one place. Teams build agents visually, conversationally, or with code across ${INTEGRATION_COUNT_LABEL} integrations and every major LLM, while administrators control model access, integration access, spend limits, and deployment. Trusted by over 100,000 builders. SOC2 compliant and self-hostable.`,
+      description: `Sim is the open-source AI workspace where companies build, distribute, and govern AI agents in one place. Teams build agents visually, conversationally, or with code across ${INTEGRATION_COUNT_LABEL} integrations and every major LLM, while administrators control model access, integration access, spend limits, and deployment. Trusted by over 100,000 builders. SOC 2 Type II audited and self-hostable.`,
       applicationCategory: 'BusinessApplication',
       applicationSubCategory: 'AI Workspace',
       operatingSystem: 'Web',

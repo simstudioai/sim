@@ -10,6 +10,7 @@ export const slackUpdateMessageTool: InternalToolConfig<
   name: 'Slack Update Message',
   description: 'Update a message previously sent by the bot in Slack',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

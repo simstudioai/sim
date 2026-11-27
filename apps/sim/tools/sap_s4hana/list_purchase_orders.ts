@@ -11,6 +11,7 @@ export const listPurchaseOrdersTool: InternalToolConfig<
   description:
     'List purchase orders from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

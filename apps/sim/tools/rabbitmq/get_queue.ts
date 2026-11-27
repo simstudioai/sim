@@ -16,6 +16,7 @@ export const rabbitmqGetQueueTool: ToolConfig<RabbitmqGetQueueParams, RabbitmqGe
   description:
     'Read a single RabbitMQ queue, including its depth, consumer count, and declaration settings.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

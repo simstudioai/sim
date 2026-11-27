@@ -68,20 +68,50 @@ const LEADS = "// @sim-sdk 1\nexport default defineTable({ name: 'leads', column
 const INGEST = "// @sim-sdk 1\nexport default workflow('Ingest', {}, () => {})\n"
 /** A workflow folder's base, as a get in `workspaceId` writes it. */
 const folderBase = (workspaceId: string) =>
-  JSON.stringify({ workflowId: 'wf_1', workspaceId, fingerprint: 'sf1:a', catalogHash: 'c' })
+  JSON.stringify({
+    version: 1,
+    workflowId: 'wf_1',
+    workspaceId,
+    fingerprint: 'sf1:a',
+    catalogHash: 'c',
+  })
 const INGEST_BASE = folderBase('ws_local')
 
 function answer(overrides: Record<string, unknown> = {}) {
   return {
     data: {
       workspaceId: 'ws_local',
-      dryRun: false,
+      dry: false,
       plan: [],
       applied: [],
       needBlobs: [],
       files: {},
       base: BASE,
       diagnostics: [],
+      ...overrides,
+    },
+  }
+}
+
+/** A deployment status of `wf_1`, live at `version` (none when null), serving `webhooks`. */
+function deploymentStatus(
+  version: number | null,
+  overrides: Record<string, unknown> = {}
+): { data: Record<string, unknown> } {
+  return {
+    data: {
+      id: 'wf_1',
+      isDeployed: version !== null,
+      deployedAt: null,
+      warnings: [],
+      activeDeployment:
+        version === null
+          ? null
+          : { deploymentVersionId: `dv-${version}`, version, deployedAt: '2026-11-20T00:00:00Z' },
+      latestDeploymentAttempt: null,
+      needsRedeployment: false,
+      isPublicApi: false,
+      webhooks: [],
       ...overrides,
     },
   }
@@ -110,6 +140,7 @@ beforeEach(() => {
   contextMockState.workspaceSource = 'config'
   request.mockReset()
   mockRequest.mockReset()
+  contextMockFns.mockRequestRaw.mockReset()
   mockRequest.mockImplementation((path: string, options: { body?: unknown; form?: FormData }) =>
     path.includes('/source/blobs') ? stagingAnswer(path, options) : request(path, options)
   )
@@ -126,27 +157,52 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // A printed `next.command` is run as printed: a `{…}` placeholder belongs in its reason.
+  for (const [line] of vi.mocked(console.log).mock.calls) {
+    let printed: { next?: { command?: unknown } } | undefined
+    try {
+      printed = JSON.parse(String(line))
+    } catch {
+      continue
+    }
+    expect(String(printed?.next?.command ?? '')).not.toContain('…')
+  }
+})
+
+afterEach(() => {
   process.exitCode = undefined
   rmSync(dir, { recursive: true, force: true })
 })
 
+/** Stderr of an apply in human output, where its plan prints: a machine result carries it. */
+async function humanPlan(...argv: string[]): Promise<string> {
+  vi.mocked(console.error).mockClear()
+  contextMockState.output = 'table'
+  await apply(...argv)
+  return vi
+    .mocked(console.error)
+    .mock.calls.map((call) => call.join(' '))
+    .join('\n')
+}
+
 describe('workspaces source apply', () => {
-  it('without --yes and nobody at a terminal, prints the plan, writes nothing and exits 14', async () => {
+  it('without --yes and nobody at a terminal, prints the plan in the JSON alone, writes nothing and exits 14', async () => {
     request.mockResolvedValue(
-      answer({ dryRun: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+      answer({ dry: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
     )
 
     await apply('--allow-delete')
 
-    expect(request.mock.calls.map((call) => call[1].query?.dryRun === true)).toEqual([true])
+    expect(request.mock.calls.map((call) => call[1].query?.dry === true)).toEqual([true])
     expect(process.exitCode).toBe(14)
     const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     expect(printed).toMatchObject({
-      dryRun: true,
+      dry: true,
       created: [{ kind: 'table', key: 'leads' }],
       next: { command: `sim workspaces source apply --dir ${dir} --allow-delete --yes` },
     })
-    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('+ leads')
+    // The JSON carries the plan, so `2>&1` stays one document.
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).not.toContain('leads')
   })
 
   it('with --yes, prints the plan it applied', async () => {
@@ -157,6 +213,7 @@ describe('workspaces source apply', () => {
       })
     )
 
+    contextMockState.output = 'table'
     await apply('--yes')
 
     expect(request).toHaveBeenCalledTimes(1)
@@ -173,7 +230,7 @@ describe('workspaces source apply', () => {
     })
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'skill', key: 'tone', action: 'noop' },
           { kind: 'file', key: 'notes.txt', action: 'noop' },
@@ -186,17 +243,17 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
-    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
-    expect(stderr).toContain('skills: 1 changed on the server')
-    expect(stderr).toContain('files: 1 unchanged, 1 deleted on the server')
-    expect(stderr).toContain('  ! partial.txt (deleted on the server; kept as the server has it)')
     const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     expect(printed.diagnostics.map((finding: { code: string }) => finding.code)).toEqual([
       'W_SERVER_CHANGED',
       'W_SERVER_DELETED',
     ])
+    const stderr = await humanPlan('--dry')
+    expect(stderr).toContain('skills: 1 changed on the server')
+    expect(stderr).toContain('files: 1 unchanged, 1 deleted on the server')
+    expect(stderr).toContain('  ! partial.txt (deleted on the server; kept as the server has it)')
   })
 
   it('puts each finding of a dry run in the JSON on stdout', async () => {
@@ -210,9 +267,9 @@ describe('workspaces source apply', () => {
       kind: 'table',
       key: 'leads',
     }
-    request.mockResolvedValue(answer({ dryRun: true, diagnostics: [finding] }))
+    request.mockResolvedValue(answer({ dry: true, diagnostics: [finding] }))
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     const calls = vi.mocked(console.log).mock.calls
     expect(calls).toHaveLength(1)
@@ -380,7 +437,7 @@ describe('workspaces source apply', () => {
       return answer({ workspaceId: 'ws_prod', base: live })
     })
 
-    await apply('--to', 'ws_prod', '--only', 'tables', '--dry-run')
+    await apply('--to', 'ws_prod', '--only', 'tables', '--dry')
     expect(existsSync(join(dir, '.sim/targets/ws_prod.json'))).toBe(false)
     await apply('--to', 'ws_prod', '--only', 'tables', '--yes')
     expect(JSON.parse(readFileSync(join(dir, '.sim/targets/ws_prod.json'), 'utf8'))).toMatchObject({
@@ -400,7 +457,7 @@ describe('workspaces source apply', () => {
   it('counts the changes that delete data in a dry run, and says re-applying an older directory does not restore it', async () => {
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         plan: [
           {
             kind: 'table',
@@ -419,21 +476,30 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     expect(summary).toMatchObject({ deleted: 1, destructive: 2 })
-    const stderr = vi
-      .mocked(console.error)
-      .mock.calls.map((call) => call.join(' '))
-      .join('\n')
-    expect(stderr).toContain('2 change(s) delete data that applying an older directory')
+    // The JSON names each change and what it loses, as the printed plan does.
+    expect(summary.plan).toEqual([
+      {
+        kind: 'table',
+        key: 'leads',
+        action: 'update',
+        destructive: { what: 'rows', counts: { rows: 40 } },
+      },
+      { kind: 'skill', key: 'tone', action: 'delete', destructive: { what: 'skill', counts: {} } },
+      { kind: 'workflow', key: 'ingest', action: 'update' },
+    ])
+    expect(await humanPlan('--dry')).toContain(
+      '2 change(s) delete data that applying an older directory'
+    )
   })
 
   it('prints a delete refused for want of --allow-delete as refused, not unchanged', async () => {
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'skill', key: 'tone', action: 'noop' },
           { kind: 'skill', key: 'brief', action: 'noop' },
@@ -450,9 +516,7 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
-
-    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    const stderr = await humanPlan('--dry')
     expect(stderr).toContain('skills: 1 delete refused, 1 unchanged')
     expect(stderr).toContain('  - tone — refused, needs --allow-delete')
   })
@@ -474,7 +538,7 @@ describe('workspaces source apply', () => {
       }
       return answer({
         workspaceId: 'ws_prod',
-        dryRun: true,
+        dry: true,
         plan: [{ kind: 'table', key: 'leads', action: 'create' }],
         diagnostics: [
           {
@@ -488,12 +552,12 @@ describe('workspaces source apply', () => {
       })
     })
 
-    await apply('--to', 'ws_prod', '--dry-run')
+    await apply('--to', 'ws_prod', '--dry')
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     expect(summary).toMatchObject({
       workspaceId: 'ws_prod',
-      dryRun: true,
+      dry: true,
       created: [{ kind: 'table', key: 'leads' }],
       diagnostics: [expect.objectContaining({ code: 'W_UNDECLARED', key: 'audit' })],
     })
@@ -544,7 +608,7 @@ describe('workspaces source apply', () => {
       }
       return answer({
         workspaceId: 'ws_prod',
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'table', key: 'gone', action: 'noop' },
           { kind: 'table', key: 'leads', action: 'noop' },
@@ -587,7 +651,7 @@ describe('workspaces source apply', () => {
       'tables',
       '--allow-delete',
       '--delete-target-only',
-      '--dry-run'
+      '--dry'
     )
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
@@ -607,7 +671,15 @@ describe('workspaces source apply', () => {
     expect(stale.hint).not.toContain('.sim/targets/ws_prod.json first')
     const [drifted] = byCode('W_SERVER_CHANGED')
     expect(drifted.hint).toContain('sim workspaces source get --workspace ws_prod')
-    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    const stderr = await humanPlan(
+      '--to',
+      'ws_prod',
+      '--only',
+      'tables',
+      '--allow-delete',
+      '--delete-target-only',
+      '--dry'
+    )
     expect(stderr).toContain('  ! gone (deleted on the server; kept as the server has it)')
     expect(stderr).toContain('  ! leads (changed on the server; your edit is refused as stale)')
     expect(stderr).not.toContain('resource(s) that only workspace ws_prod holds')
@@ -654,7 +726,7 @@ describe('workspaces source apply', () => {
       sent.push(options.body)
       return answer({
         workspaceId: 'ws_prod',
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'table', key: 'leads', action: 'noop' },
           { kind: 'table', key: 'dropped', action: 'delete' },
@@ -673,7 +745,7 @@ describe('workspaces source apply', () => {
       })
     })
 
-    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--dry-run')
+    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--dry')
 
     const [body] = sent as Array<{ base: { resources: Record<string, unknown> } }>
     expect(Object.keys(body.base.resources).sort()).toEqual(['table:dropped', 'table:leads'])
@@ -777,12 +849,12 @@ describe('workspaces source apply', () => {
   })
 
   it('dry-runs a directory no one may write, and refuses to apply it with the reason, not a crash', async () => {
-    request.mockResolvedValue(answer({ dryRun: true }))
+    request.mockResolvedValue(answer({ dry: true }))
     for (const path of ['', '.sim', 'tables', 'workflows', 'workflows/ingest']) {
       chmodSync(join(dir, path), 0o555)
     }
     try {
-      await apply('--dry-run')
+      await apply('--dry')
       expect(request).toHaveBeenCalledTimes(1)
 
       const refused = await apply('--yes').then(
@@ -802,7 +874,7 @@ describe('workspaces source apply', () => {
   it('refuses a base a merge conflict broke, naming the way out, before sending anything', async () => {
     write('.sim/base.json', '<<<<<<< HEAD\n{"version":1}\n')
 
-    const refused = await apply('--dry-run').then(
+    const refused = await apply('--dry').then(
       () => null,
       (error: unknown) => error
     )
@@ -841,8 +913,8 @@ describe('workspaces source apply', () => {
     expect(Object.keys(record.files)).toContain('tools/lookup.ts')
     expect(Object.keys(record.files)).not.toContain('tools/lookup.js')
 
-    request.mockResolvedValue(answer({ dryRun: true }))
-    await apply('--dry-run')
+    request.mockResolvedValue(answer({ dry: true }))
+    await apply('--dry')
     expect(Object.keys(bodies()[1].files)).not.toContain('tools/lookup.js')
   })
 
@@ -1028,7 +1100,7 @@ describe('workspaces source apply', () => {
         resources: {
           'file:a.bin': {
             id: 'f1',
-            blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256: sha(Buffer.from([1, 2, 3])) } },
+            blobs: { 'files/a.bin': { id: 'f1', rev: '1', sha256: sha(Buffer.from([1, 2, 3])) } },
           },
         },
       })
@@ -1070,7 +1142,7 @@ describe('workspaces source apply', () => {
         resources: {
           'file:a.bin': {
             id: 'f1',
-            blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256: sha(Buffer.from([1, 2, 3])) } },
+            blobs: { 'files/a.bin': { id: 'f1', rev: '1', sha256: sha(Buffer.from([1, 2, 3])) } },
           },
         },
       })
@@ -1198,10 +1270,10 @@ describe('workspaces source apply', () => {
 
     it('marks the dry run, the apply and every staging call as safe to resend after a 429', async () => {
       request
-        .mockResolvedValueOnce(answer({ dryRun: true, needBlobs: ['files/a.bin'] }))
+        .mockResolvedValueOnce(answer({ dry: true, needBlobs: ['files/a.bin'] }))
         .mockResolvedValueOnce(answer())
 
-      await apply('--dry-run')
+      await apply('--dry')
       await apply('--yes')
 
       expect(request).toHaveBeenCalledTimes(2)
@@ -1262,7 +1334,7 @@ describe('workspaces source apply', () => {
       cached.stats['files/a.bin'].sha256 = recorded
       writeFileSync(statsPath, JSON.stringify(cached))
 
-      await apply('--dry-run')
+      await apply('--dry')
 
       expect(sentDigest()).toBe(recorded)
     })
@@ -1272,7 +1344,7 @@ describe('workspaces source apply', () => {
       write('files/a.bin', Buffer.from([7, 8, 9]))
       utimesSync(file(), 1000, 1000)
 
-      await apply('--dry-run')
+      await apply('--dry')
 
       expect(sentDigest()).toBe(sha([7, 8, 9]))
     })
@@ -1294,7 +1366,7 @@ describe('workspaces source apply', () => {
     await expect(apply('--yes')).rejects.toThrow(/unsafe file path/)
   })
 
-  it('applies to the workspace the directory was read from, refusing only a --workspace naming another', async () => {
+  it('applies to the workspace the directory was read from, refusing a --workspace or SIM_WORKSPACE naming another', async () => {
     write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
     request.mockResolvedValue(answer())
 
@@ -1308,6 +1380,14 @@ describe('workspaces source apply', () => {
     await expect(apply('--yes')).rejects.toMatchObject({
       code: 'SOURCE_OTHER_WORKSPACE',
       message: expect.stringContaining('--to ws_local'),
+    })
+    expect(request).toHaveBeenCalledTimes(1)
+
+    write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
+    contextMockState.workspaceSource = 'env'
+    await expect(apply('--yes')).rejects.toMatchObject({
+      code: 'SOURCE_OTHER_WORKSPACE',
+      message: expect.stringContaining('but SIM_WORKSPACE names ws_local'),
     })
     expect(request).toHaveBeenCalledTimes(1)
   })
@@ -1333,10 +1413,10 @@ describe('workspaces source apply', () => {
       JSON.stringify({
         ...BASE,
         resources: {
-          'file:a.bin': { id: 'f1', blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256 } } },
+          'file:a.bin': { id: 'f1', blobs: { 'files/a.bin': { id: 'f1', rev: '1', sha256 } } },
           'knowledge-base:docs': {
             id: 'kb1',
-            blobs: { 'guide.pdf': { id: 'd1', rev: 1, sha256 } },
+            blobs: { 'guide.pdf': { id: 'd1', rev: '1', sha256 } },
           },
         },
       })
@@ -1369,8 +1449,8 @@ describe('workspaces source apply', () => {
       JSON.stringify({
         ...BASE,
         resources: {
-          'file:a.txt': { id: 'f1', blobs: { 'files/a.txt': { id: 'f1', rev: 1, sha256 } } },
-          'file:b.txt': { id: 'f2', blobs: { 'files/b.txt': { id: 'f2', rev: 1, sha256 } } },
+          'file:a.txt': { id: 'f1', blobs: { 'files/a.txt': { id: 'f1', rev: '1', sha256 } } },
+          'file:b.txt': { id: 'f2', blobs: { 'files/b.txt': { id: 'f2', rev: '1', sha256 } } },
         },
       })
     )
@@ -1397,14 +1477,15 @@ describe('workspaces source apply', () => {
     expect(existsSync(join(repo, '.sim/downloads'))).toBe(false)
     git(repo, 'rm', '-q', 'files/b.txt')
     git(repo, 'commit', '-q', '-m', 'drop b')
-    request.mockResolvedValue(answer({ dryRun: true }))
+    request.mockResolvedValue(answer({ dry: true }))
 
-    await runWorkspaceSource('apply', repo, '--dry-run', '--allow-delete')
+    await runWorkspaceSource('apply', repo, '--dry', '--allow-delete')
 
     expect(bodies()[0].blobs?.map((blob) => blob.path)).toEqual(['files/a.txt'])
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
+        refuses: true,
         diagnostics: [
           {
             code: 'E_APPLY_STALE',
@@ -1416,7 +1497,7 @@ describe('workspaces source apply', () => {
         ],
       })
     )
-    await runWorkspaceSource('apply', repo, '--dry-run')
+    await runWorkspaceSource('apply', repo, '--dry')
     expect(process.exitCode).toBe(5)
     rmSync(clone, { recursive: true, force: true })
   })
@@ -1503,14 +1584,32 @@ describe('workspaces source apply', () => {
   ])('exits on a refused dry run as a commit refusing %j would', async (codes, exitCode) => {
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
+        refuses: true,
         diagnostics: codes.map((code) => ({ code, severity: 'error', message: code })),
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     expect(process.exitCode).toBe(exitCode)
+  })
+
+  it("takes a dry run's refusal from the server's answer alone, never from its findings", async () => {
+    request.mockResolvedValue(
+      answer({
+        dry: true,
+        plan: [
+          { kind: 'table', key: 'leads', action: 'create', held: true },
+          { kind: 'table', key: 'other', action: 'create' },
+        ],
+        diagnostics: [{ code: 'E_APPLY_LOCKED', severity: 'error', message: 'locked' }],
+      })
+    )
+
+    await apply('--dry')
+
+    expect(process.exitCode).toBe(15)
   })
 
   it('refuses a local blob over the size limit before reading it, and exits 7', async () => {
@@ -1645,13 +1744,9 @@ describe('workspaces source apply', () => {
     }
     request.mockImplementation(async (path: string) =>
       path === '/api/v2/workflows/wf_1/deployment'
-        ? {
-            data: {
-              id: 'wf_1',
-              isDeployed: true,
-              webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
-            },
-          }
+        ? deploymentStatus(1, {
+            webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
+          })
         : answer({
             plan: [{ kind: 'deployment', key: 'ingest', action: 'create' }],
             applied: [{ kind: 'deployment', key: 'ingest', action: 'create' }],
@@ -1682,13 +1777,9 @@ describe('workspaces source apply', () => {
     writeFileSync(join(dir, 'workflows/ingest/.sim/lock.json'), JSON.stringify(lock))
     request.mockImplementation(async (path: string) =>
       path === '/api/v2/workflows/wf_1/deployment'
-        ? {
-            data: {
-              id: 'wf_1',
-              isDeployed: true,
-              webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
-            },
-          }
+        ? deploymentStatus(1, {
+            webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
+          })
         : answer({
             plan: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
             applied: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
@@ -1726,7 +1817,7 @@ describe('workspaces source apply', () => {
       .mocked(console.error)
       .mock.calls.map(([line]) => String(line))
       .join('\n')
-    expect(warned).toContain('its webhook URLs could not be read (gateway cleared)')
+    expect(warned).toContain('the deployment of ingest could not be read (gateway cleared)')
     expect(warned).not.toContain('\u001b')
   })
 
@@ -1746,13 +1837,143 @@ describe('workspaces source apply', () => {
     expect(vi.mocked(console.log)).not.toHaveBeenCalled()
   })
 
+  describe('names each workflow it wrote with its id and what is live', () => {
+    const wrote = answer({
+      plan: [
+        { kind: 'workflow', key: 'draft-only', action: 'create', id: 'wf_new' },
+        { kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' },
+        { kind: 'deployment', key: 'ingest', action: 'update' },
+      ],
+      applied: [
+        { kind: 'workflow', key: 'draft-only', action: 'create', id: 'wf_new' },
+        { kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' },
+        { kind: 'deployment', key: 'ingest', action: 'update' },
+      ],
+      base: {
+        ...BASE,
+        resources: { 'workflow:draft-only': { id: 'wf_new' }, 'workflow:ingest': { id: 'wf_1' } },
+      },
+    })
+    const respond = (ingest: ReturnType<typeof deploymentStatus>) =>
+      request.mockImplementation(async (path: string) =>
+        path === '/api/v2/workflows/wf_new/deployment'
+          ? deploymentStatus(null, { id: 'wf_new' })
+          : path === '/api/v2/workflows/wf_1/deployment'
+            ? ingest
+            : wrote
+      )
+    const printedJson = () =>
+      JSON.parse(
+        vi
+          .mocked(console.log)
+          .mock.calls.map(([line]) => String(line))
+          .join('\n')
+      )
+
+    it('tells a workflow never deployed apart from one whose live version is the draft', async () => {
+      respond(deploymentStatus(4))
+
+      await apply('--yes')
+
+      expect(printedJson().workflows).toEqual([
+        {
+          key: 'draft-only',
+          workflowId: 'wf_new',
+          deployedVersion: null,
+          needsRedeployment: false,
+          live: 'not deployed',
+        },
+        {
+          key: 'ingest',
+          workflowId: 'wf_1',
+          deployedVersion: 4,
+          needsRedeployment: false,
+          live: 'version 4, matches the draft',
+        },
+      ])
+    })
+
+    it('says the draft is not live while the version it deployed is still activating', async () => {
+      respond(
+        deploymentStatus(4, {
+          latestDeploymentAttempt: {
+            id: 'op-5',
+            deploymentVersionId: 'dv-5',
+            version: 5,
+            action: 'deploy',
+            status: 'activating',
+            isCurrent: true,
+            readiness: { webhooks: 'pending', schedules: 'ready', mcp: 'ready' },
+            requestedAt: '2026-11-20T00:00:00Z',
+          },
+        })
+      )
+
+      await apply('--yes')
+
+      expect(printedJson().workflows[1]).toEqual({
+        key: 'ingest',
+        workflowId: 'wf_1',
+        deployedVersion: 4,
+        // As the deployment status reports it: false while version 5 activates; `live` says it is not live yet.
+        needsRedeployment: false,
+        live: 'version 4 still serving; version 5 activating',
+      })
+    })
+
+    it('reports a workflow whose deployment it deleted as not deployed', async () => {
+      request.mockImplementation(async (path: string) =>
+        path === '/api/v2/workflows/wf_1/deployment'
+          ? deploymentStatus(null)
+          : answer({
+              plan: [{ kind: 'deployment', key: 'ingest', action: 'delete' }],
+              applied: [{ kind: 'deployment', key: 'ingest', action: 'delete' }],
+              base: { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } },
+            })
+      )
+
+      await apply('--yes', '--allow-delete')
+
+      expect(printedJson()).toMatchObject({
+        workflows: [
+          {
+            key: 'ingest',
+            workflowId: 'wf_1',
+            deployedVersion: null,
+            needsRedeployment: false,
+            live: 'not deployed',
+          },
+        ],
+      })
+      expect(printedJson()).not.toHaveProperty('urls')
+    })
+
+    it('shows each id and live version to a person, and reads nothing on a dry run', async () => {
+      respond(deploymentStatus(4, { needsRedeployment: true }))
+      contextMockState.output = 'text'
+
+      await apply('--yes')
+
+      expect(vi.mocked(console.log).mock.calls.map((call) => call.join(' '))).toContain(
+        'workflows\tdraft-only wf_new: not deployed; ingest wf_1: version 4, draft has undeployed changes'
+      )
+
+      request.mockReset()
+      request.mockResolvedValue({ data: { ...wrote.data, dry: true } })
+      await apply('--dry')
+      expect(request.mock.calls.map((call) => call[0])).not.toContain(
+        '/api/v2/workflows/wf_1/deployment'
+      )
+    })
+  })
+
   it('appends the plan and its errors to the GitHub Actions step summary', async () => {
     const summary = join(dir, 'step-summary.md')
     vi.stubEnv('GITHUB_ACTIONS', 'true')
     vi.stubEnv('GITHUB_STEP_SUMMARY', summary)
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         plan: [
           { kind: 'table', key: 'leads', action: 'create' },
           { kind: 'workflow', key: 'ingest', action: 'update', fields: ['blocks'] },
@@ -1771,7 +1992,7 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
+    await apply('--dry')
 
     const markdown = readFileSync(summary, 'utf8')
     expect(markdown).toContain('### Sim workspace plan: ws_local')
@@ -1787,6 +2008,46 @@ describe('workspaces source apply', () => {
     expect(annotations).toEqual([
       `::error file=${join(dir, 'workflows/ingest/workflow.ts')},line=12,title=E_APPLY_UNRESOLVED_REF::Score lead | has no output teir.`,
     ])
+  })
+
+  it('carries --summary-file onto the apply it names next, quoted', async () => {
+    const file = join(dir, 'my plan.md')
+    request.mockResolvedValue(
+      answer({ dry: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+    )
+
+    await apply('--summary-file', file)
+
+    const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(printed.next.command).toBe(
+      `sim workspaces source apply --dir ${dir} --summary-file '${file}' --yes`
+    )
+  })
+
+  it('writes the plan to --summary-file whatever CI runs it, opening with a marker a job can find', async () => {
+    const file = join(dir, 'plan.md')
+    writeFileSync(file, 'an earlier run\n')
+    request.mockResolvedValue(
+      answer({ dry: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+    )
+
+    await apply('--dry', '--summary-file', file)
+
+    const markdown = readFileSync(file, 'utf8')
+    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/%]+ -->$/)
+    expect(markdown).toContain('### Sim workspace plan: ws_local')
+    expect(markdown).toContain('| + | tables/leads | create | planned |')
+    expect(markdown).not.toContain('an earlier run')
+  })
+
+  it('takes the summary file from SIM_SUMMARY_FILE', async () => {
+    const file = join(dir, 'from-env.md')
+    vi.stubEnv('SIM_SUMMARY_FILE', file)
+    request.mockResolvedValue(answer({ dry: true }))
+
+    await apply('--dry')
+
+    expect(readFileSync(file, 'utf8')).toContain('### Sim workspace plan: ws_local')
   })
 
   it('says what an apply wrote in the step summary, not what it would write', async () => {
@@ -1833,7 +2094,7 @@ describe('workspaces source apply', () => {
     async (_case, others, exitCode) => {
       request.mockResolvedValue(
         answer({
-          dryRun: true,
+          dry: true,
           plan: [...others, { kind: 'workflow', key: 'ingest', action: 'create', held: true }],
           diagnostics: [
             {
@@ -1847,7 +2108,7 @@ describe('workspaces source apply', () => {
         })
       )
 
-      await apply('--dry-run')
+      await apply('--dry')
 
       expect(process.exitCode).toBe(exitCode)
     }
@@ -1856,7 +2117,7 @@ describe('workspaces source apply', () => {
   it('exits a dry run as refused when the server says it refuses, though its only error names a held change', async () => {
     request.mockResolvedValue(
       answer({
-        dryRun: true,
+        dry: true,
         refuses: true,
         plan: [
           { kind: 'table', key: 'leads', action: 'create' },
@@ -1874,42 +2135,7 @@ describe('workspaces source apply', () => {
       })
     )
 
-    await apply('--dry-run')
-
-    expect(process.exitCode).toBe(1)
-  })
-
-  it('exits a dry run as refused when a delete breaks a workflow it holds back, for a server without refuses, as the apply refuses it', async () => {
-    // E_PLAN_REF_DELETED names the held workflow, but the server records it on the delete (or the
-    // plan), which no hold excuses: the apply would refuse, so the dry run cannot exit 15.
-    request.mockResolvedValue(
-      answer({
-        dryRun: true,
-        plan: [
-          { kind: 'table', key: 'leads', action: 'create' },
-          { kind: 'workflow', key: 'parent', action: 'update', held: true },
-          { kind: 'workflow', key: 'child', action: 'delete' },
-        ],
-        diagnostics: [
-          {
-            code: 'E_SECRET_MISSING',
-            severity: 'error',
-            message: 'workflows/parent is held back: it reads the secret OPENAI_API_KEY.',
-            kind: 'workflow',
-            key: 'parent',
-          },
-          {
-            code: 'E_PLAN_REF_DELETED',
-            severity: 'error',
-            message: 'workflows/parent uses workflow "child", which this apply deletes.',
-            kind: 'workflow',
-            key: 'parent',
-          },
-        ],
-      })
-    )
-
-    await apply('--dry-run', '--allow-delete')
+    await apply('--dry')
 
     expect(process.exitCode).toBe(1)
   })
@@ -1934,6 +2160,7 @@ describe('workspaces source apply', () => {
         if (path.endsWith('/source/catalog') && options.query?.workflowId) {
           throw new SimApiError('Service unavailable', 503, 'UNAVAILABLE')
         }
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(null)
         return answer({
           plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
           applied: [{ kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' }],
@@ -1967,5 +2194,368 @@ describe('workspaces source apply', () => {
       .mock.calls.map(([line]) => String(line))
       .join('\n')
     expect(warned).toContain('could not fetch the block catalog of workflows/ingest')
+  })
+
+  describe('--run', () => {
+    const APPLY_PATH = '/api/v2/workspaces/ws_local/source'
+    const DEPLOYMENT = "// @sim-sdk 1\nexport default defineDeployment({ live: 'draft' })\n"
+    const runAnswer = (record: Record<string, unknown>) =>
+      new Response(JSON.stringify({ data: { workflowId: 'wf_1', runId: 'run-1', ...record } }), {
+        headers: { 'content-type': 'application/json' },
+      })
+    /** The writes: an apply sent without `?dry`. */
+    const applies = () =>
+      request.mock.calls.filter((call) => call[0] === APPLY_PATH && !call[1]?.query?.dry)
+    /** Answers the first write with the workflow saved, the second with the deployment. */
+    const serveApplies = () =>
+      request.mockImplementation(async (path: string, options: { body?: { kinds?: string[] } }) => {
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(1)
+        const base = { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } }
+        return options.body?.kinds?.includes('deployment')
+          ? answer({
+              plan: [
+                { kind: 'workflow', key: 'ingest', action: 'noop' },
+                { kind: 'deployment', key: 'ingest', action: 'update' },
+              ],
+              applied: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+              base,
+            })
+          : answer({
+              plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              applied: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              files: { 'workflows/ingest/workflow.ts': `${INGEST}// stored\n` },
+              base,
+            })
+      })
+
+    beforeEach(() => {
+      write('deployments/ingest.ts', DEPLOYMENT)
+    })
+
+    it('applies, dry-runs the saved draft with the input, then applies deployments/, in one result', async () => {
+      serveApplies()
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: { tier: 'A' } })
+      )
+
+      await apply('--yes', '--run', 'ingest={"email":"a@b.co"}')
+
+      const [first, second] = applies().map((call) => call[1].body)
+      expect(applies()).toHaveLength(2)
+      expect(first.kinds).not.toContain('deployment')
+      expect(first.options.only).not.toContain('deployment')
+      expect(Object.keys(first.files).some((path) => path.startsWith('deployments/'))).toBe(false)
+      expect(second.options.only).toEqual(['workflow', 'deployment'])
+      expect(second.files['deployments/ingest.ts']).toBe(DEPLOYMENT)
+      const [path, sent] = contextMockFns.mockRequestRaw.mock.calls[0]
+      expect(path).toBe('/api/v2/workflows/wf_1/execute')
+      expect(sent.body).toMatchObject({
+        input: { email: 'a@b.co' },
+        run: { source: 'draft', dry: true },
+      })
+      expect(process.exitCode).toBeUndefined()
+      const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+      expect(printed).toMatchObject({
+        applied: 2,
+        runs: [
+          {
+            workflow: 'ingest',
+            workflowId: 'wf_1',
+            runId: 'run-1',
+            status: 'completed',
+            output: { tier: 'A' },
+          },
+        ],
+      })
+    })
+
+    it('applies nothing of deployments/ when a run fails, exits 1 at its block, and keeps the applied draft', async () => {
+      write(
+        'workflows/ingest/.sim/lock.json',
+        JSON.stringify({
+          version: 1,
+          blocks: { score: { id: 'b-score', parent: null, ident: 'score', order: 0 } },
+          variables: {},
+        })
+      )
+      serveApplies()
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({
+          status: 'failed',
+          error: { message: 'score is not a number', blockId: 'b-score' },
+        })
+      )
+
+      const failure = apply('--yes', '--run', 'ingest={}')
+
+      await expect(failure).rejects.toThrow(
+        /the test run of ingest failed: score is not a number\. deployments\/ was not applied/
+      )
+      expect(applies()).toHaveLength(1)
+      expect(applies()[0][1].body.kinds).not.toContain('deployment')
+      expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toMatch(
+        /workflows\/ingest\/workflow\.ts: score is not a number \(block score\)/
+      )
+      expect(readFileSync(join(dir, 'workflows/ingest/workflow.ts'), 'utf8')).toBe(
+        `${INGEST}// stored\n`
+      )
+      const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+      expect(printed).toMatchObject({
+        applied: 1,
+        runs: [{ workflow: 'ingest', status: 'failed', error: 'score is not a number' }],
+        next: { command: `sim workspaces source apply --dir ${dir} --run 'ingest={}' --yes` },
+      })
+    })
+
+    it('applies nothing of deployments/ when it would also publish a draft no run tested', async () => {
+      write('deployments/other.ts', DEPLOYMENT)
+      request.mockImplementation(async (path: string, options: { body?: { kinds?: string[] } }) => {
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(1)
+        const base = { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } }
+        return options.body?.kinds?.includes('deployment')
+          ? answer({
+              plan: [
+                { kind: 'deployment', key: 'ingest', action: 'update', fields: ['live version'] },
+                { kind: 'deployment', key: 'other', action: 'update', fields: ['live version'] },
+              ],
+              applied: [],
+              base,
+            })
+          : answer({
+              plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              applied: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              files: { 'workflows/ingest/workflow.ts': `${INGEST}// stored\n` },
+              base,
+            })
+      })
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: {} })
+      )
+
+      const failure = apply('--yes', '--run', 'ingest={}')
+
+      await expect(failure).rejects.toThrow(
+        /would also publish the untested draft of workflows\/other\/, so deployments\/ was not applied/
+      )
+      expect(applies()).toHaveLength(1)
+      const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+      expect(printed.next).toEqual({
+        command: `sim workspaces source apply --dir ${dir} --run 'ingest={}' --run other --yes`,
+        reason:
+          "tests every draft deployments/ publishes, then deploys them; give a run its input with --run other='{…}'",
+      })
+    })
+
+    it('exits as written in part when the deployments write holds every deployment back', async () => {
+      request.mockImplementation(async (path: string, options: { body?: { kinds?: string[] } }) => {
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(1)
+        const base = { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } }
+        return options.body?.kinds?.includes('deployment')
+          ? answer({
+              plan: [{ kind: 'deployment', key: 'ingest', action: 'update', held: true }],
+              applied: [],
+              base,
+            })
+          : answer({
+              plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              applied: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              files: { 'workflows/ingest/workflow.ts': `${INGEST}// stored\n` },
+              base,
+            })
+      })
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: {} })
+      )
+
+      await apply('--yes', '--run', 'ingest={}')
+
+      expect(applies()).toHaveLength(2)
+      expect(process.exitCode).toBe(15)
+    })
+
+    it('holds back a managed deployments/ with no files left (its undeploys) until the runs complete', async () => {
+      unlinkSync(join(dir, 'deployments/ingest.ts'))
+      write('deployments/.gitkeep', '')
+      serveApplies()
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'failed', error: { message: 'score is not a number' } })
+      )
+
+      await expect(apply('--yes', '--allow-delete', '--run', 'ingest={}')).rejects.toThrow(
+        /deployments\/ was not applied/
+      )
+      expect(applies()).toHaveLength(1)
+      expect(applies()[0][1].body.kinds).not.toContain('deployment')
+    })
+
+    it('applies no deployments when a workflow file changed while the runs ran', async () => {
+      serveApplies()
+      contextMockFns.mockRequestRaw.mockImplementation(async () => {
+        write('workflows/ingest/workflow.ts', `${INGEST}// edited during the run\n`)
+        return runAnswer({ status: 'completed', output: {} })
+      })
+
+      await expect(apply('--yes', '--run', 'ingest={}')).rejects.toThrow(
+        /workflows\/ingest\/workflow\.ts changed in .* since the apply read it, so deployments\/ was not applied/
+      )
+      expect(applies()).toHaveLength(1)
+    })
+
+    it('applies no deployments when a workflow file changed between the first write and the runs', async () => {
+      serveApplies()
+      // The first write's plan prints (in human output) after its save and before the read ahead
+      // of the runs: the edit lands in that window.
+      contextMockState.output = 'table'
+      let edited = false
+      vi.mocked(console.error).mockImplementation((line: unknown) => {
+        if (edited || !String(line).startsWith('workflows:')) return
+        edited = true
+        write('workflows/ingest/workflow.ts', `${INGEST}// edited after the save\n`)
+      })
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: {} })
+      )
+
+      await expect(apply('--yes', '--run', 'ingest={}')).rejects.toThrow(
+        /workflows\/ingest\/workflow\.ts changed in .* since the apply read it/
+      )
+      expect(edited).toBe(true)
+      expect(applies()).toHaveLength(1)
+    })
+
+    it("never prints the first write's warning that a deferred deployment's workflow is not deployed", async () => {
+      request.mockImplementation(async (path: string, options: { body?: { kinds?: string[] } }) => {
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(1)
+        const base = { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } }
+        if (options.body?.kinds?.includes('deployment')) {
+          return answer({
+            plan: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+            applied: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+            base,
+          })
+        }
+        return answer({
+          plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+          applied: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+          files: { 'workflows/ingest/workflow.ts': `${INGEST}// stored\n` },
+          base,
+          diagnostics: [
+            {
+              code: 'W_DEPLOYED_DRAFT_CHANGED',
+              severity: 'warning',
+              message: 'workflow ingest is deployed: the live version keeps running the old one.',
+              kind: 'workflow',
+              key: 'ingest',
+            },
+          ],
+        })
+      })
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: {} })
+      )
+
+      await apply('--yes', '--run', 'ingest={}')
+
+      expect(applies()).toHaveLength(2)
+      const out = [...vi.mocked(console.error).mock.calls, ...vi.mocked(console.log).mock.calls]
+        .flat()
+        .join('\n')
+      expect(out).not.toContain('W_DEPLOYED_DRAFT_CHANGED')
+    })
+
+    it('maps an input the server refuses like a failed run: written, deployments/ held, a runnable next', async () => {
+      serveApplies()
+      const refusal = 'workflow_input does not match trigger "Start" (email: Invalid input)'
+      contextMockFns.mockRequestRaw.mockRejectedValue(new SimApiError(refusal, 400, 'BAD_REQUEST'))
+
+      await expect(apply('--yes', '--run', 'ingest={}')).rejects.toThrow(
+        /but the test run of ingest failed: the server refused it before it started: workflow_input does not match trigger "Start" .* deployments\/ was not applied\. Fix the source or the refused --run input, then run `sim workspaces source apply --dir .* --run 'ingest=\{\}' --yes`\.$/
+      )
+      expect(applies()).toHaveLength(1)
+      const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+      expect(printed).toMatchObject({
+        runs: [{ workflow: 'ingest', status: 'failed' }],
+        next: { reason: 'applies again and tests it with your fixed --run input' },
+      })
+    })
+
+    it("prints no workflow finding of the deployments write, which the apply's result drops too", async () => {
+      contextMockState.output = 'table'
+      const finding = (message: string) => ({
+        code: 'W_UNRESOLVED_REF',
+        severity: 'warning',
+        message,
+        kind: 'workflow',
+        key: 'ingest',
+      })
+      request.mockImplementation(async (path: string, options: { body?: { kinds?: string[] } }) => {
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(1)
+        const base = { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } }
+        return options.body?.kinds?.includes('deployment')
+          ? answer({
+              plan: [
+                { kind: 'workflow', key: 'ingest', action: 'noop' },
+                { kind: 'deployment', key: 'ingest', action: 'update' },
+              ],
+              applied: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+              base,
+              diagnostics: [finding('ingest, as the deployments write read it.')],
+            })
+          : answer({
+              plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              applied: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              files: { 'workflows/ingest/workflow.ts': `${INGEST}// stored\n` },
+              base,
+              diagnostics: [finding('ingest, as the first write read it.')],
+            })
+      })
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: {} })
+      )
+
+      await apply('--yes', '--run', 'ingest={}')
+
+      expect(applies()).toHaveLength(2)
+      const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+      expect(stderr).toContain('ingest, as the first write read it.')
+      expect(stderr).not.toContain('ingest, as the deployments write read it.')
+    })
+
+    it('refuses a key with no workflow folder, naming the keys there, before sending anything', async () => {
+      await expect(apply('--yes', '--run', 'ingset={}')).rejects.toThrow(
+        /--run ingset: no such folder under workflows\/ .* Its workflow keys: ingest\./
+      )
+      expect(request).not.toHaveBeenCalled()
+      expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
+    })
+
+    it('refuses an input with no key, naming the <key>= form and the keys there', async () => {
+      await expect(apply('--yes', '--run', '{"email":"a@b.co"}')).rejects.toThrow(
+        /--run takes <key>='\{…\}', where <key> is the workflow's folder under workflows\/ .* Its workflow keys: ingest\./
+      )
+      expect(request).not.toHaveBeenCalled()
+    })
+
+    it('refuses an input that is not JSON before sending anything', async () => {
+      await expect(apply('--yes', '--run', 'ingest={email:')).rejects.toThrow(
+        /--run ingest: its input is not JSON/
+      )
+      expect(request).not.toHaveBeenCalled()
+    })
+
+    it('refuses beside --to, before sending anything', async () => {
+      await expect(apply('--yes', '--to', 'ws_prod', '--run', 'ingest={}')).rejects.toThrow(
+        /--run tests the workflows of the workspace this directory was read from/
+      )
+      expect(request).not.toHaveBeenCalled()
+    })
+
+    it('refuses beside --dry, before sending anything', async () => {
+      await expect(apply('--dry', '--run', 'ingest={}')).rejects.toThrow(
+        /--run test-runs what the apply writes, and --dry writes nothing/
+      )
+      expect(request).not.toHaveBeenCalled()
+      expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
+    })
   })
 })

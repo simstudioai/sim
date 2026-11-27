@@ -24,6 +24,7 @@ export const vercelCreateProjectTool: ToolConfig<
   name: 'Vercel Create Project',
   description: 'Create a new Vercel project',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

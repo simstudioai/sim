@@ -20,6 +20,7 @@ export const removeLabelResourcesTool: ToolConfig<
   name: 'Jotform Remove Label Resources',
   description: 'Unassign forms, workflows, sheets, or apps from a Jotform label.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

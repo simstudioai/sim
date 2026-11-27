@@ -46,6 +46,7 @@ export const higgsfieldCreateCharacterTool: ToolConfig<
   description:
     'Train a reusable Soul ID character from public reference image URLs. Training runs in the background; use Get Character to check when it completes.',
   version: '1.0.0',
+  effect: 'write',
   oauth: higgsfieldOAuth,
   params: {
     ...higgsfieldAuthParams,

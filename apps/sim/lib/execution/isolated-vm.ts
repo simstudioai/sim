@@ -12,8 +12,12 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { captureOutboundScope } from '@/lib/core/network/context.server'
 import {
   type SecureFetchOptions,
+  type SecureFetchResponse,
+  secureFetchWithPinnedIP,
   secureFetchWithValidation,
+  validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { normalizeFetchMethod } from '@/lib/core/utils/http-methods'
 import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeholders'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS } from '@/lib/execution/isolated-vm-limits'
@@ -73,9 +77,30 @@ interface IsolatedVMTaskRequest {
  */
 export type IsolatedVMBrokerHandler = (args: unknown, brokerId: number) => Promise<unknown>
 
+/** A network request isolate code made, as its host would send it. */
+interface IsolatedFetchRequest {
+  /** As sent ({@link normalizeFetchMethod}); GET when the code named none. */
+  method: string
+  url: string
+  /** The names of the headers it carries. */
+  headerNames: string[]
+  /** Their values, which may hold credentials: for the policy to search, never to record. */
+  headerValues: string[]
+  body: string | undefined
+}
+
+/**
+ * Decides each network request isolate code makes before its host sends it: `stub` answers it
+ * with an empty 200 (`x-sim-dry-run: stubbed`) and sends nothing. Trusted host state, never
+ * anything user code or a request body sets.
+ */
+export type IsolatedFetchPolicy = (request: IsolatedFetchRequest) => Promise<'send' | 'stub'>
+
 export interface IsolatedVMExecutionOptions {
   /** Broker name → handler. Must cover every broker listed in `request.task.brokers`. */
   brokers?: Record<string, IsolatedVMBrokerHandler>
+  /** Decides each `fetch` the code makes; without one, every request is sent. */
+  fetchPolicy?: IsolatedFetchPolicy
   /** Cancel the execution early. Broadcasts a cancellation error to the caller. */
   signal?: AbortSignal
 }
@@ -185,6 +210,15 @@ const DISTRIBUTED_LEASE_GRACE_MS = 30000
 
 interface PendingExecution {
   runInOutboundScope: ReturnType<typeof captureOutboundScope>
+  fetchPolicy?: IsolatedFetchPolicy
+  /**
+   * Fetches whose {@link fetchPolicy} decision is still pending. The result waits for them until
+   * {@link deadline}, so a request the code never awaited is decided (and recorded) before the
+   * caller reads the run, and a slow decision never holds the code past its time limit.
+   */
+  fetchDecisions: Set<Promise<unknown>>
+  /** When the pool gives up on the execution (epoch ms): dispatch plus {@link hostTimeoutMs}. */
+  deadline: number
   resolve: (result: IsolatedVMExecutionResult) => void
   timeout: ReturnType<typeof setTimeout>
   ownerKey: string
@@ -235,6 +269,7 @@ interface QueuedExecution {
  */
 interface ExecutionState {
   runInOutboundScope: ReturnType<typeof captureOutboundScope>
+  fetchPolicy?: IsolatedFetchPolicy
   cancelled: boolean
   queueId?: number
   workerId?: number
@@ -339,7 +374,7 @@ function normalizeFetchOptions(options?: IsolatedFetchOptions): SecureFetchOptio
   }
 
   if (typeof options.method === 'string' && options.method.length > 0) {
-    normalized.method = options.method
+    normalized.method = normalizeFetchMethod(options.method)
   }
 
   if (
@@ -389,11 +424,54 @@ function normalizeFetchOptions(options?: IsolatedFetchOptions): SecureFetchOptio
   return normalized
 }
 
+/** What isolate code gets for a request its {@link IsolatedFetchPolicy} stubbed. */
+const STUBBED_FETCH_RESPONSE = JSON.stringify({
+  ok: true,
+  status: 200,
+  statusText: 'OK',
+  body: '{}',
+  bodyTruncated: false,
+  headers: { 'content-type': 'application/json', 'x-sim-dry-run': 'stubbed' },
+})
+
+/**
+ * Validates the target of a `fetch` of isolate code, then asks the policy: the IP validation
+ * resolved when the request is sent, or what the isolate gets instead (a validation error or the
+ * stubbed response).
+ */
+async function decideFetch(
+  url: string,
+  fetchOptions: SecureFetchOptions,
+  fetchPolicy: IsolatedFetchPolicy
+): Promise<{ resolvedIP: string } | { response: string }> {
+  const target = await validateUrlWithDNS(url, 'fetchUrl', fetchOptions.profile, {
+    signal: fetchOptions.signal,
+  })
+  if (!target.isValid) return { response: JSON.stringify({ error: target.error }) }
+  const decision = await fetchPolicy({
+    method: fetchOptions.method ?? 'GET',
+    url,
+    headerNames: Object.keys(fetchOptions.headers ?? {}),
+    headerValues: Object.values(fetchOptions.headers ?? {}),
+    body: typeof fetchOptions.body === 'string' ? fetchOptions.body : undefined,
+  })
+  return decision === 'stub'
+    ? { response: STUBBED_FETCH_RESPONSE }
+    : { resolvedIP: target.resolvedIP }
+}
+
+/**
+ * Sends one `fetch` of isolate code. With a policy, the target is validated before the policy
+ * decides, so a request it stubs fails where a live one would (a URL too long, invalid, or refused
+ * by the egress policy), and a request it sends goes to the IP that validation resolved. Its
+ * decision is held in `policy.decisions` until made.
+ */
 async function secureFetch(
   requestId: string,
   url: string,
   options: IsolatedFetchOptions | undefined,
-  signal: AbortSignal
+  signal: AbortSignal,
+  policy: { decide: IsolatedFetchPolicy; decisions: Set<Promise<unknown>> } | undefined
 ): Promise<string> {
   if (url.length > MAX_FETCH_URL_LENGTH) {
     return JSON.stringify({
@@ -402,11 +480,19 @@ async function secureFetch(
   }
 
   try {
-    const response = await secureFetchWithValidation(
-      url,
-      { ...normalizeFetchOptions(options), signal },
-      'fetchUrl'
-    )
+    const fetchOptions = { ...normalizeFetchOptions(options), signal }
+    let response: SecureFetchResponse
+    if (policy) {
+      const pendingDecision = decideFetch(url, fetchOptions, policy.decide)
+      const settle = () => policy.decisions.delete(pendingDecision)
+      policy.decisions.add(pendingDecision)
+      pendingDecision.then(settle, settle)
+      const decision = await pendingDecision
+      if ('response' in decision) return decision.response
+      response = await secureFetchWithPinnedIP(url, decision.resolvedIP, fetchOptions)
+    } else {
+      response = await secureFetchWithValidation(url, fetchOptions, 'fetchUrl')
+    }
     const bodyResult = truncateString(await response.text(), MAX_FETCH_RESPONSE_CHARS)
     const headers: Record<string, string> = {}
     for (const [key, value] of response.headers) {
@@ -825,6 +911,17 @@ function handleBrokerMessage(
     })
 }
 
+/** Settles once every promise in `pending` has, or at `deadline` (epoch ms), whichever is first. */
+function settleBefore(pending: Iterable<Promise<unknown>>, deadline: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, Math.max(0, deadline - Date.now()))
+    void Promise.allSettled(pending).then(() => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+}
+
 function handleWorkerMessage(workerId: number, message: unknown) {
   if (typeof message !== 'object' || message === null) return
   const msg = message as Record<string, unknown>
@@ -861,7 +958,11 @@ function handleWorkerMessage(workerId: number, message: unknown) {
       // accurate; just skip re-resolving.
       const result = msg.result as IsolatedVMExecutionResult
       if (!pending.abort.signal.aborted) {
-        pending.resolve(result)
+        if (pending.fetchDecisions.size === 0) pending.resolve(result)
+        else
+          void settleBefore(pending.fetchDecisions, pending.deadline).then(() =>
+            pending.resolve(result)
+          )
       }
       // The isolate's own timeout gives up on the execution just as the pool's does.
       if (result.termination === 'timeout') pending.abort.abort()
@@ -931,7 +1032,17 @@ function handleWorkerMessage(workerId: number, message: unknown) {
       AbortSignal.timeout(pending.hostTimeoutMs),
     ])
     pending
-      .runInOutboundScope(() => secureFetch(requestId, url, options, signal))
+      .runInOutboundScope(() =>
+        secureFetch(
+          requestId,
+          url,
+          options,
+          signal,
+          pending.fetchPolicy
+            ? { decide: pending.fetchPolicy, decisions: pending.fetchDecisions }
+            : undefined
+        )
+      )
       .then(sendFetchResponse)
       .catch((err) => {
         sendFetchResponse(JSON.stringify({ error: getErrorMessage(err, 'Fetch failed') }))
@@ -1357,6 +1468,9 @@ function dispatchToWorker(
 
   workerInfo.pendingExecutions.set(execId, {
     runInOutboundScope: state.runInOutboundScope,
+    fetchPolicy: state.fetchPolicy,
+    fetchDecisions: new Set(),
+    deadline: Date.now() + hostTimeoutMs,
     resolve,
     timeout,
     ownerKey: ownerState.ownerKey,
@@ -1671,6 +1785,7 @@ export async function executeInIsolatedVM(
   const state: ExecutionState = {
     cancelled: false,
     runInOutboundScope: captureOutboundScope(),
+    fetchPolicy: options?.fetchPolicy,
     unsentRedispatches: 0,
   }
 

@@ -12,6 +12,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
   name: 'Discord Get Server',
   description: 'Retrieve information about a Discord server (guild)',
   version: '1.0.0',
+  effect: 'read',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

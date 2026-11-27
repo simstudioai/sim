@@ -41,6 +41,7 @@ export const forkRepoTool: ToolConfig<ForkRepoParams, ForkRepoResponse> = {
   name: 'GitHub Fork Repository',
   description: 'Fork a repository to your account or an organization',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -160,6 +161,7 @@ export const forkRepoV2Tool: ToolConfig<ForkRepoParams, any> = {
   name: forkRepoTool.name,
   description: forkRepoTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: forkRepoTool.params,
   request: forkRepoTool.request,

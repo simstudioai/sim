@@ -4,8 +4,9 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
 import { getPublicLog } from '@/lib/logs/application/get-public-log'
 import { logOperations } from '@/lib/logs/application/operations'
-import { withSpanDurationMs } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { findTraceFailure, withSpanDurationMs } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { projectLogFiles } from '@/lib/logs/files'
+import { runFailureMessage } from '@/lib/workflows/executor/failure-message'
 
 export const revalidate = 0
 
@@ -24,6 +25,16 @@ function buildCostProjection(
   if (costTotal != null) return { total: Number(costTotal), items: costLedger?.items ?? null }
   if (costLedger) return { total: costLedger.total, items: costLedger.items }
   return null
+}
+
+/**
+ * Where a failed run failed. The run's own error names the block when several failed in the same
+ * instant; one that names none of them yields no failure rather than an unrelated block, as the
+ * status read does. A run that did not fail (a cancelled one keeps its abort spans) has none.
+ */
+function failureOf(status: string, executionData: Record<string, unknown>): V2LogDetail['failure'] {
+  if (status !== 'failed') return null
+  return findTraceFailure(executionData.traceSpans, runFailureMessage(executionData))
 }
 
 /**
@@ -52,6 +63,7 @@ export const GET = defineV2JsonRoute({
       startedAt: log.startedAt.toISOString(),
       endedAt: log.endedAt ? log.endedAt.toISOString() : null,
       totalDurationMs: log.totalDurationMs,
+      failure: failureOf(log.status, executionData),
       files: projectLogFiles(log),
       executedByEmail: log.executedByEmail,
       workflow: {

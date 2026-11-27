@@ -6,6 +6,7 @@ export const knowledgeUploadChunkTool: InternalToolConfig<any, KnowledgeUploadCh
   name: 'Knowledge Upload Chunk',
   description: 'Upload a new chunk to a document in a knowledge base',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     knowledgeBaseId: {

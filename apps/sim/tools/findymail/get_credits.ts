@@ -9,6 +9,7 @@ export const getCreditsTool: ToolConfig<FindymailGetCreditsParams, FindymailGetC
   name: 'Findymail Get Credits',
   description: 'Retrieve the remaining finder and verifier credits for the authenticated account.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

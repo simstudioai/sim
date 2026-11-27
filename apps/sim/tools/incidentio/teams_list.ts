@@ -11,6 +11,7 @@ export const teamsListTool: ToolConfig<IncidentioTeamsListParams, IncidentioTeam
   name: 'List Teams',
   description: 'List all teams in the incident.io organisation, along with their members',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

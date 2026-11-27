@@ -20,6 +20,7 @@ export const unshareTool: ToolConfig<GoogleDriveUnshareParams, GoogleDriveUnshar
   name: 'Unshare Google Drive File',
   description: 'Remove a permission from a file (revoke access)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

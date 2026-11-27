@@ -19,6 +19,7 @@ export const oracleFusionFinancialsGetPayablesInvoiceTool: InternalToolConfig<
   name: 'Oracle Fusion Financials Get Payables Invoice',
   description: 'Get one Oracle Fusion Payables invoice by its opaque Oracle resource key.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     invoiceUniqId: oracleFusionInvoiceParamField,

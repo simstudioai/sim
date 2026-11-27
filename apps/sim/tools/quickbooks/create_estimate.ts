@@ -25,6 +25,7 @@ export const quickbooksCreateEstimateTool: ToolConfig<
   name: 'QuickBooks Create Estimate',
   description: 'Create an estimate with bounded item and description lines',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

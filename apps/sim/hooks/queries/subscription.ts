@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
+  billingEndTrialContract,
   createBillingPortalContract,
   getInvoicesContract,
   getUserUsageLimitContract,
@@ -216,5 +217,22 @@ export function useOpenBillingPortal() {
 
       return data
     },
+  })
+}
+
+/**
+ * Ends the viewer's own Pro free trial now. The card is charged by Stripe and the webhooks raise
+ * the trial allowance to the plan's, so every billing read is refetched once the call returns.
+ */
+export function useEndProTrial() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => requestJson(billingEndTrialContract, { body: {} }),
+    // Settled, not success: a lost response can hide a charge that went through.
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.all }),
+        invalidateWorkspaceUsage(queryClient),
+      ]),
   })
 }

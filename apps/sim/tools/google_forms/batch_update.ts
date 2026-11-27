@@ -23,6 +23,7 @@ export const batchUpdateTool: ToolConfig<
   name: 'Google Forms: Batch Update',
   description: 'Apply multiple updates to a form (add items, update info, change settings, etc.)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

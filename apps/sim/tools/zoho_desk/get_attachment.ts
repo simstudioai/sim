@@ -9,6 +9,7 @@ export const zohoDeskGetAttachmentTool: InternalToolConfig<
   name: 'Zoho Desk Get Attachment',
   description: 'Download a Zoho Desk ticket attachment (from its href) as a file.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'zoho-desk' },
 

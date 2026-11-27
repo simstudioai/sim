@@ -12,6 +12,7 @@ export const hubspotGetContactTool: ToolConfig<HubSpotGetContactParams, HubSpotG
     name: 'Get Contact from HubSpot',
     description: 'Retrieve a single contact by ID or email from HubSpot',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

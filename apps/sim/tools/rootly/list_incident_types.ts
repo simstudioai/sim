@@ -14,6 +14,7 @@ export const rootlyListIncidentTypesTool: ToolConfig<
   name: 'Rootly List Incident Types',
   description: 'List incident types configured in Rootly.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ import {
   type UpgradeCardId,
 } from '@/lib/billing/client'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
+import { formatMonthlyPlanPrice } from '@/lib/billing/plan-helpers'
 import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -36,6 +37,7 @@ import {
   upgradeReasonParam,
   upgradeUrlKeys,
 } from '@/app/workspace/[workspaceId]/upgrade/search-params'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin/store'
 
 /** The demo form, so a sales booking passes the same spam checks as every other. */
@@ -65,9 +67,14 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     ...upgradeUrlKeys,
   })
   const [showAllFeatures, setShowAllFeatures] = useState(false)
-
   const header = reason ? UPGRADE_REASON_COPY[reason].header : DEFAULT_UPGRADE_HEADER
   const canManageBilling = canManageWorkspaceBilling(hostContext, session?.user?.id)
+  // The trial is a personal checkout, so only a payer viewing their own workspace can start one.
+  const isPersonalWorkspace = !hostContext.hostOrganizationId
+  const { data: viewerBilling } = useSubscriptionData({
+    enabled: canManageBilling && isPersonalWorkspace,
+  })
+  const proTrialEligible = isPersonalWorkspace && viewerBilling?.data?.proTrialEligible === true
 
   const handleBack = useCallback(() => {
     router.replace(origin ?? `/workspace/${workspaceId}`)
@@ -171,7 +178,10 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
       }
     }
 
-    return { ...cta, onClick }
+    // Only a personal Pro checkout starts the trial, so only that card says so.
+    const startsTrial =
+      card === 'pro' && cta.intent === 'upgrade' && checkoutTarget === 'pro' && proTrialEligible
+    return { ...cta, ...(startsTrial ? { label: 'Start free trial' } : {}), onClick }
   }
 
   const proCta = resolveCta('pro')
@@ -186,12 +196,8 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   const maxBanner = state.isOnMax ? 'Your plan' : undefined
 
   const discountPct = Math.round(ANNUAL_DISCOUNT_RATE * 100)
-  const proPrice = state.isAnnual
-    ? Math.round(state.proTier.dollars * (1 - ANNUAL_DISCOUNT_RATE))
-    : state.proTier.dollars
-  const maxPrice = state.isAnnual
-    ? Math.round(state.maxTier.dollars * (1 - ANNUAL_DISCOUNT_RATE))
-    : state.maxTier.dollars
+  const proPrice = formatMonthlyPlanPrice(state.proTier.dollars, state.isAnnual)
+  const maxPrice = formatMonthlyPlanPrice(state.maxTier.dollars, state.isAnnual)
   const priceSubtext = state.isAnnual
     ? 'per user/month, billed annually'
     : 'per user/month, billed monthly'
@@ -220,7 +226,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
               <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3'>
                 <UpgradePlanCard
                   name='Pro'
-                  price={`$${proPrice}`}
+                  price={proPrice}
                   discountLabel={state.isAnnual ? `${discountPct}% off` : undefined}
                   priceSubtext={priceSubtext}
                   segmentLabel='For growing teams'
@@ -236,7 +242,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
 
                 <UpgradePlanCard
                   name='Max'
-                  price={`$${maxPrice}`}
+                  price={maxPrice}
                   discountLabel={state.isAnnual ? `${discountPct}% off` : undefined}
                   priceSubtext={priceSubtext}
                   segmentLabel='For scaling businesses'
@@ -275,8 +281,8 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
 
                 {showAllFeatures && (
                   <ComparisonTable
-                    proPrice={`$${proPrice}`}
-                    maxPrice={`$${maxPrice}`}
+                    proPrice={proPrice}
+                    maxPrice={maxPrice}
                     isAnnual={state.isAnnual}
                     onIsAnnualChange={state.setIsAnnual}
                     ctas={comparisonCtas}

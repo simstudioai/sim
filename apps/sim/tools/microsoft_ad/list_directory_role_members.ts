@@ -16,6 +16,7 @@ export const listDirectoryRoleMembersTool: ToolConfig<
   description:
     'List the principals holding an administrator role. Returns up to 1000 members; this endpoint does not support paging.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

@@ -13,6 +13,7 @@ export const getInsightSelectorsTool: InternalToolConfig<
   name: 'CloudTrail Get Insight Selectors',
   description: 'Read which CloudTrail Insights types are enabled on a trail or event data store',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

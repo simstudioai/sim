@@ -243,6 +243,7 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
   name: 'GitHub PR Reader',
   description: 'Fetch PR details including diff and files changed',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: PR_PARAMS,
@@ -354,6 +355,7 @@ export const prV2Tool: ToolConfig<PRV2OperationParams, PullRequestV2Response> = 
   name: prTool.name,
   description: prTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: {
     ...PR_PARAMS,

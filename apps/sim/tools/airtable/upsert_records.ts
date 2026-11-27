@@ -1,4 +1,5 @@
 import type { AirtableUpsertParams, AirtableUpsertResponse } from '@/tools/airtable/types'
+import { placeholderRecords } from '@/tools/airtable/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const airtableUpsertRecordsTool: ToolConfig<AirtableUpsertParams, AirtableUpsertResponse> = {
@@ -7,6 +8,7 @@ export const airtableUpsertRecordsTool: ToolConfig<AirtableUpsertParams, Airtabl
   description:
     'Update existing records or create new ones in an Airtable table, matching on the specified merge fields',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -87,6 +89,15 @@ export const airtableUpsertRecordsTool: ToolConfig<AirtableUpsertParams, Airtabl
       return body
     },
   },
+
+  /**
+   * A dry run's placeholder holds the records the call upserts, their ids placeholders: whether
+   * each is created or updated is the table's to decide.
+   */
+  dryRunOutput: (params) => ({
+    records: placeholderRecords(params.records),
+    metadata: { recordCount: params.records.length },
+  }),
 
   transformResponse: async (response) => {
     const data = await response.json()

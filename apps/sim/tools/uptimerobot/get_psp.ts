@@ -15,6 +15,7 @@ export const uptimeRobotGetPspTool: ToolConfig<UptimeRobotGetPspParams, UptimeRo
   name: 'UptimeRobot Get Status Page',
   description: 'Get the details of a single UptimeRobot public status page by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

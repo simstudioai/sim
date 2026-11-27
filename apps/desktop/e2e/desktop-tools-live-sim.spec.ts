@@ -1,18 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import {
-  type ElectronApplication,
-  _electron as electron,
-  expect,
-  type Locator,
-  type Page,
-  test,
-} from '@playwright/test'
-import type { SimDesktopApi } from '@sim/desktop-bridge'
+import type { Locator, Page } from '@playwright/test'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { answerShellDialog } from './executor-sim'
 import {
   type LiveSimConfig,
   liveSimConfig,
@@ -22,6 +13,7 @@ import {
   SimDatabase,
   SimProxy,
 } from './fixtures/live-sim'
+import { type DesktopApp, type DesktopBridge, type DesktopFixture, expect, test } from './harness'
 
 /**
  * Desktop tools in the real Electron app against a real local Sim: the renderer is Sim's own chat
@@ -37,7 +29,6 @@ import {
  * The tests marked as running in the background let Sim's own answer through.
  */
 
-const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 const config = liveSimConfig()
 const PICKUP_GRACE_MS = 15_000
 /** Longer than the default tool budget (60 s) plus the resume grace (30 s). */
@@ -48,14 +39,16 @@ const LEASE_MS = 60_000
 const ARRIVAL_MS = 60_000
 /** First requests to a route compile it, which takes minutes on a cold dev app. */
 const COMPILE_MS = 300_000
+/** The warm-up's budget: every route it reaches may compile from cold. */
+const WARM_UP_MS = 1_500_000
 const REGISTRATION_PATH = '/api/desktop/devices'
 const DESKTOP_COMPLETION_PATH = '/api/desktop/tool/complete'
+/** The title of the shell dialog asking to allow a folder. */
+const FOLDER_CONSENT_TITLE = 'Allow access to this folder?'
 /** Sim's answer to registration on an install that cannot run the background executor. */
 const executorUnavailable = (answer: Record<string, unknown>) => {
   answer.enabled = false
 }
-
-type DesktopWindow = typeof globalThis & { simDesktop: SimDesktopApi }
 
 test.describe('desktop tools against a live Sim', () => {
   test.skip(typeof config === 'string', typeof config === 'string' ? config : '')
@@ -65,14 +58,14 @@ test.describe('desktop tools against a live Sim', () => {
   let proxy: SimProxy
   let agent: ScriptedAgent
   let db: SimDatabase
-  let app: ElectronApplication | undefined
+  let launched: DesktopApp | undefined
+  let warmedUp = process.env.SIM_DESKTOP_E2E_APP_SERVER === 'start'
   let scratch: string
   /** Errors the current window reported, shown when a click is blocked. */
   let pageErrors: string[] = []
   let testStartedAt = 0
 
   test.beforeAll(async () => {
-    test.setTimeout(1_500_000)
     if (typeof config === 'string') throw new Error(config)
     sim = config
     proxy = new SimProxy(sim)
@@ -80,23 +73,29 @@ test.describe('desktop tools against a live Sim', () => {
     db = new SimDatabase(sim)
     await Promise.all([proxy.start(), agent.start()])
     proxy.rewriteAnswer(REGISTRATION_PATH, executorUnavailable)
-    if (process.env.SIM_DESKTOP_E2E_APP_SERVER !== 'start')
-      await test.step('warm up the routes the tests use', warmUp)
   })
 
   test.afterAll(async () => {
     await Promise.all([proxy?.stop(), agent?.stop(), db?.close()])
   })
 
-  test.beforeEach(() => {
+  // The warm-up launches the app, which only a test's fixtures can do, so the first test runs it
+  // with the time it takes added to its own.
+  test.beforeEach(async ({ desktop }) => {
+    if (!warmedUp) {
+      // Once per worker even if it fails: the failure is this test's, not every test's.
+      warmedUp = true
+      test.setTimeout(test.info().timeout + WARM_UP_MS)
+      await test.step('warm up the routes the tests use', () => warmUp(desktop))
+    }
     testStartedAt = Date.now()
-    scratch = mkdtempSync(join(tmpdir(), 'sim-desktop-tools-live-'))
+    scratch = desktop.tempDir('sim-desktop-tools-live-')
   })
 
   test.afterEach(async () => {
     const testInfo = test.info()
     if (testInfo.status !== testInfo.expectedStatus) {
-      const page = app?.windows()[0]
+      const page = launched?.app.windows()[0]
       await page?.screenshot({ path: testInfo.outputPath('failure.png') }).catch(() => {})
       writeFileSync(
         testInfo.outputPath('diagnostics.json'),
@@ -120,11 +119,9 @@ test.describe('desktop tools against a live Sim', () => {
     }
     proxy.clearHolds()
     proxy.restoreNetwork()
-    await app?.close().catch(() => {})
-    app = undefined
+    launched = undefined
     proxy.rewriteAnswer(REGISTRATION_PATH, executorUnavailable)
     proxy.rewriteAnswer(DESKTOP_COMPLETION_PATH, undefined)
-    rmSync(scratch, { recursive: true, force: true })
   })
 
   /**
@@ -135,8 +132,8 @@ test.describe('desktop tools against a live Sim', () => {
    * so no route the tests reach is left to compile. It ends with a marker request
    * (`/api/health?e2e=warm-up-done`) so the dev server's log shows anything compiled after it.
    */
-  async function warmUp(): Promise<void> {
-    scratch = mkdtempSync(join(tmpdir(), 'sim-desktop-tools-warm-'))
+  async function warmUp(desktop: DesktopFixture): Promise<void> {
+    scratch = desktop.tempDir('sim-desktop-tools-warm-')
     try {
       const user = await db.seedUser(['Warm chat', 'Warm other chat'])
       const headers = {
@@ -208,7 +205,7 @@ test.describe('desktop tools against a live Sim', () => {
         // The leg stays open until Stop ends it.
         await turn.closed
       })
-      const page = await openApp(user, 'Warm chat', COMPILE_MS)
+      const page = await openApp(desktop, user, 'Warm chat', COMPILE_MS)
       await send(page, '[warm-up] read and import', COMPILE_MS)
       await expect(page.getByText('Warming up.')).toBeVisible({ timeout: COMPILE_MS })
       // Leaving and reopening a chat while its turn runs re-attaches to the turn's stream.
@@ -225,33 +222,45 @@ test.describe('desktop tools against a live Sim', () => {
       await proxy.settled(COMPILE_MS)
       await compile('/api/health?e2e=warm-up-done')
     } finally {
-      await app?.close().catch(() => {})
-      app = undefined
-      rmSync(scratch, { recursive: true, force: true })
+      if (launched) await desktop.close(launched)
+      launched = undefined
     }
   }
 
   const chatPath = (user: SeededUser, title: string) =>
     `/workspace/${user.workspaceId}/chat/${user.chats[title]}`
 
+  /**
+   * Allows the folder when `window` is the folder consent dialog, as the user would; any other
+   * window is left alone.
+   */
+  async function allowFolderConsent(window: Page): Promise<void> {
+    await window.waitForLoadState('domcontentloaded')
+    if (!window.url().endsWith('/dialog.html')) return
+    // The dialog takes its title before it renders.
+    await window.getByRole('dialog').waitFor()
+    if ((await window.title()) !== FOLDER_CONSENT_TITLE) return
+    await answerShellDialog(window, 'Allow folder')
+  }
+
   /** Launches the app signed in as `user`, showing the chat titled `title`. */
-  async function openApp(user: SeededUser, title: string, timeout = 120_000): Promise<Page> {
-    app = await electron.launch({
-      args: [process.env.SIM_DESKTOP_E2E_MAIN ?? '.'],
-      cwd: DESKTOP_DIR,
-      env: {
-        ...process.env,
-        SIM_DESKTOP_ORIGIN: proxy.origin,
-        SIM_DESKTOP_USER_DATA: join(scratch, 'profile'),
-      },
+  async function openApp(
+    desktop: DesktopFixture,
+    user: SeededUser,
+    title: string,
+    timeout = 120_000
+  ): Promise<Page> {
+    launched = await desktop.launch({
+      origin: proxy.origin,
     })
+    const { app } = launched
     const page = await app.firstWindow({ timeout })
     pageErrors = []
-    app.on('window', (permission) => {
-      void permission
-        .getByRole('button', { name: 'Allow folder', exact: true })
-        .click({ timeout: 10_000 })
-        .catch((error) => pageErrors.push(`Folder approval failed: ${String(error)}`))
+    app.on('window', (window) => {
+      void allowFolderConsent(window).catch((error: unknown) => {
+        // A dialog the app closes itself, such as on Stop, is not a failed approval.
+        if (!window.isClosed()) pageErrors.push(`Folder approval failed: ${String(error)}`)
+      })
     })
     page.on('pageerror', (error) => pageErrors.push(error.message))
     page.on('console', (message) => {
@@ -392,7 +401,9 @@ test.describe('desktop tools against a live Sim', () => {
   const isToolReport = (method: string, path: string) =>
     method === 'POST' && path === '/api/copilot/confirm'
 
-  test('a browser call issued after the user switched chats fails as not started after the pickup grace', async () => {
+  test('a browser call issued after the user switched chats fails as not started after the pickup grace', async ({
+    desktop,
+  }) => {
     const user = await db.seedUser(['Browser chat', 'Other chat'])
     let issue!: () => void
     const issued = new Promise<void>((resolve) => {
@@ -407,7 +418,7 @@ test.describe('desktop tools against a live Sim', () => {
       issuedAt = Date.now()
       turn.pause()
     })
-    const page = await openApp(user, 'Browser chat')
+    const page = await openApp(desktop, user, 'Browser chat')
     await send(page, '[pickup-grace] which tabs are open?')
     await expect(page.getByText('Checking your browser tabs.')).toBeVisible({ timeout: 60_000 })
     await openChat(page, user, 'Other chat')
@@ -424,7 +435,7 @@ test.describe('desktop tools against a live Sim', () => {
     expect(call).toMatchObject({ toolName: 'browser_list_tabs', status: 'failed', claimedBy: null })
   })
 
-  test('leaving the chat does not end a local file read already under way', async () => {
+  test('leaving the chat does not end a local file read already under way', async ({ desktop }) => {
     const user = await db.seedUser(['Read chat', 'Other chat'])
     const marker = generateId()
     const file = writeFile(join(scratch, 'notes.txt'), `notes from disk ${marker}`)
@@ -433,7 +444,7 @@ test.describe('desktop tools against a live Sim', () => {
       callId = turn.toolCall({ toolName: 'read_local_file', args: { path: file } })
       turn.pause()
     })
-    const page = await openApp(user, 'Read chat')
+    const page = await openApp(desktop, user, 'Read chat')
     // Visit the other chat once, so leaving for it later is a quick client-side switch.
     await openChat(page, user, 'Other chat')
     await openChat(page, user, 'Read chat')
@@ -458,7 +469,9 @@ test.describe('desktop tools against a live Sim', () => {
     expect(call).toMatchObject({ toolName: 'read_local_file', status: 'completed' })
   })
 
-  test('an import keeps running across chat switches, and Stop from the reopened chat ends it', async () => {
+  test('an import keeps running across chat switches, and Stop from the reopened chat ends it', async ({
+    desktop,
+  }) => {
     const user = await db.seedUser(['Import chat', 'Other chat'])
     const chatId = user.chats['Import chat']
     const source = importSource()
@@ -469,7 +482,7 @@ test.describe('desktop tools against a live Sim', () => {
       })
       turn.pause()
     })
-    const page = await openApp(user, 'Import chat')
+    const page = await openApp(desktop, user, 'Import chat')
     const firstUpload = proxy.hold(isUploadStart)
     await send(page, '[stop-import] import my reports')
     await firstUpload.arrival(ARRIVAL_MS, 'The first upload')
@@ -505,7 +518,12 @@ test.describe('desktop tools against a live Sim', () => {
   })
 
   /** An import whose first upload the proxy holds until released, as a large file's would take. */
-  async function slowImport(user: SeededUser, title: string, marker: string) {
+  async function slowImport(
+    desktop: DesktopFixture,
+    user: SeededUser,
+    title: string,
+    marker: string
+  ) {
     const source = importSource()
     let callId = ''
     agent.script(marker, (turn) => {
@@ -515,18 +533,21 @@ test.describe('desktop tools against a live Sim', () => {
       })
       turn.pause()
     })
-    const page = await openApp(user, title)
+    const page = await openApp(desktop, user, title)
     const firstUpload = proxy.hold(isUploadStart)
     await send(page, `${marker} import my reports`)
     await firstUpload.arrival(ARRIVAL_MS, 'The first upload')
     return { page, firstUpload, callId: () => callId }
   }
 
-  test('an import that runs longer than the default tool budget still completes', async () => {
+  test('an import that runs longer than the default tool budget still completes', async ({
+    desktop,
+  }) => {
     test.setTimeout(420_000)
     const user = await db.seedUser(['Long import chat', 'Other chat'])
     const chatId = user.chats['Long import chat']
     const { page, firstUpload, callId } = await slowImport(
+      desktop,
       user,
       'Long import chat',
       '[long-import]'
@@ -548,16 +569,18 @@ test.describe('desktop tools against a live Sim', () => {
     expect(await callState(chatId)).toMatch(/^completed/)
   })
 
-  test('a long import whose window crashed settles as outcome unknown about one lease later @lease-lapse', async () => {
+  test('a long import whose window crashed settles as outcome unknown about one lease later @lease-lapse', async ({
+    desktop,
+  }) => {
     test.setTimeout(420_000)
     const user = await db.seedUser(['Crashing import chat'])
-    const { callId } = await slowImport(user, 'Crashing import chat', '[crash-import]')
+    const { callId } = await slowImport(desktop, user, 'Crashing import chat', '[crash-import]')
     await sleep(LONG_IMPORT_MS)
     expect(agent.resultFor(callId())).toBeUndefined()
     // A crash reports nothing on its way out, unlike a closed window: only the lapse of the
     // lease the page was renewing tells Sim the import is gone.
     const crashedAt = Date.now()
-    await app?.evaluate(({ webContents }) => {
+    await launched?.app.evaluate(({ webContents }) => {
       for (const contents of webContents.getAllWebContents())
         if (contents.getURL().includes('/workspace/')) contents.forcefullyCrashRenderer()
     })
@@ -567,7 +590,7 @@ test.describe('desktop tools against a live Sim', () => {
     expect((result?.at ?? 0) - crashedAt).toBeLessThan(LEASE_MS + 20_000)
   })
 
-  test('signing out ends a desktop tool still running', async () => {
+  test('signing out ends a desktop tool still running', async ({ desktop }) => {
     const user = await db.seedUser(['Import chat'])
     const chatId = user.chats['Import chat']
     const source = importSource()
@@ -578,7 +601,7 @@ test.describe('desktop tools against a live Sim', () => {
       })
       turn.pause()
     })
-    const page = await openApp(user, 'Import chat')
+    const page = await openApp(desktop, user, 'Import chat')
     const firstUpload = proxy.hold(isUploadStart)
     await send(page, '[sign-out-import] import my reports')
     await firstUpload.arrival(ARRIVAL_MS, 'The first upload')
@@ -625,73 +648,75 @@ test.describe('desktop tools against a live Sim', () => {
     return call
   }
 
-  test("a local read awaiting the user's approval cannot be claimed", async () => {
-    const user = await db.seedUser(['Approval chat'])
-    const secret = generateId()
-    const file = writeFile(join(scratch, 'secret.txt'), `private ${secret}`)
-    agent.script('[unapproved-read]', (turn) => {
-      turn.toolCall({
-        toolName: 'read_local_file',
-        args: { path: file },
-        status: 'awaiting_approval',
+  test("a local read or terminal command awaiting the user's approval cannot be claimed", async ({
+    desktop,
+  }) => {
+    const user = await db.seedUser(['Read approval chat', 'Run approval chat'])
+    const page = await openApp(desktop, user, 'Read approval chat')
+
+    await test.step('a local read', async () => {
+      const secret = generateId()
+      const file = writeFile(join(scratch, 'secret.txt'), `private ${secret}`)
+      agent.script('[unapproved-read]', (turn) => {
+        turn.toolCall({
+          toolName: 'read_local_file',
+          args: { path: file },
+          status: 'awaiting_approval',
+        })
+        turn.pause()
       })
-      turn.pause()
+      const chatId = user.chats['Read approval chat']
+      const read = await gatedCall(
+        page,
+        chatId,
+        '[unapproved-read] read my secret',
+        'read_local_file'
+      )
+      // A renderer acting on a call the user has not allowed (a replayed event) is refused.
+      const response = await page.evaluate(
+        (toolCallId) =>
+          (globalThis as DesktopBridge).simDesktop.localFiles?.({ operation: 'read', toolCallId }),
+        read.toolCallId
+      )
+      expect(response?.ok).toBe(false)
+      expect(JSON.stringify(response)).not.toContain(secret)
+      const [after] = await db.toolCalls(chatId)
+      expect(after).toMatchObject({ status: 'pending', claimedBy: null })
     })
-    const page = await openApp(user, 'Approval chat')
-    const chatId = user.chats['Approval chat']
-    const read = await gatedCall(
-      page,
-      chatId,
-      '[unapproved-read] read my secret',
-      'read_local_file'
-    )
 
-    // A renderer acting on a call the user has not allowed (a replayed event) is refused.
-    const response = await page.evaluate(
-      (toolCallId) =>
-        (globalThis as DesktopWindow).simDesktop.localFiles?.({ operation: 'read', toolCallId }),
-      read.toolCallId
-    )
-    expect(response?.ok).toBe(false)
-    expect(JSON.stringify(response)).not.toContain(secret)
-    const [after] = await db.toolCalls(chatId)
-    expect(after).toMatchObject({ status: 'pending', claimedBy: null })
+    await test.step('a terminal command', async () => {
+      const command = `touch '${join(scratch, 'terminal-ran')}'`
+      agent.script('[unapproved-run]', (turn) => {
+        turn.toolCall({ toolName: 'terminal', args: { operation: 'run', command } })
+        turn.pause()
+      })
+      await openChat(page, user, 'Run approval chat')
+      const chatId = user.chats['Run approval chat']
+      const run = await gatedCall(page, chatId, '[unapproved-run] run a command', 'terminal')
+      // The guard is the claim: Sim must not hand an unapproved command to the desktop, so the
+      // call stays pending and unclaimed. Whether a handed-over command then runs depends on a
+      // terminal being open for the chat, which this test does not set up, so it checks the claim.
+      const response = await page.evaluate(
+        ({ toolCallId, command }) =>
+          (globalThis as DesktopBridge).simDesktop.terminal
+            .executeTool(toolCallId, 'run', { command }, 'unapproved-e2e')
+            .catch((error: unknown) => ({ ok: false, error: String(error) })),
+        { toolCallId: run.toolCallId, command }
+      )
+      expect(response).toMatchObject({ ok: false })
+      const [after] = await db.toolCalls(chatId)
+      expect(after).toMatchObject({ status: 'pending', claimedBy: null })
+    })
   })
 
-  test("a terminal command awaiting the user's approval cannot be claimed", async () => {
-    const user = await db.seedUser(['Approval chat'])
-    const command = `touch '${join(scratch, 'terminal-ran')}'`
-    agent.script('[unapproved-run]', (turn) => {
-      turn.toolCall({ toolName: 'terminal', args: { operation: 'run', command } })
-      turn.pause()
-    })
-    const page = await openApp(user, 'Approval chat')
-    const chatId = user.chats['Approval chat']
-    const run = await gatedCall(page, chatId, '[unapproved-run] run a command', 'terminal')
-
-    // The guard is the claim: Sim must not hand an unapproved command to the desktop, so the call
-    // stays pending and unclaimed. Whether a handed-over command then runs depends on a terminal
-    // being open for the chat, which this test does not set up, so it checks the claim only.
-    const response = await page.evaluate(
-      ({ toolCallId, command }) =>
-        (globalThis as DesktopWindow).simDesktop.terminal
-          .executeTool(toolCallId, 'run', { command }, 'unapproved-e2e')
-          .catch((error: unknown) => ({ ok: false, error: String(error) })),
-      { toolCallId: run.toolCallId, command }
-    )
-    expect(response).toMatchObject({ ok: false })
-    const [after] = await db.toolCalls(chatId)
-    expect(after).toMatchObject({ status: 'pending', claimedBy: null })
-  })
-
-  test('a claim that reaches Sim after the user pressed Stop is refused', async () => {
+  test('a claim that reaches Sim after the user pressed Stop is refused', async ({ desktop }) => {
     const user = await db.seedUser(['Stop chat'])
     const file = writeFile(join(scratch, 'notes.txt'), 'notes')
     agent.script('[stopped-claim]', (turn) => {
       turn.toolCall({ toolName: 'read_local_file', args: { path: file } })
       turn.pause()
     })
-    const page = await openApp(user, 'Stop chat')
+    const page = await openApp(desktop, user, 'Stop chat')
     const chatId = user.chats['Stop chat']
     // Delivered to Sim on release even should Electron have given up on it meanwhile.
     const lateClaim = proxy.hold(isDesktopClaim, { deliverIfAbandoned: true })
@@ -706,7 +731,7 @@ test.describe('desktop tools against a live Sim', () => {
     const [call] = await db.toolCalls(chatId)
     const replay = await page.evaluate(
       (toolCallId) =>
-        (globalThis as DesktopWindow).simDesktop.localFiles?.({ operation: 'read', toolCallId }),
+        (globalThis as DesktopBridge).simDesktop.localFiles?.({ operation: 'read', toolCallId }),
       call.toolCallId
     )
     expect(replay?.ok).toBe(false)
@@ -718,7 +743,9 @@ test.describe('desktop tools against a live Sim', () => {
     expect(after).toMatchObject({ status: 'cancelled', claimedBy: null })
   })
 
-  test('where Sim cannot run the background executor, the app stays dormant and a desktop round trip runs in the chat view', async () => {
+  test('where Sim cannot run the background executor, the app stays dormant and a desktop round trip runs in the chat view', async ({
+    desktop,
+  }) => {
     const user = await db.seedUser(['Round trip'])
     const marker = generateId()
     const file = writeFile(join(scratch, 'plan.txt'), `plan ${marker}`)
@@ -741,7 +768,7 @@ test.describe('desktop tools against a live Sim', () => {
         }
       )
       const since = Date.now()
-      const page = await openApp(user, 'Round trip')
+      const page = await openApp(desktop, user, 'Round trip')
       await send(page, '[round-trip] what does my plan say?')
       // Each layer is checked on its own (soft), so a regression shows every layer it reaches:
       // the round trip, the turn's binding, the routes the app calls, and the doorbell.
@@ -787,7 +814,9 @@ test.describe('desktop tools against a live Sim', () => {
     }
   })
 
-  test('in the background, a call issued after the user switched chats runs on the desktop', async () => {
+  test('in the background, a call issued after the user switched chats runs on the desktop', async ({
+    desktop,
+  }) => {
     proxy.rewriteAnswer(REGISTRATION_PATH, undefined)
     const user = await db.seedUser(['Background chat', 'Other chat'])
     const marker = generateId()
@@ -805,7 +834,7 @@ test.describe('desktop tools against a live Sim', () => {
       issuedAt = Date.now()
       turn.pause()
     })
-    const page = await openApp(user, 'Background chat')
+    const page = await openApp(desktop, user, 'Background chat')
     await send(page, '[background-read] read my notes')
     await expect(page.getByText('Reading your notes.')).toBeVisible({ timeout: 60_000 })
     await openChat(page, user, 'Other chat')
@@ -825,7 +854,9 @@ test.describe('desktop tools against a live Sim', () => {
     expect(proxy.seen(issuedAt, '/api/desktop/tool/authorize')).toEqual([])
   })
 
-  test('in the background, a result reported across a network cut reaches the agent exactly once', async () => {
+  test('in the background, a result reported across a network cut reaches the agent exactly once', async ({
+    desktop,
+  }) => {
     proxy.rewriteAnswer(REGISTRATION_PATH, undefined)
     const user = await db.seedUser(['Cut chat'])
     const chatId = user.chats['Cut chat']
@@ -836,7 +867,7 @@ test.describe('desktop tools against a live Sim', () => {
       callId = turn.toolCall({ toolName: 'read_local_file', args: { path: file } })
       turn.pause()
     })
-    const page = await openApp(user, 'Cut chat')
+    const page = await openApp(desktop, user, 'Cut chat')
     // Reaches Sim on release although the cut made the app give up on it, as a report already on
     // the wire would: the app cannot know it landed, so it reports again once back online.
     const completion = proxy.hold(isDesktopCompletion, { deliverIfAbandoned: true })

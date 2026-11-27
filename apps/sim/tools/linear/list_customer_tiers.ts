@@ -14,6 +14,7 @@ export const linearListCustomerTiersTool: ToolConfig<
   name: 'Linear List Customer Tiers',
   description: 'List all customer tiers in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

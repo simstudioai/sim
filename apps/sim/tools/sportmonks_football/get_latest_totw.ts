@@ -30,6 +30,7 @@ export const sportmonksGetLatestTotwTool: ToolConfig<
   name: 'Get Latest Team of the Week',
   description: 'Retrieve the latest Team of the Week (TOTW) for a league ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

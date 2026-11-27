@@ -10,6 +10,7 @@ export const jsmGetTransitionsTool: InternalToolConfig<
   name: 'JSM Get Transitions',
   description: 'Get available transitions for a service request in Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

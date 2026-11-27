@@ -32,6 +32,7 @@ export const sportmonksOddsGetPremiumOddsByFixtureAndMarketTool: ToolConfig<
   description:
     'Retrieve premium pre-match odds for a fixture on a specific market via the Sportmonks Odds API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

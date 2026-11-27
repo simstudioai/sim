@@ -18,6 +18,7 @@ export const sendblueSendGroupMessageTool: ToolConfig<
   name: 'Sendblue Send Group Message',
   description: 'Send an iMessage or SMS to a group of recipients via Sendblue.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...sendblueBaseParamFields,

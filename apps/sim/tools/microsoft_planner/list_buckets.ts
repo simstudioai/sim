@@ -17,6 +17,7 @@ export const listBucketsTool: ToolConfig<
   name: 'List Microsoft Planner Buckets',
   description: 'List all buckets in a Microsoft Planner plan',
   version: '1.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

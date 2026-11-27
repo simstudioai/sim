@@ -13,6 +13,7 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
     description:
       'Get the state, configuration, and resource details of a single Databricks cluster by its cluster ID.',
     version: '1.0.0',
+    effect: 'read',
     oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
     params: {

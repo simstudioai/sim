@@ -13,6 +13,7 @@ export const getBranchProtectionTool: ToolConfig<
   description:
     'Get the branch protection rules for a specific branch, including status checks, review requirements, and restrictions.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -191,6 +192,7 @@ export const getBranchProtectionV2Tool: ToolConfig<GetBranchProtectionParams, an
   name: getBranchProtectionTool.name,
   description: getBranchProtectionTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getBranchProtectionTool.params,
   request: getBranchProtectionTool.request,

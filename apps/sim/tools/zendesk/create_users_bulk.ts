@@ -35,6 +35,7 @@ export const zendeskCreateUsersBulkTool: ToolConfig<
   name: 'Bulk Create Users in Zendesk',
   description: 'Create multiple users in Zendesk using bulk import',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

@@ -20,6 +20,7 @@ export const spotifyTransferPlaybackTool: ToolConfig<
   name: 'Spotify Transfer Playback',
   description: 'Transfer playback to a different device.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

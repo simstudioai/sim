@@ -17,6 +17,7 @@ export const crowdstrikeCreateIndicatorsTool: InternalToolConfig<
   description:
     'Create custom CrowdStrike Falcon indicators of compromise (POST /iocs/entities/indicators/v1). Each indicator can allow, detect, or block activity across the fleet, so a wrong value can suppress detections or break legitimate software. Requires the "IOC Management: Write" API scope.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

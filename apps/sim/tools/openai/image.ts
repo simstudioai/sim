@@ -18,6 +18,7 @@ export const imageTool: ToolConfig = {
   name: 'Image Generator',
   description: "Generate images using OpenAI's Image models",
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     model: {

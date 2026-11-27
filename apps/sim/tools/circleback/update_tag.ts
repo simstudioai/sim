@@ -18,6 +18,7 @@ export const updateTagTool: ToolConfig<CirclebackUpdateTagParams, CirclebackTagR
   name: 'Circleback Update Tag',
   description: 'Updates the name or description of a Circleback tag.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

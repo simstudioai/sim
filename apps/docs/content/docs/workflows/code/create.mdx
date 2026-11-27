@@ -1,0 +1,45 @@
+---
+title: Create a workflow
+description: Start a new workflow from a starter file, check it, and create it from a directory.
+---
+
+Result: a new workflow created from a file, in the workspace you choose.
+
+## Steps
+
+1. Write a starter into an empty directory:
+
+   ```bash
+   sim workflows source create --dir ./lead-intake --workspace <workspaceId>
+   ```
+
+   Without `--dry` or `--yes` this creates nothing. It writes a starter `workflow.ts` with that workspace's type declarations, `tsconfig.json` and `.sim/AGENTS.md`, and records the workspace in `.sim/starter.json`. The file starts with the `// @sim-sdk 1` line and default-exports one `workflow('Name', {}, () => { ... })`.
+
+2. Edit the starter and check it as in [Edit a workflow](/workflows/code/edit).
+
+3. Create the workflow:
+
+   ```bash
+   sim workflows source create --dir ./lead-intake --workspace <workspaceId> --dry
+   sim workflows source create --dir ./lead-intake --workspace <workspaceId> --yes
+   ```
+
+   The starter prints both commands with its workspace filled in. The command prints the new workflow ID and writes the same type declarations, `tsconfig.json`, and `.sim/` files that `get` writes, so you can continue editing with `apply`.
+
+A create goes to the starter's workspace whatever your default workspace, unless `--workspace` names another. Until the workflow is created the directory has no `.sim/base.json`, so `status`, `diff` and `apply` refuse it.
+
+If another workflow already has that name, the command exits `1` with `SOURCE_NAME_TAKEN`; pass `--name` to choose another. Without `--yes` and with no terminal to ask, `create` prints the plan, writes nothing and exits `14`.
+
+## Fork a workflow
+
+Copy its directory, delete the copy's `.sim/`, and create it under a new name. A copy has no stored workflow to take a saved secret from, so replace each `stored()` in the file, which `get` printed for a value it does not show, with `env.NAME` or the value; otherwise the create fails with `E_STORED_VALUE_MISSING`.
+
+```bash
+sim workflows source create --dir ./copy --workspace <workspaceId> --name "New name" --yes
+```
+
+## Related docs
+
+- [Get started](/workflows/code/get-started)
+- [Edit a workflow](/workflows/code/edit)
+- [Exit codes](/workflows/code/exit-codes)

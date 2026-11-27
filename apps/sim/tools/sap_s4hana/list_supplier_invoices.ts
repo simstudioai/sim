@@ -11,6 +11,7 @@ export const listSupplierInvoicesTool: InternalToolConfig<
   description:
     'List supplier invoices from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

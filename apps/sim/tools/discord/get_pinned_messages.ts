@@ -15,6 +15,7 @@ export const discordGetPinnedMessagesTool: ToolConfig<
   name: 'Discord Get Pinned Messages',
   description: 'Retrieve all pinned messages in a Discord channel',
   version: '1.0.0',
+  effect: 'read',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

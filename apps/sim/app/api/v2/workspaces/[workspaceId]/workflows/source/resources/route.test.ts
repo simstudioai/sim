@@ -60,7 +60,7 @@ const manifest = {
     },
   ],
   skills: [{ key: 'triage', id: 'skl_1', name: 'Triage' }],
-  customTools: [{ key: 'lookup-order', id: 'ctl_1', name: 'lookup_order' }],
+  customTools: [{ key: 'lookup-order', id: 'ctl_1', name: 'Lookup order' }],
   mcpServers: [{ key: 'github', id: 'mcp-1', name: 'GitHub', tools: ['create_issue'] }],
   env: ['CRM_KEY'],
   truncated: false,

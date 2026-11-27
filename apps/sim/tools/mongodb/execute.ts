@@ -6,6 +6,7 @@ export const executeTool: InternalToolConfig<MongoDBExecuteParams, MongoDBRespon
   name: 'MongoDB Execute',
   description: 'Execute MongoDB aggregation pipeline',
   version: '1.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -7,6 +7,7 @@ export const emailToIpTool: ToolConfig<EnrichEmailToIpParams, EnrichEmailToIpRes
   name: 'Enrich Email to IP',
   description: 'Discover an IP address associated with an email address.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

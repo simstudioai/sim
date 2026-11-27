@@ -31,6 +31,7 @@ export const sportmonksGetTeamSquadBySeasonTool: ToolConfig<
   name: 'Get Team Squad by Season',
   description: 'Retrieve the (historical) squad for a team in a specific season from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

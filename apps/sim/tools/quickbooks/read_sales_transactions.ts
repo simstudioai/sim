@@ -26,6 +26,7 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
   description:
     'List or read one estimate, invoice, sales receipt, payment, credit memo, or refund receipt',
   version: '1.0.0',
+  effect: 'read',
   params: {
     accessToken: {
       type: 'string',

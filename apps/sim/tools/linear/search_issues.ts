@@ -11,6 +11,7 @@ export const linearSearchIssuesTool: ToolConfig<
   name: 'Linear Search Issues',
   description: 'Search for issues in Linear using full-text search',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

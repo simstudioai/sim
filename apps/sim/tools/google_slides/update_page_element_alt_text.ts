@@ -30,6 +30,7 @@ export const updatePageElementAltTextTool: ToolConfig<
   description:
     'Set the accessibility title and/or description (alt text) of a page element such as an image, shape, or group.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

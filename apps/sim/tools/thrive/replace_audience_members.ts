@@ -19,6 +19,7 @@ export const replaceAudienceMembersTool: ToolConfig<
   description:
     "Replace a Thrive audience's entire members list with the given users (does not support an empty array).",
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

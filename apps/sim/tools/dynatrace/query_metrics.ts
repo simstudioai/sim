@@ -23,6 +23,7 @@ export const queryMetricsTool: ToolConfig<
   description:
     'Read metric data points from Dynatrace using a metric selector, with optional entity and management-zone scoping.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

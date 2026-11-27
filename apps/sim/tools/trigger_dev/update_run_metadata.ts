@@ -18,6 +18,7 @@ export const triggerDevUpdateRunMetadataTool: ToolConfig<
   name: 'Trigger.dev Update Run Metadata',
   description: 'Replace the metadata of a Trigger.dev run with a new JSON object.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

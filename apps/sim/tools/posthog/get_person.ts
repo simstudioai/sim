@@ -28,6 +28,7 @@ export const getPersonTool: ToolConfig<PostHogGetPersonParams, PostHogGetPersonR
   name: 'PostHog Get Person',
   description: 'Get detailed information about a specific person in PostHog by their ID or UUID.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

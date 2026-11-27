@@ -10,6 +10,7 @@ export const agiloftUpsertRecordTool: InternalToolConfig<
   description:
     'Create an Agiloft record, or update it when a record already matches the given fields.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     instanceUrl: {

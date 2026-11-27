@@ -12,10 +12,10 @@ to set up a Sim deployment.
 
 ## Install
 
-The CLI requires Node.js 20 or newer.
+The CLI requires Node.js 22.18 or newer on the 22 line, or 24.11 or newer. Install it globally with Bun (npm and pnpm work too; keep upgrading with the manager that owns the installation, or run `sim update`):
 
 ```bash
-npm install --global sim
+bun add --global sim
 sim --version
 ```
 
@@ -323,11 +323,10 @@ Success exits 0 and most failures exit 1. Two failures any command can hit have 
 creates and dry runs, are resent up to 6 times first, each wait the longer of `Retry-After` (up to
 60 seconds) and a backoff of about 1 to 30 seconds; any other write exits 9 at once. Before this
 release both exited 1. Ctrl-C exits 130; a source apply or create already sent is finished and
-saved into its directory first. The `workflows source` and `workspaces source` commands also use
-5 (stale), 6 (a locked workflow or folder; a locked block exits 1), 7 (too large), 8 (a workspace
-apply stopped part-way), 10 (busy), 11 (status: local changes), 12 (status: the server changed),
-14 (a write without `--yes` where no terminal can ask: it printed the plan and wrote nothing) and 15
-(a workspace apply wrote part of its plan and held the rest back). Command-specific codes: [Exit codes](https://docs.sim.ai/cli/scripting#exit-codes).
+saved into its directory first. The `workflows source` and `workspaces source` commands have codes
+of their own, such as 5 (stale) and 12 (`status`: the server changed): see
+[Workflows as code exit codes](https://docs.sim.ai/workflows/code/exit-codes). Other
+command-specific codes: [Exit codes](https://docs.sim.ai/cli/scripting#exit-codes).
 
 ## Workflows and workspaces as code
 
@@ -340,7 +339,7 @@ sim workflows source get <workflowId> --dir ./support-triage   # write workflow.
 sim workflows source check --dir ./support-triage              # compile offline, no request
 sim workflows source status --dir ./support-triage             # your edits, server changes, next step
 sim workflows source diff --dir ./support-triage               # your edits as a unified diff
-sim workflows source apply --dir ./support-triage --dry-run    # run every check a save runs
+sim workflows source apply --dir ./support-triage --dry        # run every check a save runs
 sim workflows source apply --dir ./support-triage --yes        # save the draft (never deploys)
 ```
 
@@ -351,12 +350,12 @@ starts a new workflow in that workspace.
 
 Coding agents (Claude Code, Cursor, Codex) start at `.sim/AGENTS.md`, which `get`
 writes into the directory. The loop is get, edit `workflow.ts`, check, status,
-apply with `--dry-run`, then apply with `--yes`. Saving source acts as a person:
+apply with `--dry`, then apply with `--yes`. Saving source acts as a person:
 use a personal API key or an OAuth login, since a workspace API key cannot save
 workflows.
 
 See [Workflows as code](https://docs.sim.ai/workflows/code) and
-[Workspace as code](https://docs.sim.ai/workflows/workspace-code).
+[Workspace as code](https://docs.sim.ai/workflows/code/workspace).
 
 ## CI and automation
 
@@ -369,7 +368,7 @@ export SIM_WORKSPACE="<workspaceId>"
 sim workflows run <workflowId> --input @input.json --output json
 ```
 
-Create and revoke API keys in Sim under **Settings → API keys**, and store them
+Create and revoke API keys in Sim under **Settings → Sim API keys**, and store them
 in your CI provider's secret store. `sim logout` only removes a stored key from
 the current machine; it does not revoke the key.
 
@@ -386,6 +385,7 @@ The main environment variables are:
 | `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely |
 | `SIM_DEBUG` | Print request diagnostics to stderr |
 | `SIM_NO_UPDATE_CHECK` | Turn off update notices |
+| `SIM_TYPESCRIPT_DIR` | Pre-installed TypeScript releases (`<dir>/<version>/node_modules/typescript`) that `source check` reads before installing one |
 | `SIM_TELEMETRY_DISABLED` | Turn off anonymous usage reporting (`DO_NOT_TRACK=1` also works) |
 
 On eligible interactive invocations, `sim` uses a daily cache before asking

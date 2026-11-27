@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetTeamsTool: ToolConfig<
   name: 'Get Teams',
   description: 'Retrieve all motorsport teams (constructors) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

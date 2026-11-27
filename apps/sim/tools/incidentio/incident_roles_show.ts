@@ -14,6 +14,7 @@ export const incidentRolesShowTool: ToolConfig<
   name: 'Show Incident Role',
   description: 'Get details of a specific incident role in incident.io',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

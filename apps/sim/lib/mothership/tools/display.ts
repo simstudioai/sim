@@ -601,6 +601,7 @@ const TOOL_TITLES: Record<string, string> = {
   search_workspace: 'Searching documents',
   list_workspaces: 'Listing workspaces',
   read_document: 'Reading document',
+  search_people: 'Looking up people',
   open_resource: 'Opening resource',
 
   ffmpeg: 'Processing media',
@@ -1013,7 +1014,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'cli_workflows_operations_apply':
     case 'cli_workflows_state_replace':
-      if (stringArrayArg(args, 'args').includes('--dry-run')) {
+      if (stringArrayArg(args, 'args').includes('--dry')) {
         return 'Validating workflow changes'
       }
       return CLI_TOOL_TITLES[name] ?? humanizeToolName(name)
@@ -1497,7 +1498,9 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
   }
 
-  return TOOL_TITLES[name] ?? CLI_TOOL_TITLES[name] ?? humanizeToolName(name)
+  if (Object.hasOwn(TOOL_TITLES, name)) return TOOL_TITLES[name]
+  if (Object.hasOwn(CLI_TOOL_TITLES, name)) return CLI_TOOL_TITLES[name]
+  return humanizeToolName(name)
 }
 
 /** First positional after the synthetic CLI command path; shared by resource and operation labels. */

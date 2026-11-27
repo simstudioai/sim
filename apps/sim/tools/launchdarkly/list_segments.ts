@@ -15,6 +15,7 @@ export const launchDarklyListSegmentsTool: ToolConfig<
   name: 'LaunchDarkly List Segments',
   description: 'List user segments in a LaunchDarkly project and environment.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

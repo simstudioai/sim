@@ -23,6 +23,7 @@ export const affinityCreateListTool: ToolConfig<
   description:
     'Create a list. Its type fixes which entities it can hold, and the API key holder becomes its creator and owner.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

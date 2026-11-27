@@ -14,6 +14,7 @@ export const greenhouseListUsersTool: ToolConfig<
   description:
     'Lists Greenhouse users (recruiters, hiring managers, admins) with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

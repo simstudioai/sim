@@ -1,9 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
+vi.unmock('@/tools/metadata-outputs')
 
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
+import type { OutputCondition } from '@/blocks/types'
+import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
+
+/** Whether an output condition's own clause on `operation` admits `operation`. */
+function operationClauseAdmits(condition: OutputCondition, operation: string): boolean {
+  const matches = Array.isArray(condition.value)
+    ? condition.value.includes(operation)
+    : condition.value === operation
+  return condition.not ? !matches : matches
+}
 
 describe.concurrent('Blocks Module', () => {
   describe('Agent block', () => {
@@ -482,6 +493,50 @@ describe.concurrent('Blocks Module', () => {
       if (errors.length > 0) {
         throw new Error(`Required status consistency errors:\n${errors.join('\n')}`)
       }
+    })
+  })
+
+  describe('Output conditions', () => {
+    it('keeps every output an operation tool returns selectable for that operation', () => {
+      const errors: string[] = []
+
+      for (const block of getAllBlocks()) {
+        const operationSubBlock = block.subBlocks.find(
+          (subBlock) => subBlock.id === 'operation' && subBlock.type === 'dropdown'
+        )
+        const options = operationSubBlock?.options
+        const selectTool = block.tools.config?.tool
+        if (!Array.isArray(options) || !selectTool || !block.outputs) continue
+
+        const toolByOperation = new Map<string, string>()
+        for (const option of options) {
+          try {
+            toolByOperation.set(option.id, selectTool({ operation: option.id }))
+          } catch {}
+        }
+        const operationsByTool = new Map<string, number>()
+        for (const toolId of toolByOperation.values()) {
+          operationsByTool.set(toolId, (operationsByTool.get(toolId) ?? 0) + 1)
+        }
+
+        for (const [operation, toolId] of toolByOperation) {
+          // A tool shared by several operations declares the union of their outputs.
+          if (operationsByTool.get(toolId) !== 1) continue
+          const toolOutputs = getToolOutputsMetadata(toolId)
+          if (!toolOutputs) continue
+
+          for (const [name, output] of Object.entries(block.outputs)) {
+            if (!output || typeof output !== 'object' || !('condition' in output)) continue
+            const condition = output.condition
+            if (condition?.field !== 'operation' || !Object.hasOwn(toolOutputs, name)) continue
+            if (!operationClauseAdmits(condition, operation)) {
+              errors.push(`${block.type}.${name} hidden for ${operation} (${toolId} returns it)`)
+            }
+          }
+        }
+      }
+
+      expect(errors).toEqual([])
     })
   })
 })

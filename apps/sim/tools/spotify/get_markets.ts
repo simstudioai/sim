@@ -16,6 +16,7 @@ export const spotifyGetMarketsTool: ToolConfig<SpotifyGetMarketsParams, SpotifyG
     name: 'Spotify Get Available Markets',
     description: 'Get the list of markets where Spotify is available.',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

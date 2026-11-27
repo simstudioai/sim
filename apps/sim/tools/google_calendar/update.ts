@@ -28,6 +28,7 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
   name: 'Google Calendar Update Event',
   description: 'Update an existing event in Google Calendar',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -250,6 +251,7 @@ export const updateV2Tool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendar
     name: 'Google Calendar Update Event',
     description: 'Update an existing event in Google Calendar.',
     version: '2.0.0',
+    effect: 'write',
     oauth: updateTool.oauth,
     params: updateTool.params,
     request: updateTool.request,

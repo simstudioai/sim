@@ -21,6 +21,7 @@ export const gaugeAddTagsToPromptsTool: ToolConfig<
   name: 'Gauge Add Tags To Prompts',
   description: 'Apply a set of tags to the selected tracked prompts.',
   version: '1.0.0',
+  effect: 'write',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

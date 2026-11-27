@@ -24,6 +24,7 @@ export const affinityListFieldDropdownOptionsTool: ToolConfig<
   description:
     'List the selectable options on a dropdown or ranked-dropdown company or person field. Writing such a field needs the option ID, not its text.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

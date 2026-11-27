@@ -24,6 +24,7 @@ export const createCampaignTool: ToolConfig<CreateCampaignParams, SmartleadCreat
     description:
       'Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequences, email accounts, and a schedule before starting it.',
     version: '1.0.0',
+    effect: 'write',
     oauth: SMARTLEAD_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
     params: {

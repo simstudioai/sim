@@ -8,6 +8,7 @@ export const vercelGetDomainTool: ToolConfig<VercelGetDomainParams, VercelGetDom
   name: 'Vercel Get Domain',
   description: 'Get information about a specific domain in a Vercel account',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

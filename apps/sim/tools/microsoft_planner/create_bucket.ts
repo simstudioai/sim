@@ -16,6 +16,7 @@ export const createBucketTool: ToolConfig<
   name: 'Create Microsoft Planner Bucket',
   description: 'Create a new bucket in a Microsoft Planner plan',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

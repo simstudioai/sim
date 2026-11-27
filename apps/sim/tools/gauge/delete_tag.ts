@@ -8,6 +8,7 @@ export const gaugeDeleteTagTool: ToolConfig<GaugeDeleteTagParams, GaugeDeleteTag
   name: 'Gauge Delete Tag',
   description: 'Delete a prompt tag and remove its associations with prompts.',
   version: '1.0.0',
+  effect: 'write',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

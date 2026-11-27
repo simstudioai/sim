@@ -20,6 +20,7 @@ export const getTunnelTokenTool: ToolConfig<
   description:
     'Gets the connector token used to run a remotely managed Cloudflare Tunnel with cloudflared.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

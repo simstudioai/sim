@@ -11,6 +11,7 @@ export const gitlabDeleteIssueTool: ToolConfig<GitLabDeleteIssueParams, GitLabDe
     name: 'GitLab Delete Issue',
     description: 'Delete an issue from a GitLab project',
     version: '1.0.0',
+    effect: 'write',
     oauth: GITLAB_CREDENTIAL_OAUTH,
 
     params: {

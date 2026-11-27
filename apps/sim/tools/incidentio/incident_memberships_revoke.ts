@@ -13,6 +13,7 @@ export const incidentMembershipsRevokeTool: ToolConfig<
   name: 'Revoke Incident Membership',
   description: "Revoke a user's membership of a private incident in incident.io",
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

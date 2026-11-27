@@ -14,6 +14,7 @@ export const getLabelTool: ToolConfig<JotformGetLabelParams, JotformLabelRespons
   name: 'Jotform Get Label',
   description: 'Get the name, color, and owner of a single Jotform label.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

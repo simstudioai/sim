@@ -13,6 +13,7 @@ export const deleteApplicationTool: InternalToolConfig<
   name: 'AppConfig Delete Application',
   description: 'Delete an AWS AppConfig application',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

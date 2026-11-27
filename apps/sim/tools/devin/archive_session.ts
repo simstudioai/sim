@@ -13,6 +13,7 @@ export const devinArchiveSessionTool: ToolConfig<
   description:
     'Archive a Devin session. Archived sessions can still be viewed but cannot be modified or resumed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {

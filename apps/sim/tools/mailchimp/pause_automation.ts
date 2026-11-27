@@ -23,6 +23,7 @@ export const mailchimpPauseAutomationTool: ToolConfig<
   name: 'Pause Automation in Mailchimp',
   description: 'Pause all emails in a Mailchimp automation workflow',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

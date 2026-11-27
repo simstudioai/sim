@@ -11,7 +11,7 @@ import { createLogger } from '@sim/logger'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
+import { AVERAGE_MONTH_MS, BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
 import { computeOrgOverageAmount, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
 import {
@@ -19,8 +19,14 @@ import {
   getStampedPeriodRangeUsageCostByUser,
 } from '@/lib/billing/core/usage-log'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
-import { getPlanWeeklyRefreshDollars, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
-import { ENTITLED_SUBSCRIPTION_STATUSES, getPlanPricing } from '@/lib/billing/subscriptions/utils'
+import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
+import {
+  getOrgIncludedUsageDollars,
+  getPlanPricing,
+  getSubscriptionWeeklyRefreshDollars,
+  isHardCappedEnterprise,
+  SETTLED_SUBSCRIPTION_STATUSES,
+} from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -28,6 +34,30 @@ import type { DbOrTx } from '@/lib/db/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('BillingCycleClose')
+
+/**
+ * The usage a closed period included, from the period itself rather than the subscription's
+ * current terms: an interval switch moves the subscription onto the new interval before the old
+ * period closes, and that period must not be priced at the new allowance. A full year counts its
+ * seat-months (kept for the year until it closes); a shorter period counts its own months.
+ */
+function closedPeriodIncludedUsage(
+  sub: SubscriptionRow,
+  closedRange: { from: Date; to: Date },
+  orgScoped: boolean
+): number {
+  if (isEnterprise(sub.plan)) return getOrgIncludedUsageDollars(sub)
+  const months = Math.max(
+    1,
+    Math.round((closedRange.to.getTime() - closedRange.from.getTime()) / AVERAGE_MONTH_MS)
+  )
+  if (months >= 12) {
+    const year = { ...sub, periodStart: closedRange.from, billingInterval: 'year' }
+    return orgScoped ? getOrgIncludedUsageDollars(year) : getPlanPricing(year).basePrice
+  }
+  const monthly = getPlanPricing({ ...sub, billingInterval: 'month' }).basePrice
+  return monthly * months * (orgScoped ? sub.seats || 1 : 1)
+}
 
 /**
  * Minimum residual overage worth invoicing at cycle close, in dollars.
@@ -149,7 +179,7 @@ export async function isSubscriptionCycleCloseCurrent(
  * Close any elapsed-but-unclosed billing period for a subscription that is
  * being deleted, ahead of its terminal settlement. A deleted subscription
  * leaves the sweep's candidate set (its status leaves
- * `ENTITLED_SUBSCRIPTION_STATUSES`), so this is the last chance to settle a
+ * `SETTLED_SUBSCRIPTION_STATUSES`), so this is the last chance to settle a
  * period the sweep has not caught up to — without it, `claimTerminalPeriod`
  * would advance the marker past the elapsed period and silently forgive its
  * final overage, while the elapsed period's threshold collections would
@@ -224,6 +254,8 @@ export async function claimTerminalPeriod(
   periodStart: Date | null
   periodEnd: Date | null
   markerWasCurrent: boolean
+  /** The row's contract metadata, which decides whether a self-serve Enterprise bills overage. */
+  metadata: unknown
 }> {
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -231,6 +263,7 @@ export async function claimTerminalPeriod(
         periodStart: subscriptionTable.periodStart,
         periodEnd: subscriptionTable.periodEnd,
         lastClosedPeriodStart: subscriptionTable.lastClosedPeriodStart,
+        metadata: subscriptionTable.metadata,
       })
       .from(subscriptionTable)
       .where(eq(subscriptionTable.id, subscriptionId))
@@ -240,14 +273,18 @@ export async function claimTerminalPeriod(
     if (!row?.periodStart) {
       // Mirrors the threshold gate: a null `periodStart` cannot race a
       // rollover, so any tracked collections are legitimately current.
-      return { periodStart: null, periodEnd: null, markerWasCurrent: true }
+      return { periodStart: null, periodEnd: null, markerWasCurrent: true, metadata: row?.metadata }
     }
     const markerWasCurrent =
       !!row.lastClosedPeriodStart &&
       row.lastClosedPeriodStart.getTime() >= row.periodStart.getTime()
-    if (!markerWasCurrent && !options.sealLagging) {
-      return { periodStart: row.periodStart, periodEnd: row.periodEnd, markerWasCurrent }
+    const claim = {
+      periodStart: row.periodStart,
+      periodEnd: row.periodEnd,
+      markerWasCurrent,
+      metadata: row.metadata,
     }
+    if (!markerWasCurrent && !options.sealLagging) return claim
     if (!markerWasCurrent) {
       logger.error(
         'Sealing an unclosed elapsed period at terminal claim; residual overage forgiven',
@@ -259,7 +296,7 @@ export async function claimTerminalPeriod(
       )
     }
     await claimCloseMarker(tx, subscriptionId, row.periodEnd ?? row.periodStart)
-    return { periodStart: row.periodStart, periodEnd: row.periodEnd, markerWasCurrent }
+    return claim
   })
 }
 
@@ -298,7 +335,8 @@ async function claimCloseMarker(
  *
  * 1. Sums the closed period's ledger usage per member from write-time period
  *    stamps (`getStampedPeriodRangeUsageCostByUser`) — never `created_at`.
- * 2. Collects final sub-threshold overage for non-enterprise plans: computed
+ * 2. Collects final sub-threshold overage for every plan but a hard-capped
+ *    Enterprise contract: computed
  *    overage minus what threshold billing already collected
  *    (`billedOverageThisPeriod`), credits applied first, remainder invoiced
  *    through the transaction-enlisted Stripe outbox with deterministic
@@ -309,8 +347,8 @@ async function claimCloseMarker(
  *    and marker commit atomically — a crash retries the whole close, and the
  *    outbox's Stripe idempotency keys collapse invoice replays.
  *
- * Enterprise subscriptions never collect money here (billing is contractual,
- * outside Stripe); they get bookkeeping + marker only, and orgs on reporting
+ * Enterprise contracts outside self-serve never collect money here (billing is
+ * contractual); they get bookkeeping + marker only, and orgs on reporting
  * anchors skip bookkeeping too because their windows derive live from the
  * anchor. A null marker initializes to the current `periodStart` without
  * billing, so historical periods are never retroactively closed.
@@ -429,24 +467,25 @@ export async function closeElapsedBillingPeriod(
     ? (memberRows.find((row) => row.role === 'owner')?.userId ?? null)
     : sub.referenceId
 
-  // Final overage for the closed period (enterprise never bills overage).
+  // Final overage for the closed period.
   // Refresh reads are scoped by the same entity/period stamps as the ledger
   // sums, so a departed member's org-attributed rows offset the overage
   // exactly like a current member's.
   let totalOverage = 0
-  if (!enterprise) {
+  const billsClosedOverage = !isHardCappedEnterprise(sub)
+  if (billsClosedOverage) {
     if (orgScoped) {
       const { totalOverage: computed } = await computeOrgOverageAmount({
-        plan: sub.plan,
-        seats: sub.seats ?? null,
+        subscription: { ...sub, seats: sub.seats ?? null },
         periodStart: closeFrom,
         periodEnd: periodStart,
         organizationId: sub.referenceId,
         pooledLedgerUsage: closedLedgerUsage,
+        includedUsage: closedPeriodIncludedUsage(sub, closedRange, true),
       })
       totalOverage = computed
     } else {
-      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+      const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(sub)
       let refreshConsumed = 0
       if (weeklyRefreshDollars > 0) {
         refreshConsumed = await computeWeeklyRefreshConsumed({
@@ -456,15 +495,15 @@ export async function closeElapsedBillingPeriod(
           weeklyRefreshDollars,
         })
       }
-      const { basePrice } = getPlanPricing(sub.plan)
-      totalOverage = Math.max(0, closedLedgerUsage - refreshConsumed - basePrice)
+      const includedUsage = closedPeriodIncludedUsage(sub, closedRange, false)
+      totalOverage = Math.max(0, closedLedgerUsage - refreshConsumed - includedUsage)
     }
   }
 
   // Labels use the closed period's END month, matching threshold billing's
   // period-end labeling for overage invoices.
   const billingPeriodLabel = periodStart.toISOString().slice(0, 7)
-  const collectMoney = !enterprise && totalOverage > 0
+  const collectMoney = billsClosedOverage && totalOverage > 0
   if (collectMoney && (!sub.stripeCustomerId || !sub.stripeSubscriptionId)) {
     // Claiming the marker here would silently forgive the overage. Defer the
     // whole close — the sweep retries every run until the Stripe linkage is
@@ -824,19 +863,19 @@ const SWEEP_PAGE_SIZE = 250
 const SWEEP_CLOSE_CONCURRENCY = 10
 
 /**
- * Entitled statuses inlined as SQL literals rather than bind parameters: the
+ * Settled statuses inlined as SQL literals rather than bind parameters: the
  * candidate scan targets the partial index on exactly this predicate, and the
  * planner can only prove a query implies a partial index's predicate from
  * literals — a parameterized generic plan would fall back to scanning the
  * whole table.
  */
-const ENTITLED_STATUS_LITERALS = sql.raw(
-  ENTITLED_SUBSCRIPTION_STATUSES.map((status) => `'${status}'`).join(', ')
+const SETTLED_STATUS_LITERALS = sql.raw(
+  SETTLED_SUBSCRIPTION_STATUSES.map((status) => `'${status}'`).join(', ')
 )
 
 /**
  * Daily catch-all that closes every elapsed billing period. Candidates are
- * entitled subscriptions whose close marker lags their current `periodStart`
+ * settled subscriptions whose close marker lags their current `periodStart`
  * — i.e. the period advanced (via Stripe sync) since the last close.
  *
  * Iterates candidates in keyset pages (matching the partial index on exactly
@@ -862,7 +901,7 @@ export async function sweepBillingCycleCloses(): Promise<CycleCloseSweepSummary>
       .from(subscriptionTable)
       .where(
         and(
-          sql`${subscriptionTable.status} in (${ENTITLED_STATUS_LITERALS})`,
+          sql`${subscriptionTable.status} in (${SETTLED_STATUS_LITERALS})`,
           sql`${subscriptionTable.periodStart} IS NOT NULL`,
           or(
             isNull(subscriptionTable.lastClosedPeriodStart),

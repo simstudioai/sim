@@ -15,6 +15,7 @@ export const createSpaceTool: ToolConfig<
   name: 'Google Meet Create Space',
   description: 'Create a new Google Meet meeting space',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

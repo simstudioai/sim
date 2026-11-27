@@ -13,6 +13,7 @@ export const deleteListItemTool: ToolConfig<
   name: 'Delete SharePoint List Item',
   description: 'Delete an item from a SharePoint list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

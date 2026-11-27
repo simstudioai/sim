@@ -12,6 +12,7 @@ export const hubspotGetEmailTool: ToolConfig<HubSpotGetEmailParams, HubSpotGetEm
   description:
     'Retrieve a single email engagement by ID from HubSpot (content requires the sales-email-read scope)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

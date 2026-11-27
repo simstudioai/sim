@@ -12,6 +12,7 @@ export const pitchbookFundInvestmentPreferencesTool: ToolConfig<
   description:
     'Retrieve what a fund targets: check size, valuation, geography, industry, vertical, and deal type preferences',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

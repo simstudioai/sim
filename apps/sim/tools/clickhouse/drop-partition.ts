@@ -12,6 +12,7 @@ export const dropPartitionTool: InternalToolConfig<
   name: 'ClickHouse Drop Partition',
   description: 'Drop a partition from a ClickHouse table',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

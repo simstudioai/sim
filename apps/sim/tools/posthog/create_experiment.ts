@@ -43,6 +43,7 @@ export const createExperimentTool: ToolConfig<
   name: 'PostHog Create Experiment',
   description: 'Create a new experiment in PostHog',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'posthog-errors',
 
   params: {

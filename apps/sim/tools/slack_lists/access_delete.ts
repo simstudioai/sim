@@ -6,6 +6,7 @@ export const slackListsAccessDeleteTool = createSlackWebApiTool({
   id: 'slack_lists_access_delete',
   name: 'Slack Revoke List Access',
   description: 'Remove access to a Slack List for either users or channels.',
+  effect: 'write',
   endpoint: 'slackLists.access.delete',
   method: 'POST',
   oauth: {

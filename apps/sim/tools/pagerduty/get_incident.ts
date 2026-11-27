@@ -12,6 +12,7 @@ export const getIncidentTool: ToolConfig<PagerDutyGetIncidentParams, PagerDutyGe
     name: 'PagerDuty Get Incident',
     description: 'Get a single incident from PagerDuty by ID.',
     version: '1.0.0',
+    effect: 'read',
     oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
     params: {

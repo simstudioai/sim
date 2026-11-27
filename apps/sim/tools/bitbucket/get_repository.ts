@@ -24,6 +24,7 @@ export const bitbucketGetRepositoryTool: ToolConfig<
   name: 'Bitbucket Get Repository',
   description: 'Get a Bitbucket Cloud repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository'] },
   params: { ...BITBUCKET_REPOSITORY_PARAMS },
   request: {

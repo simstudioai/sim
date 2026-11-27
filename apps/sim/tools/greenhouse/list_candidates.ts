@@ -13,6 +13,7 @@ export const greenhouseListCandidatesTool: ToolConfig<
   name: 'Greenhouse List Candidates',
   description: 'Lists candidates from Greenhouse with optional filtering by date, job, or email',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

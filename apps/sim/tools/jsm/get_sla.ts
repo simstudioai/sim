@@ -7,6 +7,7 @@ export const jsmGetSlaTool: InternalToolConfig<JsmGetSlaParams, JsmGetSlaRespons
   name: 'JSM Get SLA',
   description: 'Get SLA information for a service request in Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

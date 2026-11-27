@@ -29,6 +29,7 @@ export const spotifyGetAudiobookTool: ToolConfig<
   name: 'Spotify Get Audiobook',
   description: 'Get details for an audiobook.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

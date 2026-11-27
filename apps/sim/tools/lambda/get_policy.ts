@@ -8,6 +8,7 @@ export const getPolicyTool: InternalToolConfig<LambdaGetPolicyParams, LambdaGetP
   name: 'Lambda Get Policy',
   description: 'Get the resource-based IAM policy attached to a function, version, or alias',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

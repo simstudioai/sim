@@ -18,6 +18,7 @@ export const deleteTool: ToolConfig<GoogleDriveDeleteParams, GoogleDriveDeleteRe
   name: 'Delete Google Drive File',
   description: 'Permanently delete a file from Google Drive (bypasses trash)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

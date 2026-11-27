@@ -40,6 +40,7 @@ export const zendeskCreateOrganizationTool: ToolConfig<
   name: 'Create Organization in Zendesk',
   description: 'Create a new organization in Zendesk',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

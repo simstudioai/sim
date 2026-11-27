@@ -16,6 +16,7 @@ export const outlookCalendarGetEventTool: ToolConfig<
   name: 'Outlook Get Calendar Event',
   description: 'Get a single Outlook calendar event by ID',
   version: '1.0.0',
+  effect: 'read',
 
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 

@@ -11,6 +11,7 @@ export const listBusinessPartnersTool: InternalToolConfig<
   description:
     'List business partners from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

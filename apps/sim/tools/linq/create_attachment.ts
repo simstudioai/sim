@@ -12,6 +12,7 @@ export const linqCreateAttachmentTool: InternalToolConfig<
   description:
     'Upload a file to Linq as a reusable attachment (max 100MB) and get an attachment ID to send in messages',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

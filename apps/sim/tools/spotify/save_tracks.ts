@@ -8,6 +8,7 @@ export const spotifySaveTracksTool: ToolConfig<SpotifySaveTracksParams, SpotifyS
     name: 'Spotify Save Tracks',
     description: "Save tracks to the current user's library (like tracks).",
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

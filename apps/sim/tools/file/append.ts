@@ -15,6 +15,7 @@ export const fileAppendTool: InternalToolConfig<FileAppendParams, ToolResponse> 
   description:
     'Append content to an existing workspace file. The file must already exist. Content is added to the end of the file.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     fileName: {

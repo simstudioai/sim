@@ -16,6 +16,7 @@ export const gitlabDenyAccessRequestTool: ToolConfig<
   name: 'GitLab Deny Access Request',
   description: 'Deny (delete) a pending access request for a GitLab project or group',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

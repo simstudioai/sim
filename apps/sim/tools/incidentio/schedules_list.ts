@@ -13,6 +13,7 @@ export const schedulesListTool: ToolConfig<
   name: 'List Schedules',
   description: 'List all schedules in incident.io',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

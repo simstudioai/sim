@@ -9,6 +9,7 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
   name: 'Supabase Get Row',
   description: 'Get a single row from a Supabase table based on filter criteria',
   version: '1.0.0',
+  effect: 'read',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

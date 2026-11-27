@@ -110,14 +110,14 @@ export async function resolveAssistantActionPolicy(
     scope,
     executor
   )
-  const operation = tools.find((tool) => tool.toolId === input.toolId)?.config.assistant
-  if (!account.active || !operation || binding.credentialId !== scope.credentialId)
+  const tool = tools.find((entry) => entry.toolId === input.toolId)?.config
+  if (!account.active || !tool?.assistant || binding.credentialId !== scope.credentialId)
     throw new OrchestrationError(
       'forbidden',
       'This operation requires your active connected account.'
     )
   const permissions = await loadAssistantToolPermissions(scope, executor)
-  const policy = resolveAssistantToolPolicy(permissions, input.toolId, operation)
+  const policy = resolveAssistantToolPolicy(permissions, input.toolId, tool.effect, tool.assistant)
   if (policy === 'block')
     throw new OrchestrationError('forbidden', 'This tool is blocked in your account permissions.')
   return { binding, policy: policy === 'allow' && !canAutoApprove ? ('ask' as const) : policy }

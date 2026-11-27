@@ -31,6 +31,7 @@ export const planetScaleListDeployRequestsTool: ToolConfig<
   name: 'PlanetScale List Deploy Requests',
   description: 'List deploy requests (Vitess only)',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

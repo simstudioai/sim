@@ -6,6 +6,7 @@ export const jsmSubmitFormTool: InternalToolConfig<JsmSubmitFormParams, JsmSubmi
   name: 'JSM Submit Form',
   description: 'Submit a form on a Jira issue or JSM request, locking it from further edits',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

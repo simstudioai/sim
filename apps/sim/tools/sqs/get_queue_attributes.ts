@@ -10,6 +10,7 @@ export const getQueueAttributesTool: InternalToolConfig<
   name: 'SQS Get Queue Attributes',
   description: 'Read configuration and message-count attributes of an Amazon SQS queue',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

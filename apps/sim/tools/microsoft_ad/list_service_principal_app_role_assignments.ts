@@ -16,6 +16,7 @@ export const listServicePrincipalAppRoleAssignmentsTool: ToolConfig<
   description:
     'List every user, group, and service principal assigned to an application, by reading the app role assignments on its service principal. Recently granted or removed assignments can take time to appear.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

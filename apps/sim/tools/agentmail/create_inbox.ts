@@ -7,6 +7,7 @@ export const agentmailCreateInboxTool: ToolConfig<CreateInboxParams, CreateInbox
   name: 'Create Inbox',
   description: 'Create a new email inbox with AgentMail',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

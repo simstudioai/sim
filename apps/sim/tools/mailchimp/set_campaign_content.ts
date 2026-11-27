@@ -31,6 +31,7 @@ export const mailchimpSetCampaignContentTool: ToolConfig<
   name: 'Set Campaign Content in Mailchimp',
   description: 'Set the content for a Mailchimp campaign',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

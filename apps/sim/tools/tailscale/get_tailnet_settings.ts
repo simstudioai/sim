@@ -17,6 +17,7 @@ export const tailscaleGetTailnetSettingsTool: ToolConfig<
   name: 'Tailscale Get Tailnet Settings',
   description: 'Get tailnet settings',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

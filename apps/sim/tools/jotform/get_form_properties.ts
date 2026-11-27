@@ -22,6 +22,7 @@ export const getFormPropertiesTool: ToolConfig<
   description:
     'Get the settings of a form: layout, limits, redirect behavior, notification emails, and validation strings. Supply a property key to read just one.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

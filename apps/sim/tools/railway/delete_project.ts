@@ -22,6 +22,7 @@ export const railwayDeleteProjectTool: ToolConfig<
   name: 'Railway Delete Project',
   description: 'Delete a Railway project',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

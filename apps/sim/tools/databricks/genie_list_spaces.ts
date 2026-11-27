@@ -22,6 +22,7 @@ export const genieListSpacesTool: ToolConfig<
   description:
     'List the Genie spaces (Genie agents) you can access. Use this to find the space ID needed to ask Genie a question.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const jupyterInterruptKernelTool: InternalToolConfig<
   name: 'Jupyter Interrupt Kernel',
   description: 'Interrupt a running kernel on a Jupyter server',
   version: '1.0.0',
+  effect: 'write',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

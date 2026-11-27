@@ -7,6 +7,7 @@ export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse>
   name: 'DynamoDB Get',
   description: 'Get an item from a DynamoDB table by primary key',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

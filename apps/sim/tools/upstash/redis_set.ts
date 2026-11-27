@@ -9,6 +9,7 @@ export const upstashRedisSetTool: ToolConfig<UpstashRedisSetParams, UpstashRedis
   description:
     'Set the value of a key in Upstash Redis with an optional expiration time in seconds.',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

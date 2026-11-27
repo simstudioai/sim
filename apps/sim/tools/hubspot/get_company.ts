@@ -12,6 +12,7 @@ export const hubspotGetCompanyTool: ToolConfig<HubSpotGetCompanyParams, HubSpotG
     name: 'Get Company from HubSpot',
     description: 'Retrieve a single company by ID or domain from HubSpot',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

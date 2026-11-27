@@ -14,6 +14,7 @@ export const youtubeVideoCategoriesTool: ToolConfig<
   description:
     'Get a list of video categories available on YouTube. Use this to discover valid category IDs for filtering search and trending results.',
   version: '1.0.0',
+  effect: 'read',
   oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     regionCode: {

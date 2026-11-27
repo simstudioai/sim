@@ -15,6 +15,7 @@ export const listSyntheticsTestsTool: ToolConfig<
   name: 'Datadog List Synthetic Tests',
   description: 'List all Synthetic tests (API, browser, and mobile) with their current status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

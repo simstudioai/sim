@@ -9,6 +9,7 @@ export const updateSloTool: InternalToolConfig<UpdateSloParams, UpdateSloRespons
   description:
     'Update a service level objective. Reads the current SLO first and applies only the fields you supply, so anything left blank keeps its stored value.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

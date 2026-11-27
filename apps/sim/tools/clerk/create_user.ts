@@ -17,6 +17,7 @@ export const clerkCreateUserTool: ToolConfig<ClerkCreateUserParams, ClerkCreateU
   name: 'Create User in Clerk',
   description: 'Create a new user in your Clerk application',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

@@ -122,8 +122,9 @@ interface CodeFileBudget {
   /** Bytes of the entry plus the distinct code files read so far. */
   bytes: number
   /**
-   * The `$ref` chains and `$env` names of each distinct JavaScript file read, checked against the declared blocks
-   * once every block is known (`checkCodeFileRefs`).
+   * The references of each distinct code file read: `$ref` chains and `$env` names (JavaScript)
+   * plus `<key.path>` tags (every language), checked once every block is known
+   * (`checkCodeFileRefs`).
    */
   chains: Array<{ path: string; blockKey: BlockKey; refs: CodeFileRef[] }>
   /**
@@ -186,8 +187,11 @@ export interface CompileContext {
   dynamicOutputRefs: DynamicOutputRef[]
   /** Literal tags whose head names no block, checked once renames are known (`checkUnresolvedTags`). */
   unresolvedTags: LiteralTag[]
-  /** `x.error` references, checked once the edges are known (`checkErrorOutputRefs`). */
-  errorOutputRefs: Array<Omit<DynamicOutputRef, 'segments'>>
+  /**
+   * References to an output a block writes only on failure (`x.error`, a Function's
+   * `x.errorMessage`), checked once the edges are known (`checkErrorOutputRefs`).
+   */
+  errorOutputRefs: Array<Omit<DynamicOutputRef, 'segments'> & { output: string }>
   /**
    * Branch keys already refused with an error, by block key. Wiring and branch meta that name one
    * stay quiet instead of adding `E_UNKNOWN_BRANCH` for the same mistake.
@@ -229,6 +233,16 @@ export interface JsonFieldEntry {
 interface Located {
   start?: number | null
   end?: number | null
+}
+
+/** Whether the lock of an unread stored workflow (`storedUnread`) binds `decl`, by key or ident. */
+export function lockBinds(ctx: CompileContext, decl: BlockDecl): boolean {
+  const lock = ctx.storedUnread
+  return (
+    lock !== undefined &&
+    (Object.hasOwn(lock.blocks, decl.key) ||
+      (decl.ident !== null && ctx.storedUnreadIdents.has(decl.ident)))
+  )
 }
 
 /** The range a node covers in the entry file. */

@@ -14,6 +14,7 @@ export const batchGetPreparedStatementTool: InternalToolConfig<
   description:
     'Get the details of up to 256 prepared statements in an Athena workgroup by name in a single call',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -7,6 +7,7 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
   name: 'APIFY Run Actor (Sync)',
   description: 'Run an APIFY actor synchronously and get results (max 5 minutes)',
   version: '1.0.0',
+  effect: 'write',
   oauth: APIFY_CREDENTIAL_OAUTH,
 
   params: {

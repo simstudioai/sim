@@ -19,6 +19,7 @@ import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { TableV2Block } from '@/blocks/blocks/table_v2'
+import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
@@ -1296,6 +1297,7 @@ describe('VariableResolver JSON text inputs', () => {
     [BlockType.AGENT]: AgentBlock,
     [BlockType.RESPONSE]: ResponseBlock,
     table_v2: TableV2Block,
+    [BlockType.WORKFLOW_INPUT]: WorkflowInputBlock,
   }
 
   beforeEach(() => {
@@ -1403,6 +1405,24 @@ describe('VariableResolver JSON text inputs', () => {
     })
   })
 
+  it('serializes a bare string reference as a JSON string unless it already is JSON', async () => {
+    const { resolve } = createJsonResolver(BlockType.RESPONSE, {
+      dataMode: 'json',
+      data: '{"error": <producer.text>, "empty": <producer.blank>, "token": {{QUOTED_SECRET}}, "nested": <producer.jsonText>, "port": {{PORT}}}',
+    })
+    const resolved = await resolve({
+      env: { PORT: '8080' },
+      output: { blank: '', jsonText: '{"country": "F\\"R"}' },
+    })
+    expect(JSON.parse(resolved.data)).toEqual({
+      error: awkwardText,
+      empty: '',
+      token: 'p"ss\\word',
+      nested: { country: 'F"R' },
+      port: 8080,
+    })
+  })
+
   it('escapes environment variables inside JSON strings', async () => {
     await expect(resolveResponseBody('{"auth": "Bearer {{QUOTED_SECRET}}"}')).resolves.toEqual({
       auth: 'Bearer p"ss\\word',
@@ -1432,6 +1452,18 @@ describe('VariableResolver JSON text inputs', () => {
     })
     const resolved = await resolve()
     expect(JSON.parse(resolved.data)).toEqual({ body: awkwardText })
+  })
+
+  it('escapes references in a child workflow input mapping stored as JSON text', async () => {
+    const { resolve } = createJsonResolver(BlockType.WORKFLOW_INPUT, {
+      workflowId: 'child',
+      inputMapping: '{"summary": "<producer.text>", "record": "<producer.record>"}',
+    })
+    const resolved = await resolve()
+    expect(JSON.parse(resolved.inputMapping)).toEqual({
+      summary: awkwardText,
+      record: JSON.stringify({ name: 'Ada "the first"', tags: ['x', 'y'] }),
+    })
   })
 
   it('leaves quoted references in non-JSON fields raw', async () => {

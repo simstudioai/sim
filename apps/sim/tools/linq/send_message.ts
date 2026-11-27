@@ -14,6 +14,7 @@ export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMess
   name: 'Send Message',
   description: 'Send a message to an existing chat, with optional media, link, effect, or reply',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

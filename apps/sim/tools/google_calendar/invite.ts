@@ -109,6 +109,8 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
   name: 'Google Calendar Invite Attendees',
   description: 'Invite attendees to an existing Google Calendar event',
   version: '1.0.0',
+  // tool-effect: the GET reads the event; transformResponse then PUTs the merged attendee list
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -243,6 +245,8 @@ export const inviteV2Tool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendar
     name: 'Google Calendar Invite Attendees',
     description: 'Invite attendees to an existing Google Calendar event.',
     version: '2.0.0',
+    // tool-effect: the GET reads the event; transformResponse then PUTs the merged attendee list
+    effect: 'write',
     oauth: inviteTool.oauth,
     params: inviteTool.params,
     request: inviteTool.request,

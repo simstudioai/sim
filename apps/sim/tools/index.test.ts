@@ -77,6 +77,7 @@ import { executeVantaTool } from '@/lib/internal/vanta/execute-tool'
 import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
 import { buildFalVideoRequest } from '@/lib/internal/video/fal-request'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import { WriteStubPolicy } from '@/lib/workflows/dry-run'
 import { VideoGeneratorV2Block, VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
@@ -352,6 +353,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Gmail Read',
     description: 'Read Gmail messages',
     version: '1.0.0',
+    effect: 'read',
     oauth: {
       required: true,
       provider: 'google-email',
@@ -365,6 +367,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Gmail Send',
     description: 'Send Gmail messages',
     version: '1.0.0',
+    effect: 'write',
     oauth: {
       required: true,
       provider: 'google-email',
@@ -378,6 +381,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Test Single File Tool',
     description: 'Accepts a single file parameter',
     version: '1.0.0',
+    effect: 'write',
     params: {
       attachment: { type: 'file', required: true },
     },
@@ -392,6 +396,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Test Env Reference Tool',
     description: 'Accepts a user-only API key and an llm-writable note',
     version: '1.0.0',
+    effect: 'write',
     params: {
       apiKey: { type: 'string', required: true, visibility: 'user-only' },
       note: { type: 'string', required: false, visibility: 'user-or-llm' },
@@ -412,6 +417,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Test File Array Tool',
     description: 'Accepts an array of file parameters',
     version: '1.0.0',
+    effect: 'write',
     params: {
       attachments: { type: 'file[]', required: true },
     },
@@ -428,6 +434,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Google Drive List',
     description: 'List Google Drive files',
     version: '1.0.0',
+    effect: 'write',
     params: {},
     operation: { input: () => ({}) },
   } satisfies InternalToolConfig,
@@ -436,6 +443,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Serper Search',
     description: 'Search via Serper',
     version: '1.0.0',
+    effect: 'write',
     params: {},
     operation: { input: () => ({}) },
   } satisfies InternalToolConfig,
@@ -444,6 +452,7 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Add Notion Database Row',
     description: 'Add a new row to a Notion database with specified properties',
     version: '1.0.0',
+    effect: 'write',
     params: {},
     request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
   },
@@ -1396,6 +1405,7 @@ describe('executeTool Function', () => {
       name: 'Test Registered Operation Failure',
       description: 'Returns a typed operation failure',
       version: '1.0.0',
+      effect: 'write',
       params: {},
       operation: { input: createInternalToolOperationInput },
     } satisfies InternalToolConfig<Record<string, unknown>>
@@ -1439,6 +1449,7 @@ describe('executeTool Function', () => {
       name: 'Test Actorless Registered Operation',
       description: 'Executes with schedule authority',
       version: '1.0.0',
+      effect: 'write',
       params: {},
       operation: { input: createInternalToolOperationInput },
     } satisfies InternalToolConfig<Record<string, unknown>>
@@ -2041,7 +2052,8 @@ describe('executeTool Function', () => {
       new Response(
         JSON.stringify({
           success: false,
-          error: `Execution failed with ${secret} via ${runtimeAlias}`,
+          error: `Line 1: \`author-source-line-55a\` - Execution failed with ${secret} via ${runtimeAlias}`,
+          errorMessage: `Execution failed with ${secret} via ${runtimeAlias}`,
           output: { result: null, stdout: 'author-stdout-91c', cost },
           debug: { lineContent: 'author-source-line-55a', stack: 'author-stack-3e1' },
           __resolvedSecretNames: ['API_KEY'],
@@ -2071,6 +2083,8 @@ describe('executeTool Function', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain(secret)
     expect(result.output?.cost).toEqual(cost)
+    /** The thrown message alone reaches the block, masked wherever `error` is. */
+    expect(result.output?.errorMessage).toBe(`Execution failed with ${secret} via ${runtimeAlias}`)
     expect(JSON.stringify(allToolLogCalls())).not.toContain(secret)
     expect(JSON.stringify(allToolLogCalls())).not.toContain(runtimeAlias)
     for (const authorContent of [
@@ -7477,6 +7491,113 @@ describe('MCP Tool Execution', () => {
     })
   })
 
+  it('stubs an MCP tool in a dry run once the call checks out, recording only its arguments, and sends an allowed one', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const dryRun = new WriteStubPolicy({ workflowId: 'test-workflow' })
+    const params = {
+      path: '/test',
+      envVars: { UNREFERENCED_SECRET: 'workspace-secret-value' },
+      _context: { blockId: 'agent-1' },
+    }
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({ success: true, checked: true })
+    )
+
+    const result = await executeTool('mcp-123-delete_file', params, {
+      executionContext: createToolExecutionContext({ sideEffects: dryRun }),
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+
+    expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ context: expect.objectContaining({ checkOnly: true }) })
+    )
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    const [stubbed] = dryRun.summary().stubbed
+    expect(stubbed).toMatchObject({ blockId: 'agent-1', tool: 'mcp-123-delete_file' })
+    expect(stubbed.request).toEqual({ arguments: { path: '/test' } })
+    mockExecuteInternalToolOperation.mockClear()
+
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({ success: true, data: { output: { deleted: true } } })
+    )
+    const allowed = new WriteStubPolicy({
+      workflowId: 'test-workflow',
+      allow: [{ workflowId: 'test-workflow', blockId: 'agent-1', block: 'Agent 1' }],
+    })
+    await executeTool('mcp-123-delete_file', params, {
+      executionContext: createToolExecutionContext({ sideEffects: allowed }),
+    })
+    expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ context: expect.not.objectContaining({ checkOnly: true }) })
+    )
+    expect(allowed.summary().stubbed).toEqual([])
+  })
+
+  it('stubs an MCP tool its server declares read-only, marking it and answering from its outputSchema', async () => {
+    const dryRun = new WriteStubPolicy({ workflowId: 'test-workflow' })
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({
+        success: true,
+        output: {
+          success: true,
+          checked: true,
+          tool: {
+            name: 'count_files',
+            outputSchema: {
+              type: 'object',
+              properties: {
+                total: { type: 'integer' },
+                label: { type: ['null', 'string'] },
+                owner: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+                alias: { oneOf: [{ type: 'string' }] },
+                untyped: {},
+              },
+            },
+            readOnlyHint: true,
+          },
+        },
+      })
+    )
+
+    const held = await executeTool(
+      'mcp-123-count_files',
+      { path: '/test', _context: { blockId: 'agent-1' } },
+      {
+        executionContext: createToolExecutionContext({ sideEffects: dryRun }),
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      }
+    )
+
+    expect(held.output).toEqual({
+      structuredContent: {
+        total: 900_000_001,
+        label: 'dry_run_label_1',
+        owner: 'dry_run_owner_1',
+        alias: 'dry_run_alias_1',
+      },
+    })
+    expect(dryRun.summary().stubbed).toMatchObject([
+      { tool: 'mcp-123-count_files', reason: 'mcp-read-only' },
+    ])
+  })
+
+  it('fails an MCP write in a dry run as it would live when its server refuses the call', async () => {
+    const dryRun = new WriteStubPolicy({ workflowId: 'test-workflow' })
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({ success: false, error: 'Resource not found' }, { status: 404 })
+    )
+
+    const result = await executeTool(
+      'mcp-123-delete_file',
+      { path: '/test', _context: { blockId: 'agent-1' } },
+      { executionContext: createToolExecutionContext({ sideEffects: dryRun }) }
+    )
+
+    expect(result).toMatchObject({ success: false, error: 'Resource not found' })
+    expect(dryRun.summary().stubbed).toEqual([])
+  })
+
   it('preserves MCP operation error envelopes', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     mockExecuteInternalToolOperation.mockResolvedValueOnce(
@@ -7770,6 +7891,7 @@ describe('Hosted Key Injection', () => {
       name: 'BYOK fixture',
       description: 'Credential failure fixture',
       version: '1.0.0',
+      effect: 'write',
       params: {},
       request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
       hosting: {
@@ -7819,6 +7941,7 @@ describe('Hosted Key Injection', () => {
       name: 'Hosted fixture',
       description: 'Hosted key or saved credential',
       version: '1.0.0',
+      effect: 'write',
       oauth: tokenCredentialOAuth('coda', { apiKey: 'accessToken' }),
       params: { apiKey: { type: 'string', required: false, visibility: 'user-only' } },
       request: {
@@ -7881,6 +8004,7 @@ describe('Hosted Key Injection', () => {
       name: 'Zero-estimate fal fixture',
       description: 'Hosted fal charge whose estimate is zero',
       version: '1.0.0',
+      effect: 'write',
       params: {},
       request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
       hosting: {
@@ -7942,6 +8066,7 @@ describe('Hosted Key Injection', () => {
         name: 'Paid-only fixture',
         description: 'Hosted key reserved for paying payers',
         version: '1.0.0',
+        effect: 'write',
         params: {},
         request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
         hosting: {
@@ -7988,7 +8113,7 @@ describe('Hosted Key Injection', () => {
       expect(result.success).toBe(false)
       expect(result.error).toContain('available on paid plans')
       expect(mockPayerHasPaidAccess).toHaveBeenCalledWith(TEST_BILLING_ATTRIBUTION, {
-        onBalanceUnavailable: 'deny',
+        onBalanceUnavailable: 'throw',
       })
       expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
       expect(request).not.toHaveBeenCalled()
@@ -8041,7 +8166,7 @@ describe('Hosted Key Injection', () => {
           billingEntity: { type: 'organization', id: 'org-1' },
           payerSubscription: { plan: 'team' },
         },
-        { onBalanceUnavailable: 'deny' }
+        { onBalanceUnavailable: 'throw' }
       )
       expect(request).toHaveBeenCalledTimes(1)
     })

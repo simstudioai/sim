@@ -23,6 +23,7 @@ export const activateCampaignTool: ToolConfig<
   name: 'Instantly Activate Campaign',
   description: 'Activates, starts, or resumes an Instantly V2 campaign.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

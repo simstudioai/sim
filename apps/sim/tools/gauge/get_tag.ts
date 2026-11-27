@@ -9,6 +9,7 @@ export const gaugeGetTagTool: ToolConfig<GaugeGetTagParams, GaugeGetTagResponse>
   name: 'Gauge Get Tag',
   description: 'Read a prompt tag and its usage count.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

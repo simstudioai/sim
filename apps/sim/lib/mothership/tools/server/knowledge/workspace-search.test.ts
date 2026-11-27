@@ -230,6 +230,28 @@ describe('Assistant retrieval tools', () => {
       })
     )
   })
+  it('searches for the person the model names in involving', async () => {
+    await searchWorkspaceServerTool.execute(
+      { query: '', involving: 'me', sortBy: 'newest' },
+      context
+    )
+    expect(mocks.search).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ involving: 'me' }) })
+    )
+  })
+  it('reads a pasted source link under the selected scope, before it resolves to a document ID', async () => {
+    const link = 'https://acme.slack.com/archives/C123/p1700000000000100'
+    const result = await readDocumentServerTool.execute(
+      { documentId: link },
+      { ...context, assistantSearch: { source: 'slack' } }
+    )
+    expect(result).toMatchObject({ success: true })
+    expect(mocks.read).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ documentId: link, filters: { source: 'slack' } }),
+      })
+    )
+  })
   it('returns only the projected query to the model', async () => {
     const secret = 'private-resolved-query-token'
     const registry = new ResolvedSecretTraceRegistry([

@@ -12,6 +12,7 @@ export const getPurchaseOrderTool: InternalToolConfig<GetPurchaseOrderParams, Sa
   description:
     'Retrieve a single purchase order by PurchaseOrder key from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

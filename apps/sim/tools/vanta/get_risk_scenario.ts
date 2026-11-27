@@ -12,6 +12,7 @@ export const vantaGetRiskScenarioTool: InternalToolConfig<
   description:
     'Get a Vanta risk scenario by ID, including its scores, treatment decision, and review status',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

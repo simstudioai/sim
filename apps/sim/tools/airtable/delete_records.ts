@@ -6,6 +6,7 @@ export const airtableDeleteRecordsTool: ToolConfig<AirtableDeleteParams, Airtabl
   name: 'Airtable Delete Records',
   description: 'Delete one or more records from an Airtable table by ID',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

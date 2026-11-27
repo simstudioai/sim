@@ -18,7 +18,7 @@ import {
 
 // An example to copy from, not a workflow of yours: `lookup-order`, `linear`, `ops-slack`,
 // `enrich-lead` and ANTHROPIC_API_KEY stand in for this workspace's resources
-// (.sim/sdk/workspace.d.ts; `sim workflows source resources` lists the real keys).
+// (.sim/sdk/workspace.d.ts types the real keys).
 export default workflow(
   'Cookbook: agents and subflows',
   { description: 'Router, agent tools, a child workflow and a parallel fan-out.' },

@@ -11,6 +11,7 @@ export const getPageTool: ToolConfig<WordPressGetPageParams, WordPressGetPageRes
   name: 'WordPress Get Page',
   description: 'Get a single page from WordPress.com by ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -6,6 +6,7 @@ export const s3DeleteObjectsTool: InternalToolConfig = {
   name: 'S3 Delete Objects',
   description: 'Delete multiple objects from an AWS S3 bucket in a single batch request',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

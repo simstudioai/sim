@@ -23,6 +23,7 @@ export const monacoUpsertContactTool: ToolConfig<
   description:
     'Create a Monaco contact or update the one matching its email (case-insensitive), then LinkedIn URL. Pass a contact ID instead to update that contact by ID, which is how to change its email. Creating a contact enriches it and can take several seconds.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

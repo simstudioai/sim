@@ -20,6 +20,7 @@ export const modStickyTool: ToolConfig<RedditModStickyParams, RedditModStickyRes
   name: 'Sticky Reddit Post (Mod)',
   description: 'Sticky or unsticky a Reddit post to the top of a subreddit (moderator action)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

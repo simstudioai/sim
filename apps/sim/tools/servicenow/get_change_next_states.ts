@@ -23,6 +23,7 @@ export const getChangeNextStatesTool: ToolConfig<
   description:
     "Read the states a ServiceNow change request can actually move to next, with the instance's own state-to-label map and the conditions each transition still has to meet. Use this instead of assuming the base-system state codes, which a customized change model can change.",
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

@@ -10,6 +10,7 @@ export const deleteUserTool: ToolConfig<ThriveDeleteUserParams, ThriveDeleteResp
   description:
     'Permanently delete (obfuscate) a user in Thrive by ref while retaining training history.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

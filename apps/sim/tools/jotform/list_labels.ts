@@ -10,6 +10,7 @@ export const listLabelsTool: ToolConfig<JotformListLabelsParams, JotformListLabe
   description:
     'List the labels on the account as a tree. Labels are how Jotform groups forms, workflows, sheets, and apps, replacing the older folder endpoints.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

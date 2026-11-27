@@ -52,6 +52,7 @@ function writeBase(catalogHash?: string): void {
   writeFileSync(
     join(dir, '.sim/base.json'),
     JSON.stringify({
+      version: 1,
       workflowId: 'wf',
       workspaceId: WORKSPACE_ID,
       fingerprint: 'sf1:a',
@@ -84,7 +85,7 @@ describe('sim workflows source params', () => {
     cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, catalogWithoutUpsert())
     writeBase(printedWith)
 
-    await params('table.upsertRow')
+    await params('table.upsertRow', '--full')
 
     const { builder } = stdoutJson() as {
       builder: { key: string; params: { common: Array<{ key: string; required: boolean }> } }
@@ -136,6 +137,20 @@ describe('sim workflows source params', () => {
     expect(error.message).toContain('Did you mean slack.sendMessage?')
   })
 
+  it('reads the catalog of the workspace a starter directory was written for', async () => {
+    cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, FIXTURE_TEXT)
+    writeFileSync(join(dir, '.sim/starter.json'), JSON.stringify({ workspaceId: WORKSPACE_ID }))
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: null,
+      output: 'json',
+    })
+
+    await params('agent')
+
+    expect(stdoutJson()).toMatchObject({ builder: { key: 'agent' } })
+  })
+
   it('refuses without a cached catalog, making no request', async () => {
     writeBase()
 
@@ -143,5 +158,95 @@ describe('sim workflows source params', () => {
 
     expect(error.code).toBe('CATALOG_NOT_CACHED')
     expect(contextMockFns.mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('prints a brief builder by default and every param with its docs under --full', async () => {
+    cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, FIXTURE_TEXT)
+    writeBase()
+
+    await params('table.upsertRow')
+    const brief = stdoutJson() as {
+      builder: {
+        required: Array<{ key: string; type: string }>
+        optional: string[]
+        outputs: string[]
+      }
+    }
+    expect(brief.builder.required.map((param) => param.key)).toEqual(['tableId', 'data'])
+    expect(brief.builder).not.toHaveProperty('params')
+    expect(brief.builder.outputs.length).toBeGreaterThan(0)
+
+    vi.mocked(console.log).mockClear()
+    await params('table.upsertRow', '--full')
+    const full = stdoutJson() as { builder: { params: { common: unknown[] } } }
+    expect(full.builder.params.common.length).toBeGreaterThan(brief.builder.required.length)
+    expect(JSON.stringify(full).length).toBeGreaterThan(JSON.stringify(brief).length * 2)
+  })
+
+  it('keeps the call signature of a builder whose required params core.d.ts types', async () => {
+    cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, FIXTURE_TEXT)
+    writeBase()
+
+    await params('fn')
+
+    const { builder } = stdoutJson() as { builder: { coreParams: string[]; signature?: string } }
+    expect(builder.coreParams).toContain('code')
+    expect(builder.signature).toContain('code:')
+  })
+
+  it('names the builder that replaces a legacy block type, by either name', async () => {
+    const catalog = JSON.parse(FIXTURE_TEXT)
+    catalog.blocks.human_in_the_loop = {
+      ...catalog.blocks.human_in_the_loop_v2,
+      type: 'human_in_the_loop',
+      lifecycle: { hidden: true, sunset: { status: 'legacy', replacedBy: 'human_in_the_loop_v2' } },
+    }
+    catalog.builders['legacy.humanInTheLoop'] = { type: 'human_in_the_loop' }
+    cacheCatalogText(
+      join(dir, 'config'),
+      WORKSPACE_ID,
+      JSON.stringify({ ...catalog, hash: 'e'.repeat(64) })
+    )
+    writeBase()
+
+    await params('human_in_the_loop')
+
+    expect(stdoutJson()).toMatchObject({
+      builder: {
+        key: 'legacy.humanInTheLoop',
+        legacy: true,
+        replacement: { blockType: 'human_in_the_loop_v2', builders: ['human'] },
+      },
+    })
+  })
+
+  it('names only the replacement builders for the same operation, and few of them', async () => {
+    const catalog = JSON.parse(FIXTURE_TEXT)
+    catalog.blocks.old_block = {
+      ...catalog.blocks.human_in_the_loop_v2,
+      type: 'old_block',
+      lifecycle: { hidden: true, sunset: { status: 'legacy', replacedBy: 'new_block' } },
+    }
+    catalog.blocks.new_block = { ...catalog.blocks.human_in_the_loop_v2, type: 'new_block' }
+    catalog.builders['legacy.old.send'] = { type: 'old_block', operation: 'send' }
+    for (let index = 0; index < 20; index++) {
+      catalog.builders[`next.op${index}`] = { type: 'new_block', operation: `op${index}` }
+    }
+    catalog.builders['next.send'] = { type: 'new_block', operation: 'send' }
+    cacheCatalogText(
+      join(dir, 'config'),
+      WORKSPACE_ID,
+      JSON.stringify({ ...catalog, hash: 'd'.repeat(64) })
+    )
+    writeBase()
+
+    await params('legacy.old.send')
+
+    const { builder } = stdoutJson() as { builder: { replacement: { builders: string[] } } }
+    expect(builder.replacement.builders).toEqual(['next.send'])
+
+    vi.mocked(console.log).mockClear()
+    await params('legacy.old.send', '--full')
+    expect(stdoutJson()).toMatchObject({ builder: { replacement: { builders: ['next.send'] } } })
   })
 })

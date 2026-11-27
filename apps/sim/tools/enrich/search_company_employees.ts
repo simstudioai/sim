@@ -13,6 +13,7 @@ export const searchCompanyEmployeesTool: ToolConfig<
   name: 'Enrich Search Company Employees',
   description: 'Search for employees within specific companies by location and job title.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

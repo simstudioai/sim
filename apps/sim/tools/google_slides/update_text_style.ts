@@ -51,6 +51,7 @@ export const updateTextStyleTool: ToolConfig<UpdateTextStyleParams, UpdateTextSt
   description:
     'Update the styling of text in a shape or table cell (bold, italic, font family, font size, foreground/background color, link, etc.). Only the fields you set are applied.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

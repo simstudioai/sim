@@ -20,6 +20,7 @@ export const greenhouseListProspectPoolsV2Tool: ToolConfig<
   name: 'Greenhouse List Prospect Pools',
   description: 'Lists one page of prospect pools with cursor pagination and documented filters.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

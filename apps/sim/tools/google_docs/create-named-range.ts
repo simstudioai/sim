@@ -18,6 +18,7 @@ export const createNamedRangeTool: ToolConfig<
   description:
     'Create a named range over a span of content in a Google Docs document so it can be referenced or deleted later. The name may be 1-256 characters and need not be unique.',
   version: '1.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'google-docs',

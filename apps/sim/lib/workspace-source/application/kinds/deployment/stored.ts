@@ -19,13 +19,20 @@ import {
 } from '@/lib/chat-deployments/application/workflow-chat-deployment'
 import { readWorkflowDeploymentStatus } from '@/lib/workflows/application/deployments'
 import { readWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
+import {
+  loadDeployedWorkflowState,
+  NoActiveDeploymentError,
+} from '@/lib/workflows/persistence/utils'
 import type { SourceContext } from '@/lib/workspace-source/application/types'
 
-/** A chat output as stored: a block id and a path, with the block's name when the draft has it. */
+/**
+ * A chat output as stored: a block id and a path, with the block's name: in the draft, else in the
+ * live version the chat serves (a draft that re-created or dropped the block since).
+ */
 interface StoredChatOutput {
   blockId: string
   path: string
-  /** The block's name in the draft; absent when the draft no longer holds the block. */
+  /** The block's name; absent when neither the draft nor the live version holds the block. */
   block?: string
 }
 
@@ -97,6 +104,17 @@ export async function readBlockNames(
   return { nameOf, idOf }
 }
 
+/** The live version's block names by id, or `null` when nothing is deployed. */
+async function liveBlockNames(workflowId: string): Promise<Map<string, string> | null> {
+  try {
+    const { blocks } = await loadDeployedWorkflowState(workflowId)
+    return new Map(Object.entries(blocks).map(([id, block]) => [id, block.name]))
+  } catch (error) {
+    if (error instanceof NoActiveDeploymentError) return null
+    throw error
+  }
+}
+
 /** The chat workflow `workflowId` serves, or `null` when it serves none. */
 async function readChat(ctx: SourceContext, workflowId: string): Promise<StoredChat | null> {
   const { principal } = ctx
@@ -111,6 +129,9 @@ async function readChat(ctx: SourceContext, workflowId: string): Promise<StoredC
   })
   const outputs = outputsOf(deployment.outputConfigs)
   const { nameOf } = outputs.length > 0 ? await readBlockNames(ctx, workflowId) : { nameOf: null }
+  const live = outputs.some((output) => !nameOf?.has(output.blockId))
+    ? await liveBlockNames(workflowId)
+    : null
   return {
     identifier: deployment.identifier,
     title: deployment.title,
@@ -119,7 +140,7 @@ async function readChat(ctx: SourceContext, workflowId: string): Promise<StoredC
     hasPassword: deployment.hasPassword,
     allowedEmails: stringsOf(deployment.allowedEmails),
     outputs: outputs.map((output) => {
-      const block = nameOf?.get(output.blockId)
+      const block = nameOf?.get(output.blockId) ?? live?.get(output.blockId)
       return block === undefined ? output : { ...output, block }
     }),
     customizations: customizationsOf(deployment.customizations),

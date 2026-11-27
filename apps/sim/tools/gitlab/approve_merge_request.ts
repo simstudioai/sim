@@ -16,6 +16,7 @@ export const gitlabApproveMergeRequestTool: ToolConfig<
   name: 'GitLab Approve Merge Request',
   description: 'Approve a GitLab merge request',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

@@ -20,6 +20,7 @@ export const listCertificatesTool: ToolConfig<
   name: 'Cloudflare List Certificates',
   description: 'Lists SSL/TLS certificate packs for a zone.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

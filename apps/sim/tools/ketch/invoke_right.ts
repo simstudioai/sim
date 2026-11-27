@@ -8,6 +8,7 @@ export const invokeRightTool: ToolConfig<KetchInvokeRightParams, KetchInvokeRigh
   description:
     'Submit a data subject rights request (e.g., access, delete, correct, restrict processing). Initiates a privacy rights workflow in Ketch.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     organizationCode: {

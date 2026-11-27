@@ -28,6 +28,7 @@ export const anonymizeCandidateTool: ToolConfig<
   description:
     'Remove personally identifiable information from an Ashby candidate while retaining the candidate record and its applications. This operation does not delete the candidate. Requires the candidatesWrite permission.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

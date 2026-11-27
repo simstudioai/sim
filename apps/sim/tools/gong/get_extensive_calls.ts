@@ -12,6 +12,7 @@ export const getExtensiveCallsTool: ToolConfig<
   description:
     'Retrieve detailed call data including trackers, topics, highlights, and AI spotlight content (brief, outline, key points, call outcome) from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

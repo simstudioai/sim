@@ -17,6 +17,7 @@ export const salesforceUpdateContactTool: ToolConfig<
   name: 'Update Contact in Salesforce',
   description: 'Update an existing contact in Salesforce CRM',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'salesforce' },
 

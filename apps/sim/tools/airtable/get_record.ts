@@ -6,6 +6,7 @@ export const airtableGetRecordTool: ToolConfig<AirtableGetParams, AirtableGetRes
   name: 'Airtable Get Record',
   description: 'Retrieve a single record from an Airtable table by its ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

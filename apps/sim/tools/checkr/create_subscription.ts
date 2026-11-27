@@ -26,6 +26,7 @@ export const checkrCreateSubscriptionTool: ToolConfig<
   description:
     'Schedule a recurring background check for a candidate, running a package every interval starting on a date.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

@@ -32,6 +32,7 @@ export const zendeskDeleteOrganizationTool: ToolConfig<
   name: 'Delete Organization from Zendesk',
   description: 'Delete an organization from Zendesk',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

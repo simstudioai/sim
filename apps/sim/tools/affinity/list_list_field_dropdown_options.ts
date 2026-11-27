@@ -23,6 +23,7 @@ export const affinityListListFieldDropdownOptionsTool: ToolConfig<
   description:
     'List the selectable options on a dropdown, ranked-dropdown, or status-dropdown field of a list.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

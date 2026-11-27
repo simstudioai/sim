@@ -17,6 +17,7 @@ export const dataverseWhoAmITool: ToolConfig<DataverseWhoAmIParams, DataverseWho
   description:
     'Retrieve the current authenticated user information from Microsoft Dataverse. Useful for testing connectivity and getting the user ID, business unit ID, and organization ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

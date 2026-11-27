@@ -22,6 +22,7 @@ export const updateActionItemTool: ToolConfig<
   description:
     'Updates the title, description, status, or assignee of a Circleback action item. Returns the updated action item.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

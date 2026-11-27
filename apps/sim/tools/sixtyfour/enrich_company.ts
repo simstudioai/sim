@@ -14,6 +14,7 @@ export const sixtyfourEnrichCompanyTool: ToolConfig<
   description:
     'Enrich company data with additional information and find associated people using Sixtyfour AI.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SIXTYFOUR_CREDENTIAL_OAUTH,
 
   params: {

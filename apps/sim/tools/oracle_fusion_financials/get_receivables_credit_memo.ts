@@ -18,6 +18,7 @@ export const oracleFusionFinancialsGetReceivablesCreditMemoTool: InternalToolCon
   name: 'Oracle Fusion Financials Get Receivables Credit Memo',
   description: 'Get Oracle Fusion receivables credit memo.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     receivablesCreditMemoId: {

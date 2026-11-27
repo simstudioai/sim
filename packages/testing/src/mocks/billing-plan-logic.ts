@@ -13,6 +13,7 @@ export const DEFAULT_PRO_TIER_COST_LIMIT = 20
 export const DEFAULT_TEAM_TIER_COST_LIMIT = 40
 export const DEFAULT_ENTERPRISE_TIER_COST_LIMIT = 200
 export const CREDIT_MULTIPLIER = 200
+export const PRO_TRIAL_USAGE_LIMIT_DOLLARS = 10
 
 export function isPro(plan: Plan): boolean {
   return Boolean(plan) && (plan === 'pro' || Boolean(plan?.startsWith('pro_')))
@@ -34,7 +35,11 @@ export function isOrgPlan(plan: Plan): boolean {
   return isTeam(plan) || isEnterprise(plan)
 }
 
-export function getPlanTierCredits(plan: Plan): number {
+export function isPaid(plan: Plan): boolean {
+  return isPro(plan) || isTeam(plan) || isEnterprise(plan)
+}
+
+function getPlanTierCredits(plan: Plan): number {
   if (!plan) return 0
   const match = plan.match(/_(\d+)$/)
   if (match) return Number.parseInt(match[1], 10)
@@ -43,16 +48,44 @@ export function getPlanTierCredits(plan: Plan): number {
   return 0
 }
 
+/** Faithful port of the real `resolveBillingInterval`: column first, then metadata, then monthly. */
+export function resolveBillingInterval(
+  sub: { billingInterval?: string | null; metadata?: unknown } | null | undefined
+): 'month' | 'year' {
+  const column = sub?.billingInterval
+  if (column === 'year' || column === 'month') return column
+  const metadata = sub?.metadata
+  const fromMetadata =
+    typeof metadata === 'object' && metadata !== null
+      ? (metadata as { billingInterval?: unknown }).billingInterval
+      : undefined
+  return fromMetadata === 'year' ? 'year' : 'month'
+}
+
 /** Faithful port of the real `getPlanPricing` with env overrides unset. */
-export function getPlanPricing(plan: string): { basePrice: number } {
+export function getPlanPricing(subscription: {
+  plan?: string | null
+  billingInterval?: string | null
+  metadata?: unknown
+}): { basePrice: number } {
+  const plan = subscription.plan ?? ''
   if (isFree(plan)) return { basePrice: 0 }
   if (isEnterprise(plan)) return { basePrice: DEFAULT_ENTERPRISE_TIER_COST_LIMIT }
   if (isPro(plan) || isTeam(plan)) {
     const tierCredits = getPlanTierCredits(plan)
-    if (tierCredits > 0) return { basePrice: tierCredits / CREDIT_MULTIPLIER }
-    return {
-      basePrice: isPro(plan) ? DEFAULT_PRO_TIER_COST_LIMIT : DEFAULT_TEAM_TIER_COST_LIMIT,
-    }
+    const monthly =
+      tierCredits > 0
+        ? tierCredits / CREDIT_MULTIPLIER
+        : isPro(plan)
+          ? DEFAULT_PRO_TIER_COST_LIMIT
+          : DEFAULT_TEAM_TIER_COST_LIMIT
+    return { basePrice: resolveBillingInterval(subscription) === 'year' ? monthly * 12 : monthly }
   }
   return { basePrice: 0 }
+}
+
+/** Faithful port of the real `getPlanWeeklyRefreshDollars`: $10/week below Max, $20/week at Max. */
+export function getPlanWeeklyRefreshDollars(plan: Plan): number {
+  if (!isPaid(plan) || isEnterprise(plan)) return 0
+  return getPlanTierCredits(plan) >= 25000 ? 20 : 10
 }

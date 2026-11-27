@@ -8,6 +8,7 @@ export const latexCompileTool: InternalToolConfig<LatexCompileParams, LatexCompi
   description:
     'Compile a LaTeX document into a PDF via the public LaTeX-on-HTTP service (latex.ytotech.com). Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     content: {

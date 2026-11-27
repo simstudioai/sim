@@ -20,6 +20,7 @@ export const kalshiGetOrderTool: ToolConfig<KalshiGetOrderParams, KalshiGetOrder
   name: 'Get Order from Kalshi',
   description: 'Retrieve details of a specific order by ID from Kalshi',
   version: '1.0.0',
+  effect: 'read',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
@@ -126,6 +127,7 @@ export const kalshiGetOrderV2Tool: ToolConfig<KalshiGetOrderV2Params, KalshiGetO
   name: 'Get Order from Kalshi V2',
   description: 'Retrieve details of a specific order by ID from Kalshi',
   version: '2.0.0',
+  effect: 'read',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCr
     name: 'Cloudflare Create Zone',
     description: 'Adds a new zone (domain) to the Cloudflare account.',
     version: '1.0.0',
+    effect: 'write',
     oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
     params: {

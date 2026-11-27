@@ -19,6 +19,7 @@ export const crunchbaseSearchPeopleTool: ToolConfig<
   description:
     'Search Crunchbase people — founders, executives, and investors — with filter predicates on job title, organization, location, and rank.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 

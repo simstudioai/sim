@@ -22,6 +22,7 @@ export const contextDevClassifySicTool: ToolConfig<
   name: 'Context.dev Classify SIC',
   description: 'Classify a brand into SIC industry codes from its domain or company name.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevClassifySicParams>(),
 

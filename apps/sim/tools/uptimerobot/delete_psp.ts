@@ -16,6 +16,7 @@ export const uptimeRobotDeletePspTool: ToolConfig<
   name: 'UptimeRobot Delete Status Page',
   description: 'Permanently delete an UptimeRobot public status page by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

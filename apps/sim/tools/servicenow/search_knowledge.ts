@@ -24,6 +24,7 @@ export const searchKnowledgeTool: ToolConfig<
   description:
     'Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet and the article number, which Get ServiceNow Knowledge Article accepts to fetch the full body.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

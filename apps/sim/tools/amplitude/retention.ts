@@ -8,6 +8,7 @@ export const retentionTool: ToolConfig<AmplitudeRetentionParams, AmplitudeRetent
   name: 'Amplitude Retention',
   description: 'Measure how many users return to perform an action after a starting action.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {

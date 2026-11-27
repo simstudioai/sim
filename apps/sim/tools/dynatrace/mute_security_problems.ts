@@ -23,6 +23,7 @@ export const muteSecurityProblemsTool: ToolConfig<
   description:
     'Mute several Dynatrace vulnerabilities at once with a shared reason, for bulk triage.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

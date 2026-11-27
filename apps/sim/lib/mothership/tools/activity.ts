@@ -410,6 +410,7 @@ export const TOOL_ACTIVITIES: Readonly<Record<string, ActivityPhrase | Operation
     },
   },
   search_library_docs: 'read documentation',
+  search_people: { verb: 'looked up', object: 'people' },
   search_sources: {
     label: 'checked search sources',
     parameter: 'action',

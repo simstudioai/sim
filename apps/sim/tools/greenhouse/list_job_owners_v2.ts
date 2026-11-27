@@ -20,6 +20,7 @@ export const greenhouseListJobOwnersV2Tool: ToolConfig<
   name: 'Greenhouse List Job Owners',
   description: 'Lists one page of job owners with cursor pagination and documented filters.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

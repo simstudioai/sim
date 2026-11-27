@@ -13,6 +13,7 @@ export const moveTravelRequestTool: InternalToolConfig<MoveTravelRequestParams, 
     description:
       'Move a travel request through workflow (POST /travelrequest/v4/requests/{requestUuid}/{action}). Valid actions: submit, recall, cancel, approve, sendback, close, reopen.',
     version: '1.0.0',
+    effect: 'write',
     params: {
       datacenter: {
         type: 'string',

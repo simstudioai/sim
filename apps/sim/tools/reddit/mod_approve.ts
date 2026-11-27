@@ -18,6 +18,7 @@ export const modApproveTool: ToolConfig<RedditModApproveParams, RedditModApprove
   name: 'Approve Reddit Post/Comment (Mod)',
   description: 'Approve a reported or removed Reddit post or comment as a moderator',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

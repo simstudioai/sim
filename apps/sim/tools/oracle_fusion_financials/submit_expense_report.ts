@@ -18,6 +18,7 @@ export const oracleFusionFinancialsSubmitExpenseReportTool: InternalToolConfig<
   description:
     'Submit an Oracle Fusion expense report. Only result S means submission without errors; other results are returned as business failures.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     expenseReportUniqId: {

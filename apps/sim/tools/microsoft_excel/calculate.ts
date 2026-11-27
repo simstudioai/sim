@@ -12,6 +12,7 @@ export const calculateTool: ToolConfig<ExcelCalculateParams, ExcelCalculateRespo
   name: 'Microsoft Excel Calculate',
   description: 'Calculate in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: {

@@ -11,6 +11,7 @@ export const attioGetListTool: ToolConfig<AttioGetListParams, AttioGetListRespon
   name: 'Attio Get List',
   description: 'Get a single list by ID or slug',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -12,6 +12,7 @@ export const rampGetPhysicalCardTool: ToolConfig<
   name: 'Ramp Get Physical Card',
   description: 'Fetch a physical card in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

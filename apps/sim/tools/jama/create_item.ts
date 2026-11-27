@@ -19,6 +19,7 @@ export const jamaCreateItemTool: ToolConfig<JamaCreateItemParams, JamaCreateItem
   name: 'Jama Create Item',
   description: "Create Item in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'write',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

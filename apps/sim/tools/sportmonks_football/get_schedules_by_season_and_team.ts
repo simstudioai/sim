@@ -27,6 +27,7 @@ export const sportmonksGetSchedulesBySeasonAndTeamTool: ToolConfig<
   name: 'Get Schedules by Season and Team',
   description: 'Retrieve the full season schedule for a specific team by season ID and team ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

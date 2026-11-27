@@ -11,6 +11,7 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
   description:
     'Get a list of backlinks pointing to a target domain or URL. Returns details about each backlink including source URL, anchor text, and domain rating.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {

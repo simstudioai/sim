@@ -5,7 +5,6 @@
  * the agent guide and the LF lines.
  */
 import { createHash } from 'node:crypto'
-import { rmSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
@@ -14,6 +13,7 @@ import { escapeRegExp } from '@sim/utils/string'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
 import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
+import { SDK_MAJOR } from '@sim/workflow-code/sdk'
 import {
   COOKBOOK_EXAMPLES,
   CORE_DTS,
@@ -24,13 +24,12 @@ import {
   generateWorkspaceTypes,
   referencedBlockTypes,
   SDK_INDEX_FILE,
-  SDK_MAJOR,
   SDK_MODELS_FILE,
   sdkIndexHeader,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
 import { printError, printLine } from '#sim-cli/output/io'
-import type { OutputFormat } from '../../config/index'
+import { isMachineFormat, type OutputFormat } from '../../config/index'
 import { readJsonFile, writeJsonFile } from '../../config/json-file'
 import { configDir } from '../../config/paths'
 import { embedStore } from '../../embed-context'
@@ -54,9 +53,34 @@ import {
   updateSourceDir,
   withMissingLines,
 } from './source-dir'
-import { type PrimerKind, primerFor } from './source-primer'
+import {
+  AGENTS_POINTER_MARKER,
+  agentsPointer,
+  CLI_LOOP_RUN,
+  type PrimerKind,
+  type PrimerSurface,
+  primerFor,
+  primerSurface,
+} from './source-primer'
+import { shellWord } from './source-ui'
 
-const TSCONFIG_FILE = 'tsconfig.json'
+/** The CLI's `tsconfig.json`, which a check type-checks the directory with. */
+export const TSCONFIG_FILE = 'tsconfig.json'
+/** Where agents look first: the nearest `AGENTS.md` above the file they edit. */
+const ROOT_AGENTS_FILE = 'AGENTS.md'
+/**
+ * A file the user may own, read so a symbolic link they point at their own guide counts as theirs
+ * (empty text, which is never replaced) instead of refusing the whole refresh.
+ */
+async function readUserOwnedText(dir: string, path: string): Promise<string | null> {
+  try {
+    return await readSourceText(dir, path)
+  } catch (error) {
+    if (error instanceof SourceDirError && error.code === 'SOURCE_SYMLINK') return ''
+    throw error
+  }
+}
+
 /** Type-checks the source against every current block, for a block the default one leaves out. */
 export const TSCONFIG_FULL_FILE = 'tsconfig.full.json'
 /** The SDK file whose first line names the catalog the declarations were generated from. */
@@ -161,19 +185,9 @@ function writeCachedCatalog(catalog: BlockCatalog): void {
   writeJsonFile(catalogCachePath(catalog.hash), catalog)
 }
 
-/**
- * Records `hash` as the workspace's catalog, dropping the per-workspace copy and the
- * per-workflow copies an older CLI cached under the workspace id.
- */
 function writeWorkspaceCatalogPointer(workspaceId: string, hash: string): void {
   if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return
   writeJsonFile(workspaceCatalogPointerPath(workspaceId), { hash })
-  for (const legacy of [`${workspaceId}.json`, workspaceId]) {
-    if (legacy === `${hash}.json`) continue
-    try {
-      rmSync(join(catalogCacheDir(), legacy), { recursive: true, force: true })
-    } catch {}
-  }
 }
 
 /**
@@ -241,18 +255,15 @@ export async function loadCatalog(
   return loadWorkflowCatalog(client, source.workspaceId, source.workflowId)
 }
 
-/**
- * The resource manifest as `generateWorkspaceTypes` reads it. A server older than the skills,
- * custom tools and MCP servers sections omits them, which leaves those keys plain strings.
- */
+/** The resource manifest as `generateWorkspaceTypes` reads it. */
 function workspaceManifestFrom({
   tables,
   knowledgeBases,
   credentials,
   workflows,
-  skills = [],
-  customTools = [],
-  mcpServers = [],
+  skills,
+  customTools,
+  mcpServers,
   env,
 }: GetSourceResourcesResponse['data']): WorkspaceManifest {
   return {
@@ -348,7 +359,7 @@ function workspaceTypesFrom(
 /**
  * The workspace's resources as `workspace.d.ts` ({@link workspaceTypesFrom}), read from the
  * server. When the resources cannot be listed (a `403` for a caller the manifest does not admit, a
- * `404` from a server that predates the route) only the declared resources are typed, or `null`
+ * `404` for a workspace it cannot see) only the declared resources are typed, or `null`
  * without any: the source still writes and type-checks, with every other key a plain string.
  */
 export async function loadWorkspaceTypes(
@@ -372,25 +383,62 @@ export async function loadWorkspaceTypes(
 }
 
 /**
+ * The stored manifest the last get kept beside `workspace.d.ts`: `null` when it kept none (the get
+ * could not list the workspace's resources), `undefined` when the file does not parse.
+ */
+async function readKeptManifest(dir: string): Promise<WorkspaceManifest | null | undefined> {
+  const manifest = await readSourceText(dir, WORKSPACE_MANIFEST_FILE)
+  if (manifest === null) return null
+  try {
+    const parsed: unknown = JSON.parse(manifest)
+    return isRecordLike(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The column names of each stored table in the manifest the last get, apply or status kept beside
+ * `workspace.d.ts`, by table key; empty when none was kept or it does not parse.
+ */
+export async function keptTableColumns(
+  dir: string
+): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
+  const tables = (await readKeptManifest(dir))?.tables ?? {}
+  return new Map(
+    Object.entries(tables).map(([key, table]) => [key, new Set(Object.keys(table?.columns ?? {}))])
+  )
+}
+
+/**
+ * `workspace.d.ts` for the kept stored manifest and `local`, as {@link refreshWorkspaceTypes}
+ * would write it, without writing it; `null` for no file. A manifest that does not parse counts
+ * as none kept.
+ */
+export async function workspaceTypesText(
+  dir: string,
+  local: LocalDeclarations
+): Promise<string | null> {
+  return workspaceTypesFrom((await readKeptManifest(dir)) ?? null, local)?.text ?? null
+}
+
+/**
  * Regenerates `workspace.d.ts` from the stored manifest the last get kept beside it and what the
- * directory declares now (`local`), so `tsc` types a key added since without a request. A
- * directory with no kept manifest (written by an older CLI) is left as it is.
+ * directory declares now (`local`), so a check types a key added since without a request. Without
+ * a kept manifest (the get could not list the workspace's resources), it types what the directory
+ * declares, as that get did, and removes the file when it declares nothing. A manifest that does
+ * not parse leaves the file as it is.
  */
 export async function refreshWorkspaceTypes(dir: string, local: LocalDeclarations): Promise<void> {
-  const [manifest, current] = await Promise.all([
-    readSourceText(dir, WORKSPACE_MANIFEST_FILE),
+  const [stored, current] = await Promise.all([
+    readKeptManifest(dir),
     readSourceText(dir, WORKSPACE_TYPES_FILE),
   ])
-  if (manifest === null) return
-  let stored: unknown
-  try {
-    stored = JSON.parse(manifest)
-  } catch {
-    return
-  }
-  if (!isRecordLike(stored)) return
+  if (stored === undefined) return
   const types = workspaceTypesFrom(stored, local)
-  if (types && types.text !== current) {
+  if (types === null) {
+    if (current !== null) await updateSourceDir(dir, { write: [], remove: [WORKSPACE_TYPES_FILE] })
+  } else if (types.text !== current) {
     await updateSourceDir(dir, { write: [[WORKSPACE_TYPES_FILE, types.text]] })
   }
 }
@@ -436,7 +484,7 @@ export function assertSdkMajor(catalog: BlockCatalog): void {
   if (catalog.sdkMajor === SDK_MAJOR) return
   throw new SourceDirError(
     catalog.sdkMajor > SDK_MAJOR
-      ? `This workspace uses workflow SDK ${catalog.sdkMajor}, but this CLI writes SDK ${SDK_MAJOR} declarations. Upgrade the CLI (npm install -g sim@latest) and run the command again.`
+      ? `This workspace uses workflow SDK ${catalog.sdkMajor}, but this CLI writes SDK ${SDK_MAJOR} declarations. Upgrade the CLI with sim update and run the command again.`
       : `This workspace uses workflow SDK ${catalog.sdkMajor}, but this CLI writes SDK ${SDK_MAJOR} declarations. Install a CLI release for SDK ${catalog.sdkMajor} to work with this server.`,
     { code: 'SDK_MAJOR_MISMATCH' }
   )
@@ -532,8 +580,6 @@ export interface SourceTree {
   workspaceTypes: boolean
   /** The agent guide to read before editing. */
   guide: typeof SOURCE_AGENTS_FILE
-  /** The primer atop the guide (`source-primer.ts`), printed so an agent needs no other read. */
-  primer: string
 }
 
 /** Reports a `tsconfig.json` the CLI left alone and summarizes a tree write. */
@@ -541,7 +587,7 @@ export function finishTree(
   dir: string,
   written: number,
   workspaceTypes: WorkspaceTypes | null,
-  tree: { ownsTsconfig: boolean; primer: string }
+  tree: { ownsTsconfig: boolean }
 ): SourceTree {
   if (!tree.ownsTsconfig) {
     printError(
@@ -552,35 +598,54 @@ export function finishTree(
     files: written,
     workspaceTypes: workspaceTypes !== null,
     guide: SOURCE_AGENTS_FILE,
-    primer: tree.primer,
   }
 }
 
 /**
- * Prints a tree write's result: in JSON or YAML one document with the primer as its `primer`
- * field, otherwise the fields and then the primer as text, so it reads as written.
+ * Prints a tree write's result: the fields, then the primer as text when the result carries one
+ * (in JSON or YAML it is the document's `primer` field). Only a new directory's starter prints
+ * it; a get leaves it at the top of `.sim/AGENTS.md`.
  */
 export function printTreeResult(
   format: OutputFormat,
-  result: Record<string, unknown> & { primer: string }
+  result: Record<string, unknown> & { primer?: string }
 ): void {
-  if (format === 'json' || format === 'yaml') {
+  if (isMachineFormat(format)) {
     printProtocolResult(format, result)
     return
   }
   const { primer, ...fields } = result
   printProtocolResult(format, fields)
-  printLine(`\n${primer}`)
+  if (primer !== undefined) printLine(`\n${primer}`)
+}
+
+/**
+ * The edit loop of a directory for a get's result, as the one chained command the primer of this
+ * surface recommends, naming the directory so it runs from anywhere: a coding agent's adds the
+ * test run (and a workflow's deploy) with a `{…}` input to fill in, so it is a template to read,
+ * never a `next` to run as printed; Mothership's stops at the apply. `sim` carries the server
+ * options the caller typed (`simInvocation`). Apply re-checks everything on
+ * the server, so a dry run is not a step of it. Still a list, so the JSON field keeps the shape
+ * earlier results had.
+ */
+export function editLoop(kind: PrimerKind, dir: string, sim: string): string[] {
+  const group = `${sim} ${kind === 'workflow' ? 'workflows' : 'workspaces'} source`
+  const at = shellWord(dir)
+  const run = primerSurface() === 'chat' ? '' : CLI_LOOP_RUN[kind]
+  return [`${group} check --dir ${at} && ${group} apply --dir ${at} --yes${run}`]
 }
 
 /** What a directory's editable tree holds beside the printed source. */
 export interface SourceTreeProfile {
   /** Which primer opens `.sim/AGENTS.md`. */
   kind: PrimerKind
-  /** The reference in `.sim/AGENTS.md`, below the primer. */
-  agents: string
+  /**
+   * The reference in `.sim/AGENTS.md`, below the primer, for the surface that reads it: a guide
+   * Mothership's chat reads never names a flag its shell refuses.
+   */
+  agents: (surface: PrimerSurface) => string
   /** More guides beside `.sim/AGENTS.md` (path → text), rewritten every time like it. */
-  guides?: ReadonlyArray<readonly [string, string]>
+  guides?: (surface: PrimerSurface) => ReadonlyArray<readonly [string, string]>
   /**
    * A `tsconfig.json` the CLI writes, starting with {@link TSCONFIG_MARKER}, that type-checks the
    * source with the SDK declarations `sdkFiles` (directory-relative paths).
@@ -780,10 +845,11 @@ export async function sourceTreeChange(
   options: { incremental?: boolean } = {}
 ): Promise<{ change: SourceDirChange; ownsTsconfig: boolean; primer: string }> {
   const sources = [...use.sources]
-  const primer = primerFor(profile.kind, catalog, sources)
+  const surface = primerSurface()
+  const primer = primerFor(profile.kind, surface, catalog, sources)
   const write: Array<readonly [string, string]> = [
-    [SOURCE_AGENTS_FILE, `${primer}\n${profile.agents}`],
-    ...(profile.guides ?? []),
+    [SOURCE_AGENTS_FILE, `${primer}\n${profile.agents(surface)}`],
+    ...(profile.guides?.(surface) ?? []),
     ...Object.entries(COOKBOOK_EXAMPLES).map(
       ([file, text]) => [`${SOURCE_EXAMPLES_DIR}/${file}`, text] as const
     ),
@@ -792,14 +858,19 @@ export async function sourceTreeChange(
     ...(profile.sdk ?? []),
   ]
   const remove: string[] = []
-  const [gitattributes, gitignore, index, tsconfig, tsconfigFull, cacheIndex] = await Promise.all([
-    readSourceText(dir, SOURCE_GITATTRIBUTES_FILE),
-    profile.gitignore ? readSourceText(dir, SOURCE_GITIGNORE_FILE) : null,
-    readSourceText(dir, SDK_INDEX_PATH),
-    readSourceText(dir, TSCONFIG_FILE),
-    readSourceText(dir, TSCONFIG_FULL_FILE),
-    sdkCacheIndex(catalog),
-  ])
+  const [gitattributes, gitignore, index, tsconfig, tsconfigFull, cacheIndex, rootAgents] =
+    await Promise.all([
+      readSourceText(dir, SOURCE_GITATTRIBUTES_FILE),
+      profile.gitignore ? readSourceText(dir, SOURCE_GITIGNORE_FILE) : null,
+      readSourceText(dir, SDK_INDEX_PATH),
+      readSourceText(dir, TSCONFIG_FILE),
+      readSourceText(dir, TSCONFIG_FULL_FILE),
+      sdkCacheIndex(catalog),
+      readUserOwnedText(dir, ROOT_AGENTS_FILE),
+    ])
+  if (rootAgents === null || rootAgents.startsWith(AGENTS_POINTER_MARKER)) {
+    write.push([ROOT_AGENTS_FILE, agentsPointer(profile.kind, surface)])
+  }
   const kept = options.incremental ? includedBlockTypes(tsconfig) : []
   const used = usedBlockTypes(catalog, {
     sources,

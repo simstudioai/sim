@@ -21,6 +21,7 @@ export const higgsfieldDeleteRequestTool: ToolConfig<
   description:
     "Immediately delete a finished Higgsfield request's output files, prompt, and parameters.",
   version: '1.0.0',
+  effect: 'write',
   oauth: higgsfieldOAuth,
   params: {
     ...higgsfieldAuthParams,

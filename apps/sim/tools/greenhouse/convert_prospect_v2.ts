@@ -21,6 +21,7 @@ export const greenhouseConvertProspectV2Tool: ToolConfig<
   description:
     'Converts a prospect application into a new candidate application on a job already associated with the prospect.',
   version: '2.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

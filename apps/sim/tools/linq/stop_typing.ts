@@ -9,6 +9,7 @@ export const linqStopTypingTool: ToolConfig<LinqChatActionParams, LinqSuccessRes
   name: 'Stop Typing Indicator',
   description: 'Stop the typing indicator in a one-on-one chat (iMessage only, not group chats)',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

@@ -12,6 +12,7 @@ export const updateExpenseTool: InternalToolConfig<UpdateExpenseParams, SapConcu
   description:
     'Update an expense (PATCH /expensereports/v4/reports/{reportId}/expenses/{expenseId}). Only Company JWT authentication is allowed on this endpoint — the password grant is rejected. A submitted report cannot be updated once it has reached a Paid workflow status. Although the primary intent of this operation is for submitted report updates, it also works on unsubmitted reports, but with the same limited set of fields.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

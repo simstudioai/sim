@@ -14,6 +14,7 @@ export const escalationPathsDeleteTool: ToolConfig<
   name: 'Delete Escalation Path',
   description: 'Delete an escalation path in incident.io',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

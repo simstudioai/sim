@@ -24,6 +24,7 @@ export const createDnsRecordTool: ToolConfig<
   name: 'Cloudflare Create DNS Record',
   description: 'Creates a new DNS record for a zone.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

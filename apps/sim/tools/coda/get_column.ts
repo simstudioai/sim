@@ -20,6 +20,7 @@ export const codaGetColumnTool: ToolConfig<CodaGetColumnParams, CodaColumnRespon
   name: 'Coda Get Column',
   description: 'Get details about a column in a Coda table, including its full format settings',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

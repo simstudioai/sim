@@ -15,6 +15,8 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
   name: 'Hunter Domain Search',
   description: 'Returns all the email addresses found using one given domain name, with sources.',
   version: '1.0.0',
+  // tool-effect: the GET spends Hunter credits to reveal people's emails at the domain
+  effect: 'write',
 
   hosting: {
     envKeyPrefix: HUNTER_API_KEY_PREFIX,

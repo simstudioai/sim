@@ -27,6 +27,7 @@ export const squareCreateInvoiceTool: ToolConfig<
   name: 'Square Create Invoice',
   description: 'Create a draft invoice for an existing order and customer',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

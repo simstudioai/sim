@@ -19,6 +19,7 @@ export const quickbooksUpdateVendorCreditTool: InternalToolConfig<
   name: 'QuickBooks Update Vendor Credit',
   description: 'Read, merge, and full-update vendor-credit header fields',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

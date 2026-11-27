@@ -35,6 +35,7 @@ export const bitbucketGetFileTool: InternalToolConfig<
   name: 'Bitbucket Get File',
   description: 'Read bounded UTF-8 text from a file at a full repository commit SHA-1',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

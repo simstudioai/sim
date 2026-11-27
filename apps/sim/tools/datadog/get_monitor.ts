@@ -8,6 +8,7 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
   name: 'Datadog Get Monitor',
   description: 'Retrieve details of a specific monitor by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

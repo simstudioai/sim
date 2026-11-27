@@ -15,6 +15,7 @@ export const updateScheduleTool: ToolConfig<
   name: 'Cal.com Update Schedule',
   description: 'Update an existing schedule in Cal.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -9,6 +9,7 @@ export const gitlabListGroupsTool: ToolConfig<GitLabListGroupsParams, GitLabList
   name: 'GitLab List Groups',
   description: 'List GitLab groups accessible to the authenticated user',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const getSyntheticsTestTool: ToolConfig<GetSyntheticsTestParams, GetSynth
     description:
       'Get the configuration of a Synthetic test by public ID. Browser test steps are not included by this type-agnostic endpoint.',
     version: '1.0.0',
+    effect: 'read',
     oauth: DATADOG_CREDENTIAL_OAUTH,
 
     params: {

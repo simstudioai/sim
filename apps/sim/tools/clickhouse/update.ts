@@ -6,6 +6,7 @@ export const updateTool: InternalToolConfig<ClickHouseUpdateParams, ClickHouseUp
   name: 'ClickHouse Update',
   description: 'Update rows in a ClickHouse table via an ALTER TABLE ... UPDATE mutation',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -15,6 +15,7 @@ export const updateTableTool: ToolConfig<ExcelUpdateTableParams, ExcelTableRespo
   name: 'Microsoft Excel Update Table',
   description: 'Update Table in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: {

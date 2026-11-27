@@ -27,6 +27,7 @@ export const squarePublishInvoiceTool: ToolConfig<
   name: 'Square Publish Invoice',
   description: 'Publish a draft invoice so it is sent to the customer and becomes payable',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

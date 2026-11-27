@@ -13,6 +13,7 @@ export const copyMoveIndexTool: ToolConfig<
   name: 'Algolia Copy/Move Index',
   description: 'Copy or move an Algolia index to a new destination',
   version: '1.0',
+  effect: 'write',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

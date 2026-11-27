@@ -6,6 +6,7 @@ export const getNoteTool: ToolConfig<ObsidianGetNoteParams, ObsidianGetNoteRespo
   name: 'Obsidian Get Note',
   description: 'Retrieve the content of a note from your Obsidian vault',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

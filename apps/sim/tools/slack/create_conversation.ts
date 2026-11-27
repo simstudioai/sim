@@ -13,6 +13,7 @@ export const slackCreateConversationTool: ToolConfig<
   name: 'Slack Create Conversation',
   description: 'Create a new public or private channel in a Slack workspace.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

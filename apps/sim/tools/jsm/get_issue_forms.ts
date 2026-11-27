@@ -11,6 +11,7 @@ export const jsmGetIssueFormsTool: InternalToolConfig<
   description:
     'List forms (ProForma/JSM Forms) attached to a Jira issue with metadata (name, submitted status, lock)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

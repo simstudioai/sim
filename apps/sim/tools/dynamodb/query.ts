@@ -7,6 +7,7 @@ export const queryTool: InternalToolConfig<DynamoDBQueryParams, DynamoDBQueryRes
   name: 'DynamoDB Query',
   description: 'Query items from a DynamoDB table using key conditions',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

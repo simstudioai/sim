@@ -26,6 +26,7 @@ export const kalshiGetMarketsTool: ToolConfig<KalshiGetMarketsParams, KalshiGetM
   name: 'Get Markets from Kalshi',
   description: 'Retrieve a list of prediction markets from Kalshi with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     status: {
@@ -202,6 +203,7 @@ export const kalshiGetMarketsV2Tool: ToolConfig<
   name: 'Get Markets from Kalshi V2',
   description: 'Retrieve a list of prediction markets from Kalshi with all filtering options',
   version: '2.0.0',
+  effect: 'read',
 
   params: {
     status: {

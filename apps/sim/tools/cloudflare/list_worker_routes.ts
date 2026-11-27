@@ -22,6 +22,7 @@ export const listWorkerRoutesTool: ToolConfig<
   description:
     'Lists the Workers routes on a zone, showing which URL patterns are handled by which Worker script. Unlike the Workers script endpoints, routes are zone-scoped. Requires an API token with Zone Workers Routes Read.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

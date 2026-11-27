@@ -17,6 +17,7 @@ export const oktaActivateGroupRuleTool: ToolConfig<
   description:
     'Activate a group rule so Okta starts applying it, assigning every matching user to the target groups.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

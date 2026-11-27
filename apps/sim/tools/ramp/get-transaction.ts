@@ -12,6 +12,7 @@ export const rampGetTransactionTool: ToolConfig<
   name: 'Ramp Get Transaction',
   description: 'Fetch a transaction in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

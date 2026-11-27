@@ -4,6 +4,8 @@ import { toError } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { runEnterpriseSeatTrueUps } from '@/lib/billing/enterprise-seat-true-up'
+import { syncAnnualPlanUsageLimits } from '@/lib/billing/organization'
 import { reconcileTeamSeatDrift } from '@/lib/billing/organizations/seat-drift'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { findDeadLetteredEvents } from '@/lib/core/outbox/service'
@@ -37,7 +39,9 @@ function describeDeadLetter(event: Awaited<ReturnType<typeof findDeadLetteredEve
 
 /**
  * Periodic billing-seat reconciliation. Self-heals Team organizations whose
- * stored seat count drifted from their member count, and reports any
+ * stored seat count drifted from their member count, runs the self-serve
+ * Enterprise seat true-up (peak sampling and closed-window invoices), raises annual plan usage
+ * limits to their yearly allowance, and reports any
  * dead-lettered Stripe seat/cancel sync events so a member who has access but
  * whose seat charge never synced is surfaced for manual remediation rather than
  * silently under-billed.
@@ -54,6 +58,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const drift = await reconcileTeamSeatDrift()
+    // A failed true-up must not hide the drift and dead-letter reports below; it retries next hour.
+    const seatTrueUp = await runEnterpriseSeatTrueUps().catch((error: unknown) => {
+      logger.error('Enterprise seat true-up failed', { requestId, error: toError(error).message })
+      return null
+    })
+    const annualLimitsSynced = await syncAnnualPlanUsageLimits().catch((error: unknown) => {
+      logger.error('Annual plan usage-limit sync failed', {
+        requestId,
+        error: toError(error).message,
+      })
+      return null
+    })
 
     const deadLettered = await findDeadLetteredEvents(BILLING_SYNC_EVENT_TYPES)
     const newSince = Date.now() - NEW_DEAD_LETTER_WINDOW_MS
@@ -85,6 +101,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     logger.info('Billing seat reconciliation completed', {
       requestId,
       ...drift,
+      seatTrueUp,
+      annualLimitsSynced,
       deadLetteredBillingSyncs: deadLettered.length,
     })
 
@@ -92,6 +110,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       success: true,
       requestId,
       drift,
+      seatTrueUp,
+      annualLimitsSynced,
       deadLetteredBillingSyncs: deadLettered.length,
     })
   } catch (error) {

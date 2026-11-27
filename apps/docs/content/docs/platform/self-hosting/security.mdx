@@ -195,13 +195,7 @@ no remote provider is configured.
   Without valid provider credentials and the required Function image, code that needs a remote sandbox fails with a configuration error. Verify readiness before enabling its browser controls.
 </Callout>
 
-The Function block's Sandbox selector, Shell, and **Settings → Sandboxes** follow the server's own readiness check; no browser variable is involved. One browser-side variable relates to sandbox readiness and is not derived automatically:
-
-| Variable | Effect when unset |
-|---|---|
-| `NEXT_PUBLIC_E2B_ENABLED` | The E2B-backed Pi block modes stay hidden; `sim-setup doctor` reports it as a mismatch against `E2B_ENABLED`. Revealing them is not enough to make them run — Pi executes on its own image, pinned with `E2B_PI_TEMPLATE_ID` or `DAYTONA_PI_SNAPSHOT_ID`, and fails closed without it |
-
-Set it only **after** the server-side configuration above is complete — it is an assertion about readiness, not a switch, and the server-side check has its own conditions beyond it. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and promotion procedure. `bunx sim-setup doctor` reports a mismatch in either direction.
+The Function block's Sandbox selector, Shell, and **Settings → Sandboxes** follow the server's own readiness check; no browser variable is involved. The E2B-backed Pi block modes appear when `E2B_ENABLED` is set. Revealing them is not enough to make them run — Pi executes on its own image, pinned with `E2B_PI_TEMPLATE_ID` or `DAYTONA_PI_SNAPSHOT_ID`, and fails closed without it. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and promotion procedure.
 
 <Callout type="warn">
   With the default local sandbox, treat everyone who can author a workflow as someone running code in your app container's security context. If your Sim instance is open to a wide or partly-trusted audience, use a remote sandbox provider and enable the NetworkPolicy egress restrictions.

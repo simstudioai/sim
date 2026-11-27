@@ -14,6 +14,7 @@ export const filterLogEventsTool: InternalToolConfig<
   description:
     'Search log events across all streams in a log group by filter pattern and time range, without writing a Log Insights query',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

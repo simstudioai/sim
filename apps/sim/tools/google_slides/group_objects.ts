@@ -31,6 +31,7 @@ export const groupObjectsTool: ToolConfig<GroupObjectsParams, GroupObjectsRespon
   name: 'Group Objects in Google Slides',
   description: 'Group two or more page elements on the same slide into a single object group.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

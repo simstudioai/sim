@@ -7,6 +7,7 @@ export const deleteIndexTool: ToolConfig<AlgoliaDeleteIndexParams, AlgoliaDelete
   name: 'Algolia Delete Index',
   description: 'Delete an entire Algolia index and all its records',
   version: '1.0',
+  effect: 'write',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

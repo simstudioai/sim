@@ -9,6 +9,7 @@ export const ripplingDeleteCustomObjectFieldTool: ToolConfig<RipplingDeleteCusto
     name: 'Rippling Delete Custom Object Field',
     description: 'Delete a field from a custom object',
     version: '1.0.0',
+    effect: 'write',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

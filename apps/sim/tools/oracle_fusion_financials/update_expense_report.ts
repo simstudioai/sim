@@ -18,6 +18,7 @@ export const oracleFusionFinancialsUpdateExpenseReportTool: InternalToolConfig<
   name: 'Oracle Fusion Financials Update Expense Report',
   description: 'Update an Oracle Fusion expense report.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     expenseReportUniqId: {

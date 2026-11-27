@@ -7,6 +7,7 @@ import { canonicalJson } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
+import { liveSearchInvolvingSchema } from '@/lib/api/contracts/knowledge/search'
 import type {
   WorkspaceKnowledgeSearchData,
   WorkspaceKnowledgeSearchResult,
@@ -60,6 +61,7 @@ import {
 } from '@/lib/sim-search/live/account-session'
 import {
   listLiveAccounts,
+  type ResolvedLiveAccount,
   resolveListedLiveAccount,
   resolveLiveAccount,
 } from '@/lib/sim-search/live/accounts'
@@ -72,11 +74,16 @@ import {
   withImpliedListingBound,
 } from '@/lib/sim-search/live/dates'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
+import {
+  type DocumentLink,
+  LINKABLE_SOURCES,
+  parseDocumentLinks,
+} from '@/lib/sim-search/live/links'
 import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
 import { joinMessages } from '@/lib/sim-search/live/pages'
 import { loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
-import { liveSearchGuidance } from '@/lib/sim-search/live/providers'
+import { filtersByPerson, liveSearchGuidance } from '@/lib/sim-search/live/providers'
 import { LiveReadError } from '@/lib/sim-search/live/read-error'
 import { encodedWindowEnd, READ_WINDOW_CHARACTERS } from '@/lib/sim-search/live/read-window'
 import {
@@ -156,6 +163,8 @@ interface LiveSearchOptions {
   topK: number
   filters?: WorkspaceSearchFilters
   nativeQueries?: NativeSearchQuery[]
+  /** Only items this person took part in: `me` or another person's lowercase email. */
+  involving?: string
   signal?: AbortSignal
   resultSecretRegistry?: ResolvedSecretTraceRegistry
 }
@@ -289,6 +298,9 @@ export const LIVE_NOT_STARTED_MESSAGE =
   'Not searched before the search deadline. Search this account alone or narrow the query.'
 /** Account status for each eligible account beyond {@link MAX_ACCOUNTS}. */
 export const LIVE_OVER_ACCOUNT_LIMIT_MESSAGE = `Not searched: one search covers at most ${MAX_ACCOUNTS} accounts. Search this source or account alone.`
+/** Account status when a search filtered by person reaches a provider that cannot apply it. */
+export const LIVE_NO_PERSON_FILTER_MESSAGE =
+  'Not searched: this source cannot filter by this person. Search it without involving.'
 /** Previews center on the query's longest matching term, like indexed passages. */
 const PREVIEW_CHARACTERS = 1800
 /**
@@ -480,14 +492,23 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
     const requestedFilters = input.filters
       ? workspaceSearchFiltersSchema.parse(input.filters)
       : undefined
-    input = { ...input, filters: requestedFilters }
+    input = {
+      ...input,
+      filters: requestedFilters,
+      involving: liveSearchInvolvingSchema.optional().parse(input.involving),
+    }
     if (
       (!input.query.trim() && !queries?.some((query) => query.query)) ||
       queries?.some((query) => !query.query)
     )
       input = { ...input, filters: withImpliedListingBound(input.filters, new Date()) }
     annotateSearchDiagnostics(
-      describeSearchRequest({ query: input.query, filters: input.filters, nativeQueries: queries })
+      describeSearchRequest({
+        query: input.query,
+        filters: input.filters,
+        nativeQueries: queries,
+        involving: input.involving,
+      })
     )
     if (
       (!input.query.trim() &&
@@ -524,14 +545,19 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
       measureSearchStage('live.policies', () => loadLiveSearchPolicies(input)),
       measureSearchStage('live.accounts', () => listLiveAccounts(input, userId)),
     ])
-    const eligible = allAccounts
+    const reachable = allAccounts
       .filter(
         (account) =>
           (!filters?.source || filters.source === account.provider) &&
           nativesFor(account).length > 0
       )
       .sort(compareAccounts)
-    const nothingSearched = !queries && eligible.length === 0
+    /** A person filter skips the sources that cannot apply it rather than return them unfiltered. */
+    const eligible = reachable.filter(
+      (account) =>
+        !input.involving || filtersByPerson(account.provider, input.involving, account.scopes)
+    )
+    const nothingSearched = !queries && reachable.length === 0
     const selected = eligible.slice(0, MAX_ACCOUNTS)
     const openingAccount = createConcurrencyLimit(ACCOUNT_OPEN_CONCURRENCY)
     annotateSearchDiagnostics({
@@ -609,6 +635,7 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
           policy: session.policy,
           query: input.query,
           native: queryNative,
+          involving: input.involving,
           limit: input.topK,
           scopes: resolved.account.scopes,
         })
@@ -938,22 +965,29 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
         ? [nothingSearchedGuidance(input, filters?.source, allAccounts.length > 0)]
         : []),
       liveSearchGuidance(
-        accounts.filter((account) => account.status !== 'reconnect').map(({ provider }) => provider)
+        accounts
+          .filter((account) => account.status !== 'reconnect')
+          .map(({ provider }) => provider),
+        Boolean(input.involving)
       ),
     ].join('\n')
-    for (const account of eligible.slice(MAX_ACCOUNTS)) {
-      for (const { queryIndex } of nativesFor(account))
-        accounts.push({
-          accountId: account.id,
-          provider: account.provider,
-          displayName: account.displayName,
-          ...(queryIndex === undefined ? {} : { queryIndex }),
-          status: 'unavailable',
-          message: LIVE_OVER_ACCOUNT_LIMIT_MESSAGE,
-        })
-    }
+    const unsearched: [LiveAccount[], string][] = [
+      [eligible.slice(MAX_ACCOUNTS), LIVE_OVER_ACCOUNT_LIMIT_MESSAGE],
+      [reachable.filter((account) => !eligible.includes(account)), LIVE_NO_PERSON_FILTER_MESSAGE],
+    ]
+    for (const [skipped, message] of unsearched)
+      for (const account of skipped)
+        for (const { queryIndex } of nativesFor(account))
+          accounts.push({
+            accountId: account.id,
+            provider: account.provider,
+            displayName: account.displayName,
+            ...(queryIndex === undefined ? {} : { queryIndex }),
+            status: 'unavailable',
+            message,
+          })
     for (const [queryIndex, query] of (queries ?? []).entries()) {
-      if (!eligible.some((account) => targetsAccount(query, account)))
+      if (!reachable.some((account) => targetsAccount(query, account)))
         accounts.push({
           accountId: query.accountId ?? '',
           provider: query.provider,
@@ -1066,6 +1100,212 @@ function liveReadFailure(error: unknown, provider: string, deadline?: AbortSigna
   return error
 }
 
+interface AccountReadInput {
+  owner: ResourceOwner
+  userId: string
+  resolved: ResolvedLiveAccount
+  policies: Record<string, unknown>
+  signal: AbortSignal
+  filters?: WorkspaceSearchFilters
+  /** The reference to read within the account's session, or undefined when it holds none. */
+  locate(session: LiveAccountSession): ReturnType<LiveAccountSession['locate']>
+}
+
+/**
+ * Reads one account's document through the boundary every live read crosses: the reference is
+ * verified against the member's access and the source settings before its content is fetched, and
+ * the fetched document against the settings saved now. Undefined when the account holds no
+ * document the reference could name.
+ */
+async function readAccountDocument({
+  owner,
+  userId,
+  resolved,
+  policies,
+  signal,
+  filters,
+  locate,
+}: AccountReadInput) {
+  const pool = createPinnedConnectionPool()
+  let session: LiveAccountSession | undefined
+  try {
+    const opened = await measureSearchStage('live.session', () =>
+      openLiveAccountSession({ owner, userId, resolved, policies, signal, pool })
+    )
+    session = opened
+    const reference = await locate(opened)
+    if (!reference) return undefined
+    if (!(await measureSearchStage('live.verify', () => opened.verify(reference))))
+      throw new OrchestrationError(
+        'not_found',
+        'Document is outside your organization’s search scope'
+      )
+    const document = await measureSearchStage('live.read', () => opened.read(reference, filters))
+    /** Readers degrade section failures to warnings, so the signal decides cancellation. */
+    signal.throwIfAborted()
+    const current = await measureSearchStage('live.verify', () => opened.verifyCurrent(document))
+    /** A verifier may report a check cut short by cancellation as a normal result. */
+    signal.throwIfAborted()
+    if (!current)
+      throw new OrchestrationError(
+        'not_found',
+        'Document is outside your organization’s search scope'
+      )
+    return { reference, document }
+  } finally {
+    try {
+      await session?.close()
+    } finally {
+      pool.destroy()
+    }
+  }
+}
+
+/** Reads the document a live document ID names, from the account the ID names. */
+async function readReferencedDocument(
+  input: LiveReadInput,
+  userId: string,
+  owner: string,
+  signal: AbortSignal
+) {
+  const reference = readLiveReference(input.documentId, owner)
+  if (
+    (input.filters?.source && input.filters.source !== reference.provider) ||
+    (input.filters?.documentIds &&
+      !includesLiveDocument(input.filters.documentIds, input.documentId))
+  )
+    throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
+  annotateSearchDiagnostics({ provider: reference.provider })
+  const read = await withSearchProviderDiagnostics({ provider: reference.provider }, async () => {
+    const [resolved, policies] = await Promise.all([
+      measureSearchStage('live.resolve', () =>
+        waitWithAbort(resolveLiveAccount(input, userId, reference.account, signal), signal)
+      ),
+      measureSearchStage('live.policies', () => loadLiveSearchPolicies(input)),
+    ])
+    if (resolved.account.provider !== reference.provider)
+      throw new OrchestrationError('not_found', 'Document account changed')
+    const read = await readAccountDocument({
+      owner: input,
+      userId,
+      resolved,
+      policies,
+      signal,
+      filters: input.filters,
+      locate: async () => reference,
+    })
+    if (!read) throw new OrchestrationError('not_found', 'Document not found')
+    return { account: resolved.account, document: read.document }
+  }).catch((error: unknown) => {
+    /** Cancellation by the caller passes through unclassified. */
+    throw input.signal?.aborted ? error : liveReadFailure(error, reference.provider, signal)
+  })
+  return { documentId: input.documentId, reference, ...read }
+}
+
+/** Accounts one link read tries, in listing order, until one of them reads the document. */
+const MAX_LINK_ACCOUNTS = 5
+
+/**
+ * Reads the document a pasted link names from the first of the reader's own accounts that holds
+ * it. The link only selects a location: each account resolves it within its own grant, and the
+ * read crosses the same verification as a read by document ID, so a link never reaches a
+ * document the reader's search could not return. The result is named by the document ID a search
+ * of that account mints, so a continuation reads by ID.
+ */
+async function readLinkedDocument(
+  input: LiveReadInput,
+  userId: string,
+  links: DocumentLink[],
+  owner: string,
+  signal: AbortSignal
+) {
+  const providers = new Set(links.map((link) => link.provider))
+  const sourceNames = [...providers].map(liveProviderName).join(' or ')
+  const [accounts, policies] = await Promise.all([
+    measureSearchStage('live.resolve', () =>
+      waitWithAbort(listLiveAccounts(input, userId), signal)
+    ),
+    measureSearchStage('live.policies', () => loadLiveSearchPolicies(input)),
+  ]).catch((error: unknown) => {
+    /** Cancellation by the caller passes through unclassified. */
+    throw input.signal?.aborted ? error : liveReadFailure(error, links[0]?.provider ?? '', signal)
+  })
+  const matching = accounts.filter(
+    (account) =>
+      links.some((link) => link.provider === account.provider) &&
+      (!input.filters?.source || input.filters.source === account.provider)
+  )
+  const candidates = matching.slice(0, MAX_LINK_ACCOUNTS)
+  if (!candidates.length)
+    throw new OrchestrationError(
+      'not_found',
+      `No connected ${sourceNames} account can open this link. Connect one for Search, or search for the document instead.`
+    )
+  let failure: unknown
+  for (const account of candidates) {
+    annotateSearchDiagnostics({ provider: account.provider })
+    try {
+      const read = await withSearchProviderDiagnostics({ provider: account.provider }, async () =>
+        readAccountDocument({
+          owner: input,
+          userId,
+          resolved: await waitWithAbort(
+            resolveListedLiveAccount(input, userId, account, signal),
+            signal
+          ),
+          policies,
+          signal,
+          filters: input.filters,
+          async locate(session) {
+            for (const link of links) {
+              const located = await session.locate(link)
+              if (located) return located
+            }
+            return undefined
+          },
+        })
+      )
+      if (!read) continue
+      /** The reader's own location fields, so the ID matches the one a search of the account mints. */
+      const { id, container, kind } = read.document
+      const reference = {
+        account: account.id,
+        provider: account.provider,
+        ...read.reference,
+        ...(id ? { id } : {}),
+        ...(container ? { container } : {}),
+        ...(kind ? { kind } : {}),
+      }
+      return {
+        documentId: encodeLiveReference(reference, owner),
+        reference,
+        account,
+        document: read.document,
+      }
+    } catch (error) {
+      if (input.signal?.aborted) throw error
+      const classified = liveReadFailure(error, account.provider, signal)
+      /** A specific reason from one account says more than another account not holding it. */
+      if (
+        failure === undefined ||
+        (failure instanceof OrchestrationError && failure.code === 'not_found')
+      )
+        failure = classified
+      if (signal.aborted) break
+    }
+  }
+  throw (
+    failure ??
+    new OrchestrationError(
+      'not_found',
+      matching.length > candidates.length
+        ? `None of the first ${MAX_LINK_ACCOUNTS} of your ${matching.length} connected ${sourceNames} accounts reaches this link. Search for the document instead.`
+        : `This link is not on a site, workspace or host your connected ${sourceNames} account reaches. Search for the document instead.`
+    )
+  )
+}
+
 const liveDocumentRead = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDocument,
   resolveContext: ({ input }: { input: LiveReadInput }) => resolveKnowledgeOwnerContext(input),
@@ -1081,73 +1321,20 @@ const liveDocumentRead = defineAuthorizedKnowledgeUseCase({
         'validation',
         'Live documents use chunk index zero; continue using next.startOffset'
       )
-    const reference = readLiveReference(
-      input.documentId,
-      liveReferenceOwner(userId, resourceScopeKey(resourceScopeFromOwner(input)))
-    )
-    if (
-      (input.filters?.source && input.filters.source !== reference.provider) ||
-      (input.filters?.documentIds &&
-        !includesLiveDocument(input.filters.documentIds, input.documentId))
-    )
-      throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
-    /** Cancellation by the caller passes through unclassified. */
-    const readFailure = (error: unknown, deadline?: AbortSignal) =>
-      input.signal?.aborted ? error : liveReadFailure(error, reference.provider, deadline)
-    annotateSearchDiagnostics({ provider: reference.provider })
+    const owner = liveReferenceOwner(userId, resourceScopeKey(resourceScopeFromOwner(input)))
     const deadline = AbortSignal.timeout(READ_DEADLINE_MS)
     const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline
-    const { resolved, document } = await withSearchProviderDiagnostics(
-      { provider: reference.provider },
-      async () => {
-        const [resolved, policies] = await Promise.all([
-          measureSearchStage('live.resolve', () =>
-            waitWithAbort(resolveLiveAccount(input, userId, reference.account, signal), signal)
-          ),
-          measureSearchStage('live.policies', () => loadLiveSearchPolicies(input)),
-        ])
-        if (resolved.account.provider !== reference.provider)
-          throw new OrchestrationError('not_found', 'Document account changed')
-        const pool = createPinnedConnectionPool()
-        let session: LiveAccountSession | undefined
-        try {
-          const opened = await measureSearchStage('live.session', () =>
-            openLiveAccountSession({ owner: input, userId, resolved, policies, signal, pool })
-          )
-          session = opened
-          if (!(await measureSearchStage('live.verify', () => opened.verify(reference))))
-            throw new OrchestrationError(
-              'not_found',
-              'Document is outside your organization’s search scope'
-            )
-          const document = await measureSearchStage('live.read', () =>
-            opened.read(reference, input.filters)
-          )
-          /** Readers degrade section failures to warnings, so the signal decides cancellation. */
-          signal.throwIfAborted()
-          const current = await measureSearchStage('live.verify', () =>
-            opened.verifyCurrent(document)
-          )
-          /** A verifier may report a check cut short by cancellation as a normal result. */
-          signal.throwIfAborted()
-          if (!current)
-            throw new OrchestrationError(
-              'not_found',
-              'Document is outside your organization’s search scope'
-            )
-          return { resolved, document }
-        } finally {
-          try {
-            await session?.close()
-          } finally {
-            pool.destroy()
-          }
-        }
-      }
-    ).catch((error: unknown) => {
-      throw readFailure(error, deadline)
-    })
-    if (!matchesLiveFilters(document, input.documentId, reference.provider, input.filters))
+    const links = parseDocumentLinks(input.documentId)
+    if (links && !links.length)
+      throw new OrchestrationError(
+        'validation',
+        `Sim cannot read this link directly. Links to ${LINKABLE_SOURCES} items read; for anything else, search for the document by its title.`
+      )
+    annotateSearchDiagnostics({ fromLink: Boolean(links) })
+    const { documentId, reference, account, document } = links
+      ? await readLinkedDocument(input, userId, links, owner, signal)
+      : await readReferencedDocument(input, userId, owner, signal)
+    if (!matchesLiveFilters(document, documentId, reference.provider, input.filters))
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
     const content = safeContent(document.content, input.resultSecretRegistry)
     const start = input.startOffset ?? 0
@@ -1164,9 +1351,9 @@ const liveDocumentRead = defineAuthorizedKnowledgeUseCase({
       hasMore: end < content.length,
     })
     return {
-      documentId: input.documentId,
+      documentId,
       knowledgeBaseId: '',
-      knowledgeBaseName: resolved.account.displayName,
+      knowledgeBaseName: account.displayName,
       documentName: safeContent(document.title, input.resultSecretRegistry),
       sourceUrl: isKnowledgeSourceUrl(document.url) ? document.url : null,
       connectorType: reference.provider,

@@ -12,6 +12,7 @@ export const pitchbookContractsHistoryTool: ToolConfig<
   description:
     'Retrieve the API contracts on the account with their pricing model, term, and credit balances',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

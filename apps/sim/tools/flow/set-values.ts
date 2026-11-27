@@ -20,6 +20,7 @@ export const flowSetValuesTool: ToolConfig<FlowSetValuesParams, FlowSetValuesRes
   description:
     'Set 1\u2013100 field values atomically on one branch. Returns each affected entity once in first-touched order.',
   version: '1.0.0',
+  effect: 'write',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

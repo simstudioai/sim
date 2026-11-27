@@ -10,6 +10,7 @@ export const linearMergeCustomersTool: ToolConfig<
   name: 'Linear Merge Customers',
   description: 'Merge two customers in Linear by moving all data from source to target',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

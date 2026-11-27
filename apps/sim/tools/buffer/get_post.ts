@@ -24,6 +24,7 @@ export const bufferGetPostTool: ToolConfig<BufferGetPostParams, BufferPostRespon
   name: 'Buffer Get Post',
   description: 'Get a single Buffer post by ID, including its status, schedule, and media',
   version: '1.0.0',
+  effect: 'read',
   oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {

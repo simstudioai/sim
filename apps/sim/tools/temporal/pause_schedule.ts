@@ -19,6 +19,7 @@ export const pauseScheduleTool: ToolConfig<
   name: 'Temporal Pause Schedule',
   description: 'Pause a Temporal schedule so it stops taking actions until unpaused.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

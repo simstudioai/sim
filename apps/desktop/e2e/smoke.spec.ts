@@ -1,13 +1,8 @@
-import { mkdtempSync } from 'node:fs'
-import type { Server } from 'node:http'
-import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import type { ElectronApplication } from '@playwright/test'
-import { _electron as electron, expect, test } from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
+import { getErrorMessage } from '@sim/utils/errors'
+import { expect, type FixtureServer, serve, test } from './harness'
 
-const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
+const OFFLINE_ORIGIN = 'http://127.0.0.1:1'
 
 const PAGES: Record<string, string> = {
   '/home': `<!doctype html><html><head><title>Sim Fixture</title></head><body>
@@ -24,76 +19,74 @@ const PAGES: Record<string, string> = {
 /** `User-Agent` of every request the fixture origin has served, in arrival order. */
 const requestUserAgents: string[] = []
 
-function startFixtureServer(): Promise<{ server: Server; origin: string }> {
-  return new Promise((resolvePromise) => {
-    const server = createServer((request, response) => {
+/** Runs an action that closes `page`, tolerating only the error from the page closing under it. */
+async function closeWith(page: Page, action: () => Promise<void>): Promise<void> {
+  const closed = page.waitForEvent('close')
+  await action().catch((error: unknown) => {
+    if (!getErrorMessage(error).includes('Target page, context or browser has been closed')) {
+      throw error
+    }
+  })
+  await closed
+}
+
+/** Replaces `shell.openExternal` with a recorder, read back by `openedExternally`. */
+async function recordExternalOpens(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ shell }) => {
+    const opened: string[] = []
+    ;(globalThis as { __openedExternal?: string[] }).__openedExternal = opened
+    shell.openExternal = async (url: string) => {
+      opened.push(url)
+    }
+  })
+}
+
+function openedExternally(app: ElectronApplication): Promise<string[] | undefined> {
+  return app.evaluate(() => (globalThis as { __openedExternal?: string[] }).__openedExternal)
+}
+
+function dialogFits(page: Page): Promise<boolean> {
+  return page
+    .getByRole('dialog')
+    .evaluate((element) => element.scrollHeight <= globalThis.innerHeight)
+}
+
+test.describe('desktop shell smoke', () => {
+  let fixture: FixtureServer
+
+  test.beforeAll(async () => {
+    fixture = await serve((request, response, url) => {
       requestUserAgents.push(request.headers['user-agent'] ?? '')
-      const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
       const sessionCookie = request.headers.cookie
         ?.split(';')
         .map((cookie) => cookie.trim())
         .includes('sim-e2e-session=shared')
       const body =
-        path === '/mcp'
+        url.pathname === '/mcp'
           ? sessionCookie
             ? '<!doctype html><html><body><h1 id="mcp">oauth-popup</h1></body></html>'
             : '<!doctype html><html><body><h1 id="unauthorized">sign-in-required</h1></body></html>'
-          : PAGES[path]
+          : PAGES[url.pathname]
       if (!body) {
         response.writeHead(404, { 'Content-Type': 'text/html' }).end('<h1>not found</h1>')
         return
       }
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(body)
     })
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      const port = typeof address === 'object' && address ? address.port : 0
-      resolvePromise({ server, origin: `http://127.0.0.1:${port}` })
-    })
-  })
-}
-
-async function launchApp(origin: string): Promise<ElectronApplication> {
-  return electron.launch({
-    args: ['.'],
-    cwd: DESKTOP_DIR,
-    env: {
-      ...process.env,
-      SIM_DESKTOP_ORIGIN: origin,
-      SIM_DESKTOP_USER_DATA: mkdtempSync(join(tmpdir(), 'sim-desktop-e2e-')),
-    },
-  })
-}
-
-test.describe('desktop shell smoke', () => {
-  let server: Server
-  let origin: string
-  let app: ElectronApplication
-
-  test.beforeAll(async () => {
-    ;({ server, origin } = await startFixtureServer())
   })
 
   test.afterAll(async () => {
-    server.close()
+    await fixture.close()
   })
 
-  test.afterEach(async () => {
-    await app?.close().catch(() => {})
-  })
-
-  test('loads the configured origin top-level', async () => {
-    app = await launchApp(origin)
-    const window = await app.firstWindow()
-    await expect(window.locator('#app')).toHaveText('fixture-app')
-    expect(window.url()).toBe(`${origin}/home`)
-  })
-
-  test('presents one stock Chrome user agent on every request from the first load', async () => {
+  test('loads the configured origin top-level with one stock Chrome user agent on every request', async ({
+    desktop,
+  }) => {
     requestUserAgents.length = 0
-    app = await launchApp(origin)
+    const { app } = await desktop.launch({ origin: fixture.origin })
     const window = await app.firstWindow()
     await expect(window.locator('#app')).toHaveText('fixture-app')
+    expect(window.url()).toBe(`${fixture.origin}/home`)
     await window.evaluate(() => fetch('/home').then((response) => response.text()))
 
     const pageUserAgent = await window.evaluate(() => navigator.userAgent)
@@ -104,8 +97,8 @@ test.describe('desktop shell smoke', () => {
     expect(new Set(requestUserAgents)).toEqual(new Set([pageUserAgent]))
   })
 
-  test('internal window.open creates an independent full Sim window', async () => {
-    app = await launchApp(origin)
+  test('internal window.open creates an independent full Sim window', async ({ desktop }) => {
+    const { app } = await desktop.launch({ origin: fixture.origin })
     const window = await app.firstWindow()
     const newWindowPromise = app.waitForEvent('window')
     await window.locator('#internal-blank').click()
@@ -115,30 +108,36 @@ test.describe('desktop shell smoke', () => {
     expect(app.windows()).toHaveLength(2)
   })
 
-  test('external window.open goes to the system browser, never a new app window', async () => {
-    app = await launchApp(origin)
+  test('other origins open in the system browser, never in an app window or the app document', async ({
+    desktop,
+  }) => {
+    const { app } = await desktop.launch({ origin: fixture.origin })
     const window = await app.firstWindow()
-    await app.evaluate(({ shell }) => {
-      const opened: string[] = []
-      ;(globalThis as { __openedExternal?: string[] }).__openedExternal = opened
-      shell.openExternal = async (url: string) => {
-        opened.push(url)
-      }
-    })
-    await window.locator('#external-blank').click()
-    await expect
-      .poll(() =>
-        app.evaluate(() => (globalThis as { __openedExternal?: string[] }).__openedExternal)
-      )
-      .toEqual(['https://docs.sim.ai/x'])
-    expect(app.windows()).toHaveLength(1)
     await expect(window.locator('#app')).toHaveText('fixture-app')
+    await recordExternalOpens(app)
+
+    await test.step('window.open to another origin', async () => {
+      await window.locator('#external-blank').click()
+      await expect.poll(() => openedExternally(app)).toEqual(['https://docs.sim.ai/x'])
+      expect(app.windows()).toHaveLength(1)
+      await expect(window.locator('#app')).toHaveText('fixture-app')
+    })
+
+    await test.step('same-window navigation to another origin', async () => {
+      await window.locator('#external-navigate').click({ noWaitAfter: true })
+      await expect
+        .poll(() => openedExternally(app))
+        .toEqual(['https://docs.sim.ai/x', 'https://docs.sim.ai/navigation'])
+      expect(window.url()).toBe(`${fixture.origin}/home`)
+    })
   })
 
-  test('OAuth popups share the session without inheriting the privileged preload', async () => {
-    app = await launchApp(origin)
+  test('OAuth popups share the session without inheriting the privileged preload', async ({
+    desktop,
+  }) => {
+    const { app } = await desktop.launch({ origin: fixture.origin })
     const window = await app.firstWindow()
-    await window.waitForURL(`${origin}/home`, { waitUntil: 'load' })
+    await window.waitForURL(`${fixture.origin}/home`, { waitUntil: 'load' })
     await window.evaluate(() => {
       document.cookie = 'sim-e2e-session=shared; Path=/; SameSite=Lax'
     })
@@ -152,31 +151,10 @@ test.describe('desktop shell smoke', () => {
       .toBe('undefined')
   })
 
-  test('cross-origin same-window navigation opens externally and preserves the app document', async () => {
-    app = await launchApp(origin)
+  test('unreachable origin shows the bundled offline page', async ({ desktop }) => {
+    const { app } = await desktop.launch({ origin: OFFLINE_ORIGIN })
     const window = await app.firstWindow()
-    await app.evaluate(({ shell }) => {
-      const opened: string[] = []
-      ;(globalThis as { __openedExternal?: string[] }).__openedExternal = opened
-      shell.openExternal = async (url: string) => {
-        opened.push(url)
-      }
-    })
-
-    await window.locator('#external-navigate').click({ noWaitAfter: true })
-
-    await expect
-      .poll(() =>
-        app.evaluate(() => (globalThis as { __openedExternal?: string[] }).__openedExternal)
-      )
-      .toEqual(['https://docs.sim.ai/navigation'])
-    expect(window.url()).toBe(`${origin}/home`)
-  })
-
-  test('unreachable origin shows the bundled offline page', async () => {
-    app = await launchApp('http://127.0.0.1:1')
-    const window = await app.firstWindow()
-    await window.waitForSelector('#retry', { timeout: 30_000 })
+    await expect(window.locator('#retry')).toBeVisible({ timeout: 30_000 })
     expect(window.url()).toMatch(/^sim-shell:\/\/pages\/offline\.html\?/)
     const home = window.getByRole('link', { name: 'Home', exact: true })
     await expect(home).toBeVisible()
@@ -196,9 +174,11 @@ test.describe('desktop shell smoke', () => {
     await expect(window.locator('#detail')).toHaveAttribute('role', 'status')
   })
 
-  test('offline title-bar geometry follows native fullscreen state across reloads', async () => {
+  test('offline title-bar geometry follows native fullscreen state across reloads', async ({
+    desktop,
+  }) => {
     test.skip(process.platform !== 'darwin', 'The traffic-light lane is macOS-specific')
-    app = await launchApp('http://127.0.0.1:1')
+    const { app } = await desktop.launch({ origin: OFFLINE_ORIGIN })
     const window = await app.firstWindow()
     await expect(window.locator('#server')).toBeVisible()
     await expect(window.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'inset')
@@ -223,8 +203,10 @@ test.describe('desktop shell smoke', () => {
       .toBeGreaterThanOrEqual(38)
   })
 
-  test('bundled dialogs follow the app theme independently of the system theme', async () => {
-    app = await launchApp(origin)
+  test('the hang recovery dialog is an isolated, app-themed EMCN dialog that defaults to Wait', async ({
+    desktop,
+  }) => {
+    const { app } = await desktop.launch({ origin: fixture.origin })
     const window = await app.firstWindow()
     await expect(window.locator('#app')).toBeVisible()
     await app.evaluate(({ nativeTheme }) => {
@@ -232,143 +214,114 @@ test.describe('desktop shell smoke', () => {
     })
     await window.evaluate(() => {
       document.documentElement.className = 'dark'
+      ;(globalThis as { __sameDocument?: boolean }).__sameDocument = true
     })
     const dialogPromise = app.waitForEvent('window')
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0].webContents.emit('unresponsive')
     })
     const prompt = await dialogPromise
-    await expect(prompt.getByRole('dialog')).toBeVisible()
-    await expect(prompt.locator('html')).toHaveClass('dark')
-    await expect(prompt.locator('html')).toHaveCSS('color-scheme', 'dark')
-    await expect(prompt.locator('#dialog-message')).toHaveCSS('-webkit-font-smoothing', 'auto')
-    await expect(prompt.locator('#dialog-message')).toHaveCSS('font-weight', '400')
-    await expect(prompt.locator('#dialog-message')).toHaveCSS('font-size', '14px')
-    await window.evaluate(() => {
-      document.documentElement.className = 'light'
-    })
-    await expect(prompt.locator('html')).toHaveClass('light')
-    await expect(prompt.locator('html')).toHaveCSS('color-scheme', 'light')
-    await prompt.getByRole('button', { name: 'Wait', exact: true }).click()
-  })
 
-  test('recovery messages use an isolated EMCN dialog with a safe keyboard default', async () => {
-    app = await launchApp('http://127.0.0.1:1')
-    const window = await app.firstWindow()
-    await expect(window.locator('#server')).toBeVisible()
-    const dialogPromise = app.waitForEvent('window')
-    await app.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0].webContents.emit('unresponsive')
+    await test.step('isolated dialog with Wait focused', async () => {
+      await expect(
+        prompt.getByRole('dialog', { name: 'Sim isn’t responding', exact: true })
+      ).toBeVisible()
+      await expect(prompt.getByRole('button', { name: 'Wait', exact: true })).toBeFocused()
+      await expect.poll(() => dialogFits(prompt)).toBe(true)
+      await expect
+        .poll(() =>
+          prompt.evaluate(() => typeof (globalThis as { simDesktop?: unknown }).simDesktop)
+        )
+        .toBe('undefined')
     })
-    const prompt = await dialogPromise
-    await expect(
-      prompt.getByRole('dialog', { name: 'Sim isn’t responding', exact: true })
-    ).toBeVisible()
-    await expect(prompt.getByText('Sim isn’t responding')).toBeVisible()
-    await expect(prompt.getByRole('button', { name: 'Wait', exact: true })).toBeFocused()
-    await expect
-      .poll(() =>
-        prompt
-          .getByRole('dialog')
-          .evaluate((element) => element.scrollHeight <= globalThis.innerHeight)
+
+    await test.step('follows the app theme, not the system theme', async () => {
+      await expect(prompt.locator('html')).toHaveClass('dark')
+      await expect(prompt.locator('html')).toHaveCSS('color-scheme', 'dark')
+      await expect(prompt.locator('#dialog-message')).toHaveCSS('-webkit-font-smoothing', 'auto')
+      await expect(prompt.locator('#dialog-message')).toHaveCSS('font-weight', '400')
+      await expect(prompt.locator('#dialog-message')).toHaveCSS('font-size', '14px')
+      await window.evaluate(() => {
+        document.documentElement.className = 'light'
+      })
+      await expect(prompt.locator('html')).toHaveClass('light')
+      await expect(prompt.locator('html')).toHaveCSS('color-scheme', 'light')
+    })
+
+    await test.step('a long message keeps every button reachable', async () => {
+      await app.evaluate(({ BrowserWindow }) => {
+        const win = BrowserWindow.getAllWindows().find(
+          (entry) => entry.webContents.getURL() === 'sim-shell://pages/dialog.html'
+        )
+        if (!win) throw new Error('Recovery dialog is missing')
+        win.webContents.ipc.removeHandler('shell:configuration')
+        win.webContents.ipc.handle('shell:configuration', () => ({
+          title: 'Long recovery message',
+          text: Array.from({ length: 80 }, (_, index) => `Diagnostic detail ${index + 1}`).join(
+            '\n'
+          ),
+          type: 'warning',
+          buttons: ['Wait', 'Reload'],
+          defaultId: 0,
+          cancelId: 0,
+        }))
+        win.webContents.reload()
+      })
+      await expect(
+        prompt.getByRole('dialog', { name: 'Long recovery message', exact: true })
+      ).toBeVisible()
+      await expect(prompt.getByRole('button', { name: 'Reload', exact: true })).toBeInViewport()
+      await expect(prompt.getByRole('button', { name: 'Wait', exact: true })).toBeFocused()
+    })
+
+    await test.step('Enter waits instead of reloading', async () => {
+      await closeWith(prompt, () =>
+        prompt.getByRole('button', { name: 'Wait', exact: true }).press('Enter')
       )
-      .toBe(true)
-    await expect
-      .poll(() => prompt.evaluate(() => typeof (globalThis as { simDesktop?: unknown }).simDesktop))
-      .toBe('undefined')
-    await prompt.screenshot({
-      path: test.info().outputPath('recovery-dialog.png'),
-      animations: 'disabled',
+      await expect(window.locator('#app')).toBeVisible()
+      expect(
+        await window.evaluate(() => (globalThis as { __sameDocument?: boolean }).__sameDocument)
+      ).toBe(true)
     })
-    await app.evaluate(({ BrowserWindow }) => {
-      const win = BrowserWindow.getAllWindows().find(
-        (entry) => entry.webContents.getURL() === 'sim-shell://pages/dialog.html'
-      )
-      if (!win) throw new Error('Recovery dialog is missing')
-      win.webContents.ipc.removeHandler('shell:configuration')
-      win.webContents.ipc.handle('shell:configuration', () => ({
-        title: 'Long recovery message',
-        text: Array.from({ length: 80 }, (_, index) => `Diagnostic detail ${index + 1}`).join('\n'),
-        type: 'warning',
-        buttons: ['Wait', 'Reload'],
-        defaultId: 0,
-        cancelId: 0,
-      }))
-      win.webContents.reload()
-    })
-    await expect(
-      prompt.getByRole('dialog', { name: 'Long recovery message', exact: true })
-    ).toBeVisible()
-    await expect(prompt.getByRole('button', { name: 'Reload', exact: true })).toBeInViewport()
-    await expect(prompt.getByRole('button', { name: 'Wait', exact: true })).toBeFocused()
-    const closed = prompt.waitForEvent('close')
-    await prompt
-      .getByRole('button', { name: 'Wait', exact: true })
-      .press('Enter')
-      .catch(() => {})
-    await closed
-    await expect(window.locator('#server')).toBeVisible()
   })
 
   // The picker is the only way to repoint a shell whose server is unreachable.
   // Its page, the pre-filled value (which crosses the local-page IPC gate) and
   // Escape are asserted together because the packaged build once opened it as
   // a blank sheet with no way out.
-  test('the offline server picker handles validation and dismissal', async () => {
-    const testInfo = test.info()
-    app = await launchApp('http://127.0.0.1:1')
+  test('the offline server picker handles validation and dismissal', async ({ desktop }) => {
+    const { app } = await desktop.launch({ origin: OFFLINE_ORIGIN })
     const window = await app.firstWindow()
-    await window.waitForSelector('#server', { timeout: 30_000 })
+    await expect(window.locator('#server')).toBeVisible({ timeout: 30_000 })
 
     const pickerPromise = app.waitForEvent('window')
     await window.locator('#server').click()
     const picker = await pickerPromise
+    const serverUrl = picker.getByLabel('Server URL')
 
     await expect(picker).toHaveURL('sim-shell://pages/server.html')
     await expect(picker.getByRole('dialog', { name: 'Sim server', exact: true })).toBeVisible()
-    await expect(picker.getByLabel('Server URL')).toHaveValue('http://127.0.0.1:1')
-    await expect(picker.getByLabel('Server URL')).toBeFocused()
-    await expect
-      .poll(() =>
-        picker
-          .getByRole('dialog')
-          .evaluate((element) => element.scrollHeight <= globalThis.innerHeight)
-      )
-      .toBe(true)
-    await picker.getByLabel('Server URL').fill('http://example.com')
-    await picker.getByLabel('Server URL').press('Enter')
+    await expect(serverUrl).toHaveValue(OFFLINE_ORIGIN)
+    await expect(serverUrl).toBeFocused()
+    await expect.poll(() => dialogFits(picker)).toBe(true)
+
+    await serverUrl.fill('http://example.com')
+    await serverUrl.press('Enter')
     await expect(picker.locator('#server-origin-errors')).toBeVisible()
-    await expect(picker.getByLabel('Server URL')).toHaveAccessibleDescription(
-      /Server URL must use HTTPS/
-    )
-    await expect(picker.getByLabel('Server URL')).toHaveAttribute('aria-invalid', 'true')
-    await picker.getByLabel('Server URL').fill('http://127.0.0.1:1')
+    await expect(serverUrl).toHaveAccessibleDescription(/Server URL must use HTTPS/)
+    await expect(serverUrl).toHaveAttribute('aria-invalid', 'true')
+    await serverUrl.fill(OFFLINE_ORIGIN)
     await expect(picker.locator('#server-origin-errors')).toHaveCount(0)
-    await expect(picker.getByLabel('Server URL')).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(serverUrl).not.toHaveAttribute('aria-invalid', 'true')
     await picker.getByRole('button', { name: 'Connect', exact: true }).click()
     await expect(picker.getByRole('status')).toHaveText('Already connected to this server.')
-    await expect
-      .poll(() =>
-        picker
-          .getByRole('dialog')
-          .evaluate((element) => element.scrollHeight <= globalThis.innerHeight)
-      )
-      .toBe(true)
-    await picker.emulateMedia({ colorScheme: 'light' })
-    await picker.screenshot({
-      path: testInfo.outputPath('server-modal-light.png'),
-      animations: 'disabled',
-    })
+    await expect.poll(() => dialogFits(picker)).toBe(true)
+
+    // The picker follows the app's theme, not the system's.
     await picker.emulateMedia({ colorScheme: 'dark' })
     await expect(picker.locator('[data-auth-root]')).toHaveCSS('color-scheme', 'light')
-    await picker.screenshot({
-      path: testInfo.outputPath('server-modal-dark.png'),
-      animations: 'disabled',
-    })
 
-    const closed = picker.waitForEvent('close')
-    await picker.keyboard.press('Escape').catch(() => {})
-    await closed
+    await closeWith(picker, () => picker.keyboard.press('Escape'))
     expect(app.windows()).toHaveLength(1)
   })
 })

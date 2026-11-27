@@ -15,6 +15,7 @@ import {
   withRequestSignal,
 } from '@/lib/sim-search/live/http'
 import { readHubSpotMcp, searchHubSpotMcp } from '@/lib/sim-search/live/hubspot-mcp'
+import { type DocumentLink, locateDocumentLink } from '@/lib/sim-search/live/links'
 import { readLucidMcp, searchLucidMcp } from '@/lib/sim-search/live/lucid-mcp'
 import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
@@ -41,6 +42,21 @@ type Reference = Pick<
   'id' | 'container' | 'kind' | 'revision' | 'threadId' | 'accessMetadata' | 'connectionBinding'
 >
 
+/**
+ * Whether a failed link lookup is an answer about the project itself (not found, forbidden, or on
+ * another branch) rather than an outage, rate limit, spent request budget, or invalid credential
+ * that says nothing about it.
+ */
+function isProjectAnswer(error: unknown): boolean {
+  if (!(error instanceof NativeSearchError)) return false
+  if (error.status === 'reconnect') return error.httpStatus === 403
+  return (
+    error.status === 'unavailable' &&
+    error.diagnosticCode !== 'request_budget_exceeded' &&
+    (error.httpStatus === undefined || error.httpStatus < 500)
+  )
+}
+
 /** One member account's provider clients and the source boundary that bounds its results. */
 export interface LiveAccountSession {
   /** The effective policy: the service source's settings in service mode, else the member's. */
@@ -53,6 +69,12 @@ export interface LiveAccountSession {
   /** True only when the document is inside the source boundary and the member may read it. */
   verify(document: Reference): Promise<boolean>
   read(reference: Reference, filters?: WorkspaceSearchFilters): Promise<NativeDocument>
+  /**
+   * The reference a pasted link names within this account, bound like a search result's, or
+   * undefined when the link names another provider, site, host or workspace. Not a permission
+   * check: a located reference is verified like any other before it is read.
+   */
+  locate(link: DocumentLink): Promise<Reference | undefined>
   /**
    * Full text of a search result whose provider returned only an excerpt or metadata; `signal`
    * cancels the read when its preview is no longer wanted.
@@ -212,6 +234,12 @@ export async function openLiveAccountSession(
     throw error
   })
 
+  const verify: LiveAccountSession['verify'] = async (document) => {
+    if (connectionBinding && document.connectionBinding !== connectionBinding) return false
+    if (!(await boundary.verify(document))) return false
+    return !admin || admin.verify(document, document.accessMetadata)
+  }
+
   return {
     async close() {
       await mcp?.close()
@@ -235,11 +263,7 @@ export async function openLiveAccountSession(
         : searchOnce(request))
       return connectionBinding ? { ...page, documents: page.documents.map(bind) } : page
     },
-    async verify(document) {
-      if (connectionBinding && document.connectionBinding !== connectionBinding) return false
-      if (!(await boundary.verify(document))) return false
-      return !admin || admin.verify(document, document.accessMetadata)
-    },
+    verify,
     async read(reference, filters) {
       if (admin) return admin.read(reference)
       if (client)
@@ -253,6 +277,25 @@ export async function openLiveAccountSession(
           })
         )
       return readMcp(reference)
+    },
+    async locate(link) {
+      if (link.provider !== provider) return undefined
+      if (admin) {
+        /**
+         * The administrator's token sees projects the reader may not, so a link reads as
+         * unreachable unless the reader may open it: no project's existence or branch leaks.
+         */
+        const located = await locateDocumentLink(link, { client, origin }).catch(
+          (error: unknown) => {
+            signal.throwIfAborted()
+            if (!isProjectAnswer(error)) throw error
+            return undefined
+          }
+        )
+        return located && (await verify(located)) ? located : undefined
+      }
+      const located = await locateDocumentLink(link, { client, origin })
+      return located && (connectionBinding ? { ...located, connectionBinding } : located)
     },
     async previewText(document, previewSignal) {
       if (admin || !client) return undefined

@@ -41,6 +41,7 @@ export const confluenceGetPagesByLabelTool: InternalToolConfig<
   name: 'Confluence Get Pages by Label',
   description: 'Retrieve all pages that have a specific label applied.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

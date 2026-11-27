@@ -21,6 +21,7 @@ export const personaUpdateInquiryTool: ToolConfig<
   description:
     'Update an inquiry’s note, fields, tags, or redirect URI. Only the provided values are changed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

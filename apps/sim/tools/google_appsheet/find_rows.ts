@@ -18,6 +18,7 @@ export const googleAppsheetFindRowsTool: ToolConfig<
   description:
     'Read rows from an AppSheet table. Omit the selector to return every row, or provide a Selector expression (Filter/Select/OrderBy/Top) to narrow and shape the results.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

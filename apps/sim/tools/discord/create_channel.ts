@@ -14,6 +14,7 @@ export const discordCreateChannelTool: ToolConfig<
   name: 'Discord Create Channel',
   description: 'Create a new channel in a Discord server',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

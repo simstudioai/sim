@@ -8,6 +8,7 @@ export type ScheduleDisableReason =
   | 'authorization_error'
   | 'workflow_not_found'
   | 'invalid_schedule'
+  | 'paid_plan_required'
 
 /**
  * User-facing sentence for each reason. Fixed copy rather than the underlying
@@ -20,4 +21,6 @@ export const SCHEDULE_DISABLE_REASON_COPY: Record<ScheduleDisableReason, string>
   authorization_error: 'The run was not authorized.',
   workflow_not_found: 'The workflow could not be found.',
   invalid_schedule: 'The schedule is no longer valid.',
+  paid_plan_required:
+    "It uses Sim's hosted models or tools, which need a paid plan. Upgrade, or add your own API key under Settings > BYOK where the block supports one, then turn the schedule back on.",
 }

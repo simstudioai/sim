@@ -19,6 +19,7 @@ export const listCopyHistoryTool: ToolConfig<
 > = {
   id: 'snowflake_list_copy_history',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Copy History',
   description: 'List staged-file load results for a table over the last fourteen days.',

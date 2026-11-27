@@ -8,6 +8,7 @@ export const stripeRetrieveChargeTool: ToolConfig<RetrieveChargeParams, ChargeRe
   name: 'Stripe Retrieve Charge',
   description: 'Retrieve an existing charge by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

@@ -8,6 +8,7 @@ export const pitchbookFundUpdatesTool: ToolConfig<PitchbookUpdatesParams, Pitchb
   name: 'PitchBook Fund Updates',
   description: 'Check which fund datasets changed in a window, so a sync only refetches what moved',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

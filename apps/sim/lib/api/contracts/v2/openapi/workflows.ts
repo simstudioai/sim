@@ -210,6 +210,7 @@ const RUN_RESULT_EXAMPLE = {
     startedAt: '2026-08-09T18:04:10.000Z',
     endedAt: '2026-08-09T18:04:11.000Z',
     durationMs: 1_000,
+    paused: null,
   },
 } as const
 
@@ -403,7 +404,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.replaceState,
       operationId: 'replaceWorkflowState',
       summary: 'Replace workflow state',
-      description: `Replace the draft graph in one write. Requires workspace write access. Concurrent row-locked writes are last-write-wins; IDs owned by another workflow return \`409\`. Deployments, schedules, and webhook registrations are unchanged. Deploy to serve the edits.\n\nLint is advisory. Use \`dryRun=true\` to validate without saving, auditing, or notifying collaborators. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Replace the draft graph in one write. Requires workspace write access. Concurrent row-locked writes are last-write-wins; IDs owned by another workflow return \`409\`. Deployments, schedules, and webhook registrations are unchanged. Deploy to serve the edits.\n\nLint is advisory. Use \`dry=true\` to validate without saving, auditing, or notifying collaborators. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The draft graph was replaced.'),
     }),
@@ -427,7 +428,7 @@ const declaredRoutes = [
               id: WORKFLOW_ID,
               warnings: [],
               needsRedeployment: true,
-              dryRun: false,
+              dry: false,
               lint: EMPTY_LINT_EXAMPLE,
             },
           },
@@ -441,7 +442,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.applyOperations,
       operationId: 'applyWorkflowOperations',
       summary: 'Apply workflow operations',
-      description: `Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect \`skipped\` and \`inputValidationErrors\` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With \`atomic=true\`, declined operations or dropped inputs return \`409\` (\`OPERATIONS_NOT_APPLIED\`) without saving. A \`409\` with code \`CONFLICT\` means the workflow changed after the batch read it and nothing was saved; re-read the workflow and retry. Use returned \`mintedBlockIds\` in later requests. \`dryRun=true\` evaluates without saving, auditing, or notifying. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect \`skipped\` and \`inputValidationErrors\` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With \`atomic=true\`, declined operations or dropped inputs return \`409\` (\`OPERATIONS_NOT_APPLIED\`) without saving. A \`409\` with code \`CONFLICT\` means the workflow changed after the batch read it and nothing was saved; re-read the workflow and retry. Use returned \`mintedBlockIds\` in later requests. \`dry=true\` evaluates without saving, auditing, or notifying. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The batch was applied.'),
     }),
@@ -505,7 +506,7 @@ const declaredRoutes = [
                 'Workflow lint found issues (Blocks missing required fields: 1). The findings are in `lint`.',
               ],
               needsRedeployment: true,
-              dryRun: false,
+              dry: false,
             },
           },
         ]
@@ -1385,7 +1386,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.execute,
       operationId: 'executeWorkflowV2',
       summary: 'Execute workflow',
-      description: `Run the active deployment, set \`run: { source: "deployment", version }\` to run an earlier deployment version, or set \`run.source: "manual"\` to run the saved draft. Deployed execution requires workspace read access and OAuth \`api:write\` scope or a full-access API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and a full-access API key or OAuth \`api:write\` scope; an unknown version returns \`404\`. Manual runs require a full-access personal API key or OAuth \`api:write\` scope, and workspace write access; workspace API keys are refused, and manual runs cannot be async.\n\nUse \`async: true\` for a queue receipt, or \`stream: true\` for SSE. For a synchronous run with both flags false, send \`Accept: application/x-ndjson\` for heartbeat frames and a final frame containing \`data\`. With \`waitTimeoutSeconds\`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: \`202\` on a JSON response, or a closing \`detached\` frame on an NDJSON stream, which keeps its \`200\`. Timeouts return \`200\` with \`status: "failed"\` and \`error.code: "TIMEOUT"\`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. ${EXECUTE_OPTION_CONSTRAINTS}\n\nSupply \`X-Run-Id\` to prevent duplicate execution. Reuse returns \`409\`, without replaying results. A \`503\` with \`error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"\` omits \`Retry-After\` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.`,
+      description: `Run the active deployment, set \`run: { source: "deployment", version }\` to run an earlier deployment version, or set \`run.source: "draft"\` to run the saved draft. Deployed execution requires workspace read access and OAuth \`api:write\` scope or a full-access API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and a full-access API key or OAuth \`api:write\` scope; an unknown version returns \`404\`. Draft runs require a full-access personal API key or OAuth \`api:write\` scope, and workspace write access; workspace API keys are refused, and draft runs cannot be async.\n\nUse \`async: true\` for a queue receipt, or \`stream: true\` for SSE. For a synchronous run with both flags false, send \`Accept: application/x-ndjson\` for heartbeat frames and a final frame containing \`data\`. With \`waitTimeoutSeconds\`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: \`202\` on a JSON response, or a closing \`detached\` frame on an NDJSON stream, which keeps its \`200\`. Timeouts return \`200\` with \`status: "failed"\` and \`error.code: "TIMEOUT"\`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. ${EXECUTE_OPTION_CONSTRAINTS}\n\nSupply \`X-Run-Id\` to prevent duplicate execution. Reuse returns \`409\`, without replaying results. A \`503\` with \`error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"\` omits \`Retry-After\` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -1558,6 +1559,7 @@ const declaredRoutes = [
                   base64: null,
                 },
               ],
+              overrides: null,
             },
           },
         ]
@@ -1590,7 +1592,7 @@ const declaredRoutes = [
       operationId: 'resumeWorkflowRunV2',
       summary: 'Resume workflow run',
       description:
-        "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.",
+        "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt; when it pauses again, `paused.runId` names the run to resume next. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.",
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge'],
       success: {
         byStatus: {

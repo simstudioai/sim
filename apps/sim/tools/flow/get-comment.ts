@@ -18,6 +18,7 @@ export const flowGetCommentTool: ToolConfig<FlowGetCommentParams, FlowGetComment
   name: 'Flow Get Comment',
   description: 'Read a comment using its ID and its returned entity_id as the parent path.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

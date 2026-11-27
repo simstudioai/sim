@@ -30,16 +30,12 @@ import { calculateSubscriptionOverage, getPersonalBillingSummary } from '@/lib/b
 const { mockEnsureUserStatsExists } = billingUsageMockFns
 const { mockGetBillingPeriodUsageCost, mockGetBillingPeriodUsageCostWithSourceSubset } =
   billingUsageLogMockFns
-const {
-  mockGetHighestPriorityPersonalSubscription,
-  mockGetHighestPrioritySubscription,
-  mockResolveBillingInterval,
-} = billingSubscriptionMockFns
+const { mockGetHighestPriorityPersonalSubscription, mockGetHighestPrioritySubscription } =
+  billingSubscriptionMockFns
 
 describe('getPersonalBillingSummary', () => {
   beforeEach(() => {
     mockEnsureUserStatsExists.mockResolvedValue(undefined)
-    mockResolveBillingInterval.mockReturnValue('year')
     mockComputeWeeklyRefreshConsumed.mockResolvedValue(1)
     mockGetBillingPeriodUsageCostWithSourceSubset.mockResolvedValue({ total: 4, subset: 1 })
     mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
@@ -145,5 +141,25 @@ describe('calculateSubscriptionOverage', () => {
       seats: 2,
     })
     expect(overage).toBe(80)
+  })
+
+  it.each([
+    { label: 'owes nothing when a trial is cancelled before it converts', trialDays: 14, owed: 0 },
+    { label: 'bills a period that runs past the trial', trialDays: 3, owed: 70 },
+  ])('$label', async ({ trialDays, owed }) => {
+    queueTableRows(schemaMock.organization, []) // isSubscriptionOrgScoped: personal
+    mockGetBillingPeriodUsageCost.mockResolvedValue(100)
+    const periodStart = new Date('2026-07-01T00:00:00.000Z')
+
+    const overage = await calculateSubscriptionOverage({
+      id: 'sub-1',
+      plan: 'pro_6000',
+      referenceId: 'user-1',
+      periodStart,
+      periodEnd: new Date('2026-07-15T00:00:00.000Z'),
+      trialEnd: new Date(periodStart.getTime() + trialDays * 86_400_000),
+    })
+
+    expect(overage).toBe(owed)
   })
 })

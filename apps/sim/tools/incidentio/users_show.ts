@@ -12,6 +12,7 @@ export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUser
   description:
     'Get detailed information about a specific user in your Incident.io workspace by their ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

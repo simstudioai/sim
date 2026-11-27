@@ -6,6 +6,7 @@ export const slackLeaveConversationTool = createSlackWebApiTool({
   id: 'slack_leave_conversation',
   name: 'Slack Leave Conversation',
   description: 'Leave a Slack channel as the authenticated identity.',
+  effect: 'write',
   endpoint: 'conversations.leave',
   method: 'POST',
   oauth: { required: true, provider: 'slack', requiredScopes: [] },

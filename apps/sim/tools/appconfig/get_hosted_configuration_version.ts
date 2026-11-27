@@ -13,6 +13,7 @@ export const getHostedConfigurationVersionTool: InternalToolConfig<
   name: 'AppConfig Get Hosted Configuration Version',
   description: 'Retrieve a specific hosted configuration version from an AppConfig profile',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const getFunctionUrlConfigTool: InternalToolConfig<
   name: 'Lambda Get Function URL',
   description: 'Get details about a function URL',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

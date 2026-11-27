@@ -10,6 +10,7 @@ export const gitlabGetIssueTool: ToolConfig<GitLabGetIssueParams, GitLabGetIssue
   name: 'GitLab Get Issue',
   description: 'Get details of a specific GitLab issue',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

@@ -36,6 +36,7 @@ export const getSlotsTool: ToolConfig<CalcomGetSlotsParams, CalcomGetSlotsRespon
   name: 'Cal.com Get Slots',
   description: 'Get available booking slots for a Cal.com event type within a time range',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

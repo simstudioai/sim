@@ -13,6 +13,7 @@ export const getTemplateTool: InternalToolConfig<
   name: 'CloudFormation Get Template',
   description: 'Retrieve the template body for a CloudFormation stack',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

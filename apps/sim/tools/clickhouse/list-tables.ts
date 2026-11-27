@@ -9,6 +9,7 @@ export const listTablesTool: InternalToolConfig<
   name: 'ClickHouse List Tables',
   description: 'List tables in the connected ClickHouse database',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

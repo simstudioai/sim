@@ -49,6 +49,7 @@
     "check:api-validation:strict": "bun run scripts/check-api-validation-contracts.ts --check --enforce-boundary-baseline",
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
     "check:tool-request-boundary": "bun run scripts/check-tool-request-boundary.ts",
+    "check:tool-effects": "bun run scripts/check-tool-effects.ts",
     "check:actorless-executor-operations": "bun run scripts/check-actorless-executor-operations.ts",
     "check:permission-group-enforcement": "bun run scripts/check-permission-group-enforcement.ts",
     "check:integration-access": "bun run scripts/check-integration-access.ts",
@@ -62,6 +63,7 @@
     "check:trigger-block-cycle": "bun run scripts/check-trigger-block-cycle.ts",
     "check:import-specifiers": "bun run scripts/check-import-specifiers.ts",
     "check:sql-date-binding": "bun run scripts/check-sql-date-binding.ts",
+    "check:env-numbers": "bun run scripts/check-env-numbers.ts",
     "check:pending-drop-tables": "bun run scripts/check-pending-drop-tables.ts",
     "check:zustand-v5": "bun run scripts/check-zustand-v5-selectors.ts",
     "check:react-query": "bun run scripts/check-react-query-patterns.ts",
@@ -126,6 +128,8 @@
     "sim-setup": "bun run packages/sim-setup/src/index.ts",
     "generate:agent-stream-docs": "bun run scripts/sync-agent-stream-docs.ts",
     "check:agent-stream-docs": "bun run scripts/sync-agent-stream-docs.ts --check",
+    "generate:workflow-code-docs": "bun run scripts/sync-workflow-code-docs.ts",
+    "check:workflow-code-docs": "bun run scripts/sync-workflow-code-docs.ts --check",
     "prepare": "bun husky",
     "test:workflow-sync": "bun --no-env-file scripts/test-integration.ts lib/workspaces/__integration__",
     "type-check": "bun run type-check:scripts:esm && turbo run type-check",
@@ -173,7 +177,7 @@
     "socket.io-parser": "4.2.7",
     "source-map-js": "1.2.2",
     "systeminformation": "5.33.16",
-    "ws": "8.22.1"
+    "ws": "8.23.0"
   },
   "optionalDependencies": {
     "@next/swc-darwin-arm64": "16.4.5",
@@ -193,7 +197,7 @@
     "@typescript/typescript6": "^6.0.2",
     "@vercel/og": "0.6.8",
     "ajv": "8.20.0",
-    "commander": "^11.1.0",
+    "commander": "^15.1.0",
     "concurrently": "10.0.6",
     "glob": "13.0.6",
     "gray-matter": "4.0.3",

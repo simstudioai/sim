@@ -15,6 +15,7 @@ export const tailscaleExpireDeviceKeyTool: ToolConfig<
   name: 'Tailscale Expire Device Key',
   description: 'Immediately expire a device node key so the device must reauthenticate',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -7,6 +7,7 @@ export const insertTool: InternalToolConfig<MSSQLInsertParams, MSSQLInsertRespon
   name: 'Microsoft SQL Server Insert',
   description: 'Insert data into a Microsoft SQL Server table',
   version: '1.0',
+  effect: 'write',
   oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {

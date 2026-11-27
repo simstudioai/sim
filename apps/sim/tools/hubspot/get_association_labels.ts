@@ -17,6 +17,7 @@ export const hubspotGetAssociationLabelsTool: ToolConfig<
   description:
     'Retrieve the association types (category, typeId, label) defined between two HubSpot object types',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -34,6 +34,7 @@ export const updateLeadTool: ToolConfig<UpdateLeadParams, SmartleadActionRespons
   description:
     'Updates a lead in a Smartlead campaign. Smartlead requires the email field even when it is unchanged, and lead edits apply across every campaign the lead belongs to.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

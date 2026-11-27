@@ -8,6 +8,7 @@ export const linearGetViewerTool: ToolConfig<LinearGetViewerParams, LinearGetVie
   name: 'Linear Get Current User',
   description: 'Get the currently authenticated user (viewer) information',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

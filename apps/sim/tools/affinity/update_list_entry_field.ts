@@ -24,6 +24,7 @@ export const affinityUpdateListEntryFieldTool: ToolConfig<
   description:
     'Write one field value on a list row. Requires the "Export data from Lists" permission.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

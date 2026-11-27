@@ -19,6 +19,7 @@ export const deleteSecretTool: ToolConfig<
   name: 'Infisical Delete Secret',
   description: 'Delete a secret from a project environment.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INFISICAL_CREDENTIAL_OAUTH,
 
   params: {

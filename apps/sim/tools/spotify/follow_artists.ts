@@ -19,6 +19,7 @@ export const spotifyFollowArtistsTool: ToolConfig<
   name: 'Spotify Follow Artists',
   description: 'Follow one or more artists.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -25,6 +25,7 @@ export const mailchimpReplicateCampaignTool: ToolConfig<
   name: 'Replicate Campaign in Mailchimp',
   description: 'Create a copy of an existing Mailchimp campaign',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

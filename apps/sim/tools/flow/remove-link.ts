@@ -18,6 +18,7 @@ export const flowRemoveLinkTool: ToolConfig<FlowRemoveLinkParams, FlowRemoveLink
   name: 'Flow Remove Link',
   description: 'Remove a downstream relationship between Flow entities on the selected branch.',
   version: '1.0.0',
+  effect: 'write',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

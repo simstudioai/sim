@@ -9,6 +9,7 @@ export const rootlyListOnCallsTool: ToolConfig<RootlyListOnCallsParams, RootlyLi
     name: 'Rootly List On-Calls',
     description: 'List current on-call entries from Rootly with optional filtering.',
     version: '1.0.0',
+    effect: 'read',
     oauth: ROOTLY_CREDENTIAL_OAUTH,
 
     params: {

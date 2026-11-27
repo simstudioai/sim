@@ -12,6 +12,7 @@ export const gitlabCreateBranchTool: ToolConfig<
   name: 'GitLab Create Branch',
   description: 'Create a new branch in a GitLab project repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const companySearchTool: ToolConfig<PdlCompanySearchParams, PdlCompanySea
   description:
     'Search the People Data Labs company dataset using SQL or Elasticsearch DSL. Returns up to 100 matching companies per call.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,

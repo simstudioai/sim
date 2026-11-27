@@ -31,6 +31,7 @@ export const getUserPostsTool: ToolConfig<GetUserPostsParams, GetUserPostsRespon
   name: 'Get Reddit User Posts',
   description: 'Fetch submitted posts (t3) from a Reddit user profile',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

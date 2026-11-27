@@ -20,6 +20,7 @@ export const copyTool: ToolConfig<GoogleDriveCopyParams, GoogleDriveCopyResponse
   name: 'Copy Google Drive File',
   description: 'Create a copy of a file in Google Drive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

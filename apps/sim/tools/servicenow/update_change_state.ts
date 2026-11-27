@@ -28,6 +28,7 @@ export const updateChangeStateTool: ToolConfig<
   description:
     'Move a ServiceNow change request to another state. Base-system change model states are -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. The state machine rejects transitions whose conditions are not met.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

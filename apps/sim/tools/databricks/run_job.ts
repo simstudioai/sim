@@ -13,6 +13,7 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
   description:
     'Trigger an existing Databricks job to run immediately with optional job-level or notebook parameters.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

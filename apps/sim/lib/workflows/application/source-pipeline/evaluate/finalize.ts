@@ -329,6 +329,9 @@ export async function finalizePlan(
       resources: resolved.resources,
       references: compiledKeys,
       envReferences: compiled.envReferences,
+      ...(submission.compileInput.childResults
+        ? { childResults: submission.compileInput.childResults }
+        : {}),
     },
   }
 }

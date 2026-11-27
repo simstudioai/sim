@@ -28,6 +28,7 @@ export const addCandidateTagTool: ToolConfig<
   name: 'Ashby Add Candidate Tag',
   description: 'Adds a tag to a candidate in Ashby and returns the updated candidate.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

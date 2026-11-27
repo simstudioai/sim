@@ -12,6 +12,7 @@ export const docusignSendEnvelopeTool: InternalToolConfig<
   name: 'Send DocuSign Envelope',
   description: 'Create and send a DocuSign envelope with a document for e-signature',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

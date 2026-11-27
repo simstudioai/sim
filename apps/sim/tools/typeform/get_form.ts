@@ -8,6 +8,7 @@ export const getFormTool: ToolConfig<TypeformGetFormParams, TypeformGetFormRespo
   name: 'Typeform Get Form',
   description: 'Retrieve complete details and structure of a specific form',
   version: '1.0.0',
+  effect: 'read',
   oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {

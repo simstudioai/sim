@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
+import { FINDING_LIMITS } from '../diagnostics/bound'
 import type { CanonicalWorkflow } from '../model'
 import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
@@ -224,6 +225,79 @@ describe("a field hidden under the block's values", () => {
     expect(hidden?.message).toBe(
       `limit is hidden (it shows only when authMethod is bot_token), ${DROPPED}`
     )
+  })
+})
+
+describe("an output its builder's operation never produces", () => {
+  const tableBlock = TEST_CATALOG.blocks.table as CatalogBlock
+  const catalog: BlockCatalog = {
+    ...TEST_CATALOG,
+    builders: {
+      ...TEST_CATALOG.builders,
+      'table.queryRows': { type: 'table', operation: 'query_rows' },
+    },
+    blocks: {
+      ...TEST_CATALOG.blocks,
+      table: {
+        ...tableBlock,
+        outputs: {
+          row: { type: 'json', condition: { field: 'operation', value: ['insert_row'] } },
+          rows: { type: 'array', condition: { field: 'operation', value: ['query_rows'] } },
+        },
+        operationOutputs: { query_rows: { names: ['rows'] } },
+      },
+    },
+  }
+  const IMPORT = "import { codeFile, fn, t, table, trigger, workflow } from '@sim/workflow-sdk'"
+  const compile = (body: string, files: Record<string, string> = {}, against = catalog) =>
+    compileWorkflow({
+      entry: {
+        path: 'workflow.ts',
+        text: `// @sim-sdk 1\n${IMPORT}\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`,
+      },
+      files: new Map(Object.entries(files)),
+      catalog: against,
+      sdkMajor: 1,
+    })
+  const LOOKUP = [
+    START,
+    "const lookup = table.queryRows('Lookup Customer', { tableId: 'tbl_1' })",
+    "const add = table.insertRow('Add', { tableId: 'tbl_1', data: { a: '1' } })",
+  ]
+
+  it('reports a code file reading it, with the output the operation has', () => {
+    const result = compile(
+      [...LOOKUP, "const f = fn('F', { code: codeFile('./functions/f.js') })"].join('\n'),
+      { 'functions/f.js': 'const c = $ref.lookupcustomer.row\nreturn $ref.lookupcustomer.rows' }
+    )
+    expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH')).toEqual([
+      expect.objectContaining({
+        message: 'Lookup Customer has no output row.',
+        hint: expect.stringContaining('rows'),
+        span: expect.objectContaining({ file: 'functions/f.js', line: 1 }),
+      }),
+    ])
+  })
+
+  it('reports the workflow file reading it, and keeps the output of the operation that has it', () => {
+    const result = compile(
+      [...LOOKUP, "const f = fn('F', { code: t`${lookup.row} ${lookup.rows} ${add.row}` })"].join(
+        '\n'
+      )
+    )
+    expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH').map((d) => d.message)).toEqual([
+      'Lookup Customer has no output row.',
+    ])
+  })
+
+  it("trusts only the tool's recorded outputs, never an output condition, which can disagree with the tool", () => {
+    const { operationOutputs: _recorded, ...unrecorded } = catalog.blocks.table as CatalogBlock
+    const result = compile(
+      [...LOOKUP, "const f = fn('F', { code: t`${lookup.row}` })"].join('\n'),
+      {},
+      { ...catalog, blocks: { ...catalog.blocks, table: unrecorded } }
+    )
+    expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH')).toEqual([])
   })
 })
 
@@ -549,6 +623,20 @@ describe('an SDK export the file did not import', () => {
   })
 })
 
+describe('a builder written as its block type', () => {
+  it('names the builder for a bare call and a namespaced one', () => {
+    const bare = run("const h = humanInTheLoop('Review', {})")
+    expect(findings(bare, 'E_UNKNOWN_BUILDER')[0]?.hint).toBe('Did you mean human?')
+    const dotted = run("const h = slack.send_message('Tell', {})")
+    expect(findings(dotted, 'E_UNKNOWN_BUILDER')[0]?.hint).toBe('Did you mean slack.sendMessage?')
+  })
+
+  it('leaves a call that is no builder an unsupported call', () => {
+    const result = run("const h = fetch('https://x')")
+    expect(findings(result, 'E_UNKNOWN_BUILDER')).toEqual([])
+  })
+})
+
 describe('a misspelled required param', () => {
   it('reports the unknown param once, without a second W_REQUIRED_MISSING for its suggestion', () => {
     const result = run("const a = api('A', { urll: 'https://x' })")
@@ -586,6 +674,25 @@ describe('typed references in JSON fields', () => {
     expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
   })
 
+  it('keeps a reference to an output the block lacks out of W_JSON_REF_UNTYPED past the warning cap', () => {
+    const fields = Array.from(
+      { length: FINDING_LIMITS.warningsPerCode + 5 },
+      (_, i) => `k${i}: a.missing${i}`
+    ).join(', ')
+    const result = run(
+      [
+        START,
+        "const a = api('A', { url: 'https://x' })",
+        `const b = api('B', { url: 'https://x', body: { ${fields} } })`,
+        'start.to(a)',
+        'a.to(b)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(FINDING_LIMITS.warningsPerCode)
+    expect(findings(result, 'I_FINDINGS_TRUNCATED')).toHaveLength(1)
+    expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
+  })
+
   it('still warns that an input the start does not declare is stored bare, as a caller may pass text', () => {
     const result = run(
       [
@@ -616,8 +723,8 @@ describe('typed references in JSON fields', () => {
     const result = run(
       `${START}\nconst a = api('A', { url: 'https://x', body: { items: start.input.list } })`
     )
-    expect(findings(result, 'W_JSON_REF_UNTYPED')[0]?.hint).toMatch(
-      /^Leave it bare when it holds an array/
+    expect(findings(result, 'W_JSON_REF_UNTYPED')[0]?.hint).toBe(
+      'Text: write t`${start.input.list}` to keep it text. An array, object, number or boolean: leave it bare, and make its source say so to drop this warning (a Function returning Number(…) or a literal, an agent responseFormat field).'
     )
   })
 })
@@ -731,6 +838,62 @@ describe('hints that name the fix', () => {
       'Call has no output error: only a block with an error edge outputs its failure message.'
     )
     expect(unknown?.hint).toBe('Wire call.onError(<handler>) and read call.error in the handler.')
+  })
+
+  it('reads <start.error> as an undeclared input, since a Start trigger has no error port', () => {
+    const result = run(
+      [
+        START,
+        "const next = api('Next', { url: 'https://x', body: { why: start.error } })",
+        'start.to(next)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_OUTPUT_PATH_UNDECLARED').map(({ message }) => message)).toEqual([
+      'Start declares no input error: its inputFormat declares none.',
+    ])
+    expect(findings(result, 'W_JSON_REF_UNTYPED').map(({ message }) => message)).toEqual([
+      expect.stringContaining('<start.error>'),
+    ])
+    expect(JSON.stringify(result.workflow?.blocks.next?.params.body)).not.toContain(
+      '\\"<start.error>\\"'
+    )
+  })
+
+  it('reads a Function error output where x.error reads, and nowhere else', () => {
+    const body = (wiring: string) =>
+      [
+        START,
+        "const parse = fn('Parse', { code: 'return 1' })",
+        "const failed = api('Failed', { url: 'https://x', body: { why: parse.errorMessage } })",
+        'start.to(parse)',
+        wiring,
+      ].join('\n')
+    const handled = run(body('parse.onError(failed)'))
+    expect(findings(handled, 'W_OUTPUT_PATH_UNDECLARED')).toEqual([])
+    expect(findings(handled, 'W_JSON_REF_UNTYPED')).toEqual([])
+    expect(JSON.stringify(handled.workflow?.blocks.failed?.params.body)).toContain(
+      '\\"<parse.errorMessage>\\"'
+    )
+    const [unhandled] = findings(run(body('parse.to(failed)')), 'W_OUTPUT_PATH_UNDECLARED')
+    expect(unhandled?.message).toBe(
+      'Parse has no output errorMessage: only a block with an error edge outputs its failure message.'
+    )
+    expect(unhandled?.hint).toBe(
+      'Wire parse.onError(<handler>) and read parse.errorMessage in the handler.'
+    )
+    const [notDeclared] = findings(
+      run(
+        [
+          START,
+          "const call = api('Call', { url: 'https://x' })",
+          "const failed = api('Failed', { url: 'https://x', body: { why: call.errorMessage } })",
+          'start.to(call)',
+          'call.onError(failed)',
+        ].join('\n')
+      ),
+      'W_UNKNOWN_OUTPUT_PATH'
+    )
+    expect(notDeclared?.message).toBe('Call has no output errorMessage.')
   })
 
   it('stores x.error quoted in a JSON body, since the failure message is a string', () => {

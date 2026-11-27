@@ -34,6 +34,7 @@ export const quickbooksUpdateCustomerTool: ToolConfig<
   name: 'QuickBooks Update Customer',
   description: 'Sparse-update a customer in the connected QuickBooks Online company',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

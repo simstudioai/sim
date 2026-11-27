@@ -49,6 +49,7 @@ export const confluenceListBlogPostsInSpaceTool: InternalToolConfig<
   name: 'Confluence List Blog Posts in Space',
   description: 'List all blog posts within a specific Confluence space.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

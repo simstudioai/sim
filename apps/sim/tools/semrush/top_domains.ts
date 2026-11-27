@@ -19,6 +19,7 @@ export const semrushTopDomainsTool: ToolConfig<SemrushTopDomainsParams, SemrushT
     name: 'Semrush Top Domains',
     description: 'List the highest-ranked domains in a regional database by Semrush rank.',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       apiKey: {

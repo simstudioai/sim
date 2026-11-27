@@ -13,6 +13,7 @@ export const listApplicationsTool: InternalToolConfig<
   name: 'AppConfig List Applications',
   description: 'List applications in AWS AppConfig',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

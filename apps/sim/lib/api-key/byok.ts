@@ -244,7 +244,11 @@ async function resolveHostedModelKey(
   userProvidedKey: string | undefined,
   billingAttribution: UsageUpgradePayer | undefined
 ): Promise<{ apiKey: string; isBYOK: boolean }> {
-  if (!(await mayUseHostedKey(workspaceId, billingAttribution))) {
+  const hostedKeyAllowed = await mayUseHostedKey(workspaceId, billingAttribution).catch((error) => {
+    if (userProvidedKey) return false
+    throw error
+  })
+  if (!hostedKeyAllowed) {
     if (userProvidedKey) return { apiKey: userProvidedKey, isBYOK: true }
     throw new HostedKeyRequiresPaidPlanError(model)
   }

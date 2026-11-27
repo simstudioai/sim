@@ -9,6 +9,7 @@ export const tailscaleSetAclTool: ToolConfig<TailscaleSetAclParams, TailscaleSet
   name: 'Tailscale Set ACL',
   description: 'Replace the tailnet policy file',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -50,6 +50,7 @@ interface EnvFlagsMockState {
   isOllamaConfigured: boolean
   isAzureConfigured: boolean
   isCohereConfigured: boolean
+  isE2bEnabled: boolean
   isInvitationsDisabled: boolean
   isPublicApiDisabled: boolean
   isGoogleAuthDisabled: boolean
@@ -101,6 +102,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isOllamaConfigured: false,
   isAzureConfigured: false,
   isCohereConfigured: false,
+  isE2bEnabled: false,
   isInvitationsDisabled: false,
   isPublicApiDisabled: false,
   isGoogleAuthDisabled: false,

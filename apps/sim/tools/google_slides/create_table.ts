@@ -39,6 +39,7 @@ export const createTableTool: ToolConfig<CreateTableParams, CreateTableResponse>
   name: 'Create Table in Google Slides',
   description: 'Create a new table on a slide in a Google Slides presentation',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -16,8 +16,10 @@ import { type CommitTarget, targetIds } from '@/lib/workflows/application/source
 import type { PlannedSource, RefusedSource } from '@/lib/workflows/application/source-pipeline/plan'
 import { type PrintedSource, printStoredSource } from '@/lib/workflows/code/print-stored'
 import {
-  checkDraftNeedsRedeployment,
-  checkNeedsRedeployment,
+  type DeploymentDrift,
+  readDeploymentDrift,
+  readDraftDeploymentDrift,
+  UNDEPLOYED,
 } from '@/lib/workflows/deployment-status'
 
 const logger = createLogger('ApplyWorkflowSource')
@@ -43,6 +45,8 @@ export interface SourceOutcome {
   /** Source key → id for every new block whose id was minted rather than taken from the lock. */
   mintedIds: Record<string, string>
   notes: string[]
+  /** The live deployment version, or null when none: what `needsRedeployment` compared against. */
+  deployedVersion: number | null
   needsRedeployment: boolean
   sdkMajor: number
 }
@@ -57,7 +61,8 @@ interface OutcomeFrame {
 }
 
 /** What an outcome reports beyond its frame and the printed source; the rest default to empty. */
-type OutcomeFields = Pick<SourceOutcome, 'applied' | 'diff' | 'diagnostics' | 'needsRedeployment'> &
+type OutcomeFields = Pick<SourceOutcome, 'applied' | 'diff' | 'diagnostics'> &
+  DeploymentDrift &
   Partial<Pick<SourceOutcome, 'workflowName' | 'mintedIds' | 'notes' | 'wroteSourceMeta'>>
 
 /** The one outcome shape: what is (or would be) stored, printed, and what the write did. */
@@ -114,6 +119,7 @@ export function printPlanned(
     identity: plan.identity,
     codeFiles,
     ...(lockless ? { lockless } : {}),
+    ...(plan.childResults ? { childResults: plan.childResults } : {}),
   })
 }
 
@@ -130,12 +136,12 @@ export function printWritten(
 }
 
 /**
- * Whether the draft as it is differs from its deployment, for a dry run that leaves it so (a no-op
- * or a refusal); a new workflow has none. Run only once the plan says so: a dry run that would
- * change the draft compares what it would write instead.
+ * The live version and whether the draft as it is differs from it, for a dry run that leaves it so
+ * (a no-op or a refusal); a new workflow has none. Run only once the plan says so: a dry run that
+ * would change the draft compares what it would write instead.
  */
-async function draftNeedsRedeployment(target: CommitTarget): Promise<boolean> {
-  return target.kind === 'new' ? false : checkNeedsRedeployment(target.context.workflowId)
+async function storedDraftDrift(target: CommitTarget): Promise<DeploymentDrift> {
+  return target.kind === 'new' ? UNDEPLOYED : readDeploymentDrift(target.context.workflowId)
 }
 
 /**
@@ -162,7 +168,7 @@ export async function previewSource(
         workflowName: plan.meta.name,
         diff: plan.diff,
         diagnostics: plan.diagnostics,
-        needsRedeployment: await draftNeedsRedeployment(target),
+        ...(await storedDraftDrift(target)),
       })
     }
     const preview = await previewSourceCommit(planned.workflowId, plan)
@@ -173,12 +179,12 @@ export async function previewSource(
     })
     return shapeOutcome(frame, printWritten(planned, preview.state), {
       applied: false,
-      needsRedeployment:
-        !isNew &&
-        (await checkDraftNeedsRedeployment(planned.workflowId, {
-          ...preview.state,
-          variables: plan.storedVariables,
-        })),
+      ...(isNew
+        ? UNDEPLOYED
+        : await readDraftDeploymentDrift(planned.workflowId, {
+            ...preview.state,
+            variables: plan.storedVariables,
+          })),
       diff: plan.diff,
       diagnostics: plan.diagnostics,
       mintedIds: plan.mintedIds,
@@ -211,7 +217,7 @@ export async function refusedOutcome(
       applied: false,
       diff: emptyDiffSummary(),
       diagnostics: refused.diagnostics,
-      needsRedeployment: await draftNeedsRedeployment(target),
+      ...(await storedDraftDrift(target)),
     }
   )
 }

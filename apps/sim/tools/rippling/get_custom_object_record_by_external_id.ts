@@ -10,6 +10,7 @@ export const ripplingGetCustomObjectRecordByExternalIdTool: ToolConfig<RipplingG
     name: 'Rippling Get Record By External ID',
     description: 'Get a custom object record by external ID',
     version: '1.0.0',
+    effect: 'read',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

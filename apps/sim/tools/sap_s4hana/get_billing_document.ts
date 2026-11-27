@@ -15,6 +15,7 @@ export const getBillingDocumentTool: InternalToolConfig<
   description:
     'Retrieve a single billing document (customer invoice) by BillingDocument key from SAP S/4HANA Cloud (API_BILLING_DOCUMENT_SRV, A_BillingDocument).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

@@ -13,6 +13,7 @@ export const getAlertRuleTool: ToolConfig<GrafanaGetAlertRuleParams, GrafanaGetA
     name: 'Grafana Get Alert Rule',
     description: 'Get a specific alert rule by its UID',
     version: '1.0.0',
+    effect: 'read',
     oauth: GRAFANA_CREDENTIAL_OAUTH,
 
     params: {

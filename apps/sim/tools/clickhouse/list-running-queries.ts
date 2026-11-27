@@ -12,6 +12,7 @@ export const listRunningQueriesTool: InternalToolConfig<
   name: 'ClickHouse List Running Queries',
   description: 'List currently running queries on a ClickHouse server',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

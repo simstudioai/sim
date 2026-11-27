@@ -127,7 +127,60 @@ export const testReportSchema = z.object({
     })
   ),
 })
-export type TestReport = z.infer<typeof testReportSchema>
+
+/**
+ * A stubbed call of a stored report. The MCP target and reason are absent from a report stored
+ * before they were recorded.
+ */
+const storedStubbedCallSchema = z.object({
+  workflowId: z.string(),
+  blockId: z.string().nullable(),
+  block: z.string().nullable(),
+  tool: z.string().nullable(),
+  /** The MCP server and tool an MCP block's call named; null for any other call. */
+  mcp: z.object({ server: z.string(), tool: z.string() }).nullable().default(null),
+  /** Why a call that is not a plain write was held back; unset for a plain write. */
+  reason: z.enum(['placeholder', 'mcp-read-only']).optional(),
+  /** Calls folded into this entry. */
+  count: z.number().int().positive(),
+})
+
+/** What one workflow run of a test did with the writes it reached, without their payloads. */
+const testRunSideEffectsSchema = z.object({
+  /**
+   * Calls no mock answered, stubbed with a placeholder: writes, every MCP call (reason
+   * `mcp-read-only` when its server declares the tool read-only), and reads that would have sent a
+   * placeholder (reason `placeholder`). `tool` is null for a block answered whole.
+   */
+  stubbed: z.array(storedStubbedCallSchema),
+  /** Code that ran for real, whose network calls are not stubbed. */
+  unchecked: z.array(
+    z.object({
+      block: z.string().nullable(),
+      reason: z.string(),
+      count: z.number().int().positive(),
+    })
+  ),
+  /** Calls each list left out once it was full. */
+  omitted: z.object({ stubbed: z.number().int(), unchecked: z.number().int() }),
+})
+export type TestRunSideEffects = z.output<typeof testRunSideEffectsSchema>
+
+/**
+ * A test file's report as the host stores it: the sandbox's {@link testReportSchema} report, and
+ * the side effects of each run that reached any, which the host records from the runs themselves,
+ * never from the sandbox.
+ */
+export const storedTestReportSchema = testReportSchema.extend({
+  sideEffects: z
+    .object({
+      /** By execution id; at most a fixed number of runs, the rest counted in `omittedExecutions`. */
+      executions: z.record(z.string(), testRunSideEffectsSchema),
+      omittedExecutions: z.number().int(),
+    })
+    .optional(),
+})
+export type StoredTestReport = z.infer<typeof storedTestReportSchema>
 
 export const testCollectionSchema = z.object({
   topLevel: z.array(z.object({ kind: z.enum(['suite', 'test']), name: z.string() })),

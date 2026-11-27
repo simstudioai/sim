@@ -27,6 +27,7 @@ export const getCompanyIndicatorsTool: ToolConfig<
   description:
     'Get the problem indicators (e.g. "App crashing", "Login", "Server connection") reported for a Downdetector company over a time period, with the report counts and percentages for each.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     companyId: {

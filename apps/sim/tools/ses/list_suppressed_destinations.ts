@@ -13,6 +13,7 @@ export const listSuppressedDestinationsTool: InternalToolConfig<
   name: 'SES List Suppressed Destinations',
   description: 'List email addresses on the account-level SES suppression list',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const listEscalationPoliciesTool: ToolConfig<
   name: 'PagerDuty List Escalation Policies',
   description: 'List escalation policies from PagerDuty with an optional name filter.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

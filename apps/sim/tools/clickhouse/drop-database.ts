@@ -12,6 +12,7 @@ export const dropDatabaseTool: InternalToolConfig<
   name: 'ClickHouse Drop Database',
   description: 'Drop a database from a ClickHouse server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

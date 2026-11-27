@@ -14,6 +14,7 @@ export const checkrDeleteGeoTool: ToolConfig<CheckrGeoIdParams, CheckrDeleteGeoR
   name: 'Checkr Delete Geo',
   description: 'Delete a geo.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

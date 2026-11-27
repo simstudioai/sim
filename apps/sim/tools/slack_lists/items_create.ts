@@ -23,6 +23,7 @@ export const slackListsItemsCreateTool: ToolConfig<
   description:
     'Create a Slack List row using real column IDs and typed cell values. Text columns require rich_text, not text.',
   version: '1.0.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'slack',

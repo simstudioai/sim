@@ -18,6 +18,7 @@ export const jamaGetBaselineTool: ToolConfig<JamaGetBaselineParams, JamaGetBasel
   name: 'Jama Get Baseline',
   description: "Get Baseline in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

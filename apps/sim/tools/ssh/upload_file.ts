@@ -6,6 +6,7 @@ export const uploadFileTool: InternalToolConfig<SSHUploadFileParams, SSHResponse
   name: 'SSH Upload File',
   description: 'Upload a file to a remote SSH server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

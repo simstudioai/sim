@@ -11,6 +11,7 @@ export const jupyterListKernelsTool: InternalToolConfig<
   name: 'Jupyter List Kernels',
   description: 'List running kernels on a Jupyter server',
   version: '1.0.0',
+  effect: 'read',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

@@ -12,6 +12,7 @@ export const gitlabListBranchesTool: ToolConfig<
   name: 'GitLab List Branches',
   description: 'List branches in a GitLab project repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

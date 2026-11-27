@@ -14,6 +14,7 @@ export const updateIncidentTool: ToolConfig<
   name: 'PagerDuty Update Incident',
   description: 'Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.).',
   version: '1.0.0',
+  effect: 'write',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

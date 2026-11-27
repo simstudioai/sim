@@ -11,6 +11,7 @@ export const vercelDeleteDomainTool: ToolConfig<
   name: 'Vercel Delete Domain',
   description: 'Delete a domain from a Vercel account or team',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

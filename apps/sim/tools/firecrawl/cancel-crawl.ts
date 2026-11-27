@@ -10,6 +10,7 @@ export const cancelCrawlTool: ToolConfig<FirecrawlCancelCrawlParams, FirecrawlCa
     name: 'Firecrawl Cancel Crawl',
     description: 'Cancel an in-progress Firecrawl crawl job by its job ID.',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       jobId: {

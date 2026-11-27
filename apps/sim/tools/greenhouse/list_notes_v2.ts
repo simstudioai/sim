@@ -20,6 +20,7 @@ export const greenhouseListNotesV2Tool: ToolConfig<
   name: 'Greenhouse List Notes',
   description: 'Lists one page of notes with cursor pagination and documented filters.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

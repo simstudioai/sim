@@ -101,12 +101,18 @@ function identExpr(ctx: PrintContext, key: BlockKey): Expr {
   return { doc: ctx.idents.get(key) ?? key, shape: 'identifier', depth: 1 }
 }
 
-/** The wiring statements of one scope, with the anchor and source block of each. */
-export function wiringStatements(
-  ctx: PrintContext,
-  scope: BlockKey | null
-): Array<{ expr: Expr; anchor: AnchorKey; source: BlockKey }> {
-  const statements: Array<{ expr: Expr; anchor: AnchorKey; source: BlockKey }> = []
+/** One wiring statement, with its comment anchor and the blocks it names. */
+export interface PrintedWiring {
+  expr: Expr
+  anchor: AnchorKey
+  source: BlockKey
+  targets: BlockKey[]
+}
+
+/** The wiring statements of one scope. */
+export function wiringStatements(ctx: PrintContext, scope: BlockKey | null): PrintedWiring[] {
+  const statements: PrintedWiring[] = []
+  const keys = (edges: CanonicalEdge[]) => edges.map((edge) => edge.to)
   const byTarget = (a: CanonicalEdge, b: CanonicalEdge) =>
     (ctx.position.get(a.to) ?? 0) - (ctx.position.get(b.to) ?? 0) ||
     (ctx.preorderIndex.get(a.to) ?? -1) - (ctx.preorderIndex.get(b.to) ?? -1)
@@ -138,6 +144,7 @@ export function wiringStatements(
         expr: call(ctx.paramNames.get(scope) ?? 'p', starts, 'to'),
         anchor: anchors.edges(scope, 'subflowStart'),
         source: scope,
+        targets: keys(starts),
       })
     }
   }
@@ -199,41 +206,50 @@ export function wiringStatements(
                   ? 'error'
                   : 'source'
         for (const edge of [...mismatched].sort(byTarget)) {
-          statements.push({ expr: raw(source, handle, edge.to), anchor, source })
+          statements.push({
+            expr: raw(source, handle, edge.to),
+            anchor,
+            source,
+            targets: [edge.to],
+          })
         }
         if (kind.kind === 'subflowStart') continue
         targets = targets.filter((edge) => !mismatched.includes(edge))
         if (targets.length === 0) continue
       }
-      if (kind.kind === 'subflowStart') {
-        for (const edge of targets) {
-          statements.push({ expr: raw(source, 'loop-start-source', edge.to), anchor, source })
-        }
-        continue
-      }
       if (kind.kind === 'raw' || (kind.kind === 'out' && (isContainer || hasBranches))) {
         const handle = kind.kind === 'raw' ? kind.handle : 'source'
         for (const edge of [...targets].sort(byTarget)) {
-          statements.push({ expr: raw(source, handle, edge.to), anchor, source })
-        }
-        continue
-      }
-      if (kind.kind === 'subflowEnd' && !isContainer) {
-        for (const edge of [...targets].sort(byTarget)) {
-          statements.push({ expr: raw(source, 'loop-end-source', edge.to), anchor, source })
+          statements.push({
+            expr: raw(source, handle, edge.to),
+            anchor,
+            source,
+            targets: [edge.to],
+          })
         }
         continue
       }
       if (kind.kind === 'error') {
-        statements.push({ expr: call(ident, targets, 'onError'), anchor, source })
+        statements.push({
+          expr: call(ident, targets, 'onError'),
+          anchor,
+          source,
+          targets: keys(targets),
+        })
       } else if (kind.kind === 'branch') {
         statements.push({
           expr: call(`${ident}${printMember(kind.key)}`, targets, 'to'),
           anchor,
           source,
+          targets: keys(targets),
         })
       } else {
-        statements.push({ expr: call(ident, targets, 'to'), anchor, source })
+        statements.push({
+          expr: call(ident, targets, 'to'),
+          anchor,
+          source,
+          targets: keys(targets),
+        })
       }
     }
   }

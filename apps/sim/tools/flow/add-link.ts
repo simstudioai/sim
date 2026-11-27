@@ -18,6 +18,7 @@ export const flowAddLinkTool: ToolConfig<FlowAddLinkParams, FlowAddLinkResponse>
   name: 'Flow Add Link',
   description: 'Add a downstream relationship between Flow entities on the selected branch.',
   version: '1.0.0',
+  effect: 'write',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

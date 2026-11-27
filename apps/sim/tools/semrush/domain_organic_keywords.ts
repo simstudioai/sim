@@ -38,6 +38,7 @@ export const semrushDomainOrganicKeywordsTool: ToolConfig<
   description:
     'List the keywords a domain ranks for in Google organic search, with position, volume, and traffic share.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

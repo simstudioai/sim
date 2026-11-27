@@ -470,6 +470,7 @@ export class DAGExecutor {
       enforceCredentialAccess: this.contextExtensions.enforceCredentialAccess,
       piiBlockOutputRedaction: this.contextExtensions.piiBlockOutputRedaction,
       testHooks: this.contextExtensions.testHooks,
+      sideEffects: this.contextExtensions.sideEffects,
       blockStates: state.getBlockStates(),
       blockLogs: restoredBlockLogs,
       /*

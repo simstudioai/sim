@@ -40,6 +40,7 @@ export const createParagraphBulletsTool: ToolConfig<
   description:
     'Convert paragraphs in a shape or table cell into a bulleted or numbered list using a Google Slides bullet preset.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

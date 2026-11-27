@@ -10,6 +10,7 @@ export const resendCreateContactTool: ToolConfig<CreateContactParams, CreateCont
   name: 'Create Contact',
   description: 'Create a new contact in Resend',
   version: '1.0.0',
+  effect: 'write',
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {

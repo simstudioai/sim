@@ -14,6 +14,18 @@ export interface WorkflowReferenceToken {
   end: number
 }
 
+/**
+ * Whether `<block.….path>` reads a file's path in a Function's sandbox: three or more segments,
+ * the last `path`. The run splices that path into code raw, even inside a string literal (it can
+ * hold no quote), where any other reference is spliced as a literal of its value.
+ */
+export function isFilePathReference(reference: string): boolean {
+  const segments = reference
+    .slice(REFERENCE_START.length, -REFERENCE_END.length)
+    .split(REFERENCE_PATH_DELIMITER)
+  return segments.length >= 3 && segments.at(-1) === 'path'
+}
+
 /** Separates comparison characters before the final `<workflow.reference>` segment. */
 export function splitWorkflowReferenceSegment(
   segment: string

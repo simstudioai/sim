@@ -18,6 +18,7 @@ export const listLeadsTool: ToolConfig<EmailBisonListLeadsParams, EmailBisonList
   name: 'Email Bison List Leads',
   description: 'Retrieves leads from Email Bison with optional search and tag filters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

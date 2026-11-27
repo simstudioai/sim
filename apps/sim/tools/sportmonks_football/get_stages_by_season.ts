@@ -30,6 +30,7 @@ export const sportmonksGetStagesBySeasonTool: ToolConfig<
   name: 'Get Stages by Season',
   description: 'Retrieve all stages for a season ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

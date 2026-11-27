@@ -16,6 +16,7 @@ export const hubspotSearchCompaniesTool: ToolConfig<
   name: 'Search Companies in HubSpot',
   description: 'Search for companies in HubSpot using filters, sorting, and queries',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

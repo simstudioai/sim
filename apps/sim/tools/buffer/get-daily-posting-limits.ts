@@ -24,6 +24,7 @@ export const bufferGetDailyPostingLimitsTool: ToolConfig<
   name: 'Buffer Get Daily Posting Limits',
   description: 'Check sent and scheduled post counts against each channel’s daily limit for a date',
   version: '1.0.0',
+  effect: 'read',
   oauth: BUFFER_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -10,6 +10,7 @@ export const pitchbookLimitedPartnerBioTool: ToolConfig<PitchbookProfileParams, 
     description:
       'Retrieve the profile of a limited partner: names, description, type, assets under management, and staff',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

@@ -15,7 +15,7 @@ export function presentSourceOutcome(outcome: SourceOutcome): SourceOutcomeData 
   return {
     workflowId: outcome.workflowId,
     workspaceId: outcome.workspaceId,
-    dryRun: outcome.dryRun,
+    dry: outcome.dryRun,
     applied: outcome.applied,
     diff: outcome.diff,
     diagnostics: boundAnswerFindings(outcome.diagnostics),
@@ -24,6 +24,7 @@ export function presentSourceOutcome(outcome: SourceOutcome): SourceOutcomeData 
     base: outcome.base,
     mintedIds: outcome.mintedIds,
     notes: outcome.notes,
+    deployedVersion: outcome.deployedVersion,
     needsRedeployment: outcome.needsRedeployment,
   }
 }

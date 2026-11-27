@@ -11,6 +11,7 @@ export const listUsersTool: ToolConfig<WordPressListUsersParams, WordPressListUs
   name: 'WordPress List Users',
   description: 'List users from WordPress.com (requires admin privileges)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

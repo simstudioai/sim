@@ -12,6 +12,7 @@ export const brexGetCashAccountTool: ToolConfig<
   name: 'Brex Get Cash Account',
   description: 'Get a Brex cash account by ID, or the primary cash account when no ID is provided',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

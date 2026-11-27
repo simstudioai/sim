@@ -38,6 +38,7 @@ export const sportmonksMotorsportGetFixturesByDateRangeTool: ToolConfig<
   description:
     'Retrieve motorsport fixtures (sessions) between two dates (YYYY-MM-DD, max 100 days) from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

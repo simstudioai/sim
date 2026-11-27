@@ -36,6 +36,11 @@ export interface InternalToolOperationContext {
   /** Trusted source block for saved MCP operation restrictions. */
   mcpBlockId?: string
   /**
+   * Authorize and validate the call as a live one would, then answer without sending it: set by
+   * the executor for an MCP write the run's side-effect policy holds back, never from tool input.
+   */
+  checkOnly?: boolean
+  /**
    * Authenticated direct caller, supplied by an authorized use case, never tool input. A
    * delegated principal carries that use case's audience; rebind it before another use case.
    */

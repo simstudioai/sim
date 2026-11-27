@@ -6,6 +6,7 @@ export const a2aGetTaskTool: InternalToolConfig<A2AGetTaskParams, A2ATaskRespons
   name: 'A2A Get Task',
   description: 'Retrieve the current state and result of an A2A task.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     agentUrl: {

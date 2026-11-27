@@ -34,6 +34,7 @@ export const sportmonksGetTeamRankingsTool: ToolConfig<
   name: 'Get All Team Rankings',
   description: 'Retrieve all team rankings available within your Sportmonks subscription (beta)',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

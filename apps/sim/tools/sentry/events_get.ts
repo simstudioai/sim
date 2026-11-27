@@ -10,6 +10,7 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
   description:
     'Retrieve detailed information about a specific Sentry event by its ID. Returns complete event details including stack traces, breadcrumbs, context, and user information.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {

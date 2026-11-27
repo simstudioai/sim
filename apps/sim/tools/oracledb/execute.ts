@@ -14,6 +14,7 @@ export const oracleExecuteTool: InternalToolConfig<OracleExecuteParams, OracleEx
   description:
     'Execute one allowed Oracle SQL statement: SELECT, INSERT, UPDATE, DELETE, MERGE, CREATE, ALTER, DROP, or EXPLAIN PLAN',
   version: '1.0.0',
+  effect: 'write',
   oauth: oracleDatabaseOAuth,
   params: {
     ...ORACLE_CONNECTION_PARAMS,

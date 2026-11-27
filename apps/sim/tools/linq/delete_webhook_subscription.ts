@@ -12,6 +12,7 @@ export const linqDeleteWebhookSubscriptionTool: ToolConfig<
   name: 'Delete Webhook Subscription',
   description: 'Delete a webhook subscription from your account',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

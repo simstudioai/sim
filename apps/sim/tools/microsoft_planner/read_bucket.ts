@@ -17,6 +17,7 @@ export const readBucketTool: ToolConfig<
   name: 'Read Microsoft Planner Bucket',
   description: 'Get details of a specific bucket',
   version: '1.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

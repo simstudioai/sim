@@ -12,6 +12,7 @@ export const slackCreateChannelCanvasTool: ToolConfig<
   name: 'Slack Create Channel Canvas',
   description: 'Create a canvas pinned to a Slack channel as its resource hub',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -77,36 +77,39 @@ export async function countPendingSeatInvitations(
 }
 
 /**
- * Resolves the organization's seat capacity, honouring an Enterprise seat
- * change that is still in flight to Stripe.
+ * How an organization's seats bound membership:
+ * - `fixed`: an Enterprise contract outside self-serve, a cap that can actually be exhausted;
+ * - `baseline`: a self-serve Enterprise contract, whose members outgrow its seats and true up;
+ * - `on-demand`: Team, billed per member, so `subscription.seats` tracks the member count rather
+ *   than a ceiling.
  */
-export async function resolveSeatCapacity(
+export type SeatCapKind = 'fixed' | 'baseline' | 'on-demand'
+
+/**
+ * The organization's seats and how they bound membership, honouring an Enterprise change still
+ * in flight to Stripe. Every surface that admits members or gates remaining capacity branches on
+ * `kind`.
+ */
+export async function resolveSeatCap(
   organizationSubscription: { id: string; plan: string; metadata?: unknown } & Record<
     string,
     unknown
   >,
   executor: DbOrTx = db
-): Promise<number> {
+): Promise<{ seats: number; kind: SeatCapKind }> {
   const canonicalSeats = getEffectiveSeats(organizationSubscription)
-  if (!isEnterprise(organizationSubscription.plan)) return canonicalSeats
+  if (!isEnterprise(organizationSubscription.plan)) {
+    return { seats: canonicalSeats, kind: 'on-demand' }
+  }
   const intent = await resolveEnterpriseMetadataIntent(
     executor,
     organizationSubscription.id,
     organizationSubscription.metadata
   )
-  return intent?.effectiveSeatCapacity ?? canonicalSeats
-}
-
-/**
- * Whether the plan has a seat cap that can actually be exhausted.
- *
- * Only Enterprise does. Team seats are billed per member and grown on demand,
- * so its `subscription.seats` tracks the current member count rather than a
- * ceiling — comparing usage against it would always read as "full". Surfaces
- * that gate or visualise remaining capacity must branch on this.
- */
-export function planHasFixedSeatCap(plan: string | undefined | null): boolean {
-  return isEnterprise(plan)
+  return {
+    seats: intent.effectiveSeatCapacity ?? canonicalSeats,
+    kind: intent.seatsUncapped ? 'baseline' : 'fixed',
+  }
 }
 
 /**
@@ -192,14 +195,15 @@ export async function validateSeatAvailability(
       }
     }
 
-    const [memberCount, pendingSeats, maxSeats] = await Promise.all([
+    const [memberCount, pendingSeats, seatCap] = await Promise.all([
       executor
         .select({ count: count() })
         .from(member)
         .where(eq(member.organizationId, organizationId)),
       countPendingSeatInvitations(organizationId, executor, options.excludePendingInvitationId),
-      resolveSeatCapacity(subscription, executor),
+      resolveSeatCap(subscription, executor),
     ])
+    const maxSeats = seatCap.seats
 
     const {
       usedSeats: currentSeats,
@@ -209,7 +213,7 @@ export async function validateSeatAvailability(
       memberSeats: memberCount[0]?.count ?? 0,
       pendingSeats,
       totalSeats: maxSeats,
-      hasFixedSeatCap: planHasFixedSeatCap(subscription.plan),
+      hasFixedSeatCap: seatCap.kind === 'fixed',
     })
     /**
      * Only a fixed cap can refuse an invite. Team seats are provisioned when the
@@ -298,12 +302,13 @@ export async function getOrganizationSeatInfo(
       return null
     }
 
-    const maxSeats = await resolveSeatCapacity(subscription)
+    const seatCap = await resolveSeatCap(subscription)
+    const maxSeats = seatCap.seats
     const { availableSeats } = computeSeatUsage({
       memberSeats,
       pendingSeats,
       totalSeats: maxSeats,
-      hasFixedSeatCap: planHasFixedSeatCap(subscription.plan),
+      hasFixedSeatCap: seatCap.kind === 'fixed',
     })
 
     return {
@@ -313,7 +318,7 @@ export async function getOrganizationSeatInfo(
       maxSeats,
       availableSeats,
       subscriptionPlan: subscription.plan,
-      canAddSeats: !isEnterprise(subscription.plan),
+      canAddSeats: seatCap.kind !== 'fixed',
     }
   } catch (error) {
     logger.error('Failed to get organization seat info', { organizationId, error })

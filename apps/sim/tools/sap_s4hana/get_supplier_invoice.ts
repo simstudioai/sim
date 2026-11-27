@@ -15,6 +15,7 @@ export const getSupplierInvoiceTool: InternalToolConfig<
   description:
     'Retrieve a single supplier invoice by composite key (SupplierInvoice + FiscalYear) from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

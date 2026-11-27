@@ -29,6 +29,7 @@ export const helpScoutListOrganizationsTool: ToolConfig<
   description:
     'List Help Scout organizations (companies), 50 per page, most recently active first by default.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

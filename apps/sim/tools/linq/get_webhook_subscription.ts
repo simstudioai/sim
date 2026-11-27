@@ -20,6 +20,7 @@ export const linqGetWebhookSubscriptionTool: ToolConfig<
   name: 'Get Webhook Subscription',
   description: 'Retrieve a webhook subscription by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

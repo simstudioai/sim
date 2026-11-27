@@ -18,6 +18,7 @@ export const manageengineSdpAddRequestNoteTool: ToolConfig<SdpAddRequestNotePara
   description:
     'Add a note to a ManageEngine ServiceDesk Plus Cloud request, optionally making it visible to the requester.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

@@ -12,6 +12,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   name: 'Firecrawl Search',
   description: 'Search for information on the web using Firecrawl',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

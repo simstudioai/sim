@@ -55,6 +55,7 @@ export const listArtifactsTool: ToolConfig<ListArtifactsParams, ListArtifactsRes
   name: 'Cursor List Artifacts',
   description: 'List generated artifact files for a cloud agent.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...listArtifactsBase,
@@ -132,6 +133,7 @@ export const listArtifactsV2Tool: ToolConfig<ListArtifactsParams, ListArtifactsV
   description:
     'List generated artifact files for a cloud agent. Returns the API fields plus `path` and `size` aliases.',
   version: '2.0.0',
+  effect: 'read',
   oauth: CURSOR_CREDENTIAL_OAUTH,
 
   transformResponse: async (response) => {

@@ -23,6 +23,7 @@ export const sendTemplateTool: ToolConfig<WhatsAppSendTemplateParams, WhatsAppSe
   description:
     'Send a pre-approved WhatsApp template message. Required to start a conversation or to message a user outside the 24-hour customer service window.',
   version: '1.0.0',
+  effect: 'write',
   oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {

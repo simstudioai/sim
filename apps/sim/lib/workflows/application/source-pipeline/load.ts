@@ -1,8 +1,4 @@
-import {
-  type Principal,
-  resolvePrincipalAttribution,
-  resolvePrincipalSubjectUserId,
-} from '@sim/auth/principal'
+import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import type {
   BlockCatalog,
@@ -19,6 +15,10 @@ import {
 } from '@/lib/catalog/application/context'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { loadStoredSource } from '@/lib/workflows/application/read-workflow-source'
+import type {
+  ChildResultsMemo,
+  ChildSources,
+} from '@/lib/workflows/application/source-child-results'
 import type { SourceScope } from '@/lib/workflows/application/source-pipeline/evaluate'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { type StoredSource, storedSourceFingerprint } from '@/lib/workflows/code/print-stored'
@@ -77,6 +77,10 @@ export type SourceTarget =
 export interface SourceLoads {
   catalogGate?: Promise<CatalogGate>
   envNames?: Promise<string[]>
+  /** The child workflows read to type their callers' results (`loadChildResults`). */
+  childResults?: ChildResultsMemo
+  /** The workflow folders the workspace source apply writes, which its callers are typed by. */
+  childSources?: ChildSources
 }
 
 /** Everything a plan reads before it evaluates: the stored draft, its catalog and fingerprint. */
@@ -89,8 +93,6 @@ export interface LoadedTarget {
   /** The stored draft's fingerprint when loaded; a commit refuses a draft that moved off it. */
   storedFingerprint: SourceFingerprint
   envNames: string[]
-  /** Attribution for resource keys the write allocates. */
-  createdBy: string | null
   scope: SourceScope
 }
 
@@ -102,8 +104,8 @@ export function targetIds(target: CommitTarget): { workflowId: string; workspace
 }
 
 /**
- * Who and where a write to `target` acts: the human it is attributed to (the workspace's billing
- * owner for a workspace key) and the workflow's folder.
+ * Who and where a write to `target` acts: the human it is attributed to and the workflow's
+ * folder.
  */
 export function sourceScope(principal: Principal, target: CommitTarget): SourceScope {
   const context =
@@ -114,9 +116,8 @@ export function sourceScope(principal: Principal, target: CommitTarget): SourceS
     workflowId: context.workflowId,
     workspaceId: context.workspaceId,
     workspaceOrganizationId: context.workspaceOrganizationId,
-    subjectUserId: resolvePrincipalAttribution(principal, {
-      workspaceBillingOwnerUserId: context.billedAccountUserId,
-    }).attributedUserId,
+    // actorless-unsupported: workflows.source.apply, .plan and .create admit only session, personal-key, OAuth or Copilot principals, never an executor or workspace key.
+    subjectUserId: requirePrincipalSubjectUserId(principal),
     folderId: target.kind === 'existing' ? target.context.workflow.folderId : target.folderId,
   }
 }
@@ -134,7 +135,6 @@ export async function loadSourceTarget(
   options: { loads?: SourceLoads; allocate: boolean }
 ): Promise<LoadedTarget> {
   const scope = sourceScope(principal, target)
-  const createdBy = resolvePrincipalSubjectUserId(principal) ?? null
   const loads = options.loads ?? {}
   const context =
     target.kind === 'existing'
@@ -147,7 +147,7 @@ export async function loadSourceTarget(
     prefetchStoredResources({
       workflowId: scope.workflowId,
       workspaceId: scope.workspaceId,
-      createdBy,
+      createdBy: scope.subjectUserId,
       allocate: options.allocate,
     }),
     (loads.envNames ??= loadEnvNames(scope.workspaceId, scope.subjectUserId)),
@@ -175,7 +175,6 @@ export async function loadSourceTarget(
         storedCanonical.resources
       ),
       envNames,
-      createdBy,
       scope,
     }
   })

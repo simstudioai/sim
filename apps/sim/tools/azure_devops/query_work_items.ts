@@ -19,6 +19,7 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
   description:
     'Execute a WIQL query to search for work items in Azure DevOps and return full field details. Supports flat queries and link queries (FROM WorkItemLinks). Use the top parameter to limit results.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

@@ -16,6 +16,7 @@ export const describeRouteTablesTool: InternalToolConfig<
   name: 'EC2 Describe Route Tables',
   description: 'List VPC route tables with their routes and subnet associations',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -19,6 +19,7 @@ export const quickbooksUpdateCreditMemoTool: InternalToolConfig<
   name: 'QuickBooks Update Credit Memo',
   description: 'Read, merge, and full-update a credit memo using its current sync token',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

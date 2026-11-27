@@ -22,6 +22,7 @@ export const listEntityTypesTool: ToolConfig<
   description:
     'List the monitored entity types available in the environment, with the properties and relationships each supports. Use it to build valid entity selectors.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

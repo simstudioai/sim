@@ -11,6 +11,7 @@ export const vercelDeleteWebhookTool: ToolConfig<
   name: 'Vercel Delete Webhook',
   description: 'Delete a webhook from a Vercel team',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

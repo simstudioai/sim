@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetStatesTool: ToolConfig<
   name: 'Get All States',
   description: 'Retrieve all possible motorsport fixture states from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

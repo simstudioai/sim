@@ -21,6 +21,7 @@ export const contextDevScrapeHtmlTool: ToolConfig<
   name: 'Context.dev Scrape HTML',
   description: 'Scrape any URL and return the raw HTML content of the page.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevScrapeHtmlParams>(),
 

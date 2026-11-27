@@ -15,6 +15,7 @@ export const eventSegmentationTool: ToolConfig<
   description:
     'Query event analytics data with segmentation. Get event counts, uniques, averages, and more.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {

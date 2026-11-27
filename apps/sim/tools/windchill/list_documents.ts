@@ -15,6 +15,7 @@ export const windchillListDocumentsTool: ToolConfig<WindchillParams, WindchillRe
   name: 'Windchill List Documents',
   description: 'List documents with an OData query, sorting, and pagination',
   version: '1.0.0',
+  effect: 'read',
   params: {
     baseUrl: {
       type: 'string',

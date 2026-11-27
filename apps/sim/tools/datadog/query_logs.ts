@@ -14,6 +14,7 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
   description:
     'Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or monitoring.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

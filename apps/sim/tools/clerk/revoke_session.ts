@@ -19,6 +19,7 @@ export const clerkRevokeSessionTool: ToolConfig<
   name: 'Revoke Session in Clerk',
   description: 'Revoke a session to immediately invalidate it',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

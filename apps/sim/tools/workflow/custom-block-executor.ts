@@ -24,6 +24,7 @@ export const customBlockExecutorTool: ToolConfig<CustomBlockExecutorParams> = {
   name: 'Custom Block Executor',
   description: 'Execute a published custom block (a workflow packaged as a reusable block).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     blockType: {
       type: 'string',

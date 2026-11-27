@@ -19,6 +19,7 @@ export const affinityGetTranscriptTool: ToolConfig<
   description:
     'Read one transcript with its first 100 fragments. Page the fragments endpoint for a longer meeting.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

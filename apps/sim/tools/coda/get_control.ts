@@ -19,6 +19,7 @@ export const codaGetControlTool: ToolConfig<CodaGetControlParams, CodaControlRes
   name: 'Coda Get Control',
   description: 'Get the type and current value of a control in a Coda doc',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

@@ -13,6 +13,7 @@ export const createNamedQueryTool: InternalToolConfig<
   name: 'Athena Create Named Query',
   description: 'Create a saved/named query in AWS Athena',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

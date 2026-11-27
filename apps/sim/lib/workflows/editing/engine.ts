@@ -30,6 +30,7 @@ import type {
   ApplyOperationsResult,
   EditWorkflowOperation,
   OperationContext,
+  RemovedEdge,
   ValidationError,
 } from './types'
 import { isDeferredSkippedItem, logSkippedItem, type SkippedItem } from './types'
@@ -298,9 +299,14 @@ export function applyOperationsToWorkflowState(
   // and deferred connections are applied so that every block has its final
   // parentId. Running it per-operation would incorrectly drop edges between
   // blocks that are both being moved into the same subflow in one batch. A dropped
-  // edge this batch created declines the operation that asked for it; an existing
+  // edge this batch created declines the operation that asked for it; a stored
   // edge a move left crossing scopes is the move's documented effect, not a refusal.
-  for (const edgeId of removeInvalidScopeEdges(modifiedState, skippedItems)) {
+  const { refusedEdgeIds, removedEdges } = removeInvalidScopeEdges(
+    modifiedState,
+    toArray<{ id: string }>(workflowState.edges),
+    skippedItems
+  )
+  for (const edgeId of refusedEdgeIds) {
     const origin = edgeOrigins.get(edgeId)
     if (origin !== undefined) declinedOperations.add(origin)
   }
@@ -350,6 +356,7 @@ export function applyOperationsToWorkflowState(
     validationErrors,
     skippedItems,
     declinedOperationCount: declinedOperations.size,
+    removedEdges,
     mintedBlockIds: Object.fromEntries(idMapping),
   }
 }
@@ -475,33 +482,57 @@ function resolvePendingConnections(
  * - Container→child: source is the parent container of the target (start handles)
  * - Child→container: target is the parent container of the source (end handles)
  *
- * Returns the ids of the dropped edges.
+ * An invalid edge this batch created is a refusal, recorded as a skipped item.
+ * An invalid edge the workflow already stored is removed and returned instead:
+ * moving a block into or out of a loop or parallel is what leaves one crossing
+ * the boundary, and refusing it would make an atomic batch unable to move a
+ * connected block at all.
  */
-function removeInvalidScopeEdges(modifiedState: any, skippedItems: SkippedItem[]): string[] {
+function removeInvalidScopeEdges(
+  modifiedState: any,
+  storedEdges: readonly { id: string }[],
+  skippedItems: SkippedItem[]
+): { refusedEdgeIds: string[]; removedEdges: RemovedEdge[] } {
   const { valid, dropped } = validateEdges(modifiedState.edges || [], modifiedState.blocks || {})
   modifiedState.edges = valid
+  if (dropped.length === 0) return { refusedEdgeIds: [], removedEdges: [] }
 
-  if (dropped.length > 0) {
-    for (const { edge, reason } of dropped) {
-      logSkippedItem(skippedItems, {
-        type: 'invalid_edge_scope',
-        operationType: 'add_edge',
-        blockId: edge.source,
-        reason: `Edge from "${edge.source}" to "${edge.target}" skipped - ${reason}`,
-        details: {
-          edgeId: edge.id,
-          sourceHandle: edge.sourceHandle,
-          targetHandle: edge.targetHandle,
-          targetId: edge.target,
-        },
+  const storedEdgeIds = new Set(storedEdges.map((edge) => edge.id))
+
+  const refusedEdgeIds: string[] = []
+  const removedEdges: RemovedEdge[] = []
+  for (const { edge, kind, reason } of dropped) {
+    if (storedEdgeIds.has(edge.id)) {
+      removedEdges.push({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle ?? 'source',
+        kind,
+        reason,
       })
+      continue
     }
-
-    logger.info('Removed invalid workflow edges', {
-      removed: dropped.length,
-      reasons: dropped.map(({ reason }) => reason),
+    refusedEdgeIds.push(edge.id)
+    logSkippedItem(skippedItems, {
+      type: 'invalid_edge_scope',
+      operationType: 'add_edge',
+      blockId: edge.source,
+      reason: `Edge from "${edge.source}" to "${edge.target}" skipped - ${reason}`,
+      details: {
+        edgeId: edge.id,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: edge.targetHandle,
+        targetId: edge.target,
+      },
     })
   }
 
-  return dropped.map(({ edge }) => edge.id)
+  logger.info('Removed invalid workflow edges', {
+    refused: refusedEdgeIds.length,
+    removed: removedEdges.length,
+    reasons: dropped.map(({ reason }) => reason),
+  })
+
+  return { refusedEdgeIds, removedEdges }
 }

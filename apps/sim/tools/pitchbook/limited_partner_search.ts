@@ -21,6 +21,7 @@ export const pitchbookLimitedPartnerSearchTool: ToolConfig<
   description:
     'Search PitchBook for limited partners by type, location, assets under management, and commitment activity',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -9,6 +9,7 @@ export const pitchbookFundBenchmarkTool: ToolConfig<PitchbookProfileParams, Pitc
   description:
     'Retrieve the peer benchmark for a fund: benchmark IRR, DPI, TVPI, RVPI, and the funds it is drawn from',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

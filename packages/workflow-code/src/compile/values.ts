@@ -15,7 +15,7 @@ import {
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
 import { literalText, memberName, memberSegment } from '../babel'
-import { builderOutputSchemas } from '../catalog/activity'
+import { builderProducedOutputs, errorOutputOf } from '../catalog/activity'
 import type { CatalogOutput } from '../catalog/types'
 import {
   ENV_VAR_NAME,
@@ -829,10 +829,11 @@ function checkOutputPath(
   // Table rows only refine the element type of `rows`/`row`; the outputs themselves are static.
   if (!block || (block.dynamicOutputs && block.dynamicOutputs.source !== 'tableRows')) return
   const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
-  const outputs = builderOutputSchemas(ctx.catalog, block, builder)
+  const { outputs } = builderProducedOutputs(ctx.catalog, block, builder)
   if (outputKnown(outputs, segments)) return
-  if (isErrorOutput(segments)) {
-    ctx.errorOutputRefs.push({ at, target, blockKey })
+  const errorOutput = errorOutputOf(block, segments)
+  if (errorOutput) {
+    ctx.errorOutputRefs.push({ at, target, blockKey, output: errorOutput })
     return
   }
   ctx.reporter.report(
@@ -844,27 +845,18 @@ function checkOutputPath(
 }
 
 /**
- * `x.error`: the message a failed block outputs when an error edge (`x.onError(y)`) leaves it,
- * which the executor returns as the block's output instead of failing the run
- * (`BlockExecutor`'s `errorOutput`). Any other block fails the run, so nothing reads it.
- */
-function isErrorOutput(segments: RefSegment[]): boolean {
-  return segments.length === 1 && segments[0].kind === 'name' && segments[0].name === 'error'
-}
-
-/**
- * Checks each `x.error` reference once the edges are known: `x` must have an error edge
- * (`x.onError(...)`), else the path reads nothing (`W_OUTPUT_PATH_UNDECLARED`).
+ * Checks each failure-output reference (`x.error`, `x.errorMessage`) once the edges are known: `x`
+ * must have an error edge (`x.onError(...)`), else the path reads nothing (`W_OUTPUT_PATH_UNDECLARED`).
  */
 export function checkErrorOutputRefs(ctx: CompileContext, erroring: ReadonlySet<BlockKey>): void {
-  for (const { at, target, blockKey } of ctx.errorOutputRefs) {
+  for (const { at, target, blockKey, output } of ctx.errorOutputRefs) {
     if (erroring.has(target.key)) continue
     ctx.reporter.report(
       'W_OUTPUT_PATH_UNDECLARED',
-      `${target.name} has no output error: only a block with an error edge outputs its failure message.`,
+      `${target.name} has no output ${output}: only a block with an error edge outputs its failure message.`,
       at,
       {
-        hint: `Wire ${target.ident ?? 'the block'}.onError(<handler>) and read ${target.ident ?? 'it'}.error in the handler.`,
+        hint: `Wire ${target.ident ?? 'the block'}.onError(<handler>) and read ${target.ident ?? 'it'}.${output} in the handler.`,
         blockKey,
       }
     )
@@ -928,10 +920,11 @@ export function checkDynamicOutputRefs(
     const [first] = segments
     if (fields === null || first?.kind !== 'name' || fields.includes(first.name)) continue
     const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
-    const outputs = builderOutputSchemas(ctx.catalog, block, builder)
+    const { outputs } = builderProducedOutputs(ctx.catalog, block, builder)
     if (outputKnown(outputs, segments)) continue
-    if (isErrorOutput(segments)) {
-      ctx.errorOutputRefs.push({ at, target, blockKey })
+    const errorOutput = errorOutputOf(block, segments)
+    if (errorOutput) {
+      ctx.errorOutputRefs.push({ at, target, blockKey, output: errorOutput })
       continue
     }
     const known = [...fields, ...Object.keys(outputs)]

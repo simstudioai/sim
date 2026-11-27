@@ -8,6 +8,7 @@ export const ripplingCreateDraftHiresTool: ToolConfig<RipplingCreateDraftHiresPa
   name: 'Rippling Create Draft Hires',
   description: 'Create bulk draft hires',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

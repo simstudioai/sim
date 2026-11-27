@@ -3994,7 +3994,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             expect(
               (calls[0].args as { request: { invocation: { argv: string[] } } }).request.invocation
                 .argv
-            ).toEqual(['workflows', 'run', draftId, '--manual', '--wait-timeout', '5'])
+            ).toEqual(['workflows', 'run', draftId, '--draft', '--wait-timeout', '5'])
             expect(calls[0].status).not.toBe('failed')
             expect(seen).toContain('"exitCode":4')
             expect(seen).toMatch(/"status": ?"running"/)
@@ -4076,7 +4076,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               'workflows',
               'run',
               draftId,
-              '--manual',
+              '--draft',
               '--wait-timeout',
               '240',
             ])
@@ -4119,7 +4119,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             // No single Sim call held the whole run.
             for (const call of calls) expect(heldSeconds(call)).toBeLessThan(250)
           } else {
-            expect(argvOf(runs[0])).toEqual(['workflows', 'run', draftId, '--manual'])
+            expect(argvOf(runs[0])).toEqual(['workflows', 'run', draftId, '--draft'])
             expect(waits).toHaveLength(0)
             expect(gets).toHaveLength(0)
             expect(outcome(runs[0]).exitCode).toBe(0)
@@ -4519,7 +4519,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         expect(JSON.parse(applied.stdout).skipped).toEqual([])
         for (const items of [[1, 3, 5], [7]]) {
           const executed = await runCli(
-            ['workflows', 'run', id, '--manual', '--input', JSON.stringify({ items })],
+            ['workflows', 'run', id, '--draft', '--input', JSON.stringify({ items })],
             identity,
             null
           )
@@ -4638,7 +4638,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           [750, 'large'],
         ] as const) {
           const executed = await runCli(
-            ['workflows', 'run', id, '--manual', '--input', JSON.stringify({ amount })],
+            ['workflows', 'run', id, '--draft', '--input', JSON.stringify({ amount })],
             identity,
             null
           )
@@ -4741,7 +4741,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           vi.useRealTimers()
         }
         const executed = await runCli(
-          ['workflows', 'run', id, '--manual', '--trigger', scheduled.id],
+          ['workflows', 'run', id, '--draft', '--trigger', scheduled.id],
           identity,
           null
         )
@@ -4778,7 +4778,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         const saved = runnableState(code)
         fixture.saved.set(workflowId, structuredClone(saved))
         const result = await runCli(
-          ['workflows', 'run', workflowId, '--manual', '--input', JSON.stringify({ amount: 21 })],
+          ['workflows', 'run', workflowId, '--draft', '--input', JSON.stringify({ amount: 21 })],
           identity,
           null
         )

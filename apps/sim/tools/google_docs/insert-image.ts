@@ -14,6 +14,7 @@ export const insertImageTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertI
   description:
     'Insert an inline image from a public URL into a Google Docs document. The image must be publicly accessible and under 50 MB. When no index is provided, the image is appended to the end of the document.',
   version: '1.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'google-docs',

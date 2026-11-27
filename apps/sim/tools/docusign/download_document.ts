@@ -12,6 +12,7 @@ export const docusignDownloadDocumentTool: InternalToolConfig<
   name: 'Download DocuSign Document',
   description: 'Download a signed document from a completed DocuSign envelope',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

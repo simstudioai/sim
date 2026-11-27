@@ -23,6 +23,7 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
   description:
     'Capture multiple events at once in PostHog. Use this for bulk event ingestion to improve performance.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     projectApiKey: {

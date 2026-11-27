@@ -9,6 +9,7 @@ export const outlookMarkReadTool: InternalToolConfig<
   name: 'Outlook Mark as Read',
   description: 'Mark an Outlook message as read',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

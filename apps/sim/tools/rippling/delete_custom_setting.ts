@@ -8,6 +8,7 @@ export const ripplingDeleteCustomSettingTool: ToolConfig<RipplingDeleteCustomSet
   name: 'Rippling Delete Custom Setting',
   description: 'Delete a custom setting',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

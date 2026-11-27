@@ -13,6 +13,7 @@ export const listTeamMembersTool: ToolConfig<
   name: 'Fathom List Team Members',
   description: 'List team members in your Fathom organization.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FATHOM_CREDENTIAL_OAUTH,
 
   params: {

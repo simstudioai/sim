@@ -19,6 +19,7 @@ export const kalshiGetExchangeStatusTool: ToolConfig<
   name: 'Get Exchange Status from Kalshi',
   description: 'Retrieve the current status of the Kalshi exchange (trading and exchange activity)',
   version: '1.0.0',
+  effect: 'read',
 
   params: {},
 
@@ -85,6 +86,7 @@ export const kalshiGetExchangeStatusV2Tool: ToolConfig<
   name: 'Get Exchange Status from Kalshi V2',
   description: 'Retrieve the current status of the Kalshi exchange',
   version: '2.0.0',
+  effect: 'read',
 
   params: {},
 

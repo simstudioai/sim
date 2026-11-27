@@ -184,3 +184,27 @@ export function buildWorkflowOutputMenu(
 
   return roots
 }
+
+/**
+ * One option per block of `blockType`, selecting `path` even when the block does not list it.
+ * An Agent with a response format lists its schema fields instead of `content`, yet still streams
+ * through `content`.
+ */
+export function selectBlockPathOptions(
+  options: readonly WorkflowOutputOption[],
+  blockType: string,
+  path: string
+): WorkflowOutputOption[] {
+  const byBlock = new Map<string, WorkflowOutputOption>()
+  for (const option of options) {
+    if (option.blockType !== blockType || byBlock.has(option.groupKey)) continue
+    const blockName = normalizeName(option.blockName || `block-${option.blockId}`)
+    byBlock.set(option.groupKey, {
+      ...option,
+      id: formatInternalOutputSelector(option.blockId, path, option.workflowId),
+      label: formatPublicOutputSelector(blockName, path, option.workflowId),
+      path,
+    })
+  }
+  return [...byBlock.values()]
+}

@@ -9,6 +9,7 @@ export const getGuestTool: ToolConfig<LumaGetGuestParams, LumaGetGuestResponse> 
   description:
     "Retrieve a single guest's details on a Luma event, including approval status, registration timestamps, and contact info.",
   version: '1.0.0',
+  effect: 'read',
   oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {

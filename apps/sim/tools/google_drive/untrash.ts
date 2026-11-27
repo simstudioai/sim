@@ -18,6 +18,7 @@ export const untrashTool: ToolConfig<GoogleDriveUntrashParams, GoogleDriveUntras
   name: 'Restore Google Drive File',
   description: 'Restore a file from the trash in Google Drive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

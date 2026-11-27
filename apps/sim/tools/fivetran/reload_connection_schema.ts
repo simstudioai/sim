@@ -27,6 +27,7 @@ export const fivetranReloadConnectionSchemaTool: ToolConfig<
   description:
     'Reload the schema config of a Fivetran connection from its source to pick up new schemas, tables, and columns. Large sources can take a long time.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

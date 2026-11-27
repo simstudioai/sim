@@ -82,6 +82,7 @@ export const {serviceName}{Action}Tool: ToolConfig<
   name: '{Service} {Action}',         // Human readable
   description: 'Brief description',   // One sentence
   version: '1.0.0',
+  effect: 'write',                    // 'read' only if it changes nothing outside Sim (see Declaring the effect)
 
   // Required whenever the tool takes a saved credential — browser OAuth or service account
   oauth: {
@@ -164,6 +165,7 @@ export const {serviceName}{Action}Tool: InternalToolConfig<
   name: '{Service} {Action}',
   description: 'Brief description',
   version: '1.0.0',
+  effect: 'write', // `read` only once you have verified the operation changes nothing outside Sim
   params: {
     // Same canonical metadata as an external tool.
   },
@@ -182,6 +184,71 @@ The registered handler accepts `InternalToolOperationCall`, validates `request.i
 trusted `request.context` for authority, forwards `request.signal`, and returns the same bounded
 `Response` contract expected by the tool executor. It has no URL, method, request headers, fetch
 fallback, or caller-controlled `_context` authority.
+
+## Declaring the effect
+
+Every tool declares `effect: 'read' | 'write'` (required by `ToolConfig`, so type-check fails a tool
+without one). It is public catalog metadata: Assistant applies its read or write policy by it, and
+`sim blocks get` and `sim workflows source params` show it to agents.
+Labelling a write `read` is the one unsafe mistake, so classify from the provider's documented
+semantics, never the name alone.
+
+`read` means the call changes nothing outside Sim: no create, update, delete, send, post, trigger,
+enqueue, consume, or mark-read; starts no asynchronous provider job or query execution (one with its own id that
+can keep running), even a short-lived one; a synchronous read-only query is fine; leaves no run, conversation, history item, or other resource in an account; no contact data revealed for credits; no external delivery. Usage billing for the call
+itself does not count. `write` is anything else.
+
+**Contact reveals:** revealing a person's contact data (email, phone) for credits is `write`: an
+email or phone finder, a person enrichment that returns an email or phone, and a domain search that
+lists people's emails are `write` even over GET (carry `// tool-effect:`). Company/firmographic
+lookups and verifications that only spend lookup credits are `read`: a company enrichment, a people
+search that returns no email or phone, and an email verifier.
+
+- `read`: GET/HEAD reads, and POST endpoints the docs define as search, query, list, get, lookup, or
+  verify; LLM, embedding, transcription, TTS, and media-generation calls that leave nothing in the
+  provider account; queries the server enforces as read-only (a read-only transaction or setting,
+  never a client-side screen alone).
+- `write`: an effect that depends on the params (a `method` param or function-valued
+  `request.method` that can pick PUT/PATCH/DELETE or a mutating POST, raw SQL or Cypher the server
+  does not restrict to reads, a generic RPC or command); a GET whose `transformResponse` or
+  `postProcess` then writes; a read that consumes or acknowledges (a queue receive, mark-as-read);
+  media generation, transcription, crawls, exports, and research or agent runs that leave a job,
+  run, asset, or history item in the provider account; a chat that keeps a conversation; a reveal
+  or enrichment that creates a resource or delivers to a webhook; anything that saves to the
+  workspace. When unsure, `write`.
+- PUT/PATCH/DELETE are `write`. A static GET/HEAD labelled `write`, or PUT/PATCH/DELETE labelled
+  `read`, fails the audit unless the `effect` line carries `// tool-effect: <reason>` on one of the
+  two lines above it; use it only for a genuine exception such as a GET that writes in `postProcess`.
+- A factory that builds tools from definitions takes `effect` per definition and passes it through.
+- Prove the labels with a dry run, against a test account or test resource (a `read` runs for real,
+  so a write mislabelled `read` is sent): put the block in a workflow and run
+  `sim workflows run <workflowId> --dry --input '{…}'`. Each `write` call must appear in the result's
+  `sideEffects.stubbed` with the request you expect (an HTTP tool's `method`, `url` and `body`, or an
+  in-process operation's input, credentials redacted), and each `read` must run for real and return
+  live data; a read listed there is labelled `write`, unless its entry has `reason: "placeholder"`
+  (it would have sent a stubbed write's placeholder id, so give it a real id). A write missing
+  from `stubbed` may not have been reached (an untaken branch, or a block answered by `--mock`),
+  so first confirm its block ran in the trace: a reached write is absent only when its block was
+  `--allow`ed and sent it for real, so a reached, unallowed write missing from `stubbed` is
+  labelled `read`. `stubbed` keeps at most
+  50 entries and counts the rest in `sideEffects.omitted.stubbed`, so a write past the cap is
+  counted, not missing: test one tool per run, or few enough to fit. An entry's `request` is `null`
+  when the run cannot vouch that no secret remains in it, or cannot build it once secrets are
+  masked (a URL that is wholly a secret); then check the tool label alone and compare the request
+  fields only on entries that carry one.
+- A dry run answers a `write` with a sample of its `outputs`. When downstream blocks read output the
+  request alone determines (a table write's `row.data`, a file write's requested name), declare a
+  pure `dryRunOutput(params)` returning just those fields; it gets params with secrets masked. It is
+  laid over the sample by the declared schema: field by field where an output declares `properties`,
+  item by item where an array declares `items` (undeclared fields are dropped), and whole anywhere
+  else, so return an undeclared shape (a `json` row) complete, with placeholders for what the request
+  cannot know. Never guess at what the provider or stored state would add (a collision suffix on a
+  file name, an id, a key resolved to an id, a default the provider picks): an id it would assign is
+  `dryRunId(kind, n)` from `@/tools/dry-run` (`dry_run_record_1`), and anything else is left out so
+  the sample stands. When the request builder normalises a param (parses a JSON string, builds rows
+  from objects), move that into a named helper the `body`/`operation.input` and the hook both call
+  (`appendSheetRows`, `parseHubSpotProperties`); never re-derive the request in the hook. Echoing a
+  secret is safe only because params arrive masked: never read credentials from anywhere else.
 
 ## Critical Rules for Parameters
 
@@ -606,6 +673,8 @@ If creating V2 tools (API-aligned outputs), use `_v2` suffix:
 ## Checklist Before Finishing
 
 - [ ] All tool IDs use snake_case
+- [ ] Every tool declares `effect`, classified by the rules in Declaring the effect, and
+      `bun run check:tool-effects` passes
 - [ ] Chose exactly one boundary: registered `InternalToolConfig.operation` or absolute external
       HTTP(S) `ToolConfig.request`
 - [ ] No tool request points to `/api/...`, constructs a URL back to Sim, or declares

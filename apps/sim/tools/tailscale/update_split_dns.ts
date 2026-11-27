@@ -16,6 +16,7 @@ export const tailscaleUpdateSplitDnsTool: ToolConfig<
   name: 'Tailscale Update Split DNS',
   description: 'Update selected split DNS resolvers',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

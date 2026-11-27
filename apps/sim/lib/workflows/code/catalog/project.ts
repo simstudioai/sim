@@ -2,7 +2,6 @@ import {
   type CatalogBlock,
   type CatalogBlockGraph,
   type CatalogCondition,
-  type CatalogLegacyId,
   type CatalogOption,
   type CatalogOutput,
   type CatalogSubBlock,
@@ -20,11 +19,8 @@ import { UNIFIED_START_OUTPUTS } from '@/lib/workflows/blocks/start-outputs'
 import { probeThunk, readsOnly } from '@/lib/workflows/code/catalog/probe'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { deriveValueShape } from '@/lib/workflows/code/catalog/value-kind'
-import {
-  CANONICAL_ID_MIGRATIONS,
-  SUBBLOCK_ID_MIGRATIONS,
-} from '@/lib/workflows/migrations/subblock-migrations'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
+import { accessIdEffect, blockEffect } from '@/blocks/access-effect'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import {
   isHumanInTheLoopBlock,
@@ -404,6 +400,7 @@ const OUTPUT_META_KEYS = new Set([
   'description',
   'condition',
   'hiddenFromDisplay',
+  'mayBeText',
   'nullable',
   'properties',
   'items',
@@ -447,6 +444,7 @@ function projectOutput(definition: unknown): CatalogOutput | undefined {
     output.condition = copyOutputCondition(record.condition as OutputCondition)
   }
   if (typed && record.hiddenFromDisplay === true) output.hiddenFromDisplay = true
+  if (typed && record.mayBeText === true) output.mayBeText = true
 
   const nested: Record<string, unknown> = {}
   if (record.properties && typeof record.properties === 'object') {
@@ -466,22 +464,43 @@ function projectOutput(definition: unknown): CatalogOutput | undefined {
 }
 
 /**
- * Per operation, the block outputs its tool declares and which of them it may return as `null`,
- * when the operation picks the tool (`tools.selector: 'operation'`). Kept only where that differs
- * from every block output, non-null.
+ * Each operation's tool id, when the operation alone picks a tool in `tools.access` for every
+ * operation (`tools.selector: 'operation'`); `null` otherwise.
  */
-function projectOperationOutputs(
+function resolveOperationTools(
   block: BlockConfig,
-  operations: readonly string[],
-  outputNames: readonly string[]
-): CatalogBlock['operationOutputs'] {
+  operations: readonly string[]
+): Map<string, string> | null {
   const selectTool = block.tools.config?.tool
-  if (!selectTool) return undefined
-  const projected: NonNullable<CatalogBlock['operationOutputs']> = {}
+  if (!selectTool || operations.length === 0) return null
+  const access = new Set(block.tools.access)
+  const operationTools = new Map<string, string>()
   for (const operation of operations) {
     const probe = probeThunk(selectTool, { operation })
-    if (!probe.ok || typeof probe.result !== 'string') continue
-    const toolOutputs = getToolOutputsMetadata(probe.result)
+    if (
+      !probe.ok ||
+      !readsOnly(probe.reads, OPERATION_ONLY) ||
+      typeof probe.result !== 'string' ||
+      !access.has(probe.result)
+    ) {
+      return null
+    }
+    operationTools.set(operation, probe.result)
+  }
+  return operationTools
+}
+
+/**
+ * Per operation, the block outputs its tool declares and which of them it may return as `null`.
+ * Kept only where that differs from every block output, non-null.
+ */
+function projectOperationOutputs(
+  operationTools: ReadonlyMap<string, string>,
+  outputNames: readonly string[]
+): CatalogBlock['operationOutputs'] {
+  const projected: NonNullable<CatalogBlock['operationOutputs']> = {}
+  for (const [operation, toolId] of operationTools) {
+    const toolOutputs = getToolOutputsMetadata(toolId)
     if (!toolOutputs) continue
     const names = outputNames.filter((name) => Object.hasOwn(toolOutputs, name))
     const nullable = names.filter((name) => toolOutputs[name]?.nullable === true)
@@ -491,23 +510,33 @@ function projectOperationOutputs(
   return Object.keys(projected).length > 0 ? projected : undefined
 }
 
-function projectTools(block: BlockConfig, operations: readonly string[]): CatalogBlock['tools'] {
+/**
+ * The block's effect ({@link blockEffect}), and, when the operation picks the tool, each operation
+ * whose tool differs from it. An opaque selector cannot be probed, so its operations inherit the
+ * block effect.
+ */
+function projectEffects(
+  block: BlockConfig,
+  operationTools: ReadonlyMap<string, string> | null
+): Pick<CatalogBlock, 'effect' | 'operationEffects'> {
+  const effect = blockEffect(block)
+  if (effect === undefined) return {}
+  if (effect === 'read' || !operationTools) return { effect }
+  const operationEffects: NonNullable<CatalogBlock['operationEffects']> = {}
+  for (const [operation, toolId] of operationTools) {
+    const operationEffect = accessIdEffect(toolId)
+    if (operationEffect !== effect) operationEffects[operation] = operationEffect
+  }
+  return Object.keys(operationEffects).length > 0 ? { effect, operationEffects } : { effect }
+}
+
+function projectTools(
+  block: BlockConfig,
+  operationTools: ReadonlyMap<string, string> | null
+): CatalogBlock['tools'] {
   const access = [...block.tools.access]
-  const selectTool = block.tools.config?.tool
-  if (!selectTool) return { access, selector: 'single' }
-  const accessSet = new Set(access)
-  const perOperation =
-    operations.length > 0 &&
-    operations.every((operation) => {
-      const probe = probeThunk(selectTool, { operation })
-      return (
-        probe.ok &&
-        readsOnly(probe.reads, OPERATION_ONLY) &&
-        typeof probe.result === 'string' &&
-        accessSet.has(probe.result)
-      )
-    })
-  return { access, selector: perOperation ? 'operation' : 'opaque' }
+  if (!block.tools.config?.tool) return { access, selector: 'single' }
+  return { access, selector: operationTools ? 'operation' : 'opaque' }
 }
 
 function projectGraph(block: BlockConfig): CatalogBlockGraph {
@@ -561,20 +590,6 @@ function projectDynamicOutputs(block: BlockConfig): CatalogBlock['dynamicOutputs
     : { source: 'inputFormat', param: inputFormat.id }
 }
 
-function projectLegacyIds(type: string): CatalogLegacyId[] | undefined {
-  const migrations = SUBBLOCK_ID_MIGRATIONS[type]
-  if (!migrations?.length) return undefined
-  return migrations.map((migration) => {
-    const legacy: CatalogLegacyId = {
-      from: migration.from,
-      to: migration.to.startsWith('_removed_') ? null : migration.to,
-    }
-    if (migration.whenOperation) legacy.whenOperation = [...migration.whenOperation]
-    if (migration.whenValue) legacy.conditional = true
-    return legacy
-  })
-}
-
 /** A block's literal `model` options and static dropdown values, for model-condition probes. */
 function conditionChoices(block: BlockConfig): Pick<ConditionInputs, 'models' | 'choices'> {
   let models: string[] = []
@@ -604,6 +619,7 @@ function builtInOutputs(block: BlockConfig): BlockConfig['outputs'] {
 /** Projects one registry block (built-in or custom) into the core-shard shape. */
 export function projectBlock(block: BlockConfig): CatalogBlock {
   const operations = operationOptions(block).map((operation) => operation.id)
+  const operationTools = resolveOperationTools(block, operations)
   const tagSurface = block.subBlocks.some((subBlock) => subBlockSurface(subBlock) === 'trigger')
   const ctx: SubBlockContext = {
     operations,
@@ -616,7 +632,7 @@ export function projectBlock(block: BlockConfig): CatalogBlock {
     name: block.name,
     category: block.category,
     subBlocks: block.subBlocks.map((subBlock) => projectSubBlock(subBlock, ctx)),
-    tools: projectTools(block, operations),
+    tools: projectTools(block, operationTools),
     outputs: projectOutputRecord(builtInOutputs(block)),
     graph: projectGraph(block),
   }
@@ -629,14 +645,11 @@ export function projectBlock(block: BlockConfig): CatalogBlock {
       ? { status: block.sunset.status, replacedBy: block.sunset.replacedBy }
       : { status: block.sunset.status }
   }
-  if (projected.tools.selector === 'operation') {
-    const operationOutputs = projectOperationOutputs(
-      block,
-      operations,
-      Object.keys(projected.outputs)
-    )
+  if (operationTools) {
+    const operationOutputs = projectOperationOutputs(operationTools, Object.keys(projected.outputs))
     if (operationOutputs) projected.operationOutputs = operationOutputs
   }
+  Object.assign(projected, projectEffects(block, operationTools))
   if (Object.keys(lifecycle).length > 0) projected.lifecycle = lifecycle
   if (block.hideFromToolbar) projected.addable = false
   assign(projected, 'triggerAllowed', block.triggerAllowed)
@@ -649,12 +662,7 @@ export function projectBlock(block: BlockConfig): CatalogBlock {
   assign(projected, 'singleInstance', block.singleInstance)
   const dynamicOutputs = projectDynamicOutputs(block)
   if (dynamicOutputs) projected.dynamicOutputs = dynamicOutputs
-  const legacyIds = projectLegacyIds(block.type)
-  if (legacyIds) projected.legacyIds = legacyIds
-  const legacyCanonicalIds = CANONICAL_ID_MIGRATIONS[block.type]
-  if (legacyCanonicalIds?.length) {
-    projected.legacyCanonicalIds = legacyCanonicalIds.map(({ from, to }) => ({ from, to }))
-  }
+  if (block.errorOutputs) projected.errorOutputs = Object.keys(block.errorOutputs)
   if (block.sourceWorkflowId !== undefined) {
     projected.custom = { sourceWorkflowId: block.sourceWorkflowId }
   }

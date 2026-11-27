@@ -6,8 +6,12 @@ import type { Edge } from '@xyflow/react'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
+/** Why an edge was dropped; `scope` is an edge crossing a loop's or parallel's boundary. */
+export type DroppedEdgeKind = 'missing_block' | 'annotation_only' | 'trigger_target' | 'scope'
+
 interface DroppedEdge {
   edge: Edge
+  kind: DroppedEdgeKind
   reason: string
 }
 
@@ -28,7 +32,7 @@ export function validateEdges(
     const targetBlock = blocks[edge.target]
 
     if (!sourceBlock || !targetBlock) {
-      dropped.push({ edge, reason: 'edge references a missing block' })
+      dropped.push({ edge, kind: 'missing_block', reason: 'edge references a missing block' })
       continue
     }
 
@@ -36,18 +40,26 @@ export function validateEdges(
       isWorkflowAnnotationOnlyBlockType(sourceBlock.type) ||
       isWorkflowAnnotationOnlyBlockType(targetBlock.type)
     ) {
-      dropped.push({ edge, reason: 'edge references an annotation-only block' })
+      dropped.push({
+        edge,
+        kind: 'annotation_only',
+        reason: 'edge references an annotation-only block',
+      })
       continue
     }
 
     if (TriggerUtils.isTriggerBlock(targetBlock)) {
-      dropped.push({ edge, reason: 'trigger blocks cannot be edge targets' })
+      dropped.push({
+        edge,
+        kind: 'trigger_target',
+        reason: 'trigger blocks cannot be edge targets',
+      })
       continue
     }
 
     const scopeDropReason = getWorkflowEdgeScopeDropReason(edge, blocks)
     if (scopeDropReason) {
-      dropped.push({ edge, reason: scopeDropReason })
+      dropped.push({ edge, kind: 'scope', reason: scopeDropReason })
       continue
     }
 

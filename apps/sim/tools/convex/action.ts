@@ -13,6 +13,7 @@ export const actionTool: ToolConfig<ConvexFunctionCallParams, ConvexFunctionCall
   name: 'Convex Run Action',
   description: 'Run a Convex action function and return its result',
   version: '1.0.0',
+  effect: 'write',
   oauth: CONVEX_CREDENTIAL_OAUTH,
 
   params: {

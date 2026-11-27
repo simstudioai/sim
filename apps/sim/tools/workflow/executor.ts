@@ -18,6 +18,7 @@ export const workflowExecutorTool: InternalToolConfig<
   description:
     'Execute another workflow as a sub-workflow. Pass inputs as a JSON object with field names matching the child workflow\'s input format. Example: if child expects "name" and "email", pass {"name": "John", "email": "john@example.com"}',
   version: '1.0.0',
+  effect: 'write',
   params: {
     workflowId: {
       type: 'string',

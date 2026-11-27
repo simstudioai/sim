@@ -16,6 +16,7 @@ export const storageEmptyBucketTool: ToolConfig<
   description:
     'Delete all objects inside a Supabase storage bucket without deleting the bucket itself',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const zohoDeskAddCommentTool: ToolConfig<ZohoDeskAddCommentParams, ZohoDe
   name: 'Zoho Desk Add Comment',
   description: 'Add a comment to a Zoho Desk ticket.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'zoho-desk' },
 

@@ -13,6 +13,7 @@ export const trelloCreateListTool: ToolConfig<TrelloCreateListParams, TrelloCrea
   name: 'Trello Create List',
   description: 'Create a new list on a Trello board',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

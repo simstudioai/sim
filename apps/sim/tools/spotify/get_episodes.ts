@@ -29,6 +29,7 @@ export const spotifyGetEpisodesTool: ToolConfig<
   name: 'Spotify Get Multiple Episodes',
   description: 'Get details for multiple podcast episodes.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

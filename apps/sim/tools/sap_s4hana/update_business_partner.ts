@@ -11,6 +11,7 @@ export const updateBusinessPartnerTool: InternalToolConfig<
   description:
     'Update fields on an A_BusinessPartner entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates. Deep updates on nested associations (e.g. to_BusinessPartnerAddress) are not supported by SAP (KBA 2833338) — use the dedicated child endpoints.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     subdomain: {
       type: 'string',

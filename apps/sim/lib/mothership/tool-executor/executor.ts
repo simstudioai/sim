@@ -84,7 +84,7 @@ export async function executeTool(
       return { success: false, error: 'Invalid organization execution scope' }
     const organizationTools =
       context.requestMode === 'assistant'
-        ? ['search_workspace', 'read_document', 'oauth_get_auth_link']
+        ? [...ASSISTANT_TOOLS].filter((id) => id !== 'run_function')
         : [
             'list_workspaces',
             'search_workspace',

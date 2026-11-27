@@ -6,6 +6,7 @@ export const slackListsItemsDeleteMultipleTool = createSlackWebApiTool({
   id: 'slack_lists_items_delete_multiple',
   name: 'Slack Delete List Items',
   description: 'Delete multiple rows from a Slack List in one call.',
+  effect: 'write',
   endpoint: 'slackLists.items.deleteMultiple',
   method: 'POST',
   oauth: {

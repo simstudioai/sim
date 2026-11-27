@@ -14,6 +14,7 @@ export const listCommentsTool: ToolConfig<
   name: 'WordPress List Comments',
   description: 'List comments from WordPress.com with optional filters',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

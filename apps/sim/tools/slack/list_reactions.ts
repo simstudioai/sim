@@ -13,6 +13,7 @@ export const slackListReactionsTool = createSlackWebApiTool({
   name: 'Slack List Reactions',
   description:
     'List one page of items reacted to by a user. Continue with response_metadata.next_cursor.',
+  effect: 'read',
   endpoint: 'reactions.list',
   method: 'GET',
   oauth: { required: true, provider: 'slack', requiredScopes: ['reactions:read'] },

@@ -18,6 +18,7 @@ export const slackListsItemsInfoTool: ToolConfig<
   name: 'Slack Lists Get Item',
   description: 'Read a Slack List row and its parent List column schema.',
   version: '1.0.0',
+  effect: 'read',
   oauth: {
     required: true,
     provider: 'slack',

@@ -5,6 +5,7 @@
  * exit with.
  */
 
+import type { NextStep } from '#sim-cli/output/next-step'
 import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
 import { setSoftExitCode } from '../../embed-context'
 import { SourceDirError } from './local-errors'
@@ -17,12 +18,6 @@ import {
   type WriteMode,
 } from './source-ui'
 
-/** The next step a result names: a command and why to run it. */
-export interface NextStep {
-  command: string
-  reason: string
-}
-
 /** What a write answers with, as far as the flow reads it: its findings. */
 interface WriteAnswer {
   diagnostics: ReadonlyArray<Pick<Diagnostic, 'code' | 'severity'>>
@@ -31,7 +26,7 @@ interface WriteAnswer {
 /** One source write as {@link runSourceWrite} drives it. */
 export interface SourceWriteFlow<D extends WriteAnswer> {
   mode: WriteMode
-  /** The dry run that previews the write, and is the whole of a `--dry-run`. */
+  /** The dry run that previews the write, and is the whole of a `--dry`. */
   preview(): Promise<D>
   /** Prints a preview: its findings (and a workspace's plan). */
   show(preview: D): void
@@ -68,7 +63,7 @@ export interface SourceWriteFlow<D extends WriteAnswer> {
 
 /**
  * Runs `flow`: in every mode but `write`, previews it and prints the preview, exiting with the
- * refusal's status on errors; a `dry-run` or a refused preview is reported there, a `plan` stops
+ * refusal's status on errors; a `dry` or a refused preview is reported there, a `plan` stops
  * with {@link stopAtPlan}, and `ask` asks. Then sends the write and saves its answer with Ctrl-C
  * held ({@link deferInterrupts}), so an interrupt never strands a stored write the directory did
  * not record. Returns the committed answer for the caller to finish and report, or `null` when
@@ -84,7 +79,7 @@ export async function runSourceWrite<D extends WriteAnswer>(
     if (preview.diagnostics.some((finding) => finding.severity === 'error')) {
       setSoftExitCode(flow.previewExitCode?.(preview) ?? refusedExitCode(preview.diagnostics))
     }
-    if (flow.mode === 'dry-run' || flow.refuses(preview)) {
+    if (flow.mode === 'dry' || flow.refuses(preview)) {
       flow.report(preview)
       return null
     }

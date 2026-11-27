@@ -82,6 +82,7 @@ export const intercomCreateNoteV2Tool: ToolConfig<
   name: 'Create Note in Intercom',
   description: 'Add a note to a specific contact',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

@@ -8,6 +8,7 @@ export const queryTool: ToolConfig<GreptileQueryParams, GreptileQueryResponse> =
   description:
     'Retired: Greptile removed the POST /v2/query endpoint (it returns 404) with no documented replacement, so this call fails. Kept so saved workflows still load.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

@@ -53,7 +53,19 @@ describe('Enterprise subscription metadata', () => {
       monthlyPrice: 500,
       invoiceAmountUsd: 500,
       seats: 25,
+      selfServe: false,
     })
+  })
+
+  it('enables self-serve only for the exact string true', () => {
+    for (const selfServe of ['false', 'TRUE', '1', '']) {
+      expect(
+        parseEnterpriseSubscriptionMetadata({ ...REQUIRED_METADATA, selfServe })
+      ).toMatchObject({ selfServe: false })
+    }
+    expect(
+      parseEnterpriseSubscriptionMetadata({ ...REQUIRED_METADATA, selfServe: 'true' })
+    ).toMatchObject({ selfServe: true })
   })
 
   it('prefers the neutral invoice amount for annual Enterprise metadata', () => {

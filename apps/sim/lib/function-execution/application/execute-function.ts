@@ -6,6 +6,7 @@ import { functionExecutionDelegationPolicy } from '@/lib/function-execution/appl
 import { functionExecutionOperations } from '@/lib/function-execution/application/operations'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import type { CodeNetwork } from '@/tools/side-effects'
 
 export interface ExecuteFunctionInput {
   workspaceId: string
@@ -15,6 +16,8 @@ export interface ExecuteFunctionInput {
   sandboxProfile?: 'mothership'
   /** Trusted in-process provenance state; never accepted from the Function request body. */
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  /** The run's side-effect policy for this code; trusted in-process state like the registry. */
+  codeNetwork?: CodeNetwork
 }
 
 /**
@@ -65,6 +68,7 @@ export const executeFunction = defineAuthorizedWorkspaceUseCase({
           : {}),
         ...(subject?.kind === 'sim_user' ? { fileAccessUserId: subject.userId } : {}),
         ...(input.sandboxProfile ? { sandboxProfile: input.sandboxProfile } : {}),
+        ...(input.codeNetwork ? { codeNetwork: input.codeNetwork } : {}),
       }
     )
   },

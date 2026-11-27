@@ -14,6 +14,7 @@ export const createDashboardTool: ToolConfig<CreateDashboardParams, CreateDashbo
   name: 'Datadog Create Dashboard',
   description: 'Create a dashboard from a title, layout type, and widget definitions.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

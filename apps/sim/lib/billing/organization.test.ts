@@ -211,7 +211,6 @@ describe('syncSubscriptionUsageLimits', () => {
 
   it('keeps prepaid headroom additive when a Team seat increase raises the base', async () => {
     mockGetOrganizationIdForSubscriptionReference.mockResolvedValue('org-1')
-    mockGetPlanPricing.mockReturnValue({ basePrice: 25 })
 
     await syncSubscriptionUsageLimits({
       id: 'sub-1',
@@ -225,7 +224,7 @@ describe('syncSubscriptionUsageLimits', () => {
     const expression = JSON.stringify(update?.orgUsageLimit)
     expect(expression).toContain('greatest')
     expect(expression).toContain('creditBalance')
-    expect(expression).toContain('50')
+    expect(expression).toContain('60')
     expect(expression).not.toContain('0.001')
   })
 })

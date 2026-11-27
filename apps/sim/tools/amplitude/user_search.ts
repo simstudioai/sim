@@ -12,6 +12,7 @@ export const userSearchTool: ToolConfig<AmplitudeUserSearchParams, AmplitudeUser
   description:
     'Search for a user by User ID, Device ID, or Amplitude ID using the Dashboard REST API.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {

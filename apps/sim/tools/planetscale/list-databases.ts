@@ -28,6 +28,7 @@ export const planetScaleListDatabasesTool: ToolConfig<
   name: 'PlanetScale List Databases',
   description: 'List databases',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

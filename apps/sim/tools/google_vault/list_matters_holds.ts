@@ -8,6 +8,7 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
   name: 'Vault List Holds',
   description: 'List holds for a matter',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

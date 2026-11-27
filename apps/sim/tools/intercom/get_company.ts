@@ -56,6 +56,7 @@ export const intercomGetCompanyTool: ToolConfig<
   name: 'Get Company from Intercom',
   description: 'Retrieve a single company by ID from Intercom',
   version: '1.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...getCompanyBase,
@@ -131,6 +132,7 @@ export const intercomGetCompanyV2Tool: ToolConfig<
   name: 'Get Company from Intercom',
   description: 'Retrieve a single company by ID from Intercom',
   version: '2.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

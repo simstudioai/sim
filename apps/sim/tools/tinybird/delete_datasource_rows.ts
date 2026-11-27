@@ -23,6 +23,7 @@ export const deleteDatasourceRowsTool: ToolConfig<
   name: 'Tinybird Delete Data Source Rows',
   description: 'Delete rows from a Tinybird Data Source matching a SQL condition.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 

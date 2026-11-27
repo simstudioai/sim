@@ -12,6 +12,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
   description:
     'Search documents in Elasticsearch using Query DSL. Returns matching documents with scores and metadata.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     deploymentType: {

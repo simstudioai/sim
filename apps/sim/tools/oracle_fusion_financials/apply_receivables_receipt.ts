@@ -18,6 +18,7 @@ export const oracleFusionFinancialsApplyReceivablesReceiptTool: InternalToolConf
   description:
     'Apply a standard receipt to a Receivables invoice installment. An omitted amount applies the full open transaction balance.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     receivablesReceiptId: {

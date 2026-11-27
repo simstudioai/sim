@@ -10,6 +10,7 @@ export const deleteParameterTool: InternalToolConfig<
   name: 'SSM Delete Parameter',
   description: 'Delete a parameter from AWS Systems Manager Parameter Store',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

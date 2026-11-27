@@ -6,6 +6,7 @@ export const createNoteTool: ToolConfig<ObsidianCreateNoteParams, ObsidianCreate
   name: 'Obsidian Create Note',
   description: 'Create or replace a note in your Obsidian vault',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

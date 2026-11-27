@@ -29,6 +29,7 @@ export const managedAgentDeleteSessionTool: InternalToolConfig<
   description:
     'Permanently delete a Managed Agent session, its events, and its sandbox. Not reversible.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

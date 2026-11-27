@@ -12,6 +12,7 @@ export const closeSessionTool: ToolConfig<ExcelSessionParams, ExcelCloseSessionR
   name: 'Microsoft Excel Close Session',
   description: 'Close Session in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: {

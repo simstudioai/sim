@@ -13,6 +13,7 @@ export const deleteAnnotationTool: ToolConfig<
   name: 'Grafana Delete Annotation',
   description: 'Delete an annotation by its ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

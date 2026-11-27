@@ -15,6 +15,7 @@ export const linqListPhoneNumbersTool: ToolConfig<
   name: 'List Phone Numbers',
   description: 'List all phone numbers assigned to your partner account, with line health',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

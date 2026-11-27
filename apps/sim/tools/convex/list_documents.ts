@@ -14,6 +14,7 @@ export const listDocumentsTool: ToolConfig<ConvexListDocumentsParams, ConvexList
     description:
       'List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page. Requires streaming export, available on Convex paid plans.',
     version: '1.0.0',
+    effect: 'read',
     oauth: CONVEX_CREDENTIAL_OAUTH,
 
     params: {

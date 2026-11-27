@@ -1,3 +1,4 @@
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
 import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
 import {
   billingPlanHelpersMock,
@@ -26,6 +27,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/components/emails', () => emailTemplatesMock)
 
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
 vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
@@ -143,6 +145,7 @@ describe('invoice billing recovery', () => {
     urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
     mockBlockOrgMembers.mockResolvedValue(2)
     mockUnblockOrgMembers.mockResolvedValue(2)
+    billingAccessMockFns.mockHasBillingBlockFor.mockResolvedValue(true)
   })
 
   it('blocks org members when a metadata-backed invoice payment fails', async () => {

@@ -17,6 +17,7 @@ export const getItineraryTool: InternalToolConfig<GetItineraryParams, SapConcurR
   name: 'SAP Concur Get Trip',
   description: 'Get a single trip/itinerary (GET /api/travel/trip/v1.1/{tripID}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

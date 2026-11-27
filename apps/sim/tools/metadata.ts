@@ -6,6 +6,7 @@ import type {
   OAuthConfig,
   PersonalTokenConfig,
   ToolConfig,
+  ToolEffect,
 } from '@/tools/types'
 
 /**
@@ -32,6 +33,7 @@ export interface ToolMetadata {
   name?: string
   description?: string
   version?: string
+  effect: ToolEffect
   params: ToolConfig['params']
   oauth?: OAuthConfig
   personalToken?: PersonalTokenConfig

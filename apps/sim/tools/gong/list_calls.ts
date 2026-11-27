@@ -8,6 +8,7 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
   name: 'Gong List Calls',
   description: 'Retrieve call data by date range from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

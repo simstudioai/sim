@@ -9,6 +9,7 @@ export const listLayersTool: InternalToolConfig<LambdaListLayersParams, LambdaLi
     name: 'Lambda List Layers',
     description: 'List Lambda layers and the latest version of each',
     version: '1.0.0',
+    effect: 'read',
     oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {

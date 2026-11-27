@@ -38,6 +38,7 @@ export const getEventDefinitionTool: ToolConfig<
   description:
     'Get a PostHog event definition, including its metadata, last-seen timestamp, and verification status.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

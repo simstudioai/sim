@@ -1,3 +1,4 @@
+import { dryRunId } from '@/tools/dry-run'
 import { selectKnowledgeDocumentWriteSecretProvenance } from '@/tools/knowledge/secret-provenance'
 import {
   inferDocumentFileInfo,
@@ -17,6 +18,7 @@ export const knowledgeUpsertDocumentTool: InternalToolConfig<
   description:
     'Create or update a document in a knowledge base. If a document with the given ID or filename already exists, it will be replaced with the new content.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     knowledgeBaseId: {
@@ -121,6 +123,19 @@ export const knowledgeUpsertDocumentTool: InternalToolConfig<
 
       return requestBody
     },
+  },
+
+  /**
+   * A dry run's placeholder names the document the call writes. Its id stays a placeholder, one
+   * value under both fields that carry it: an upsert always creates a new document, and an id the
+   * call names becomes `previousDocumentId`.
+   */
+  dryRunOutput: (params) => {
+    const documentId = dryRunId('document_id')
+    return {
+      data: { documentName: inferDocumentFileInfo(params.name.trim()).filename, documentId },
+      documentId,
+    }
   },
 
   transformResponse: async (response): Promise<KnowledgeUpsertDocumentResponse> => {

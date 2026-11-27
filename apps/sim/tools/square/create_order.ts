@@ -27,6 +27,7 @@ export const squareCreateOrderTool: ToolConfig<
   name: 'Square Create Order',
   description: 'Create an order with line items, taxes, discounts, and fulfillments',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

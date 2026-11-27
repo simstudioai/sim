@@ -9,6 +9,7 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
   description:
     'Retrieves a specific meeting note from Granola by ID, including summary, attendees, calendar event details, and optionally the transcript.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {

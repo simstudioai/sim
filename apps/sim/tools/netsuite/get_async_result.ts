@@ -11,6 +11,7 @@ export const netsuiteGetAsyncResultTool: InternalToolConfig<
   name: 'NetSuite Get Async Operation Result',
   description: 'Retrieve the provider response for one task within a completed asynchronous job.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

@@ -8,6 +8,7 @@ export const ripplingDeleteCustomPageTool: ToolConfig<RipplingDeleteCustomPagePa
   name: 'Rippling Delete CustomPage',
   description: 'Delete a custom page',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

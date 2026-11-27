@@ -17,6 +17,7 @@ export const hubspotGetListMembershipsTool: ToolConfig<
   name: 'Get List Members from HubSpot',
   description: 'Retrieve the record IDs that are members of a HubSpot list, ordered by record ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

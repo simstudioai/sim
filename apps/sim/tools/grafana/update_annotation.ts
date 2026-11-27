@@ -13,6 +13,7 @@ export const updateAnnotationTool: ToolConfig<
   name: 'Grafana Update Annotation',
   description: 'Update an existing annotation',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const describeChangeSetTool: InternalToolConfig<
   name: 'CloudFormation Describe Change Set',
   description: 'View the resource changes a change set would make and its execution status',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

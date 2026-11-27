@@ -36,6 +36,7 @@ export const sportmonksGetRoundStatisticsTool: ToolConfig<
   name: 'Get Round Statistics',
   description: 'Retrieve all available statistics for a round ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

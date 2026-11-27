@@ -47,11 +47,11 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20"
+    "node": "^22.18.0 || >=24.11.0"
   },
   "dependencies": {
-    "chalk": "5.6.2",
-    "commander": "^11.1.0",
+    "chalk": "6.0.1",
+    "commander": "^15.1.0",
     "csv-parse": "7.0.3",
     "diff": "9.0.0",
     "js-yaml": "4.3.2",
@@ -76,6 +76,10 @@
     "./embed": {
       "types": "./src/embed.ts",
       "default": "./src/embed.ts"
+    },
+    "./host": {
+      "types": "./src/host.ts",
+      "default": "./src/host.ts"
     },
     "./runtime": {
       "types": "./dist/runtime.d.ts",

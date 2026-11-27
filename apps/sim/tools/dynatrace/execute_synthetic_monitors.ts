@@ -21,6 +21,7 @@ export const executeSyntheticMonitorsTool: ToolConfig<
   description:
     'Trigger an on-demand batch execution of synthetic monitors, for gating a deploy on a smoke test. Returns a batch ID to poll.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

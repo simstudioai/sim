@@ -25,6 +25,8 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
   name: 'Share Post on LinkedIn',
   description: 'Share a post to your personal LinkedIn feed',
   version: '1.0.0',
+  // tool-effect: the GET reads the member profile; postProcess then publishes the post
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -14,6 +14,7 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
     description:
       'Purges cached content for a zone. Can purge everything or specific files/tags/hosts/prefixes.',
     version: '1.0.0',
+    effect: 'write',
     oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
     params: {

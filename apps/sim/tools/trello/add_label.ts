@@ -9,6 +9,7 @@ export const trelloAddLabelTool: ToolConfig<TrelloAddLabelParams, TrelloAddLabel
   name: 'Trello Add Label',
   description: 'Attach an existing label to a Trello card',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

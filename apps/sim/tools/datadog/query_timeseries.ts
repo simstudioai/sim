@@ -13,6 +13,7 @@ export const queryTimeseriesTool: ToolConfig<QueryTimeseriesParams, QueryTimeser
   description:
     'Query metric timeseries data from Datadog. Use for analyzing trends, creating reports, or retrieving metric values.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

@@ -29,6 +29,7 @@ export const createChangeRequestTool: ToolConfig<
   description:
     'Create a change request in ServiceNow. Reference fields (assignment group, assigned to, requested by, configuration item) take sys_ids unless input display value is enabled.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

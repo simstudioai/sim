@@ -9,6 +9,7 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
   name: 'Rippling List Supergroups',
   description: 'List all supergroups',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

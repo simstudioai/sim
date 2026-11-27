@@ -23,6 +23,7 @@ export const cortexAnalystFeedbackTool: ToolConfig<
 > = {
   id: 'snowflake_cortex_analyst_feedback',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Cortex Analyst Feedback',
   description:

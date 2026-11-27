@@ -105,6 +105,7 @@ export const listInterviewsTool: ToolConfig<
   description:
     'Lists interview schedules in Ashby, optionally filtered by application or interview stage.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

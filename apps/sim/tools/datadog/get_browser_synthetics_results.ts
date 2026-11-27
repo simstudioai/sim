@@ -21,6 +21,7 @@ export const getBrowserSyntheticsResultsTool: ToolConfig<
   description:
     'Get the latest result summaries (up to the last 150 runs) for a Synthetic browser test, including step counts and errors.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

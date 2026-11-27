@@ -30,8 +30,7 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
 })
 ```
 
-- Line 1 is `// @sim-sdk N`. Missing: `E_SDK_HEADER`. `N` above the server's major: `E_SDK_MAJOR`.
-  `N` below `OLDEST_SDK_MAJOR` (`sdk.ts`): `E_SDK_MAJOR_OLD`.
+- Line 1 is `// @sim-sdk N`. Missing: `E_SDK_HEADER`. `N` other than the server's major: `E_SDK_MAJOR`.
 - Imports: named imports from `'@sim/workflow-sdk'` only (aliases allowed). Anything else is
   `E_UNSUPPORTED_SYNTAX`.
 - Exactly one `export default workflow(name, options?, body)` (`E_WORKFLOW_EXPORT`). `options` is
@@ -197,7 +196,9 @@ reordered tool never takes another tool's secret.
   do, so `start.nope`, or a reference to an input since removed, is `W_OUTPUT_PATH_UNDECLARED`
   at the reference (a caller may still pass it, so it is never refused); other dynamic outputs
   skip the check. `x.error` on a block with no error edge reads nothing:
-  `W_OUTPUT_PATH_UNDECLARED`.
+  `W_OUTPUT_PATH_UNDECLARED`. So does an error output a block's catalog entry declares
+  (`errorOutputs`: a Function's `x.errorMessage`, the thrown message without line or code), which
+  any other block does not have (`W_UNKNOWN_OUTPUT_PATH`).
 - A ref to a block declared later is `W_FORWARD_REF`; it still resolves. A ref into a sibling
   subflow's child is `E_OUT_OF_SCOPE`. An unknown identifier is `E_UNKNOWN_IDENTIFIER` with a
   did-you-mean. Wiring resolves its identifiers the same way.
@@ -220,14 +221,20 @@ reordered tool never takes another tool's secret.
 A JSON code field (subBlock type `code`: `responseFormat`, table row `data`, a response body)
 written as an object or array literal compiles to `JSON.stringify(value, null, 2)` text. Each bare
 reference is stored by its output type: quoted (`"<a.b>"`) when the catalog or the workflow types it
-`string`, bare (`<a.b>`) otherwise, because the executor splices a string raw and any other value as
-JSON. A reference nothing types is stored bare with `W_JSON_REF_UNTYPED`, which is not raised for a
-Function `result` field its JavaScript returns as a non-string literal (`return { total: a + b }`),
+`string`, bare (`<a.b>`) otherwise, because the executor splices a bare string as JSON when it reads
+as JSON (`12345` becomes a number) and a quoted one always as text. A Function `result` field its JavaScript certainly returns as text (`return { tier: 'gold' }`) is
+quoted too, and one it returns as a non-string (`return { total: a + b }`) is bare; so is the whole
+`result` when every `return` is text (`return new Date().toISOString()`) or none is. A reference
+nothing types, including a whole Function `result` or HTTP `data` its code or response may make
+text, is stored bare with `W_JSON_REF_UNTYPED`, which is not raised for those,
 nor, against a stored workflow, for a field the source left as stored. A template is a JSON
 string, which is how a value becomes text on purpose. A resource (`table('x')`, `credential()`,
 `file()`) or `raw(node)` is not data, so inside the literal it is `E_UNSUPPORTED_SYNTAX`. The printer writes a field's text back as the
 literal only when serializing that literal gives the same bytes; otherwise the text prints as a
-template.
+template. A stored quoted token prints as the bare reference only when a declaration (the catalog,
+a variable's type, an input or response format) types it `string`; one typed only by what a
+Function's code or a child workflow returns prints as `` t`${ref}` ``, so an edit to that code never
+changes how an unedited field stores it.
 
 ### Structured fields
 
@@ -275,7 +282,10 @@ template.
 `E_CODE_FILE_MISSING`. JavaScript files use `$ref.block.path` for `<block.path>` and `$env.NAME` for
 `{{NAME}}`, rewritten back on compile; Python and shell files are verbatim, so they write
 `<block.path>` and `{{NAME}}` themselves, and a `$ref` or `$env` in one is
-`W_CODE_FILE_REF_SYNTAX` (the apply refuses it in a file the edit changed). A `<block.path>` tag in
+`W_CODE_FILE_REF_SYNTAX` (the apply refuses it in a file the edit changed). The run substitutes a
+tag in a Python file as a Python literal, so a tag between quotes of its own (`"<start.country>"`)
+gets its quotes twice: `W_CODE_FILE_REF_QUOTED`; write it unquoted (a file's `.path` is spliced raw,
+so it stays quoted). A `<block.path>` tag in
 any code file (a JavaScript string included) is checked like a `$ref` chain. `$ref` names a block by
 its key (`$ref.triageagent.content`), not its ident; a chain that names no block or variable is
 `W_UNRESOLVED_REF` at the file location (the hint names the key when the head is an ident or a
@@ -379,8 +389,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_NUMBER_NOT_FINITE` | A number literal too large to store (`1e999` reads as `Infinity`). |
 | `W_NUMBER_PRECISION` | A number literal whose digits a number cannot hold; write it as a string. |
 | `E_SDK_HEADER` | Line 1 is not `// @sim-sdk N`. |
-| `E_SDK_MAJOR` | The header's major is newer than the server supports. |
-| `E_SDK_MAJOR_OLD` | The header's major is older than the oldest the server reads. |
+| `E_SDK_MAJOR` | The header's major is not the one the server reads. |
 | `E_UNSUPPORTED_SYNTAX` | A construct outside this grammar; the hint names the supported form. |
 | `E_WORKFLOW_EXPORT` | Not exactly one `export default workflow(…)`. |
 | `E_LIMIT_EXCEEDED` | Over the block, edge, total-byte, depth or `codeFile()` reference cap (`SOURCE_LIMITS`). Apply answers 413. |
@@ -451,6 +460,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_CODE_FILE_PATH` | A code file path outside the directory, or with the wrong extension. |
 | `W_CODE_FILE_INLINED` | Print: the code could not round-trip through a file and was inlined. |
 | `W_CODE_FILE_REF_SYNTAX` | `$ref.key.path` or `$env.NAME` in a Python or shell code file, which runs as text; the hint names the `<key.path>` or `{{NAME}}` form. Refused as `E_APPLY_CODE_FILE_REF_SYNTAX` in a file the edit changed. |
+| `W_CODE_FILE_REF_QUOTED` | A `<key.path>` tag between quotes of its own in a Python code file (`"<start.country>"`): the run substitutes it as a Python literal, so a string value arrives with its quotes in it. Remove the quotes. A file's path (`open('<start.file.path>')`), spliced raw, is not reported. |
 | `W_UNRESOLVED_REF` | Print: a stored `<x.y>` token that resolves to nothing. Compile: a code file `$ref` chain that does. Either is kept as text. |
 | `W_FORWARD_REF_LITERALIZED` | Print: a ref in a cycle printed as text. |
 | `W_COMMENT_MOVED` | A comment hoisted to the nearest anchor. |
@@ -540,3 +550,10 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_WORKFLOW_META_INVALID` | The `workflow('…')` name is empty or over 255 characters, or its description is over 50,000 characters: limits the workflow API holds every workflow to. |
 | `E_APPLY_INVALID_SCHEDULE` | An added or changed schedule whose cron, timezone or interval deploy would refuse. |
 | `W_TABLE_UNKNOWN_COLUMN` | A table row write whose data names a key that is not a column of the table; the run drops it. The hint names the nearest column. |
+
+**Type check** (`source check` only)
+
+| Code | Meaning |
+|---|---|
+| `E_TYPE` | TypeScript (the release the declarations are built for) reported an error; the message starts with its `TS` code. A type error is left out on a line the compile already reports an error on, and in a file still as the last get or apply wrote it when that file had the same error then (against the declarations as that get or apply left them). |
+| `W_TYPES_UNCHECKED` | The type check did not run: TypeScript could not be installed (offline, or no `npm`) or did not start. The other findings stand; pass `--no-types` to skip it. |

@@ -300,6 +300,24 @@
               "type": "string",
               "description": "Ollama local LLM server URL (leave empty if not using Ollama)"
             },
+            "VLLM_BASE_URL": {
+              "type": "string",
+              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "description": "vLLM or LM Studio OpenAI-compatible URL; a trailing /v1 is optional (leave empty if not using vLLM)"
+            },
+            "VLLM_API_KEY": {
+              "type": "string",
+              "description": "Optional bearer token for the vLLM endpoint"
+            },
+            "LITELLM_BASE_URL": {
+              "type": "string",
+              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "description": "LiteLLM proxy base URL, OpenAI-compatible (leave empty if not using LiteLLM)"
+            },
+            "LITELLM_API_KEY": {
+              "type": "string",
+              "description": "Optional bearer token for the LiteLLM proxy"
+            },
             "ELEVENLABS_API_KEY": {
               "type": "string",
               "description": "ElevenLabs API key for text-to-speech in deployed chat"

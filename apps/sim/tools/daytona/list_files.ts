@@ -8,6 +8,7 @@ export const daytonaListFilesTool: ToolConfig<DaytonaListFilesParams, DaytonaLis
   name: 'Daytona List Files',
   description: 'List files in a directory of a Daytona sandbox',
   version: '1.0.0',
+  effect: 'read',
   oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {

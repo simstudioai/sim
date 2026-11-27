@@ -12,6 +12,7 @@ export const dropboxListRevisionsTool: ToolConfig<
   name: 'Dropbox List Revisions',
   description: 'List the revision history for a file in Dropbox (files only, not folders)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

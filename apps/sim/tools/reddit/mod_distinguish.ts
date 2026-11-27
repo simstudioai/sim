@@ -27,6 +27,7 @@ export const modDistinguishTool: ToolConfig<
   name: 'Distinguish Reddit Post/Comment (Mod)',
   description: 'Distinguish or un-distinguish a Reddit post or comment as a moderator',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

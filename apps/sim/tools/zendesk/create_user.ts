@@ -40,6 +40,7 @@ export const zendeskCreateUserTool: ToolConfig<ZendeskCreateUserParams, ZendeskC
     name: 'Create User in Zendesk',
     description: 'Create a new user in Zendesk',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: ZENDESK_CREDENTIAL_OAUTH,
 

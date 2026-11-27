@@ -23,6 +23,7 @@ export const createAccessGroupTool: ToolConfig<
   name: 'Cloudflare Create Access Group',
   description: 'Creates a new Access group.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

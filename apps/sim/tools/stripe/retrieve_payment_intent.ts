@@ -15,6 +15,7 @@ export const stripeRetrievePaymentIntentTool: ToolConfig<
   name: 'Stripe Retrieve Payment Intent',
   description: 'Retrieve an existing Payment Intent by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

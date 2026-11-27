@@ -23,6 +23,7 @@ export const brightDataDiscoverTool: ToolConfig<
   description:
     'AI-powered web discovery that finds and ranks results by intent. Returns up to 20 results with optional cleaned page content for RAG and verification.',
   version: '1.0.0',
+  effect: 'write',
   oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {

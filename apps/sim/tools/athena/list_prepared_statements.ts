@@ -13,6 +13,7 @@ export const listPreparedStatementsTool: InternalToolConfig<
   name: 'Athena List Prepared Statements',
   description: 'List the prepared statements saved in an Athena workgroup',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -31,6 +31,7 @@ export const getCampaignWebhookSummaryTool: ToolConfig<
   description:
     'Retrieves webhook delivery counts for a Smartlead campaign over a time window, for checking whether events are reaching their destination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

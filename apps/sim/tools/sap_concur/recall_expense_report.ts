@@ -15,6 +15,7 @@ export const recallExpenseReportTool: InternalToolConfig<
   description:
     'Recall a submitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/recall — supported contexts: TRAVELER, PROXY). Takes no request body. This operation supports user-level access tokens: set grantType to "password" with username and password, since the default client_credentials grant yields a company-level token.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

@@ -16,6 +16,7 @@ export const bulkEnrichPersonTool: ToolConfig<
   name: 'Prospeo Bulk Enrich Person',
   description: 'Enrich up to 50 person records at once.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
   hosting: prospeoHosting<ProspeoBulkEnrichPersonParams>((_params, output) => {

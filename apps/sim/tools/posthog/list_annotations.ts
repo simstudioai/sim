@@ -42,6 +42,7 @@ export const listAnnotationsTool: ToolConfig<
   description:
     'List all annotations in a PostHog project. Returns annotation content, timestamps, and associated insights.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

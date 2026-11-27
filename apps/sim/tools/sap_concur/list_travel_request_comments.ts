@@ -15,6 +15,7 @@ export const listTravelRequestCommentsTool: InternalToolConfig<
   description:
     'List comments on a travel request (GET /travelrequest/v4/requests/{requestUuid}/comments).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

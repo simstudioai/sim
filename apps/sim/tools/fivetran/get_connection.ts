@@ -25,6 +25,7 @@ export const fivetranGetConnectionTool: ToolConfig<
   description:
     'Get a Fivetran connection, including its setup, sync, and update state, open tasks and warnings, and schedule.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

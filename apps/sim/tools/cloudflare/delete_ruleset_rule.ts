@@ -24,6 +24,7 @@ export const deleteRulesetRuleTool: ToolConfig<
   description:
     'Permanently deletes a rule from a zone ruleset. This takes effect immediately on live traffic and cannot be undone — deleting a WAF custom rule, a managed-ruleset deployment, or a rate limiting rule removes that protection from the zone. Also use this to delete rate limiting rules, which live in the http_ratelimit phase ruleset. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission).',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

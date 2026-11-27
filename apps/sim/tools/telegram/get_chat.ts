@@ -13,6 +13,7 @@ export const telegramGetChatTool: ToolConfig<TelegramGetChatParams, TelegramGetC
   name: 'Telegram Get Chat',
   description: 'Get up-to-date information about a Telegram chat through the Telegram Bot API.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 

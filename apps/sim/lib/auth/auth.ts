@@ -108,14 +108,21 @@ import {
   getPlans,
   resolvePlanFromStripeSubscription,
 } from '@/lib/billing/plans'
+import {
+  enforceOneTrialPerCard,
+  enforceOneTrialPerCardForCheckout,
+  getProTrialCheckoutParams,
+} from '@/lib/billing/trial'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
+import { handleEnterpriseAutoPaySetup } from '@/lib/billing/webhooks/enterprise-auto-pay'
 import {
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
+import { handleTrialWillEnd } from '@/lib/billing/webhooks/plan-notices'
 import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
@@ -1214,7 +1221,7 @@ export const auth = betterAuth({
               const checkoutAdmissionClaim = await claimCheckoutAdmission(referenceId)
               try {
                 if (isPersonalCheckoutRequest(requestBody, sessionUserId)) {
-                  await assertPersonalCheckoutAllowed(sessionUserId)
+                  await assertPersonalCheckoutAllowed(sessionUserId, requestBody.plan)
                 }
               } catch (error) {
                 await releaseCheckoutAdmission(checkoutAdmissionClaim)
@@ -1615,8 +1622,15 @@ export const auth = betterAuth({
                   requestedPlan
                 )
               },
-              getCheckoutSessionParams: async () => ({
-                params: { allow_promotion_codes: true },
+              getCheckoutSessionParams: async ({ user, plan, subscription }) => ({
+                params: {
+                  allow_promotion_codes: true,
+                  ...(await getProTrialCheckoutParams({
+                    userId: user.id,
+                    referenceId: subscription.referenceId,
+                    planName: plan.name,
+                  })),
+                },
               }),
               onSubscriptionComplete: async ({
                 event,
@@ -1638,6 +1652,23 @@ export const auth = betterAuth({
                   priceId,
                   isAnnual,
                   status: subscription.status,
+                })
+
+                // The plugin swallows this hook's errors, so a failed check must not skip the rest of
+                // it; `onEvent` runs the check again on the retried checkout webhook.
+                const keptTrial = await enforceOneTrialPerCard(
+                  stripeSubscription,
+                  subscription
+                ).catch((error: unknown) => {
+                  logger.error(
+                    '[onSubscriptionComplete] Trial card check failed; retrying via onEvent',
+                    {
+                      subscriptionId: subscription.id,
+                      error: toError(error).message,
+                    }
+                  )
+                  // Unconfirmed until the retry settles it, so the welcome email promises no trial.
+                  return false
                 })
 
                 if (!planFromStripe) {
@@ -1704,11 +1735,18 @@ export const auth = betterAuth({
                   await handleSubscriptionCreated(resolvedSubscription, event.id)
                 }
 
-                await syncSubscriptionUsageLimits(resolvedSubscription)
+                const billingInterval = isAnnual ? 'year' : 'month'
+                // The interval decides the included usage, so it is written before the limit sync.
+                await writeBillingInterval(resolvedSubscription.id, billingInterval)
 
-                await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
+                await syncSubscriptionUsageLimits({ ...resolvedSubscription, billingInterval })
 
-                await sendPlanWelcomeEmail(resolvedSubscription)
+                await sendPlanWelcomeEmail(resolvedSubscription, {
+                  trialEnd:
+                    keptTrial && stripeSubscription.trial_end
+                      ? new Date(stripeSubscription.trial_end * 1000)
+                      : null,
+                })
               },
               onSubscriptionUpdate: async ({
                 event,
@@ -1881,8 +1919,17 @@ export const auth = betterAuth({
                     await handleSubscriptionUsageUpdate(event)
                     break
                   }
+                  case 'checkout.session.completed': {
+                    await enforceOneTrialPerCardForCheckout(event.data.object)
+                    await handleEnterpriseAutoPaySetup(event.data.object)
+                    break
+                  }
                   case 'checkout.session.expired': {
                     await handleAbandonedCheckout(event)
+                    break
+                  }
+                  case 'customer.subscription.trial_will_end': {
+                    await handleTrialWillEnd(event.data.object)
                     break
                   }
                   case 'charge.dispute.created': {

@@ -9,6 +9,7 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
   name: 'Query Notion Database',
   description: 'Query and filter Notion database entries with advanced filtering',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -178,6 +179,7 @@ export const notionQueryDatabaseV2Tool: ToolConfig<
   name: 'Query Notion Database',
   description: 'Query and filter Notion database entries with advanced filtering',
   version: '2.0.0',
+  effect: 'read',
   oauth: notionQueryDatabaseTool.oauth,
   params: notionQueryDatabaseTool.params,
   request: notionQueryDatabaseTool.request,

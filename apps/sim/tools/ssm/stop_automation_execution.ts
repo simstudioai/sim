@@ -13,6 +13,7 @@ export const stopAutomationExecutionTool: InternalToolConfig<
   name: 'SSM Stop Automation Execution',
   description: 'Stop a running AWS Systems Manager Automation execution',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

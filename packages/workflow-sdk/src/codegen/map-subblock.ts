@@ -9,7 +9,7 @@
 
 import type { CatalogSubBlock } from '@sim/workflow-code'
 import { quoteString } from '@sim/workflow-code'
-import { isCredentialIdTwin } from '@sim/workflow-code/catalog/surface'
+import { isCredentialIdTwin, isModelField } from '@sim/workflow-code/catalog/surface'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { arrayOf, literal, union } from './emit'
 
@@ -97,7 +97,7 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
     case 'dropdown':
       return { type: dropdownType(subBlock), doc: [...doc, ...selectorDoc(subBlock)] }
     case 'combobox': {
-      if (subBlock.id === 'model') return { type: 'Value<LiteralUnion<Model>>', doc }
+      if (isModelField(subBlock)) return { type: 'Value<LiteralUnion<Model>>', doc }
       const options = staticOptions(subBlock)
       return {
         type: options ? `Value<LiteralUnion<${union(options)}>>` : 'Value<string>',

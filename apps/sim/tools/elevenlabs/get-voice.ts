@@ -11,6 +11,7 @@ export const elevenLabsGetVoiceTool: ToolConfig<
   name: 'ElevenLabs Get Voice',
   description: 'Get metadata and settings for a specific ElevenLabs voice',
   version: '1.0.0',
+  effect: 'read',
   oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {

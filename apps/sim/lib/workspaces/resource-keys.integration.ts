@@ -67,15 +67,22 @@ async function keyRows(wsId: string, kind: ResourceKind, resourceId: string) {
 
 /**
  * Holds a transaction open with one uncommitted key row, so a concurrent writer that collides on
- * a unique index blocks on it. Resolves `committed` once the row is committed.
+ * a unique index blocks on it. Resolves `inserted` once the row is written (start the competing
+ * write only then, or it can commit first; it rejects as `committed` does when the write fails)
+ * and `committed` once the row is committed.
  */
 function holdUncommittedKey(row: { key: string; resourceId: string }): {
+  inserted: Promise<void>
   committed: Promise<void>
   commit: () => void
 } {
   let commit = () => {}
   const released = new Promise<void>((resolve) => {
     commit = resolve
+  })
+  let markInserted = () => {}
+  const inserted = new Promise<void>((resolve) => {
+    markInserted = resolve
   })
   const committed = db.transaction(async (tx) => {
     const now = new Date()
@@ -90,9 +97,10 @@ function holdUncommittedKey(row: { key: string; resourceId: string }): {
       createdAt: now,
       updatedAt: now,
     })
+    markInserted()
     await released
   })
-  return { committed, commit }
+  return { inserted: Promise.race([inserted, committed]), committed, commit }
 }
 
 /** Waits until some backend is blocked on a lock while writing `workspace_resource_key`. */
@@ -179,6 +187,35 @@ describe('workspace resource keys against PostgreSQL', () => {
     const keys = await Promise.all(tables.map(({ id }) => keyOf('table', id)))
 
     expect(new Set(keys)).toEqual(new Set(['invoices', 'invoices-2', 'invoices-3']))
+  })
+
+  it('keys a name with underscores by its own spelling, apart from the hyphenated one', async () => {
+    const underscored = generateId()
+    const hyphenated = generateId()
+    await insertTable(underscored, workspaceId, 'daily_totals', at(40))
+    await insertTable(hyphenated, workspaceId, 'daily-totals', at(41))
+
+    expect(await keyOf('table', hyphenated)).toBe('daily-totals')
+    expect(await keyOf('table', underscored)).toBe('daily_totals')
+    expect(await idOf('table', 'daily_totals')).toBe(underscored)
+  })
+
+  it('suffixes an underscored name whose key is taken, and leaves a persisted hyphen key alone', async () => {
+    const legacy = generateId()
+    const first = generateId()
+    const second = generateId()
+    await insertTable(legacy, workspaceId, 'weekly-totals', at(42))
+    expect(await keyOf('table', legacy)).toBe('weekly-totals')
+    await db
+      .update(userTableDefinitions)
+      .set({ name: 'weekly_totals' })
+      .where(eq(userTableDefinitions.id, legacy))
+    await insertTable(first, workspaceId, 'monthly_totals', at(43))
+    await insertTable(second, workspaceId, 'Monthly_Totals!', at(44))
+
+    expect(await keyOf('table', legacy)).toBe('weekly-totals')
+    expect(await keyOf('table', first)).toBe('monthly_totals')
+    expect(await keyOf('table', second)).toBe('monthly_totals-2')
   })
 
   it('keeps every kind’s key through a rename', async () => {
@@ -394,6 +431,7 @@ describe('workspace resource keys against PostgreSQL', () => {
     await insertTable(holder, workspaceId, 'Race Holder', at(50))
     await insertTable(claimant, workspaceId, 'Race Claimant', at(51))
     const held = holdUncommittedKey({ key: 'race-leads', resourceId: holder })
+    await held.inserted
 
     const claim = claimResourceKey({
       workspaceId,
@@ -422,6 +460,7 @@ describe('workspace resource keys against PostgreSQL', () => {
     const id = generateId()
     await insertTable(id, workspaceId, 'Race Allocated', at(52))
     const held = holdUncommittedKey({ key: 'race-allocated', resourceId: id })
+    await held.inserted
 
     const claim = claimResourceKey({
       workspaceId,

@@ -190,6 +190,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     hasCompleted: hasCompletedMock,
     getPersistedCompletionStatus: getPersistedCompletionStatusMock,
     getDeletedScope: getDeletedScopeMock,
+    getTriggerType: () => 'manual',
     onBlockStart: onBlockStartPersistenceMock,
     onBlockComplete: vi.fn(),
     projectDisplayContent: projectDisplayContentMock,

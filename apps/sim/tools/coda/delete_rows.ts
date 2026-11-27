@@ -19,6 +19,7 @@ export const codaDeleteRowsTool: ToolConfig<CodaDeleteRowsParams, CodaDeleteRows
   name: 'Coda Delete Rows',
   description: 'Delete multiple rows from a Coda table or view by ID. Applied asynchronously.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

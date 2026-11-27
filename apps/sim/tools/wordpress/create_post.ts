@@ -12,6 +12,7 @@ export const createPostTool: ToolConfig<WordPressCreatePostParams, WordPressCrea
   name: 'WordPress Create Post',
   description: 'Create a new blog post in WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

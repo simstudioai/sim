@@ -13,6 +13,7 @@ import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import type { ExecutionContext } from '@/executor/types'
 import type { ModelCost } from '@/providers/cost-policy'
+import { SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('ModelRouter')
@@ -247,11 +248,13 @@ async function callModelRouter(
 }
 
 /**
- * Resolves the sim-auto pseudo-model to a concrete model for one block
- * execution. Never throws and never fails the workflow: any error, timeout,
- * non-hosted deployment, or fully unavailable pool column falls back to
- * `fallbackModel` (the block's standard default). Callers must supply the same already-projected
- * model-facing signals they pass to their provider boundary; this router never rescans them.
+ * Resolves the sim-auto pseudo-model to a concrete model for one block execution. Like any
+ * model check it throws when the workspace's permission group denies sim-auto itself or its
+ * permission config cannot be loaded. Otherwise it never fails the workflow: any error,
+ * timeout, non-hosted deployment, or fully unavailable pool column falls back to
+ * `fallbackModel` (the block's standard default). Callers must supply the same
+ * already-projected model-facing signals they pass to their provider boundary; this router
+ * never rescans them.
  */
 export async function resolveAutoModel(args: {
   ctx: ExecutionContext
@@ -260,6 +263,8 @@ export async function resolveAutoModel(args: {
   fallbackModel: string
 }): Promise<AutoRoutingResult> {
   const { ctx, blockId, signals, fallbackModel } = args
+  // Before any fallback: a denied sim-auto must not run as whichever model is allowed.
+  await validateModelProvider(ctx.userId, ctx.workspaceId ?? undefined, SIM_AUTO_MODEL_ID, ctx)
   const fallback: AutoRoutingResult = {
     model: fallbackModel,
     tier: null,

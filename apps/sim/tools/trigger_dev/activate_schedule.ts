@@ -19,6 +19,7 @@ export const triggerDevActivateScheduleTool: ToolConfig<
   name: 'Trigger.dev Activate Schedule',
   description: 'Activate an imperative Trigger.dev schedule so it resumes triggering its task.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

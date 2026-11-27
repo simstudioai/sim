@@ -23,6 +23,7 @@ export const aggregateTool: ToolConfig<ServiceNowAggregateParams, ServiceNowAggr
   description:
     'Compute aggregate statistics (count, sum, average, min, max, group by) over a ServiceNow table',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

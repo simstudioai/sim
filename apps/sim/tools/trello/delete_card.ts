@@ -9,6 +9,7 @@ export const trelloDeleteCardTool: ToolConfig<TrelloDeleteCardParams, TrelloDele
   name: 'Trello Delete Card',
   description: 'Permanently delete a Trello card',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

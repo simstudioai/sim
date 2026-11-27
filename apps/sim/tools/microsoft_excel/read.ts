@@ -58,6 +58,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   name: 'Read from Microsoft Excel',
   description: 'Read data from a Microsoft Excel spreadsheet',
   version: '1.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
@@ -259,7 +260,8 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
   name: 'Read from Microsoft Excel V2',
   description: 'Read data from a specific sheet in a Microsoft Excel spreadsheet',
   version: '2.0.0',
-  assistant: { effect: 'read', version: 1 },
+  effect: 'read',
+  assistant: { version: 1 },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

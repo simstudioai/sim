@@ -14,6 +14,7 @@ export const incidentTypesListTool: ToolConfig<
   description:
     'List all incident types configured in your Incident.io workspace. Returns type details including id, name, description, and default flag.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

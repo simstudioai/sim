@@ -15,6 +15,7 @@ export const listExpectedExpensesTool: InternalToolConfig<
   description:
     'List expected expenses on a travel request (GET /travelrequest/v4/requests/{requestUuid}/expenses).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

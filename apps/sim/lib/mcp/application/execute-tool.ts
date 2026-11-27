@@ -16,7 +16,7 @@ import {
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import { mcpService } from '@/lib/mcp/service'
 import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
-import type { McpTool, McpToolCall, McpToolResult } from '@/lib/mcp/types'
+import type { McpTool, McpToolCall, McpToolResult, McpToolSchema } from '@/lib/mcp/types'
 import {
   assertPermissionsAllowed,
   McpToolsNotAllowedError,
@@ -38,11 +38,41 @@ export interface ExecuteMcpToolInput {
   timeoutMs?: number
   signal?: AbortSignal
   onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
+  /**
+   * Authorize, discover and validate the call as a live one would, then stop before sending it,
+   * writing nothing a live call reads: no server health, tool cache or tool snapshot.
+   */
+  checkOnly?: boolean
+}
+
+/** What a `checkOnly` call learned of the tool it would have called. */
+interface McpCheckedTool {
+  name: string
+  /** The `structuredContent` shape the tool declares, absent when it declares none. */
+  outputSchema?: McpToolSchema
+  /** The server declares the tool read-only and not destructive: a claim Sim cannot verify. */
+  readOnlyHint: boolean
 }
 
 export type ExecuteMcpToolResult =
   | { success: true; output: McpToolResult }
   | { success: false; error: string }
+  /** A `checkOnly` call that would have been sent, and what it learned of the tool. */
+  | { success: true; checked: true; tool: McpCheckedTool }
+
+/** The result of a `checkOnly` call to `tool` that checked out. */
+export function checkedMcpToolCall(tool: McpTool): ExecuteMcpToolResult {
+  return {
+    success: true,
+    checked: true,
+    tool: {
+      name: tool.name,
+      ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
+      readOnlyHint:
+        tool.annotations?.readOnlyHint === true && tool.annotations.destructiveHint !== true,
+    },
+  }
+}
 
 function hasType(value: unknown): value is SchemaProperty {
   return typeof value === 'object' && value !== null && 'type' in value
@@ -164,7 +194,7 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       context.workspaceId,
       'skip-cache',
       input.onResolvedSecretTraceProvenance,
-      { signal: input.signal, requireComplete: true }
+      { signal: input.signal, requireComplete: true, readOnly: input.checkOnly }
     )
     const tool = tools.find((candidate) => candidate.name === input.toolName)
     if (!tool) throw new OrchestrationError('not_found', 'Tool not found on the specified server')
@@ -190,6 +220,7 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       ),
       input.toolName
     )
+    if (input.checkOnly) return checkedMcpToolCall(tool)
     const providerResult = await mcpService.executeTool(
       userId,
       context.server.id,

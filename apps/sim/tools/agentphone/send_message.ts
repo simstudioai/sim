@@ -13,6 +13,7 @@ export const agentphoneSendMessageTool: ToolConfig<
   name: 'Send Message',
   description: 'Send an outbound SMS or iMessage from an AgentPhone agent',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

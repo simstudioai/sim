@@ -8,6 +8,7 @@ export const brexGetCompanyTool: ToolConfig<BrexApiKeyParams, BrexGetCompanyResp
   name: 'Brex Get Company',
   description: 'Get the Brex company associated with the API token',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

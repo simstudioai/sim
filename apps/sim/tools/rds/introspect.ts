@@ -8,6 +8,7 @@ export const introspectTool: InternalToolConfig<RdsIntrospectParams, RdsIntrospe
   description:
     'Introspect Amazon RDS Aurora database schema to retrieve table structures, columns, and relationships',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

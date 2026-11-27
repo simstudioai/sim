@@ -12,6 +12,7 @@ export const cbinsightsGetOrgFundingWindowTool: InternalToolConfig<
   description:
     'Retrieve the estimated window in which an organization is likely to raise its next round, with the cohort it was compared against.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

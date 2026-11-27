@@ -15,6 +15,7 @@ export const rootlyUpdateActionItemTool: ToolConfig<
   name: 'Rootly Update Action Item',
   description: 'Update a Rootly incident action item (status, priority, assignee, etc.).',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

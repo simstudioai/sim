@@ -16,6 +16,7 @@ export const intuneListDevicesTool: ToolConfig<IntuneListDevicesParams, IntuneLi
     name: 'Microsoft Intune List Devices',
     description: 'Read one page of devices from Microsoft Intune',
     version: '1.0.0',
+    effect: 'read',
     oauth: { required: true, provider: 'microsoft-intune' },
     params: {
       ...INTUNE_AUTH_PARAMS,

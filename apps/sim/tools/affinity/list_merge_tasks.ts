@@ -21,6 +21,7 @@ export const affinityListMergeTasksTool: ToolConfig<
   description:
     'Page through merge tasks, each summarizing how many of its merges are in progress, succeeded, or failed.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

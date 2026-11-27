@@ -17,6 +17,7 @@ export const quickbooksUpdateItemTool: InternalToolConfig<
   description:
     'Read, merge, and full-update a Service or Non-inventory item without changing its type',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

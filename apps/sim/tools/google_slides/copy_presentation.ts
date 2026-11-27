@@ -35,6 +35,7 @@ export const copyPresentationTool: ToolConfig<CopyPresentationParams, CopyPresen
   description:
     'Copy a template presentation in Drive to a new file. Use this before merging data so the original template is never modified.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

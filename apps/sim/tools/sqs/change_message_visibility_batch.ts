@@ -13,6 +13,7 @@ export const changeMessageVisibilityBatchTool: InternalToolConfig<
   name: 'SQS Change Message Visibility Batch',
   description: 'Change the visibility timeout of up to 10 received Amazon SQS messages at once',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

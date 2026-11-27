@@ -2,8 +2,12 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
-import { tableSuccess } from '@/tools/table/response'
-import type { TableBatchInsertParams, TableBatchInsertResponse } from '@/tools/table/types'
+import { placeholderRow, tableSuccess } from '@/tools/table/response'
+import {
+  IGNORED_COLUMNS_OUTPUT,
+  type TableBatchInsertParams,
+  type TableBatchInsertResponse,
+} from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const tableBatchInsertRowsTool: InternalToolConfig<
@@ -14,6 +18,7 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
   name: 'Batch Insert Rows',
   description: `Insert multiple rows into a table at once (up to ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows)`,
   version: '1.0.0',
+  effect: 'write',
 
   toolEnrichment: {
     dependsOn: 'tableId',
@@ -50,6 +55,13 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
     },
   },
 
+  /** A dry run's placeholder holds the rows the call writes, each with its own placeholder id. */
+  dryRunOutput: (params) => ({
+    rows: params.rows.map((data, index) => ({ ...placeholderRow(data, index), executions: {} })),
+    insertedCount: params.rows.length,
+    ignoredColumns: [],
+  }),
+
   transformResponse: async (response): Promise<TableBatchInsertResponse> => {
     const result = await response.json()
     const data = result.data || result
@@ -58,6 +70,7 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
       rows: data.rows,
       insertedCount: data.insertedCount,
       message: data.message || 'Rows inserted successfully',
+      ignoredColumns: data.ignoredColumns ?? [],
     })
   },
 
@@ -65,6 +78,7 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
     success: { type: 'boolean', description: 'Whether rows were inserted' },
     rows: { type: 'array', description: 'Inserted rows data' },
     insertedCount: { type: 'number', description: 'Number of rows inserted' },
+    ignoredColumns: IGNORED_COLUMNS_OUTPUT,
     message: { type: 'string', description: 'Status message' },
   },
 }

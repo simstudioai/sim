@@ -8,6 +8,7 @@ export const searchJobsTool: ToolConfig<EnrichSearchJobsParams, EnrichSearchJobs
   description:
     'Search LinkedIn job postings by keywords with filters for location, job type, workplace type, experience level, and company.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

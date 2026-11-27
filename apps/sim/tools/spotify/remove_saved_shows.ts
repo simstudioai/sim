@@ -18,6 +18,7 @@ export const spotifyRemoveSavedShowsTool: ToolConfig<
   name: 'Spotify Remove Saved Shows',
   description: "Remove podcast shows from the user's library.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

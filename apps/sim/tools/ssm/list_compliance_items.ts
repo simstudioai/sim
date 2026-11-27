@@ -13,6 +13,7 @@ export const listComplianceItemsTool: InternalToolConfig<
   name: 'SSM List Compliance Items',
   description: 'List individual compliance findings reported to AWS Systems Manager',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

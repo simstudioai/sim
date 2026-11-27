@@ -20,6 +20,7 @@ export const codaPushButtonTool: ToolConfig<CodaPushButtonParams, CodaPushButton
   description:
     'Push a button column on a row of a Coda table, running its action. The button can perform any action in the doc.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

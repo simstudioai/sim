@@ -23,6 +23,7 @@ export const deleteCampaignTool: ToolConfig<
   name: 'Instantly Delete Campaign',
   description: 'Permanently deletes an Instantly V2 campaign.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

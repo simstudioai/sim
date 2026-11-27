@@ -8,6 +8,7 @@ export const listFlowsTool: ToolConfig<GongListFlowsParams, GongListFlowsRespons
   name: 'Gong List Flows',
   description: 'List Gong Engage flows (sales engagement sequences).',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

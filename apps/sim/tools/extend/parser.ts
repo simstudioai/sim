@@ -13,6 +13,7 @@ export const extendParserTool: InternalToolConfig<ExtendParserInput, ExtendParse
   name: 'Extend Document Parser',
   description: 'Parse and extract content from documents using Extend AI',
   version: '1.0.0',
+  effect: 'write',
   oauth: EXTEND_CREDENTIAL_OAUTH,
 
   params: {

@@ -8,6 +8,7 @@ export const putParameterTool: InternalToolConfig<SsmPutParameterParams, SsmPutP
     name: 'SSM Put Parameter',
     description: 'Create or update a parameter in AWS Systems Manager Parameter Store',
     version: '1.0.0',
+    effect: 'write',
     oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {

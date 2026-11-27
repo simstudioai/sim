@@ -11,6 +11,7 @@ export const linearCreateCustomerTool: ToolConfig<
   name: 'Linear Create Customer',
   description: 'Create a new customer in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

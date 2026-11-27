@@ -7,6 +7,7 @@ export const getHealthTool: ToolConfig<GrafanaHealthCheckParams, GrafanaHealthCh
   name: 'Grafana Get Health',
   description: 'Check the health of the Grafana instance (version, database status)',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

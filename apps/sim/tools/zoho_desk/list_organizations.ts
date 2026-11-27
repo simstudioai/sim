@@ -11,6 +11,7 @@ export const zohoDeskListOrganizationsTool: ToolConfig<
   name: 'Zoho Desk List Organizations',
   description: 'List the Zoho Desk organizations (portals) the connected account can access.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'zoho-desk' },
 

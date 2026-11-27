@@ -23,6 +23,7 @@ export const getAccessPolicyTool: ToolConfig<
   description:
     'Fetches a single Access policy configured for an application. Returns both exclusively owned and reusable policies used by the application.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

@@ -7,6 +7,7 @@ export const insertTool: InternalToolConfig<PostgresInsertParams, PostgresInsert
   name: 'PostgreSQL Insert',
   description: 'Insert data into PostgreSQL database',
   version: '1.0',
+  effect: 'write',
   oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {
@@ -72,6 +73,16 @@ export const insertTool: InternalToolConfig<PostgresInsertParams, PostgresInsert
       data: params.data,
     }),
   },
+
+  /**
+   * A dry run's placeholder holds the one row the call inserts, without the columns the database
+   * fills in (`RETURNING *` returns them live).
+   */
+  dryRunOutput: (params) => ({
+    message: 'Data inserted successfully. 1 row(s) affected.',
+    rows: [params.data],
+    rowCount: 1,
+  }),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()

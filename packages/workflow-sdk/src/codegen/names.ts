@@ -15,9 +15,6 @@ import {
 } from '@sim/workflow-code/sdk'
 import { pascal } from './emit'
 
-/** The builder paths `core.d.ts` declares itself; the catalog must map each to its block type. */
-export const SPECIAL_BUILDER_KEYS: readonly string[] = Object.keys(SDK_SPECIAL_BUILDERS)
-
 const CORE_EXPORTS: ReadonlySet<string> = new Set(SDK_CORE_EXPORTS)
 
 /** The namespace each tool-form builder is exposed under: `slack.tool.sendMessage(...)`. */

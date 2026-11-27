@@ -1,0 +1,239 @@
+---
+slug: ramp-brex-sap-concur-ai-agent-expense-review
+title: 'How Do You Build a Ramp, Brex, or SAP Concur AI Agent for Expense Review?'
+description: 'Learn how to build a governed AI agent for Ramp, Brex, or SAP Concur expense review with policy checks, human approval, and audit trails.'
+seoTitle: 'Ramp, Brex, and SAP Concur Expense AI Agent'
+date: 2026-11-27
+updated: 2026-11-27
+authors:
+  - andrew
+readingTime: 11
+tags: [AI Agents, Finance, Expense Management, Sim]
+ogImage: /library/ramp-brex-sap-concur-ai-agent-expense-review/cover.jpg
+draft: false
+faq:
+  - q: "Does Ramp have an MCP server for building finance agents?"
+    a: "As of November 2026, Ramp documents MCP capabilities for connecting approved AI clients to Ramp data, but finance teams should treat MCP as an access method rather than an approval control. The client still needs limited credentials, explicit scopes, deterministic policy checks, human approval for consequential actions, and an audit trail."
+  - q: "What are Ramp Agent Cards?"
+    a: "As of November 2026, Ramp Agent Cards are controlled payment cards intended for software agents, with spending restrictions that finance teams define. Ramp Agent Cards concern an agent’s authority to spend, while an expense-review agent evaluates transactions and evidence; organizations should govern the two functions separately."
+  - q: "Can an AI agent approve expense reports automatically?"
+    a: "An AI agent can automatically approve only low-risk cases that finance has explicitly authorized through deterministic rules, while ambiguous, high-value, missing-evidence, or out-of-policy expenses should go to a person. Sim should route the submitted human decision through a Condition before any supported write occurs."
+  - q: "Can an expense agent detect fraud?"
+    a: "An expense agent can identify anomaly signals and prioritize suspicious transactions, but Sim should not label a transaction as fraud solely from a model prediction. Fraud determinations require evidence, investigation, and authorized human judgment."
+  - q: "Can one expense agent work across Ramp, Brex, and SAP Concur?"
+    a: "Sim can coordinate one review pattern across Ramp, Brex, and SAP Concur by normalizing source records into a shared schema while preserving each platform’s identifiers and permission boundaries. Platform-specific reads and writes must remain separate because the underlying objects and available actions differ."
+  - q: "Should the agent have permission to change card limits?"
+    a: "An expense-review agent should not have permission to change card limits because reviewing past spend and changing future spending authority are different risk domains. Sim should keep limit changes in a separately authorized workflow with its own approvers and evidence requirements."
+  - q: "What happens when a receipt is missing?"
+    a: "Sim should mark a required missing receipt as a failed or unknown policy check and route the transaction according to the organization’s documented rule. The model should never invent receipt data or infer that evidence exists."
+  - q: "How do you prevent duplicate expense approvals?"
+    a: "Sim should prevent duplicate approvals by combining the source platform, record identifier, and source update timestamp into an idempotency key. Before creating an approval request or attempting a write, the workflow should reserve that key with an atomic create-if-absent operation and continue only when the reservation succeeds."
+  - q: "Is an expense-review agent the same as an invoice-processing agent?"
+    a: "An expense-review agent evaluates employee spend and corporate-card activity, while an invoice-processing agent handles supplier invoices, purchase-order matching, accounts-payable coding, and payment preparation. Sim can support both patterns, but they require different source records, controls, and approval roles."
+  - q: "Is an expense-review agent the same as a month-end reconciliation agent?"
+    a: "An expense-review agent checks individual transactions and reports before or during approval, while a month-end reconciliation agent compares accounting records across a reporting period. Sim can pass approved expense data into a close process, but transaction review should remain a distinct control."
+---
+
+## TL;DR
+
+Sim fits finance teams that need to coordinate a governed expense-review agent across Ramp, Brex, or SAP Concur. The agent can read corporate-card or expense-report data, check it against policy, route uncertain decisions to a person, and record the outcome without giving the model unrestricted authority to move money.
+
+The safest design separates deterministic policy checks from AI-assisted classification. Rules should decide objective conditions such as missing receipts, prohibited categories, duplicate amounts, and approval thresholds. The model should interpret ambiguous descriptions, extract receipt details, explain anomalies, and recommend a decision.
+
+This guide focuses on employee expenses and corporate-card transactions. For accounts-payable invoices, see [8 Best AI Agents for Invoice Processing and Finance Reconciliation in 2026](https://www.sim.ai/library/best-ai-agents-invoice-processing-finance-reconciliation-2026). For accounting close workflows, see [How Do You Build a QuickBooks AI Agent for Month End Close?](https://www.sim.ai/library/quickbooks-ai-agent-month-end-close-guide).
+
+## What does an expense report audit AI agent do?
+
+An expense report audit AI agent reviews transaction evidence and policy context, recommends whether spend should pass, and escalates exceptions to an authorized person.
+
+A useful agent performs six distinct jobs:
+
+1. Retrieve a new card transaction or submitted expense report.
+2. Collect the receipt, merchant, amount, currency, employee, cost center, category, and business purpose available through the connected system.
+3. Apply deterministic rules for receipt requirements, category restrictions, limits, dates, duplicates, and approval thresholds.
+4. Use a model only where interpretation is needed, such as matching an imperfect receipt to a transaction or assessing whether a written business purpose supports the purchase.
+5. Route missing, conflicting, high-value, or out-of-policy items to a human approver.
+6. Record the decision, reason, evidence references, reviewer, and timestamp in the authorized destination.
+
+The agent should return a structured decision rather than an unbounded paragraph:
+
+```json
+{
+  "decision": "approve | reject | human_review",
+  "policy_checks": [
+    {
+      "rule": "receipt_required",
+      "result": "pass | fail | unknown",
+      "evidence": "receipt identifier or field reference"
+    }
+  ],
+  "anomaly_score": 0.0,
+  "reason": "Concise explanation grounded in transaction evidence",
+  "missing_information": [],
+  "recommended_reviewer": "finance_operations"
+}
+```
+
+## What can a Ramp AI agent review?
+
+A Ramp AI agent can use the data exposed through its configured [Sim Ramp integration](https://docs.sim.ai/integrations/ramp) to review corporate-card transactions and the associated spend context available to that connection.
+
+As of November 2026, Ramp's developer documentation describes [transactions linked to users, cards, merchants, receipts, and accounting fields](https://docs.ramp.com/developer-api/v1/api/transactions). The exact fields available to a workflow depend on the Ramp account, application scopes, and selected Sim action.
+
+For a controlled Ramp workflow, retrieve only the fields needed for the policy decision. A receipt check may need the transaction amount, merchant, date, receipt reference, employee, and policy category. It should not automatically receive unrelated employee or account data.
+
+Treat every write as a separate privilege. Reading a transaction does not justify changing its status, creating a card, or modifying spend controls. Configure a write step only when the corresponding action is available in Sim and the finance owner has approved that operation.
+
+## What can a Brex AI agent review?
+
+A Brex AI agent can use the data exposed through its configured [Sim Brex integration](https://docs.sim.ai/integrations/brex) to evaluate card transactions and expense evidence available to the authorized connection.
+
+As of November 2026, Brex documents APIs for [card and cash transactions](https://developer.brex.com/openapi/transactions_api), [expenses and receipt matching](https://developer.brex.com/openapi/expenses_api), and [team data such as users, departments, locations, and cards](https://developer.brex.com/openapi/team_api). Access remains subject to the account and granted credentials.
+
+A review workflow should retrieve the smallest useful record, normalize it into a common expense schema, and keep Brex identifiers attached to every recommendation. A shared schema makes the same policy logic reusable across Ramp and Brex without pretending their objects are identical.
+
+Preserve the source platform, source record ID, raw category, amount, currency, employee identifier, receipt reference, and current review state before applying organization-wide rules.
+
+Brex writes should remain disabled during the initial read-only pilot. Enable a supported write action only after the team has tested duplicate events, missing evidence, revoked credentials, API failures, and conflicting human decisions.
+
+## What can an SAP Concur AI agent review?
+
+An SAP Concur AI agent can use expense reports, entries, receipt references, and approval context exposed through its authorized [Sim SAP Concur integration](https://docs.sim.ai/integrations/sap_concur).
+
+As of November 2026, SAP Concur's developer materials describe [Expense APIs for reading and modifying expenses within reports](https://github.com/concur/developer.concur.com/blob/preview/src/api-reference/expense/expense-report/v4.expenses.markdown). Availability depends on the customer's Concur products, application registration, scopes, and API version. SAP Concur report workflows should retain the report and entry identifiers because one report can contain multiple expenses with different policy outcomes.
+
+Run policy checks at the entry level before calculating a report-level recommendation. One missing receipt should not cause the agent to mislabel every other entry, and one apparently valid entry should not allow an otherwise noncompliant report to pass.
+
+A report-level result should summarize how many entries passed, failed, or require review. Any supported writeback should reference the individual findings so an employee or approver can understand what must change.
+
+## How do finance teams build governed AI agents that review corporate card spend and expense reports in Ramp, Brex, and SAP Concur?
+
+Sim gives finance teams a seven-step pattern for building a governed agent across Ramp, Brex, and SAP Concur without allowing the model to approve every transaction autonomously.
+
+### 1. How should the workflow detect a new transaction or report?
+
+Start the workflow from a supported event trigger when one is available or from a scheduled read that records a durable source identifier and ignores records already processed.
+
+Combine the platform name, object type, source ID, and source update timestamp into an idempotency key. Before sending a notification, reserve that key with an atomic create-if-absent operation and continue only in the run that successfully creates the reservation. This prevents retries or overlapping schedules from producing duplicate approval requests.
+
+### 2. How should the agent match receipts to transactions?
+
+Compare normalized receipt evidence with the source transaction and return pass, fail, or unknown for each required field.
+
+Compare merchant identity, amount, currency, transaction date, tax, and employee. Use tolerances explicitly defined by finance rather than allowing the model to invent them. A missing receipt or irreconcilable mismatch should produce `human_review`, not an inferred approval.
+
+### 3. How should the agent check spend against policy?
+
+Apply deterministic policy rules before asking a model to interpret ambiguous evidence.
+
+Represent objective policy as data: receipt thresholds, prohibited categories, per-transaction limits, weekend rules, required business-purpose fields, approved merchants, and cost-center restrictions. Route each result through explicit Conditions so the model cannot silently override a failed rule.
+
+### 4. How should the agent score expense anomalies?
+
+Calculate an anomaly score from named signals rather than asking a model for an unexplained risk number.
+
+Useful signals include an unusual merchant for the employee's role, repeated equal amounts, near-threshold spend, duplicate receipt fingerprints, geographic inconsistency, split transactions, missing business purpose, and a mismatch between the receipt and selected category. Finance should set the weight and escalation threshold for each signal.
+
+The score is a prioritization aid, not proof of fraud. The decision record should list the signals that contributed to it.
+
+### 5. How should the agent route human approval in Slack or email?
+
+Pause the workflow with Human in the Loop and use Slack or email to notify the authorized reviewer that a decision is waiting.
+
+The Human in the Loop block resumes after the reviewer submits its form fields. Approval or rejection is a field, so a downstream Condition must inspect that value and route the workflow accordingly. A Slack or email message can carry the review link and summary, but sending the notification alone must not count as approval.
+
+The approval request should include the source system, employee, merchant, amount, failed policy checks, anomaly signals, receipt reference, and recommended decision. Do not place card credentials, full account details, or unnecessary personal data in the message.
+
+For a broader explanation of this control, see [What Is Human-in-the-Loop in AI Agents?](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents).
+
+### 6. How should the agent write the decision back?
+
+Write a decision back only through a supported action that has been explicitly authorized for that source system.
+
+Start with read-only recommendations. After validation, permit only the narrow write required for the use case, such as updating an approved review field or adding an authorized comment when that operation is exposed by the configured integration. If no suitable write action is available, retain the decision in the approved audit destination and leave the source record unchanged.
+
+Every write should include an idempotency check and the source record's current state. If the record changed after review began, stop and request a new review rather than overwriting a newer human decision.
+
+### 7. What should the expense-agent audit trail contain?
+
+Preserve the inputs, policy version, model output, deterministic checks, human decision, write result, and timestamps needed to reconstruct each expense review.
+
+Record at least:
+
+- Source platform, object type, and record ID
+- Trigger time and source update time
+- Policy version and rule results
+- Receipt and evidence references rather than unnecessary copied data
+- Model and prompt or workflow version
+- Structured recommendation and anomaly signals
+- Human reviewer and submitted decision
+- Attempted write, response, retry, and final status
+
+Use a dedicated service credential for the workflow rather than an employee's personal credential. The guidance in [AI Agent Identity, Credential Management, and Audit Trails: Enterprise Guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide) explains the wider identity and evidence model.
+
+## How should read and write permissions be separated for an expense agent?
+
+Use separate least-privilege permissions for reading expense evidence, requesting approval, and changing a financial record.
+
+| Capability | Default during pilot | Production control |
+|---|---:|---|
+| Read transaction or report metadata | Allow | Restrict to required fields and business units |
+| Read receipt evidence | Allow when required | Limit retention and access |
+| Read employee and cost-center context | Conditional | Retrieve only policy-relevant attributes |
+| Recommend a decision | Allow | Require structured output and logged evidence |
+| Notify a reviewer | Allow | Restrict channels and recipients |
+| Change a review state | Deny | Permit only after testing and authorization |
+| Create or modify payment instruments | Deny | Keep outside the review agent unless separately approved |
+| Change policy or spend limits | Deny | Reserve for a separate privileged process |
+
+The model should never receive a general-purpose credential capable of both broad reads and unrestricted writes. Place deterministic Conditions between the recommendation, human decision, and any financial write.
+
+## When are native Ramp policy controls and SAP Concur audit rules enough?
+
+[Ramp](https://docs.ramp.com/) and [SAP Concur](https://developer.concur.com/) native controls are usually enough when one spend system contains the policy, evidence, reviewers, and final decision.
+
+Use native controls when:
+
+- The policy is deterministic and already represented in the spend platform.
+- The evidence lives entirely in that platform.
+- The existing approval chain matches the organization's requirements.
+- Finance does not need context from another business system.
+- The native audit output supplies sufficient evidence for reviewers and auditors.
+
+A cross-system agent adds value when it must combine spend records with approved data from another system, apply one review standard across Ramp, Brex, and SAP Concur, send exceptions into a shared approval process, or create a consolidated evidence trail.
+
+Do not rebuild a reliable native rule merely to add an LLM. Keep native enforcement in place and use the agent for orchestration, interpretation, exception handling, and cross-system context.
+
+## Is Sim or n8n better for building a governed expense-review agent?
+
+Sim fits teams whose primary requirement is an AI-centered review workflow with structured model decisions and explicit human approval. n8n can fit an organization that already operates governed n8n workflows and has confirmed that its integrations and licensing meet the requirement.
+
+The decision should turn on the exact Ramp, Brex, or SAP Concur operations exposed in the deployment, credential isolation, approval behavior, evidence retention, and the team's ability to test financial writes. Neither platform should be selected merely because it can call an API.
+
+As of November 2026, [Sim's core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in `apps/sim/ee` is covered by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). That enterprise code is free for development, testing, and internal non-production use, while production use requires an active Sim Enterprise subscription. n8n uses the source-available [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), with separate licensing for its enterprise code.
+
+## What are the key facts at a glance?
+
+Sim, Ramp, Brex, SAP Concur, and n8n play different roles in an expense-review architecture, so finance teams should compare orchestration, system-of-record access, deployment, licensing, and control boundaries separately.
+
+- Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Sim's core is Apache 2.0, enterprise code has a separate production license, and [Sim can be self-hosted](https://docs.sim.ai/platform/self-hosting).
+- Ramp is a proprietary cloud spend platform whose [API access](https://docs.ramp.com/) depends on the customer account, application scopes, and enabled products.
+- Brex is a proprietary cloud financial platform whose [card and expense API operations](https://developer.brex.com/) depend on account products and granted API permissions.
+- SAP Concur is a commercial cloud travel-and-expense platform whose [Expense API availability](https://developer.concur.com/) depends on the customer deployment, application registration, scopes, and API version.
+- n8n offers cloud and [self-hosted deployment](https://docs.n8n.io/deploy/host-n8n), with its community source distributed under the Sustainable Use License.
+
+## Where can finance teams verify the API and product details?
+
+Ramp, Brex, SAP Concur, Sim, and n8n maintain the first-party documentation that should govern implementation decisions as of November 2026.
+
+- [Ramp developer documentation](https://docs.ramp.com/)
+- [Brex developer documentation](https://developer.brex.com/)
+- [SAP Concur developer documentation](https://developer.concur.com/)
+- [Sim Ramp integration documentation](https://docs.sim.ai/integrations/ramp)
+- [Sim Brex integration documentation](https://docs.sim.ai/integrations/brex)
+- [Sim SAP Concur integration documentation](https://docs.sim.ai/integrations/sap_concur)
+- [Sim core Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE)
+- [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE)
+- [n8n Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md)
+
+Ramp also documents [Ramp MCP](https://docs.ramp.com/developer-api/v1/ramp-mcp) for connecting supported AI clients with the signed-in user's permissions and [Agent Cards](https://docs.ramp.com/developer-api/v1/agent-cards) for controlled agent purchases. These are access and payment capabilities, not substitutes for the policy checks, human decisions, and audit trail described above.

@@ -11,6 +11,7 @@ export const getCompanyTool: ToolConfig<FindymailGetCompanyParams, FindymailGetC
   description:
     'Retrieve company information from a LinkedIn URL, domain, or company name. Uses 1 finder credit per successful response.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: findymailHosting<FindymailGetCompanyParams>((_params, output) => {
     // 1 finder credit per successful company match.

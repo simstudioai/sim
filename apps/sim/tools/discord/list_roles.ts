@@ -8,6 +8,7 @@ export const discordListRolesTool: ToolConfig<DiscordListRolesParams, DiscordLis
   name: 'Discord List Roles',
   description: 'List all roles in a Discord server',
   version: '1.0.0',
+  effect: 'read',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

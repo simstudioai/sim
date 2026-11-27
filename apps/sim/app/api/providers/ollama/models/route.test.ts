@@ -1,6 +1,6 @@
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { setEnv } from '@sim/testing/mocks/env.mock'
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
-import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockFetch = vi.hoisted(() => vi.fn())
@@ -10,13 +10,12 @@ vi.mock('@/providers/utils', () => providersUtilsMock)
 import { GET } from '@/app/api/providers/ollama/models/route'
 
 const { mockFilterBlacklistedModels, mockIsProviderBlacklisted } = providersUtilsMockFns
-const mockIsOllamaUrlConfigured = urlsMockFns.mockIsOllamaUrlConfigured
 
 const request = () => createMockRequest('GET')
 
 describe('ollama models route', () => {
   beforeEach(() => {
-    mockIsOllamaUrlConfigured.mockReturnValue(false)
+    setEnv({ OLLAMA_URL: undefined })
     mockIsProviderBlacklisted.mockReturnValue(false)
     mockFilterBlacklistedModels.mockImplementation((models: string[]) => models)
     vi.stubGlobal('fetch', mockFetch)
@@ -36,7 +35,7 @@ describe('ollama models route', () => {
 
   it('still honours an explicit OLLAMA_URL on the hosted platform', async () => {
     setEnvFlags({ isHosted: true })
-    mockIsOllamaUrlConfigured.mockReturnValue(true)
+    setEnv({ OLLAMA_URL: 'http://ollama.internal:11434' })
     mockFetch.mockResolvedValue({ ok: true, json: async () => ({ models: [{ name: 'llama3' }] }) })
 
     const response = await GET(request())

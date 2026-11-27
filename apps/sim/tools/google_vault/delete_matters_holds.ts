@@ -8,6 +8,7 @@ export const deleteMattersHoldsTool: ToolConfig<GoogleVaultDeleteMattersHoldsPar
   name: 'Vault Delete Hold',
   description: 'Delete a hold and release its covered accounts',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

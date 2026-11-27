@@ -21,6 +21,7 @@ export const pitchbookInvestorSearchTool: ToolConfig<
   description:
     'Search PitchBook for investors by type, location, assets under management, fund profile, and deal activity',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

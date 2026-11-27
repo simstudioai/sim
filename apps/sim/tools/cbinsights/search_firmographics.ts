@@ -69,6 +69,7 @@ export const cbinsightsSearchFirmographicsTool: InternalToolConfig<
   description:
     'Search profiles of private companies, public companies, and investors by market, industry, geography, headcount, funding, and valuation. Each field is ANDed together; values within a field are ORed.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const quiverImageToSvgTool = {
   name: 'Quiver Image to SVG',
   description: 'Convert raster images into vector SVG format using QuiverAI',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUIVER_CREDENTIAL_OAUTH,
 
   params: {

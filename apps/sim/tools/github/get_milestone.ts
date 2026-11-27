@@ -36,6 +36,7 @@ export const getMilestoneTool: ToolConfig<GetMilestoneParams, GetMilestoneRespon
   name: 'GitHub Get Milestone',
   description: 'Get a specific milestone by number',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -140,6 +141,7 @@ export const getMilestoneV2Tool: ToolConfig<GetMilestoneParams, any> = {
   name: getMilestoneTool.name,
   description: getMilestoneTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getMilestoneTool.params,
   request: getMilestoneTool.request,

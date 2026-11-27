@@ -14,6 +14,7 @@ export const discordCreateWebhookTool: ToolConfig<
   name: 'Discord Create Webhook',
   description: 'Create a webhook in a Discord channel',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

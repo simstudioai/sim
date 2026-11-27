@@ -14,6 +14,7 @@ export const listEventTypesTool: ToolConfig<
   name: 'Calendly List Event Types',
   description: 'Retrieve a list of all event types for a user or organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const redisDeleteTool: InternalToolConfig<RedisDeleteParams, RedisDeleteR
   name: 'Redis Delete',
   description: 'Delete a key from Redis.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

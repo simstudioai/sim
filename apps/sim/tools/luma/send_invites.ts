@@ -12,6 +12,7 @@ export const sendInvitesTool: ToolConfig<LumaSendInvitesParams, LumaSendInvitesR
   description:
     'Send email invitations to guests for a Luma event. Unlike Add Guests (which registers guests directly), this emails an invite that recipients can accept.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {

@@ -12,6 +12,7 @@ export const pitchbookDealCapTableHistoryTool: ToolConfig<
   description:
     'Retrieve the cap table as of a deal, one row per stock series with its terms and ownership',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

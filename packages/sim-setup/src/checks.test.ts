@@ -48,7 +48,6 @@ describe('setup coherence checks', () => {
     const findings = await runChecks(
       rootContext({
         SLACK_EXTENDED_SCOPES: 'true',
-        NEXT_PUBLIC_SLACK_EXTENDED_SCOPES: 'true',
       }),
       ['coherence']
     )
@@ -58,7 +57,7 @@ describe('setup coherence checks', () => {
       status: 'fail',
       message:
         'SLACK_EXTENDED_SCOPES is on but SLACK_SIGNING_SECRET is not set — native Slack triggers will fail at runtime',
-      fix: 'set SLACK_SIGNING_SECRET or remove SLACK_EXTENDED_SCOPES and NEXT_PUBLIC_SLACK_EXTENDED_SCOPES',
+      fix: 'set SLACK_SIGNING_SECRET or remove SLACK_EXTENDED_SCOPES',
     })
   })
 
@@ -66,7 +65,6 @@ describe('setup coherence checks', () => {
     const findings = await runChecks(
       rootContext({
         SLACK_EXTENDED_SCOPES: 'true',
-        NEXT_PUBLIC_SLACK_EXTENDED_SCOPES: 'true',
         SLACK_SIGNING_SECRET: '   ',
       }),
       ['coherence']
@@ -77,7 +75,7 @@ describe('setup coherence checks', () => {
       status: 'fail',
       message:
         'SLACK_EXTENDED_SCOPES is on but SLACK_SIGNING_SECRET is not set — native Slack triggers will fail at runtime',
-      fix: 'set SLACK_SIGNING_SECRET or remove SLACK_EXTENDED_SCOPES and NEXT_PUBLIC_SLACK_EXTENDED_SCOPES',
+      fix: 'set SLACK_SIGNING_SECRET or remove SLACK_EXTENDED_SCOPES',
     })
   })
 
@@ -103,6 +101,20 @@ describe('setup coherence checks', () => {
       message:
         'NEXT_PUBLIC_SSO_ENABLED is set but no longer does anything — the browser reads this from the server',
       fix: 'set SSO_ENABLED=true and remove NEXT_PUBLIC_SSO_ENABLED',
+    })
+  })
+
+  it('points a leftover server-switch browser twin at its server variable', async () => {
+    const findings = await runChecks(rootContext({ NEXT_PUBLIC_E2B_ENABLED: 'true' }), [
+      'coherence',
+    ])
+
+    expect(findings).toContainEqual({
+      group: 'coherence',
+      status: 'warn',
+      message:
+        'NEXT_PUBLIC_E2B_ENABLED is set but no longer does anything — the browser reads this from the server',
+      fix: 'set E2B_ENABLED=true and remove NEXT_PUBLIC_E2B_ENABLED',
     })
   })
 

@@ -18,6 +18,7 @@ export const planetScaleDeleteBranchTool: ToolConfig<
   name: 'PlanetScale Delete Branch',
   description: 'Delete a branch',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

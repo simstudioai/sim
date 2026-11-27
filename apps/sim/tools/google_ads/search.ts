@@ -11,6 +11,7 @@ export const googleAdsSearchTool: ToolConfig<GoogleAdsSearchParams, GoogleAdsSea
   name: 'Google Ads Search (GAQL)',
   description: 'Run a custom Google Ads Query Language (GAQL) query',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

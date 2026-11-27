@@ -349,6 +349,26 @@ describe('validateModelProvider', () => {
     ).rejects.toBeInstanceOf(ModelNotAllowedError)
   })
 
+  it('lets sim-auto through a provider allowlist, since the router gates each pool candidate', async () => {
+    queueGroupResolution([{ config: { allowedModelProviders: ['anthropic'] } }])
+    mockGetProviderFromModel.mockReturnValue('ollama')
+
+    await expect(
+      validateModelProvider('user-123', 'workspace-1', 'sim-auto')
+    ).resolves.toBeUndefined()
+    expect(mockGetProviderFromModel).not.toHaveBeenCalledWith('sim-auto')
+  })
+
+  it('refuses sim-auto when the denylist names it, even under a provider allowlist', async () => {
+    queueGroupResolution([
+      { config: { allowedModelProviders: ['anthropic'], deniedModels: ['sim-auto'] } },
+    ])
+
+    await expect(
+      validateModelProvider('user-123', 'workspace-1', 'sim-auto')
+    ).rejects.toBeInstanceOf(ModelNotAllowedError)
+  })
+
   it('enforces the denylist even when no provider allowlist is set', async () => {
     queueGroupResolution([{ config: { allowedModelProviders: null, deniedModels: ['gpt-4'] } }])
     mockGetProviderFromModel.mockReturnValue('openai')

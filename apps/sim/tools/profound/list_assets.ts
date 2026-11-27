@@ -10,6 +10,7 @@ export const profoundListAssetsTool: ToolConfig<
   name: 'Profound List Assets',
   description: 'List all organization assets (companies/brands) across all categories in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

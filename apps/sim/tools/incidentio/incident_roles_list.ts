@@ -13,6 +13,7 @@ export const incidentRolesListTool: ToolConfig<
   name: 'List Incident Roles',
   description: 'List all incident roles in incident.io',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

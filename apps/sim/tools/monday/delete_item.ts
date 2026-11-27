@@ -12,6 +12,7 @@ export const mondayDeleteItemTool: ToolConfig<MondayDeleteItemParams, MondayDele
   name: 'Monday Delete Item',
   description: 'Delete an item from a Monday.com board',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

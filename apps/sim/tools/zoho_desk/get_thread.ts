@@ -15,6 +15,7 @@ export const zohoDeskGetThreadTool: ToolConfig<ZohoDeskGetThreadParams, ZohoDesk
   name: 'Zoho Desk Get Thread',
   description: 'Retrieve the full content of a single Zoho Desk ticket thread.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'zoho-desk' },
 

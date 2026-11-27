@@ -6,6 +6,7 @@ export const spotifyGetArtistTool: ToolConfig<SpotifyGetArtistParams, SpotifyGet
   name: 'Spotify Get Artist',
   description: 'Get detailed information about an artist on Spotify by their ID.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

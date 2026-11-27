@@ -20,6 +20,7 @@ export const codaChangeUserRoleTool: ToolConfig<
   description:
     'Change the workspace role of a Coda user. Requires Admin access in a workspace that belongs to an organization.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

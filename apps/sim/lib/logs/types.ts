@@ -297,6 +297,12 @@ export interface TraceSpan {
   childWorkflowSnapshotId?: string
   childWorkflowId?: string
   /**
+   * The deployment version a child workflow call ran, on a workflow block's span or a
+   * `workflow_executor` Agent tool span. Absent for draft children and custom blocks. It names the
+   * stored version, not later variable edits or block migrations applied when it was loaded.
+   */
+  childDeploymentVersionId?: string
+  /**
    * For a custom-block span: the child run's own execution id, in the SOURCE
    * workspace. Only this opaque handle is persisted — the child's spans are
    * joined at read time by `hydrateChildTraces`. Written only for a block whose

@@ -13,6 +13,7 @@ export const knowledgeCreateDocumentTool: InternalToolConfig<any, KnowledgeCreat
     name: 'Knowledge Create Document',
     description: 'Create a new document in a knowledge base',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       knowledgeBaseId: {
@@ -115,6 +116,11 @@ export const knowledgeCreateDocumentTool: InternalToolConfig<any, KnowledgeCreat
         return requestBody
       },
     },
+
+    /** A dry run's placeholder names the document the call creates; its id stays a placeholder. */
+    dryRunOutput: (params) => ({
+      data: { documentName: inferDocumentFileInfo(params.name.trim()).filename },
+    }),
 
     transformResponse: async (response): Promise<KnowledgeCreateDocumentResponse> => {
       const result = await response.json()

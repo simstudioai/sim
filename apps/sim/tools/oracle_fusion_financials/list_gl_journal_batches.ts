@@ -20,6 +20,7 @@ export const oracleFusionFinancialsListGlJournalBatchesTool: InternalToolConfig<
   name: 'Oracle Fusion Financials List GL Journal Batches',
   description: 'List one bounded page of Oracle Fusion gl journal batches.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     ...oracleFusionFinancialsListParamFields,

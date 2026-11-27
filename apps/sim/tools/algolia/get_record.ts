@@ -7,6 +7,7 @@ export const getRecordTool: ToolConfig<AlgoliaGetRecordParams, AlgoliaGetRecordR
   name: 'Algolia Get Record',
   description: 'Get a record by objectID from an Algolia index',
   version: '1.0',
+  effect: 'read',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

@@ -58,6 +58,7 @@ export const crunchbaseGetEntityCardTool: ToolConfig<
   description:
     "Page through one related-entity card of a Crunchbase entity — an investor's investments, a company's founders, a round's investors — past the 100-item cap an inline card request returns.",
   version: '1.0.0',
+  effect: 'read',
   oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 

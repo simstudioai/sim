@@ -156,6 +156,7 @@ export const statusCheckRollupTool: ToolConfig<StatusCheckRollupParams, StatusCh
     description:
       'Read the merged check-run and commit-status state for one commit SHA, including whether each check is required to merge a given pull request.',
     version: '1.0.0',
+    effect: 'read',
     oauth: GITHUB_CREDENTIAL_OAUTH,
 
     params: {

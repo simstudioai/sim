@@ -1,5 +1,5 @@
 import { utf8ByteLength } from '@sim/utils/paste'
-import { boundAnswerFindings } from '@sim/workflow-code/diagnostics'
+import { boundAnswerFindings, SOURCE_REFUSAL_CODES } from '@sim/workflow-code/diagnostics'
 import { type BlobEntry, budgetOfPath, WORKSPACE_ANSWER_BOUND } from '@sim/workspace-code'
 import { KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { workflowCodec, workflowFolder } from '@sim/workspace-code/kinds/workflow'
@@ -7,6 +7,7 @@ import { kindOfPath } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
 import { renderSourceSlotBusy } from '@/lib/workflows/api/source-slots'
+import type { ApplyWorkspaceSourceResult } from '@/lib/workspace-source/application/apply-workspace-source'
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
 import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
@@ -29,15 +30,17 @@ export const v2WorkspaceSourceErrorPolicy = createV2ResourceConcealmentPolicy({
     if (busy) return busy
     if (error instanceof WorkspaceSourceRejectedError) {
       return v2ErrorForOrchestration(error.code, error.message, {
-        code: error.stale ? 'SOURCE_STALE' : 'SOURCE_REJECTED',
+        code: error.stale ? SOURCE_REFUSAL_CODES.stale : SOURCE_REFUSAL_CODES.rejected,
         diagnostics: boundAnswerFindings(error.diagnostics, WORKSPACE_ANSWER_BOUND),
       })
     }
     if (error instanceof WorkspaceSourceBusyError) {
-      return v2ErrorForOrchestration(error.code, error.message, { code: 'SOURCE_BUSY' })
+      return v2ErrorForOrchestration(error.code, error.message, { code: SOURCE_REFUSAL_CODES.busy })
     }
     if (error instanceof SourceStagingFullError) {
-      return v2ErrorForOrchestration(error.code, error.message, { code: 'SOURCE_STAGING_FULL' })
+      return v2ErrorForOrchestration(error.code, error.message, {
+        code: SOURCE_REFUSAL_CODES.stagingFull,
+      })
     }
     return v2CaughtOrchestrationError(error)
   },
@@ -51,6 +54,11 @@ export function withBoundWorkspaceFindings<
   R extends { diagnostics: readonly WorkspaceSourceDiagnostic[] },
 >(result: R) {
   return { ...result, diagnostics: boundAnswerFindings(result.diagnostics, WORKSPACE_ANSWER_BOUND) }
+}
+
+/** An apply's or plan's result as the routes answer it: {@link withBoundWorkspaceFindings}, with `dry`. */
+export function presentWorkspaceApply({ dryRun, ...result }: ApplyWorkspaceSourceResult) {
+  return { ...withBoundWorkspaceFindings(result), dry: dryRun }
 }
 
 /** Non-workflow text bytes (declarations and table rows) one source-write unit covers. */

@@ -38,6 +38,7 @@ export const polymarketGetTradesTool: ToolConfig<
   name: 'Get Trades from Polymarket',
   description: 'Retrieve trade history from Polymarket',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     user: {

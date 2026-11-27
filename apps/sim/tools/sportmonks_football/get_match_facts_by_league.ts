@@ -36,6 +36,7 @@ export const sportmonksGetMatchFactsByLeagueTool: ToolConfig<
   name: 'Get Match Facts by League',
   description: 'Retrieve match facts for a league ID from Sportmonks (beta)',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

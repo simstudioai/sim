@@ -200,6 +200,8 @@ export interface CatalogOutput {
   description?: string
   condition?: OutputCondition
   hiddenFromDisplay?: boolean
+  /** A `json` or `any` output whose value can still be text at run time. */
+  mayBeText?: true
   properties?: Record<string, CatalogOutput>
   items?: CatalogOutput
 }
@@ -208,14 +210,6 @@ interface CatalogBlockLifecycle {
   hidden?: true
   preview?: true
   sunset?: { status: 'legacy' | 'deprecated'; replacedBy?: string }
-}
-
-/** A registry `subBlocks` id rename applied by load-time migrations, for CLI hints. */
-export interface CatalogLegacyId {
-  from: SubBlockId
-  to: SubBlockId | null
-  whenOperation?: string[]
-  conditional?: true
 }
 
 /** Graph facts compile needs and the registry spreads over several helpers. */
@@ -241,6 +235,9 @@ interface CatalogOperationOutputs {
   names: string[]
   nullable?: string[]
 }
+
+/** Whether running a tool changes anything outside Sim (`apps/sim/tools/types.ts` `ToolEffect`). */
+type CatalogEffect = 'read' | 'write'
 
 /** Which param shapes a block's outputs at run time. */
 export interface CatalogDynamicOutputs {
@@ -283,14 +280,24 @@ export interface CatalogBlock {
    */
   operationOutputs?: Record<string, CatalogOperationOutputs>
   /**
+   * What running the block does outside Sim, from its tools' declared effect: `read` only when
+   * every tool it can run is `read`, else `write`. Absent for a block with no `tools.access`.
+   */
+  effect?: CatalogEffect
+  /** Per operation id, the effect of the tool the operation runs, where it differs from `effect`. */
+  operationEffects?: Record<string, CatalogEffect>
+  /**
    * Present when outputs derive from a param at run time. Compile and codegen read output paths
    * from that param's value; where it cannot be read statically, any path is allowed and
    * `W_UNKNOWN_OUTPUT_PATH` is skipped.
    */
   dynamicOutputs?: CatalogDynamicOutputs
+  /**
+   * Text outputs the block writes only when it fails into an error edge, beside the `error` every
+   * block has (a Function's `errorMessage`). Compile and codegen treat each exactly as `error`.
+   */
+  errorOutputs?: string[]
   graph: CatalogBlockGraph
-  legacyIds?: CatalogLegacyId[]
-  legacyCanonicalIds?: Array<{ from: CanonicalParamId; to: CanonicalParamId }>
   /**
    * The user-facing name source writes for a param, per surface: param name (a canonical id or a
    * subBlock id) → alias (`oauthCredential` → `credential`). Frozen in

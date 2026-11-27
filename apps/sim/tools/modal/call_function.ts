@@ -38,6 +38,7 @@ export const modalCallFunctionTool: ToolConfig<ModalCallFunctionParams, ModalCal
     name: 'Modal Call Function',
     description: 'Invoke a deployed Modal Web Function or Server over HTTPS',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       url: {

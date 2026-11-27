@@ -14,6 +14,7 @@ export const getSubscriptionsTool: ToolConfig<
   description:
     'Retrieve subscription preferences for a data subject. Returns the current subscription topic and control statuses.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     organizationCode: {

@@ -24,6 +24,7 @@ export const helpScoutListTeamsTool: ToolConfig<
   description:
     'List the teams in the Help Scout account. Team IDs can be used to assign conversations.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

@@ -8,6 +8,7 @@ export const agentmailUpdateMessageTool: ToolConfig<UpdateMessageParams, UpdateM
   name: 'Update Message',
   description: 'Add or remove labels on an email message in AgentMail',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

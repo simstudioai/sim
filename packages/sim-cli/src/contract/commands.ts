@@ -69,7 +69,11 @@ Edges:
   connections maps a source handle to its targets: {"source":"<id>"}, {"source":["<a>","<b>"]},
   or {"source":{"block":"<id>","handle":"<target handle>"}}; "success" is an alias of "source".
   An add's connections create the new block's edges. An edit's connections REPLACE every
-  outgoing edge of that block, on every handle: list again each edge to keep.
+  outgoing edge of that block, on every handle: list again each edge to keep; {} removes them all.
+  Moving a block into or out of a loop or parallel (parentId) removes each of its existing edges
+  that would cross the container's boundary, atomic or not, and names them in warnings. Edges the
+  batch itself asks for across a boundary are refused. Wire into the body from loop-start-source
+  and onward from loop-end-source (parallel-start-source, parallel-end-source).
   To remove one edge, edit its source block with
   {"removeEdges":[{"targetBlockId":"<id>","sourceHandle":"source"}]} (sourceHandle defaults to
   "source").
@@ -82,12 +86,14 @@ Source handles:
   parallel-start-source, parallel-end-source  the same for a parallel
 Renames:
   An edit's {"name":"New name"} also rewrites every <old key.field> reference to the block, in
-  other blocks' inputs and in a loop's or parallel's collection and condition.
+  other blocks' inputs and in a loop's or parallel's collection and condition. Edits run after the
+  batch's adds, so a block added in the same batch is rewritten too.
 Inputs:
   inputs takes the field ids \`sim blocks get <type>\` lists (inputSchema, operationInputSchema),
   or the name a pair of them shares (inputDefinitions: tableId for tableSelector and
   manualTableId; a string goes to the typed field). Add the type it answers with: \`blocks get
-  table\` answers table_v2, and an add of legacy table is refused.
+  table\` answers table_v2, and an add of legacy table is refused. An edit's inputs replace each
+  field they name whole (a responseFormat schema too) and keep the fields they do not name.
   conditions (condition): [{"title":"if","value":"<start.n> > 3"},{"title":"else if","value":"…"},
   {"title":"else","value":""}]; the last entry is the else. Each entry's id comes from its
   position (<block id>-if, <block id>-else-if-0, …, <block id>-else): an id you pass is replaced.
@@ -96,22 +102,39 @@ Inputs:
 Block settings, beside inputs in an add's or edit's params:
   "retry":{"enabled":true,"maxTries":3,"waitBetweenTriesMs":1000} retries a failed block; null
   clears it. An api block's retries input repeats the request after a timeout, reset, 429 or
-  5xx, not when the host does not resolve or refuses the connection; "retry" covers that.
+  5xx, not when the host does not resolve or refuses the connection; "retry" covers that. They
+  nest: every try of "retry" runs the request with its retries.
 Outputs:
   A block that fails outputs {"error":"<message>"}: connect its error handle and read
-  <name.error> there (without one, the run fails). A Workflow block's result is the child's
+  <name.error> there (without one, the run fails). A Function's error leads with the line and
+  code that threw; its <name.errorMessage> is the thrown message alone, the one to reply with.
+  A Workflow block's result is the child's
   output; a child ending in a Response block gives {data, status, headers}, so read
-  <call.result.data.x>.`
+  <call.result.data.x>. A Table block's row holds its cells under data: read a cell as
+  <name.row.data.column> (<name.rows[0].data.column>).
+References:
+  Inside a loop or parallel body read <loop.currentItem> and <loop.index>, or
+  <parallel.currentItem> and <parallel.index>; after it, <name.results>. A reference to a block
+  that did not run (a branch not taken) is null as a whole value, in a condition or in a
+  Function's code, and '' inside text.
+Order:
+  Operations run in phases whatever their order in the batch: deletes first, then
+  extract_from_subflow, adds, insert_into_subflow and edits; operations of one type keep the
+  order given, except insert_into_subflow, which runs a parent before its children. A delete plus an add with the same name therefore replaces the block in one batch.
+Run logs:
+  \`sim logs list --workflow <workflowId>\` lists a workflow's runs; \`sim logs get <runId> --trace
+  --no-include-workflow-state\` shows each block's resolved inputs, outputs and errors.`
 /** How to read `sim blocks get` for a `workflows operations apply` edit. */
 const BLOCK_DETAIL_GUIDE = `
 Reading it for \`sim workflows operations apply\`:
   id                    the type to add: \`blocks get table\` answers table_v2 (an add of legacy
-                        table is refused)
+                        table is refused); \`note\` says so when it is not the type asked for
   inputSchema           the field ids inputs takes; operationInputSchema, an operation's own
   inputDefinitions      the block's inputs by name; one a pair of fields shares (tableId for
                         tableSelector and manualTableId) is accepted in place of the pair
   outputs               what it outputs on success; a failed block outputs {"error":"…"}
-                        instead, read on its error path as <name.error>
+                        instead, read on its error path as <name.error> (a Function also
+                        outputs <name.errorMessage>, the thrown message without line or code)
 Block settings such as retry are not fields: \`sim workflows operations apply --help\`.`
 const WORKFLOW_SET_BLOCK_ENABLED_HELP =
   'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'
@@ -292,7 +315,7 @@ export const CLI_CONTRACT: CliContract = {
     // Which ledger answered: a user credential reports only the calling user's
     // events, a workspace key the whole workspace. The difference was silent —
     // same workspace, same window, same flags, a strictly smaller result.
-    pageNote: { path: 'scope', label: 'scope' },
+    pageNote: { field: 'scope', label: 'scope' },
     columns: [
       { header: 'at', path: 'createdAt', format: 'timestamp' },
       { header: 'workspace', path: 'workspaceId' },
@@ -316,6 +339,11 @@ export const CLI_CONTRACT: CliContract = {
       filter: { json: true, describe: TABLE_FILTER_HELP },
     },
     confirm: 'This deletes every matching row and cannot be undone.',
+    confirmListed: {
+      field: 'rowIds',
+      text: (count) =>
+        `This deletes ${count === null ? 'the listed rows' : count === 1 ? 'this row' : `these ${count} rows`} and cannot be undone.`,
+    },
   },
   updateRowsByFilter: {
     command: 'tables rows batch-update',
@@ -693,6 +721,8 @@ export const CLI_CONTRACT: CliContract = {
   getWorkflowSource: {
     command: 'workflows source get',
     describe: 'Show a workflow’s draft as TypeScript source with its identity lock',
+    // `workflow-source-get.ts` resolves a name to its id before the request.
+    pathArgumentNames: { workflowId: 'workflow' },
   },
   /** `workflows source apply --dir <dir>` reads and writes a source directory by hand. */
   applyWorkflowSource: { hidden: true },
@@ -735,7 +765,11 @@ export const CLI_CONTRACT: CliContract = {
     confirm:
       'This edits the draft graph: the batch adds, edits, or deletes blocks and their edges as written.',
     flags: {
-      operations: { json: true, describe: WORKFLOW_OPERATIONS_HELP },
+      operations: {
+        json: true,
+        describe: WORKFLOW_OPERATIONS_HELP,
+        example: `'[{"operation_type":"edit","block_id":"<id>","params":{"name":"New name"}}]'`,
+      },
       setBlockEnabled: { json: true, describe: WORKFLOW_SET_BLOCK_ENABLED_HELP },
     },
   },
@@ -902,10 +936,7 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       name: { describe: TABLE_NAME_HELP },
       folderPath: FOLDER_PATH_FLAG,
-      schema: {
-        json: true,
-        describe: 'Table schema: {"columns":[{"name":"email","type":"string"}]}',
-      },
+      schema: { json: true },
     },
   },
   updateTable: {
@@ -1062,19 +1093,20 @@ blocks you add from it.`,
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   // A dependency set is typed one specifier at a time or pasted from a
   // requirements file, so each list takes space-separated values or `@path`
-  // with one entry per line rather than a JSON array. The package lists are
+  // with one entry per line; a specifier holds commas (`requests>=2,<3`), so
+  // the dependency lists keep them (`listValues: 'text'`). The package lists are
   // manifests: a requirements file carries blank lines and `#` comments, which
   // the API ignores, so the reader drops them instead of refusing the file.
   createSandbox: {
     flags: {
-      dependencies: { list: true, manifest: true },
+      dependencies: { list: true, manifest: true, listValues: 'text' },
       cliTools: { list: true },
       systemPackages: { list: true, manifest: true },
     },
   },
   updateSandbox: {
     flags: {
-      dependencies: { list: true, manifest: true },
+      dependencies: { list: true, manifest: true, listValues: 'text' },
       cliTools: { list: true },
       systemPackages: { list: true, manifest: true },
     },
@@ -1208,6 +1240,7 @@ blocks you add from it.`,
       fileReferences: {
         name: 'file',
         list: true,
+        listValues: 'fileReferences',
         describe: 'Workspace file ID or canonical files/<folder>/<name> path (repeatable)',
       },
     },
@@ -1771,7 +1804,7 @@ blocks you add from it.`,
       fileIds: {
         list: true,
         trailing: true,
-        fileReferences: true,
+        listValues: 'fileReferences',
         hiddenAliases: ['ids', 'paths'],
       },
     },
@@ -2305,16 +2338,27 @@ blocks you add from it.`,
   // Documents, not records
   // The payload is the artifact: `sim workflows export <id> > wf.json` has to
   // produce something `sim workflows import` accepts back.
+  //
+  // Workspace bindings are kept by default, unlike the API's sharing-safe default:
+  // a CLI caller reads the export in the workspace it came from, and a table block
+  // printed with its tableId cleared sent agents to a second command to learn what
+  // the block was bound to. The ids are non-secret and readable by anyone the export
+  // route admits; credentials are cleared either way.
   exportWorkflow: {
     describe: 'Print a workflow as a portable JSON document',
     helpText: `
-Workspace bindings (a table, a child workflow, a knowledge base) print as null unless
---include-workspace-bindings, and credentials always do: to read what a block is set to, use
-\`sim workflows state get\`.`,
+A table, child workflow, knowledge base or other workspace binding prints as its id; a credential
+always prints as null. For a copy to share outside this workspace, pass
+--no-include-workspace-bindings to clear the bindings too.`,
     flags: {
       includeReferences: {
         boolean: true,
         describe: 'Include non-secret resource identities for mapped import',
+      },
+      includeWorkspaceBindings: {
+        requestDefault: 'true',
+        describe:
+          'Keep table, knowledge base, document, folder, channel and other workspace bindings. On by default; --no-include-workspace-bindings clears them for a copy to share outside this workspace. Credentials are cleared either way',
       },
     },
     document: true,
@@ -2357,7 +2401,7 @@ Workspace bindings (a table, a child workflow, a knowledge base) print as null u
   // `workflows execute create` and `workflows cancel create`.
   executeWorkflow: {
     command: 'workflows run',
-    describe: 'Run a deployed workflow or execute saved state manually',
+    describe: 'Run a deployed workflow, or its saved draft',
     flags: {
       async: { boolean: true, describe: 'Queue the run and return immediately' },
       executionTimeoutSeconds: {
@@ -2365,15 +2409,16 @@ Workspace bindings (a table, a child workflow, a knowledge base) print as null u
           "Maximum duration of the run in seconds, capped by the plan's execution timeout. Requires --async or --wait-timeout",
       },
       input: { json: true, describe: 'Trigger input as JSON' },
-      run: {
-        hidden: true,
-        describe: 'Low-level workflow state and entry-point selection',
-      },
+      // Built from --deployment-version, --draft, --trigger, --sample, --from-block,
+      // --source-run, --stop-after, --dry, --allow and --mock by `workflow-run-follow.ts`, so a
+      // run is selected one way only.
+      run: { omit: true },
       // `workflows runs get` takes the same names (`workflow-run-get.ts` resolves
       // them against the draft graph), which is why both describes name theirs.
       selectedOutputs: {
         name: 'select-output',
         list: true,
+        listValues: 'text',
         describe:
           'Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async',
       },
@@ -2425,6 +2470,7 @@ Workspace bindings (a table, a child workflow, a knowledge base) print as null u
       selectedOutputs: {
         name: 'select-output',
         list: true,
+        listValues: 'text',
         describe:
           'Include blockName.path or blockId.path values (e.g. agent_1.content) in JSON or YAML output; names resolve against the workflow’s current blocks, and missing paths are omitted',
       },
@@ -2444,6 +2490,8 @@ Workspace bindings (a table, a child workflow, a knowledge base) print as null u
       { header: 'resume at', path: 'paused.resumeAt', format: 'timestamp' },
       { header: 'blocked on', path: 'paused.blockedOnBlockId' },
       { header: 'pause points', path: 'paused.pausePointCount' },
+      { header: 'next', path: 'next' },
+      { header: 'next note', path: 'nextNote' },
       { header: 'error', path: 'error.message' },
     ],
   },

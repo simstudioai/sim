@@ -21,6 +21,7 @@ export const bufferGetAccountTool: ToolConfig<BufferGetAccountParams, BufferAcco
   description:
     'Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)',
   version: '1.0.0',
+  effect: 'read',
   oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {

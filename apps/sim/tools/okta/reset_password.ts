@@ -15,6 +15,7 @@ export const oktaResetPasswordTool: ToolConfig<OktaResetPasswordParams, OktaRese
     description:
       'Generate a one-time token to reset a user password. Can email the reset link to the user or return it directly. Transitions the user to RECOVERY status.',
     version: '1.0.0',
+    effect: 'write',
     oauth: OKTA_CREDENTIAL_OAUTH,
 
     params: {

@@ -28,6 +28,7 @@ export const mailchimpGetInterestTool: ToolConfig<
   description:
     'Retrieve details of a specific interest from an interest category in a Mailchimp audience',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

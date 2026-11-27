@@ -21,6 +21,7 @@ export const updateSecuritySignalStateTool: ToolConfig<
   description:
     'Change the triage state of a Cloud SIEM security signal to open, under_review, or archived. Requires the `security_monitoring_signals_write` permission.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

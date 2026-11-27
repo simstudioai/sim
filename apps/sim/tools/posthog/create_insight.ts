@@ -36,6 +36,7 @@ export const createInsightTool: ToolConfig<
   name: 'PostHog Create Insight',
   description: 'Create a new insight in PostHog. Requires insight name and a query configuration.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'posthog-errors',
 
   params: {

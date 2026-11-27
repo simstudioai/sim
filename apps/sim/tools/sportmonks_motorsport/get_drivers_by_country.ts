@@ -36,6 +36,7 @@ export const sportmonksMotorsportGetDriversByCountryTool: ToolConfig<
   name: 'Get Drivers by Country',
   description: 'Retrieve all motorsport drivers for a country by country ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

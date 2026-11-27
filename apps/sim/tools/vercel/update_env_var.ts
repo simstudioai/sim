@@ -11,6 +11,7 @@ export const vercelUpdateEnvVarTool: ToolConfig<
   name: 'Vercel Update Environment Variable',
   description: 'Update an environment variable for a Vercel project',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

@@ -22,6 +22,7 @@ export const newRelicGetEntityTool: ToolConfig<NewRelicGetEntityParams, NewRelic
     name: 'New Relic Get Entity',
     description: 'Fetch a New Relic entity by GUID.',
     version: '1.0.0',
+    effect: 'read',
     oauth: NEW_RELIC_CREDENTIAL_OAUTH,
 
     params: {

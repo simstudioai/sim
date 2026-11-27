@@ -36,6 +36,7 @@ export const sportmonksSearchVenuesTool: ToolConfig<
   name: 'Search Venues',
   description: 'Search for football venues by name from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

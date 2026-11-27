@@ -14,6 +14,7 @@ export const getSloHistoryTool: ToolConfig<GetSloHistoryParams, GetSloHistoryRes
   description:
     'Get an SLO’s history over a time window, including the overall SLI value and remaining error budget.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

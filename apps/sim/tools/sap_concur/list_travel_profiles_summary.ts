@@ -22,6 +22,7 @@ export const listTravelProfilesSummaryTool: InternalToolConfig<
   description:
     'List travel profile summaries (GET /api/travelprofile/v2.0/summary). LastModifiedDate is required by Concur.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

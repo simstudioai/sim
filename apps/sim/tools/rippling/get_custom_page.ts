@@ -8,6 +8,7 @@ export const ripplingGetCustomPageTool: ToolConfig<RipplingGetCustomPageParams> 
   name: 'Rippling Get CustomPage',
   description: 'Get a specific custom page',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

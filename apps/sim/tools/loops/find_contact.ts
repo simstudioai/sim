@@ -9,6 +9,7 @@ export const loopsFindContactTool: ToolConfig<LoopsFindContactParams, LoopsFindC
   description:
     'Find a contact in Loops by email address or userId. Returns an array of matching contacts with all their properties including name, subscription status, user group, and mailing lists.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {

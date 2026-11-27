@@ -10,6 +10,7 @@ export const setQueueAttributesTool: InternalToolConfig<
   name: 'SQS Set Queue Attributes',
   description: 'Update configuration attributes of an existing Amazon SQS queue',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -25,6 +25,7 @@ export const notionRetrieveBlockTool: ToolConfig<
   name: 'Notion Retrieve Block',
   description: 'Retrieve a single Notion block by its UUID, including its type-specific content',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -99,6 +100,7 @@ export const notionRetrieveBlockV2Tool: ToolConfig<
   name: 'Notion Retrieve Block',
   description: 'Retrieve a single Notion block by its UUID, including its type-specific content',
   version: '2.0.0',
+  effect: 'read',
   oauth: notionRetrieveBlockTool.oauth,
   params: notionRetrieveBlockTool.params,
   request: notionRetrieveBlockTool.request,

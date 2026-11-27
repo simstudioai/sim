@@ -96,6 +96,17 @@ describe('sim workflows runs get --select-output', () => {
     })
   })
 
+  it('reads a JSON array of selectors as its entries before resolving names', async () => {
+    answer({ data: { runId: RUN_ID, status: 'completed', blockOutputs: {} } })
+    stdout()
+
+    await get('--select-output', '["summarizeresult.text","Save"]')
+
+    expect(request.mock.calls[1][1].query).toEqual({
+      selectedOutputs: `${SUMMARIZE_ID}.text,${SAVE_ID}`,
+    })
+  })
+
   it('refuses a name no block carries, says names are accepted, and lists them', async () => {
     answer({ data: { runId: RUN_ID, status: 'completed' } })
 
@@ -110,5 +121,33 @@ describe('sim workflows runs get --select-output', () => {
     // Only the graph was read; the run was never asked for a selection it
     // cannot answer.
     expect(request.mock.calls.map(([path]) => path)).toEqual([STATE_PATH])
+  })
+})
+
+describe('sim workflows runs get on a paused run', () => {
+  it('prints the exact resume command beside the run, additively', async () => {
+    const run = {
+      runId: RUN_ID,
+      workflowId: WORKFLOW_ID,
+      status: 'paused',
+      paused: {
+        contextId: 'ctx_1',
+        pauseKind: 'human',
+        runId: RUN_ID,
+        points: [{ contextId: 'ctx_1', kind: 'human', status: 'paused' }],
+      },
+    }
+    answer({ data: run })
+    const out = stdout()
+
+    await get()
+
+    expect(JSON.parse(out())).toEqual({
+      ...run,
+      next: {
+        command: `sim workflows runs resume ${RUN_ID} --workflow ${WORKFLOW_ID} --context ctx_1`,
+        reason: 'resumes the run where it waits for input',
+      },
+    })
   })
 })

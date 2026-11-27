@@ -10,6 +10,7 @@ export const xGetUserTweetsTool: ToolConfig<XGetUserTweetsParams, XTweetListResp
   name: 'X Get User Tweets',
   description: 'Get tweets authored by a specific user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -11,6 +11,7 @@ export const getCashAdvanceTool: InternalToolConfig<GetCashAdvanceParams, SapCon
   name: 'SAP Concur Get Cash Advance',
   description: 'Get a cash advance (GET /cashadvance/v4.1/cashadvances/{cashAdvanceId}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

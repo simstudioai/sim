@@ -20,12 +20,14 @@ import {
   projectPausedRunPoints,
   readPausedRunPoints,
 } from '@/lib/workflows/executor/execution-status'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { findRerunStartBlockId } from '@/executor/utils/run-from-block'
 
 /**
  * Selectors this resource can never answer, so the caller hears about them.
  *
- * This resource reads a recorded run and deliberately never loads the
- * workflow's blocks, so it matches block *ids* only. A selector headed by
+ * This resource reads a recorded run and never resolves a selector against
+ * the workflow's blocks, so it matches block *ids* only. A selector headed by
  * something that is not a block id — a block name, the shape the streaming
  * execute request accepts — has nothing to resolve against and used to come
  * back as an empty `blockOutputs` with a `200`, which reads exactly like "that
@@ -92,6 +94,8 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         stateExecutionId,
         pausePoints: loadedPausePoints,
         failedBlock,
+        overrides,
+        placeholderBlockIds,
       } = projected
 
       /**
@@ -175,7 +179,29 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
           )
         : null
 
-      return { ...status, files, pausePoints, failedBlock }
+      /**
+       * A rerun runs the saved draft, so where it starts is read from the draft: this resource
+       * keeps no graph of the run. Read only for a failure a block owns.
+       */
+      const rerunFromBlockId = failedBlock
+        ? findRerunStartBlockId(
+            failedBlock.blockId,
+            (await loadWorkflowFromNormalizedTables(context.workflowId))?.blocks ?? {}
+          )
+        : undefined
+
+      return {
+        ...status,
+        files,
+        pausePoints,
+        pausedRunId: stateExecutionId,
+        failedBlock,
+        rerunFromBlockId,
+        overrides,
+        placeholderBlockIds,
+        /** Whether the viewer's group withheld `blockOutputs` and `finalOutput`. */
+        outputsHidden: projection.hideTraceSpans,
+      }
     } catch (error) {
       if (error instanceof FunctionalOutputsUnavailableError) {
         throw new OrchestrationError('conflict', FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE)

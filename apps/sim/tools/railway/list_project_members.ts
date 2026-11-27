@@ -23,6 +23,7 @@ export const railwayListProjectMembersTool: ToolConfig<
   name: 'Railway List Project Members',
   description: 'List members for a Railway project',
   version: '1.0.0',
+  effect: 'read',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

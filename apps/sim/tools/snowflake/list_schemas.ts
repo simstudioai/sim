@@ -16,6 +16,7 @@ import type { ToolConfig } from '@/tools/types'
 export const listSchemasTool: ToolConfig<SnowflakeListSchemasParams, SnowflakeStatementResponse> = {
   id: 'snowflake_list_schemas',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Schemas',
   description: 'List the schemas in a Snowflake database.',

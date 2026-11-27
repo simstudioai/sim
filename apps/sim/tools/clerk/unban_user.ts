@@ -16,6 +16,7 @@ export const clerkUnbanUserTool: ToolConfig<ClerkUnbanUserParams, ClerkUnbanUser
   name: 'Unban User in Clerk',
   description: 'Remove a ban from a user, allowing them to sign in again',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

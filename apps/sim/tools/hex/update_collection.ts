@@ -12,6 +12,7 @@ export const updateCollectionTool: ToolConfig<
   name: 'Hex Update Collection',
   description: 'Update the name or description of an existing Hex collection.',
   version: '1.0.0',
+  effect: 'write',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

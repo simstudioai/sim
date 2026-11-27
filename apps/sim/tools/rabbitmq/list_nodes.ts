@@ -17,6 +17,7 @@ export const rabbitmqListNodesTool: ToolConfig<RabbitmqListNodesParams, Rabbitmq
     description:
       'List the cluster nodes with memory, disk, file-descriptor, and alarm state. A fired alarm blocks publishers broker-wide.',
     version: '1.0.0',
+    effect: 'read',
 
     params: { ...RABBITMQ_CONNECTION_PARAMS },
 

@@ -7,6 +7,7 @@ export const tableCreateTool: InternalToolConfig<TableCreateParams, TableCreateR
   name: 'Create Table',
   description: 'Create a new user-defined table with schema',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     name: {

@@ -32,6 +32,7 @@ export const updateSlidesPositionTool: ToolConfig<
   name: 'Reorder Slides in Google Slides',
   description: 'Move one or more slides to a new position in a Google Slides presentation',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

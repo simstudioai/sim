@@ -12,6 +12,7 @@ export const pitchbookDealServiceProvidersTool: ToolConfig<
   description:
     'Retrieve the service providers that worked on a deal and which party each represented',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

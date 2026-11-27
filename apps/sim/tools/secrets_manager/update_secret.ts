@@ -13,6 +13,7 @@ export const updateSecretTool: InternalToolConfig<
   name: 'Secrets Manager Update Secret',
   description: 'Update the value of an existing secret in AWS Secrets Manager',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

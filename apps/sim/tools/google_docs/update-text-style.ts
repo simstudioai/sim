@@ -18,6 +18,7 @@ export const updateTextStyleTool: ToolConfig<
   description:
     'Apply bold, italic, underline, and/or font size to a range of text in a Google Docs document, identified by its start and end character index.',
   version: '1.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'google-docs',

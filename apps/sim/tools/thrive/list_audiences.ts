@@ -18,6 +18,7 @@ export const listAudiencesTool: ToolConfig<ThriveListAudiencesParams, ThriveList
     name: 'Thrive List Audiences',
     description: 'List audiences and structures in Thrive with pagination.',
     version: '1.0.0',
+    effect: 'read',
     oauth: THRIVE_CREDENTIAL_OAUTH,
 
     params: {

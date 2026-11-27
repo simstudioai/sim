@@ -23,6 +23,7 @@ export const planeUnarchiveProjectTool: ToolConfig<
   name: 'Plane Unarchive a project',
   description: 'Unarchive a project in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

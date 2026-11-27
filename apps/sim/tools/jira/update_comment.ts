@@ -27,6 +27,7 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
     name: 'Jira Update Comment',
     description: 'Update an existing comment on a Jira issue',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

@@ -11,6 +11,7 @@ export const getCpdCategoryTool: ToolConfig<ThriveGetCpdCategoryParams, ThriveCp
     name: 'Thrive Get CPD Category',
     description: 'Get a single CPD category in Thrive by its ID.',
     version: '1.0.0',
+    effect: 'read',
     oauth: THRIVE_CREDENTIAL_OAUTH,
 
     params: {

@@ -15,6 +15,7 @@ export const revenuecatRevokeEntitlementTool: ToolConfig<
   name: 'RevenueCat Revoke Entitlement',
   description: 'Revoke all promotional entitlements for a specific entitlement identifier',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

@@ -16,6 +16,7 @@ export const getSubmissionTool: ToolConfig<JotformGetSubmissionParams, JotformSu
     description:
       'Get a single Jotform submission, with its answers available both by question ID and by question label.',
     version: '1.0.0',
+    effect: 'read',
     oauth: JOTFORM_CREDENTIAL_OAUTH,
 
     params: {

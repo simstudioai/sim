@@ -29,6 +29,7 @@ export const confluenceCreateSpacePropertyTool: InternalToolConfig<
   name: 'Confluence Create Space Property',
   description: 'Create a property on a Confluence space.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

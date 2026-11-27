@@ -7,6 +7,7 @@ export const createTagTool: ToolConfig<DubCreateTagParams, DubCreateTagResponse>
   name: 'Dub Create Tag',
   description: 'Create a new tag in the workspace for organizing and filtering short links.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {

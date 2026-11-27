@@ -16,6 +16,7 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
   name: 'Context.dev Search',
   description: 'Search the web with natural language and optionally scrape results to markdown.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: contextDevHosting<ContextDevSearchParams>(),
 

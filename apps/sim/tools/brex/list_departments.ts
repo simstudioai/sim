@@ -16,6 +16,7 @@ export const brexListDepartmentsTool: ToolConfig<
   name: 'Brex List Departments',
   description: 'List departments in the Brex account, optionally filtered by name',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

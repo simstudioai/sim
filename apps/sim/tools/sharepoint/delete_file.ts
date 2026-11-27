@@ -7,6 +7,7 @@ export const deleteFileTool: ToolConfig<SharepointToolParams, SharepointDeleteFi
   name: 'Delete SharePoint File',
   description: 'Delete a file (or folder) from a SharePoint document library',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -14,6 +14,7 @@ export const alertEventsCreateTool: ToolConfig<
   description:
     'Fire an alert into incident.io through an HTTP alert source. Send the same deduplication key with status "resolved" to close the alert you opened.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     alert_source_config_id: {

@@ -14,6 +14,7 @@ export const vercelUpdateDnsRecordTool: ToolConfig<
   name: 'Vercel Update DNS Record',
   description: 'Update an existing DNS record for a domain in a Vercel account',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

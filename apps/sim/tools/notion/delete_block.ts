@@ -16,6 +16,7 @@ export const notionDeleteBlockTool: ToolConfig<NotionDeleteBlockParams, NotionDe
     name: 'Notion Delete Block',
     description: 'Delete (move to trash) a single Notion block',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,
@@ -79,6 +80,7 @@ export const notionDeleteBlockV2Tool: ToolConfig<
   name: 'Notion Delete Block',
   description: 'Delete (move to trash) a single Notion block',
   version: '2.0.0',
+  effect: 'write',
   oauth: notionDeleteBlockTool.oauth,
   params: notionDeleteBlockTool.params,
   request: notionDeleteBlockTool.request,

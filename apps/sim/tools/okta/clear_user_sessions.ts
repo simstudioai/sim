@@ -17,6 +17,7 @@ export const oktaClearUserSessionsTool: ToolConfig<
   description:
     'Revoke every active Okta session for a user, signing them out of all devices immediately. Destructive and irreversible: the user must sign in again. Optionally also revokes their OAuth and OpenID Connect tokens, and clears remembered factors.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

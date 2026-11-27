@@ -1,16 +1,21 @@
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
-import { tableSuccess } from '@/tools/table/response'
-import type { TableRowInsertParams, TableRowResponse } from '@/tools/table/types'
+import { placeholderRow, tableSuccess } from '@/tools/table/response'
+import {
+  IGNORED_COLUMNS_OUTPUT,
+  type TableRowInsertParams,
+  type TableRowWriteResponse,
+} from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
-export const tableInsertRowTool: InternalToolConfig<TableRowInsertParams, TableRowResponse> = {
+export const tableInsertRowTool: InternalToolConfig<TableRowInsertParams, TableRowWriteResponse> = {
   id: 'table_insert_row',
   name: 'Insert Row',
   description:
     'Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.',
   version: '1.0.0',
+  effect: 'write',
 
   toolEnrichment: {
     dependsOn: 'tableId',
@@ -47,19 +52,27 @@ export const tableInsertRowTool: InternalToolConfig<TableRowInsertParams, TableR
     },
   },
 
-  transformResponse: async (response): Promise<TableRowResponse> => {
+  /** A dry run's placeholder holds the row the call writes, its id and position placeholders. */
+  dryRunOutput: (params) => ({
+    row: { ...placeholderRow(params.data, 0), executions: {} },
+    ignoredColumns: [],
+  }),
+
+  transformResponse: async (response): Promise<TableRowWriteResponse> => {
     const result = await response.json()
     const data = result.data || result
 
     return tableSuccess({
       row: data.row,
       message: data.message || 'Row inserted successfully',
+      ignoredColumns: data.ignoredColumns ?? [],
     })
   },
 
   outputs: {
     success: { type: 'boolean', description: 'Whether row was inserted' },
     row: { type: 'json', description: 'Inserted row data' },
+    ignoredColumns: IGNORED_COLUMNS_OUTPUT,
     message: { type: 'string', description: 'Status message' },
   },
 }

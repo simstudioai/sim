@@ -6,6 +6,7 @@ export const spotifySetVolumeTool: ToolConfig<SpotifySetVolumeParams, SpotifySet
   name: 'Spotify Set Volume',
   description: 'Set the playback volume on Spotify.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

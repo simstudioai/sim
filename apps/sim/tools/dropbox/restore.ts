@@ -6,6 +6,7 @@ export const dropboxRestoreTool: ToolConfig<DropboxRestoreParams, DropboxRestore
   name: 'Dropbox Restore',
   description: 'Restore a specific revision of a file to the given path',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

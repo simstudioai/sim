@@ -9,6 +9,7 @@ export const createAudienceTool: ToolConfig<ThriveCreateAudienceParams, ThriveAu
   name: 'Thrive Create Audience',
   description: 'Create a new audience or structure in Thrive.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

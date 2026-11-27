@@ -16,6 +16,7 @@ export const hubspotDeleteAssociationTool: ToolConfig<
   name: 'Delete Association in HubSpot',
   description: 'Remove all associations between two HubSpot records',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

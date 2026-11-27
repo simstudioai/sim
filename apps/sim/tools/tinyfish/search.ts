@@ -17,6 +17,7 @@ export const searchTool: ToolConfig<TinyFishSearchParams, TinyFishSearchResponse
   description:
     'Search the web with TinyFish and get ranked results with titles, snippets, and URLs',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

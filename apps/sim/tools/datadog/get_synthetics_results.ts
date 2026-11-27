@@ -21,6 +21,7 @@ export const getSyntheticsResultsTool: ToolConfig<
   description:
     'Get the latest result summaries (up to the last 150 runs) for a Synthetic API test.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

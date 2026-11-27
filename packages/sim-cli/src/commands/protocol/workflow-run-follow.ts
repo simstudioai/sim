@@ -1,4 +1,4 @@
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike, toArray, toRecord } from '@sim/utils/object'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
@@ -10,12 +10,15 @@ import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
 import { safeOneLine, sanitize } from '../../output/render'
-import { callsOperations, connect } from '../../runtime/called-operations'
-import { executeOperation, runFailureMessage } from '../../runtime/execute'
+import { callsOperations, connect, type OperationClient } from '../../runtime/called-operations'
+import { runFailureMessage } from '../../runtime/execute'
 import { retypeApiError } from '../../runtime/naming'
-import { buildRequest } from '../../runtime/request'
+import { collectRepeated } from '../../runtime/options'
+import { buildRequest, readArgumentSource } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
+import { selectorOf, shellArgument, typedCommandLine, withRunNext } from '../../runtime/run-next'
 import type { OperationSpec } from '../../runtime/types'
+import { CliUsageError } from './local-errors'
 import { printRunFailureSite } from './run-source-location'
 import { BLOCK_ID } from './workflow-run-get'
 import {
@@ -54,29 +57,174 @@ export interface FollowOptions {
   stderr: CommentaryWriter
 }
 
-type WorkflowRunSelection = {
-  source: 'manual'
-  entry?:
-    | { type: 'trigger'; blockId?: string; useMockPayload?: boolean }
-    | { type: 'block'; blockId: string; sourceRunId: string }
-  stopAfterBlockId?: string
+type WorkflowRunSelection =
+  | { source: 'deployment'; version: number }
+  | {
+      source: 'draft'
+      entry?:
+        | { type: 'trigger'; blockId?: string; sample?: boolean }
+        | { type: 'block'; blockId: string; sourceRunId: string }
+      stopAfterBlockId?: string
+      dry?: true
+      allow?: string[]
+      mocks?: Record<string, Record<string, unknown>>
+      mocksFrom?: { runId: string; blocks: string[] }
+    }
+
+/** The flags that run the saved draft, which a pinned deployment version never runs. */
+const DRAFT_RUN_FLAGS = [
+  ['draft', '--draft'],
+  ['dry', '--dry'],
+  ['trigger', '--trigger'],
+  ['sample', '--sample'],
+  ['stopAfter', '--stop-after'],
+  ['fromBlock', '--from-block'],
+  ['sourceRun', '--source-run'],
+  ['allow', '--allow'],
+  ['mock', '--mock'],
+  ['mockFrom', '--mock-from'],
+] as const
+
+/**
+ * `--deployment-version <n>` as the deployment selector it names, or undefined when it is not
+ * given. Refused unless it is a positive integer, and beside any flag that runs the draft.
+ */
+function pinnedDeployment(
+  flags: Record<string, unknown>
+): { source: 'deployment'; version: number } | undefined {
+  const given = flags.deploymentVersion
+  if (given === undefined) return undefined
+  const version = typeof given === 'string' && /^[1-9]\d*$/.test(given) ? Number(given) : Number.NaN
+  if (!Number.isSafeInteger(version)) {
+    throw new SimApiError('--deployment-version must be a positive integer, like 7', 0)
+  }
+  for (const [key, flag] of DRAFT_RUN_FLAGS) {
+    if (flags[key] === undefined || flags[key] === false) continue
+    if (Array.isArray(flags[key]) && flags[key].length === 0) continue
+    throw new SimApiError(
+      `--deployment-version runs a deployed version; ${flag} runs the draft: drop one`,
+      0
+    )
+  }
+  return { source: 'deployment', version }
 }
 
-/** Projects friendly CLI flags into the API's strict nested run selector. */
-function resolveWorkflowRunSelection(
+/**
+ * `--mock <block>=<json|@file>` values as the block selector each names and its output object, and
+ * the blocks of each bare `--mock <block>`, which `--mock-from <runId>` answers with the output
+ * that run recorded.
+ */
+async function readBlockMocks(
+  values: string[],
+  mockFrom: string | undefined
+): Promise<{ mocks: Record<string, Record<string, unknown>>; recorded: string[] }> {
+  const mocks: Record<string, Record<string, unknown>> = {}
+  const recorded: string[] = []
+  for (const value of values) {
+    const separator = value.indexOf('=')
+    if (separator === -1) {
+      const block = value.trim()
+      if (!block) throw new SimApiError('--mock requires a block id, name or key', 0)
+      if (mockFrom === undefined) {
+        throw new SimApiError(
+          `--mock ${block} names no output: pass <block>=<json|@file>, or add --mock-from <runId> to answer it with the output that run recorded`,
+          0
+        )
+      }
+      if (recorded.includes(block)) throw new SimApiError(`--mock names ${block} twice`, 0)
+      recorded.push(block)
+      continue
+    }
+    const block = value.slice(0, separator).trim()
+    if (!block) {
+      throw new SimApiError(`--mock "${value}" must be <block>=<json|@file>`, 0)
+    }
+    // A JSON object cannot carry `__proto__` as a key the server reads: name the block by its id.
+    if (block === '__proto__') {
+      throw new SimApiError('--mock cannot name a block __proto__; name it by its block id', 0)
+    }
+    const source = await readArgumentSource(value.slice(separator + 1), 'mock')
+    let output: unknown
+    try {
+      output = JSON.parse(source.text)
+    } catch {
+      throw new SimApiError(`--mock ${block}: the output${source.from} is not valid JSON`, 0)
+    }
+    if (!isPlainRecord(output)) {
+      throw new SimApiError(
+        `--mock ${block}: the output must be a JSON object, like {"ok":true}`,
+        0
+      )
+    }
+    if (Object.hasOwn(mocks, block)) throw new SimApiError(`--mock names ${block} twice`, 0)
+    mocks[block] = output
+  }
+  if (mockFrom !== undefined && recorded.length === 0) {
+    throw new SimApiError(
+      '--mock-from answers the blocks named by a bare --mock <block>; name at least one',
+      0
+    )
+  }
+  return { mocks, recorded }
+}
+
+/** The draft and dry flags a corrected dry run leaves out of the caller's command line. */
+const DRAFT_AND_DRY = new Set(['draft', 'dry'])
+
+/**
+ * Projects friendly CLI flags into the API's strict nested run selector. `--allow`, `--mock` and
+ * `--mock-from` mean something only on a dry run, so they imply `--dry`, and beside `--draft`,
+ * which sends every write, they are refused with the dry run they meant.
+ */
+async function resolveWorkflowRunSelection(
+  workflowId: string,
+  command: Command,
   flags: Record<string, unknown>
-): WorkflowRunSelection | undefined {
+): Promise<WorkflowRunSelection | undefined> {
+  const pinned = pinnedDeployment(flags)
+  if (pinned) return pinned
   const trigger = typeof flags.trigger === 'string' ? flags.trigger : undefined
-  const useMockPayload = flags.mockPayload === true
+  const sample = flags.sample === true
   const stopAfter = typeof flags.stopAfter === 'string' ? flags.stopAfter : undefined
-  /** A trigger entry and a stop block only exist on the draft, so these flags imply `--manual`. */
-  const manual =
-    flags.manual === true || trigger !== undefined || useMockPayload || stopAfter !== undefined
+  const allow = toArray<string>(flags.allow)
+  const mockValues = toArray<string>(flags.mock)
+  const mockFrom = typeof flags.mockFrom === 'string' ? flags.mockFrom : undefined
+  /** These flags mean something only on a dry run, so they imply `--dry`. */
+  const overrides = allow.length > 0 || mockValues.length > 0 || mockFrom !== undefined
+  if (overrides && flags.draft === true && flags.dry !== true) {
+    throw new SimApiError(
+      `--allow picks the writes a --dry run sends and --mock answers a block in one, but --draft runs every block and sends every write: use --dry in place of --draft. Next: ${typedCommandLine(command, [workflowId, '--dry'], DRAFT_AND_DRY)}`,
+      0
+    )
+  }
+  const dry = flags.dry === true || overrides
+  /** These flags only apply to the draft, so each implies `--draft`. */
+  const draft =
+    flags.draft === true || trigger !== undefined || sample || stopAfter !== undefined || dry
   const fromBlock = typeof flags.fromBlock === 'string' ? flags.fromBlock : undefined
   const sourceRun = typeof flags.sourceRun === 'string' ? flags.sourceRun : undefined
 
-  if (fromBlock && (trigger || useMockPayload)) {
-    throw new SimApiError('--from-block cannot be combined with --trigger or --mock-payload', 0)
+  if (mockFrom !== undefined && mockFrom.trim() === '') {
+    throw new SimApiError('--mock-from requires a run id', 0)
+  }
+  if (allow.some((block) => block.trim() === '')) {
+    throw new SimApiError('--allow requires a block id, name or key', 0)
+  }
+  if (dry && flags.follow === true) {
+    throw new SimApiError(
+      'A dry run reports its side effects with the run result, which --follow does not return; drop --follow',
+      0
+    )
+  }
+  if (dry && (flags.waitTimeout !== undefined || flags.async === true)) {
+    throw new SimApiError(
+      `A dry run reports its side effects with the run result, so the command waits for it; drop ${flags.async === true ? '--async' : '--wait-timeout'}`,
+      0
+    )
+  }
+
+  if (fromBlock && (trigger || sample)) {
+    throw new SimApiError('--from-block cannot be combined with --trigger or --sample', 0)
   }
   if (fromBlock && !sourceRun) {
     throw new SimApiError('--from-block requires --source-run <runId>', 0)
@@ -84,38 +232,126 @@ function resolveWorkflowRunSelection(
   if (sourceRun && !fromBlock) {
     throw new SimApiError('--source-run requires --from-block <block>', 0)
   }
-  if ((manual || fromBlock) && flags.async === true) {
+  if ((draft || fromBlock) && flags.async === true) {
     throw new SimApiError(
-      `Manual execution does not support --async; pass ${WAIT_TIMEOUT_FLAG} to let a long run continue in the background`,
+      `A draft run does not support --async; pass ${WAIT_TIMEOUT_FLAG} to let a long run continue in the background`,
       0
     )
   }
-  if (useMockPayload && flags.input !== undefined) {
-    throw new SimApiError('--mock-payload cannot be combined with --input', 0)
+  if (sample && flags.input !== undefined) {
+    throw new SimApiError('--sample cannot be combined with --input', 0)
   }
   if (stopAfter !== undefined && stopAfter.trim() === '') {
     throw new SimApiError('--stop-after requires a block id, name or key', 0)
   }
 
-  const stop = stopAfter !== undefined ? { stopAfterBlockId: stopAfter } : {}
+  const { mocks, recorded } = await readBlockMocks(mockValues, mockFrom)
+  const options = {
+    ...(stopAfter !== undefined ? { stopAfterBlockId: stopAfter } : {}),
+    ...(dry ? { dry: true as const } : {}),
+    ...(allow.length > 0 ? { allow } : {}),
+    ...(Object.keys(mocks).length > 0 ? { mocks } : {}),
+    ...(mockFrom !== undefined ? { mocksFrom: { runId: mockFrom, blocks: recorded } } : {}),
+  }
   if (fromBlock && sourceRun) {
     return {
-      source: 'manual',
+      source: 'draft',
       entry: { type: 'block', blockId: fromBlock, sourceRunId: sourceRun },
-      ...stop,
+      ...options,
     }
   }
-  if (!manual) return undefined
-  if (!trigger && !useMockPayload) return { source: 'manual', ...stop }
+  if (!draft) return undefined
+  if (!trigger && !sample) return { source: 'draft', ...options }
   return {
-    source: 'manual',
+    source: 'draft',
     entry: {
       type: 'trigger',
       ...(trigger ? { blockId: trigger } : {}),
-      ...(useMockPayload ? { useMockPayload: true } : {}),
+      ...(sample ? { sample: true } : {}),
     },
-    ...stop,
+    ...options,
   }
+}
+
+/**
+ * A dry run's side effects in a few lines on stderr, for the human formats: each call that was
+ * not sent (a read of a placeholder marked as such, and an MCP call its server declares read-only
+ * with the `--allow` that sends it), sent because its block was allowed, or code in a remote
+ * sandbox the run cannot see, and notes for an allowed block whose writes all stayed stubbed (an
+ * Agent's call to a custom block), an allowed or mocked block the run never reached, and a mock
+ * with fields a block reading them never gets. A block is named for `--allow` as the run's
+ * `overrides` name it: by id, a child's as `<workflowId>.<blockId>`. The request payloads are in
+ * the result itself (`--output json`).
+ */
+export function printSideEffects(
+  sideEffects: unknown,
+  overrides: unknown,
+  workflowId: unknown
+): void {
+  if (!isRecordLike(sideEffects)) return
+  const list = (key: string) => toArray(sideEffects[key]).filter(isRecordLike)
+  const stubbed = list('stubbed')
+  const allowed = list('allowed')
+  const unchecked = list('unchecked')
+  /** Each list keeps a bounded number of entries and counts the rest in `omitted`. */
+  const omittedCounts = toRecord(sideEffects.omitted)
+  const omittedOf = (key: string) => {
+    const count = omittedCounts[key]
+    return typeof count === 'number' ? count : 0
+  }
+  const total = (key: string, entries: unknown[]) => entries.length + omittedOf(key)
+  /** An MCP block's call is named by the MCP tool it called, any other by its tool. */
+  const label = (entry: Record<string, unknown>) => {
+    const mcpTool = toRecord(entry.mcp).tool
+    const tool = typeof mcpTool === 'string' ? mcpTool : entry.tool
+    return safeOneLine(`${String(entry.block)}${typeof tool === 'string' ? ` → ${tool}` : ''}`)
+  }
+  const selector = (entry: Record<string, unknown>) => selectorOf(entry, workflowId)
+  const why = (entry: Record<string, unknown>) => {
+    if (entry.reason === 'placeholder') return ' (reads a placeholder from a stubbed write)'
+    if (entry.reason !== 'mcp-read-only') return ''
+    return ` (server says read-only: --allow ${shellArgument(safeOneLine(selector(entry)))} sends it)`
+  }
+  const lines = [
+    `Dry run: ${total('stubbed', stubbed)} not sent, ${total('allowed', allowed)} sent (allowed), ${total('unchecked', unchecked)} unchecked`,
+    ...stubbed.map((entry) => `  not sent   ${label(entry)}${why(entry)}`),
+    ...allowed.map((entry) => `  sent       ${label(entry)}`),
+    ...unchecked.map(
+      (entry) => `  unchecked  ${label(entry)}: ${safeOneLine(String(entry.reason))}`
+    ),
+  ]
+  const omitted = omittedOf('stubbed') + omittedOf('allowed') + omittedOf('unchecked')
+  if (omitted > 0) lines.push(`  … ${omitted} more`)
+  for (const allowedBlock of toArray(toRecord(overrides).allow)) {
+    if (allowed.some((entry) => selector(entry) === allowedBlock)) continue
+    const held = stubbed.find((entry) => selector(entry) === allowedBlock)
+    if (!held) continue
+    lines.push(
+      `  note       ${safeOneLine(String(held.block))} was allowed but sent nothing: allowing an Agent sends only its own tool calls, not a workflow or custom block it calls`
+    )
+  }
+  for (const entry of list('unreached')) {
+    lines.push(
+      `  note       ${safeOneLine(String(entry.block))} was ${entry.kind === 'mock' ? 'mocked' : 'allowed'} but never ran: check the branch, the entry block, or the workflow you named`
+    )
+  }
+  for (const entry of list('mockFields')) {
+    const block = safeOneLine(String(entry.block))
+    const undeclared = toArray(entry.undeclared).map(String)
+    const dropped = toArray(entry.dropped).map(String)
+    if (undeclared.length > 0) {
+      lines.push(
+        `  note       mock of ${block} sets ${safeOneLine(undeclared.join(', '))}, which the block does not declare; a block reading them gets nothing`
+      )
+    }
+    if (dropped.length > 0) {
+      lines.push(
+        `  note       mock of ${block} from --mock-from left out ${safeOneLine(dropped.join(', '))}, which only a block sets; a block reading them gets nothing`
+      )
+    }
+  }
+  lines.push('Request payloads: sideEffects in --output json')
+  writeStderr(styles().dim(`${lines.join('\n')}\n`))
 }
 
 function stringField(frame: Record<string, unknown>, key: string): string | null {
@@ -188,6 +424,23 @@ async function readWorkflowResult(response: Response): Promise<WorkflowResult> {
 }
 
 /**
+ * The `workflows run` request: the generated one, with the run selection the run flags make (the
+ * contract omits `run` as a flag of its own) and, for a run this command waits on, an embedded
+ * run's file references ({@link withEmbeddedFileReferences}; a queued run rejects the field).
+ */
+async function runRequest(
+  workflowId: string,
+  flags: Record<string, unknown>,
+  workspaceId: string | null,
+  selection: WorkflowRunSelection | undefined,
+  waits: boolean
+) {
+  const request = await buildRequest('executeWorkflow', [workflowId], flags, workspaceId)
+  const body = selection ? { ...request.body, run: selection } : request.body
+  return { ...request, body: waits ? withEmbeddedFileReferences(body) : body }
+}
+
+/**
  * Asks an embedded run for file references without inline bytes unless the caller
  * passed `--include-file-base64`. The embedding host hands stdout to a model, which
  * reads a produced file by id; inlined bytes only grew the result it had to skim and
@@ -207,6 +460,146 @@ function stillRunning(runId: string, workflowId: string, waitedSeconds: number) 
     `Run ${runId} is still ${snapshot.status} after ${waitedSeconds}s and continues in the background. Keep waiting: sim workflows runs wait ${runId} --workflow ${workflowId} --wait-timeout ${waitedSeconds}. Stop it: sim workflows runs cancel ${runId} --workflow ${workflowId}`
 }
 
+/** Sends a run this command waits for and reads its answer over the heartbeat transport. */
+async function sendWaitedRun(
+  client: OperationClient<'executeWorkflow'>,
+  workflowId: string,
+  flags: Record<string, unknown>,
+  workspaceId: string | null,
+  selection: WorkflowRunSelection | undefined,
+  waitTimeoutSeconds?: number
+): Promise<WorkflowResult> {
+  const request = await runRequest(workflowId, flags, workspaceId, selection, true)
+  const response = await client.requestRaw('executeWorkflow', {
+    params: request.params,
+    query: request.query,
+    body: waitTimeoutSeconds === undefined ? request.body : { ...request.body, waitTimeoutSeconds },
+    headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
+  })
+  return readWorkflowResult(response)
+}
+
+/** What a write's result shows of its `--run` test run. */
+export interface TestRun {
+  runId: unknown
+  status: unknown
+  error?: unknown
+  output: unknown
+  sideEffects?: unknown
+  next?: unknown
+}
+
+/**
+ * A `--run` record as a source write's result shows it: the run id, status, error message, the
+ * workflow's output, the side effects the dry run held back and, for a run that failed in a
+ * block, the dry rerun from where the server says a rerun can start (none when it names none).
+ */
+function testRunResult(record: Record<string, unknown>): TestRun {
+  const { next } = toRecord(withRunNext('executeWorkflow', record))
+  return {
+    runId: record.runId,
+    status: record.status,
+    ...(record.error ? { error: toRecord(record.error).message ?? record.error } : {}),
+    output: record.output,
+    ...(record.sideEffects ? { sideEffects: record.sideEffects } : {}),
+    ...(next ? { next } : {}),
+  }
+}
+
+/**
+ * The run record of `sim workflows run <workflowId> --dry --input <input>`: the saved draft run
+ * with its writes stubbed, waited for. `input` is read as `--input` reads it (JSON, or `@file`).
+ * A failed run is returned, not thrown: the caller decides what it stops.
+ */
+async function dryRunDraft(
+  client: OperationClient<'executeWorkflow'>,
+  workflowId: string,
+  input: string | undefined,
+  workspaceId: string | null
+): Promise<Record<string, unknown>> {
+  const commandSpec = CLI_CONTRACT.executeWorkflow ?? {}
+  try {
+    const result = await sendWaitedRun(
+      client,
+      workflowId,
+      input === undefined ? {} : { input },
+      workspaceId,
+      { source: 'draft', dry: true }
+    )
+    // A dry run is never detached (it cannot take --wait-timeout); a server that did is reported.
+    if ('detachedRunId' in result) {
+      throw new SimApiError(
+        `The test run ${result.detachedRunId} continued in the background: sim workflows runs wait ${result.detachedRunId} --workflow ${workflowId}`,
+        0
+      )
+    }
+    return result.settled
+  } catch (error) {
+    throw retypeApiError(
+      error,
+      'executeWorkflow',
+      commandSpec,
+      V2_OPERATIONS.executeWorkflow as OperationSpec
+    )
+  }
+}
+
+/**
+ * A `--run` input read as `--input` reads it (JSON, or `@file`) and checked to parse, so a bad one
+ * is refused with `notJson` before anything is written rather than after.
+ */
+export async function readRunInput(raw: string, notJson: string): Promise<string> {
+  const { text } = await readArgumentSource(raw, 'run')
+  try {
+    JSON.parse(text)
+  } catch {
+    throw new CliUsageError(notJson)
+  }
+  return text
+}
+
+/** A source write's `--run` test of its saved draft, as {@link testRunDraft} reports it. */
+export interface DraftTest {
+  /** The run as the write's result shows it. */
+  run: TestRun
+  /** Why the run did not complete; unset when it did. */
+  failure?: string
+  /** Whether the server refused the run before it started (an input the trigger does not take). */
+  refused?: boolean
+}
+
+/**
+ * Dry-runs the saved draft of `workflowId` with `input` and, when the run does not complete, maps
+ * its failure to a line of `sourceDir` and says why. A run the server refuses (a 400: an input the
+ * trigger's fields do not match) is a test that failed before it started, not an error of the write.
+ */
+export async function testRunDraft(
+  client: OperationClient<'executeWorkflow'>,
+  sourceDir: string,
+  workflowId: string,
+  input: string | undefined,
+  workspaceId: string | null
+): Promise<DraftTest> {
+  let record: Record<string, unknown>
+  try {
+    record = await dryRunDraft(client, workflowId, input, workspaceId)
+  } catch (error) {
+    if (!(error instanceof SimApiError) || error.status !== 400) throw error
+    return {
+      run: { runId: null, status: 'failed', error: error.message, output: null },
+      failure: `the server refused it before it started: ${error.message}`,
+      refused: true,
+    }
+  }
+  const run = testRunResult(record)
+  if (record.status === 'completed') return { run }
+  await printRunFailureSite(sourceDir, workflowId, record.error)
+  return {
+    run,
+    failure: runFailureMessage('executeWorkflow', record) ?? `it ended ${String(record.status)}`,
+  }
+}
+
 /**
  * Runs synchronously while keeping idle-limited HTTP paths active.
  *
@@ -217,6 +610,7 @@ function stillRunning(runId: string, workflowId: string, waitedSeconds: number) 
 async function runWithResultStream(
   workflowId: string,
   command: Command,
+  selection: WorkflowRunSelection | undefined,
   waitTimeoutSeconds: number | undefined
 ): Promise<void> {
   const flags = command.optsWithGlobals() as Record<string, unknown>
@@ -226,15 +620,14 @@ async function runWithResultStream(
   const commandSpec = CLI_CONTRACT.executeWorkflow ?? {}
 
   try {
-    const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
-    const body = withEmbeddedFileReferences(request.body)
-    const response = await client.requestRaw('executeWorkflow', {
-      params: request.params,
-      query: request.query,
-      body: waitTimeoutSeconds === undefined ? body : { ...body, waitTimeoutSeconds },
-      headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
-    })
-    const result = await readWorkflowResult(response)
+    const result = await sendWaitedRun(
+      client,
+      workflowId,
+      flags,
+      profile.workspaceId,
+      selection,
+      waitTimeoutSeconds
+    )
     if ('detachedRunId' in result) {
       // The server already spent the wait, so the run is read once and reported.
       const now = Date.now()
@@ -252,6 +645,9 @@ async function runWithResultStream(
     renderResult('executeWorkflow', profile.output, payload, commandSpec, {
       expandedTrace: flags.trace === true,
     })
+    if (profile.output === 'table' || profile.output === 'text') {
+      printSideEffects(payload.sideEffects, payload.overrides, payload.workflowId)
+    }
 
     const failure = runFailureMessage('executeWorkflow', payload)
     if (failure) {
@@ -426,7 +822,11 @@ export async function renderRunStream(
  * Sends the run and renders it. Kept apart from the Commander wiring so the
  * whole protocol can be exercised without parsing argv.
  */
-async function followRun(workflowId: string, command: Command): Promise<void> {
+async function followRun(
+  workflowId: string,
+  command: Command,
+  selection: WorkflowRunSelection | undefined
+): Promise<void> {
   const flags = command.optsWithGlobals() as Record<string, unknown>
 
   if (flags.async === true) {
@@ -442,13 +842,13 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
 
   const { client, profile } = connect(command, ['executeWorkflow'])
   const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
-  const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
+  const request = await runRequest(workflowId, flags, profile.workspaceId, selection, true)
 
   const response = await client.requestRaw('executeWorkflow', {
     params: request.params,
     query: request.query,
     body: {
-      ...withEmbeddedFileReferences(request.body),
+      ...request.body,
       stream: true,
       ...(includeThinking ? { includeThinking: true } : {}),
       ...(includeToolCalls ? { includeToolCalls: true } : {}),
@@ -501,101 +901,131 @@ function stopBlockSelection(
   selection: WorkflowRunSelection | undefined,
   flags: Record<string, unknown>
 ): string[] | null {
-  const stopAfter = selection?.stopAfterBlockId
+  const stopAfter = selection?.source === 'draft' ? selection.stopAfterBlockId : undefined
   if (stopAfter === undefined) return null
   if (Array.isArray(flags.selectOutput) && flags.selectOutput.length > 0) return null
   return [BLOCK_ID.test(stopAfter) ? stopAfter : normalizeWorkflowBlockName(stopAfter)]
 }
 
-/**
- * The handler Commander invokes for the generated `run` leaf, given the handler
- * it is replacing.
- */
-function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
-  return async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
-    const initialFlags = command.optsWithGlobals() as Record<string, unknown>
-    const waitTimeoutSeconds =
-      typeof initialFlags.waitTimeout === 'string'
-        ? Math.ceil(parseWaitTimeout(initialFlags.waitTimeout))
-        : undefined
-    if (waitTimeoutSeconds !== undefined && initialFlags.async === true) {
-      throw new SimApiError(
-        '--wait-timeout bounds how long a synchronous run is waited for, and --async never waits; pass one, not both',
-        0
-      )
-    }
-    if (waitTimeoutSeconds !== undefined && initialFlags.follow === true) {
-      throw new SimApiError(
-        '--wait-timeout cannot be combined with --follow, which streams the run until it ends',
-        0
-      )
-    }
+/** Queues an `--async` run and prints its receipt: the run id and where to poll it. */
+async function queueRun(
+  workflowId: string,
+  command: Command,
+  selection: WorkflowRunSelection | undefined
+): Promise<void> {
+  const flags = command.optsWithGlobals() as Record<string, unknown>
+  const { client, profile } = connect(command, ['executeWorkflow'])
+  const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
+  const commandSpec = CLI_CONTRACT.executeWorkflow ?? {}
+  try {
+    const request = await runRequest(workflowId, flags, profile.workspaceId, selection, false)
+    const { data } = await client.request<{ data: unknown }>('executeWorkflow', request)
+    renderResult('executeWorkflow', profile.output, data, commandSpec)
+  } catch (error) {
+    throw retypeApiError(error, 'executeWorkflow', commandSpec, operation)
+  }
+}
+
+/** The action of the `workflows run` leaf: validates the flags, then runs, follows or queues. */
+async function runWorkflow(workflowId: string, _options: unknown, command: Command): Promise<void> {
+  const initialFlags = command.optsWithGlobals() as Record<string, unknown>
+  const waitTimeoutSeconds =
+    typeof initialFlags.waitTimeout === 'string'
+      ? Math.ceil(parseWaitTimeout(initialFlags.waitTimeout))
+      : undefined
+  if (waitTimeoutSeconds !== undefined && initialFlags.async === true) {
+    throw new SimApiError(
+      '--wait-timeout bounds how long a synchronous run is waited for, and --async never waits; pass one, not both',
+      0
+    )
+  }
+  if (waitTimeoutSeconds !== undefined && initialFlags.follow === true) {
+    throw new SimApiError(
+      '--wait-timeout cannot be combined with --follow, which streams the run until it ends',
+      0
+    )
+  }
+  if (
+    typeof initialFlags.dir === 'string' &&
+    (initialFlags.follow === true || initialFlags.async === true)
+  ) {
+    throw new SimApiError(
+      '--dir maps the failure of a run this command waits for; --follow and --async do not report the block that failed. Drop --dir, or run without them',
+      0
+    )
+  }
+  const selection = await resolveWorkflowRunSelection(workflowId, command, initialFlags)
+  const stopBlock = stopBlockSelection(selection, initialFlags)
+  if (stopBlock) command.setOptionValue('selectOutput', stopBlock)
+  const flags = command.optsWithGlobals() as Record<string, unknown>
+
+  if (flags.follow !== true) {
+    // A queued run has produced nothing to select from, so the server would
+    // answer 400; failing locally names the recovery: the finished run is read
+    // with `runs get`, which takes the same block names (`workflow-run-get.ts`).
     if (
-      typeof initialFlags.dir === 'string' &&
-      (initialFlags.follow === true || initialFlags.async === true)
+      Array.isArray(flags.selectOutput) &&
+      flags.selectOutput.length > 0 &&
+      flags.async === true
     ) {
       throw new SimApiError(
-        '--dir maps the failure of a run this command waits for; --follow and --async do not report the block that failed. Drop --dir, or run without them',
+        '--select-output names outputs of a completed run, and --async returns as soon as the run is queued. Drop one of them, or read the finished run with: sim workflows runs get <runId> --workflow <workflowId> --select-output <blockName|blockId>[.path] — that resource takes the same selectors --select-output takes here.',
         0
       )
     }
-    const selection = resolveWorkflowRunSelection(initialFlags)
-    if (selection) command.setOptionValue('run', selection)
-    const flags = command.optsWithGlobals() as Record<string, unknown>
-    const stopBlock = stopBlockSelection(selection, flags)
-    if (stopBlock) command.setOptionValue('selectOutput', stopBlock)
-
-    if (flags.follow !== true) {
-      // A queued run has produced nothing to select from, so the server would
-      // answer 400; failing locally names the recovery: the finished run is read
-      // with `runs get`, which takes the same block names (`workflow-run-get.ts`).
-      if (
-        Array.isArray(flags.selectOutput) &&
-        flags.selectOutput.length > 0 &&
-        flags.async === true
-      ) {
-        throw new SimApiError(
-          '--select-output names outputs of a completed run, and --async returns as soon as the run is queued. Drop one of them, or read the finished run with: sim workflows runs get <runId> --workflow <workflowId> --select-output <blockName|blockId>[.path] — that resource takes the same selectors --select-output takes here.',
-          0
-        )
-      }
-      if (flags.includeThinking === true || flags.includeToolCalls === true) {
-        throw new SimApiError(
-          '--include-thinking and --include-tool-calls describe a stream; add --follow',
-          0
-        )
-      }
-      if (flags.async !== true) {
-        await runWithResultStream(workflowId, command, waitTimeoutSeconds)
-        return
-      }
-
-      if (previous) {
-        await previous(command.processedArgs)
-        return
-      }
-      await executeOperation(
-        'executeWorkflow',
-        CLI_CONTRACT.executeWorkflow ?? {},
-        V2_OPERATIONS.executeWorkflow as OperationSpec,
-        [workflowId, command.opts(), command]
+    if (flags.includeThinking === true || flags.includeToolCalls === true) {
+      throw new SimApiError(
+        '--include-thinking and --include-tool-calls describe a stream; add --follow',
+        0
       )
+    }
+    if (flags.async !== true) {
+      await runWithResultStream(workflowId, command, selection, waitTimeoutSeconds)
       return
     }
-
-    await followRun(workflowId, command)
+    await queueRun(workflowId, command, selection)
+    return
   }
+
+  await followRun(workflowId, command, selection)
 }
 
 /** `sim workflows run --help`, after the options: which version runs, what it prints, how it exits. */
 const RUN_HELP = `
-Without --manual (or a flag that implies it) this runs the active deployment; a workflow never
-deployed has none. --manual runs the saved draft, as the source loop leaves it.
+Without --draft (or a flag that implies it) this runs the active deployment; a workflow never
+deployed has none. --deployment-version <n> runs that deployed version instead (it needs
+workspace write access, through a full-access API key or an OAuth token with api:write); the
+child workflows it calls still run their own active deployment. --draft runs the saved draft, as
+the source loop leaves it, sending its writes.
+
+--dry runs the saved draft without its writes: each call that could change something (a write
+tool, any MCP call, an HTTP request other than GET/HEAD/OPTIONS, code's other fetches) gets a
+placeholder (ids like dry_run_row_1, numbers above 900000000) and is listed in
+sideEffects.stubbed with the request it would have sent; check those payloads. A read that would
+send a placeholder is held back too (reason placeholder), and an MCP call its server calls
+read-only says so (reason mcp-read-only). Reads, model calls and code run for real; code in a
+remote sandbox (shell, Python, imports) runs for real too, its network requests included, and is
+listed in sideEffects.unchecked. Child workflows run
+dry too; custom, Human in the loop and Wait blocks are answered whole, so the run never pauses.
+--allow <block> sends that block's writes for real (use a test resource). --mock <block>=<json>
+answers a block with fixed output, to steer a branch; --mock-from <runId> with a bare
+--mock <block> answers it with the output that run recorded. --allow and --mock also name a
+block of a workflow this one calls as <workflow>.<block>. --allow, --mock and --mock-from imply
+--dry; --draft sends every write, so it refuses them. Overrides the run never reached are
+listed in sideEffects.unreached, and mock fields a block never gets in sideEffects.mockFields.
+The API reference describes each list and refusal.
 
 The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the
 workflow's final output) and blockOutputs (what --select-output named). It has no success field:
 branch on status, or on the exit code. With --follow it is the stream's final frame
 instead: success and output.
+
+A run that failed in a block has next: { command, reason }, the command that reruns the saved
+draft from that block (or the outermost loop or parallel holding it) with this run as
+--source-run. A dry run's keeps --dry and --allow, and reads its mocks again with --mock-from; a
+mock it cannot read again (a child's block, one never reached, or one passed beside --mock-from)
+is left out and named in nextNote, for you to pass again. A run paused for input has next: the
+runs resume command.
 
 Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed
 first, then the error on stderr), or the command failed; ${STILL_RUNNING_EXIT_CODE} still running when --wait-timeout
@@ -609,9 +1039,10 @@ elapsed.`
  * output-selection, and `--async` flags all still apply, and a second command
  * would have to restate every one of them and then drift.
  *
- * Commander offers no way to read the action it already holds, so the existing
- * handler is captured for async execution. Synchronous execution uses the same
- * generated request and result builders with a heartbeat-capable response.
+ * Every mode builds its request with the same generated request builder: the
+ * run selection the run flags make is added to the body by hand, since the
+ * generated leaf omits `run`. Synchronous execution reads a heartbeat-capable
+ * response.
  */
 export function attachWorkflowRunFollow(workflows: Command): void {
   const run = workflows.commands.find((command) => command.name() === 'run')
@@ -619,32 +1050,52 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     throw new Error('workflows run must be registered before --follow can be attached to it')
   }
 
-  const held = (run as Command & { _actionHandler?: unknown })._actionHandler
-  const previous = typeof held === 'function' ? (held as (args: unknown[]) => unknown) : null
   // A run that outlasts --wait-timeout is read back from the runs resource.
   callsOperations(run, ['executeWorkflow', 'getWorkflowRun'], { runs: 'executeWorkflow' })
 
   run
-    .option('--manual', 'Run the current saved workflow state instead of the active deployment')
+    .option('--draft', 'Run the saved draft instead of the active deployment, sending its writes')
     .option(
-      '--trigger <blockId>',
-      'Enter the run through this runnable trigger, by its block id; runs the current saved workflow state (implies --manual)'
+      '--deployment-version <n>',
+      "Run this deployed version instead of the active one (a version number from `sim workflows versions list`); a Workflow block in it still runs its child workflow's active deployment. Needs workspace write access, through a full-access API key or an OAuth token with api:write. Not with --draft or any flag that runs the draft"
     )
     .option(
-      '--mock-payload',
-      "Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual)"
+      '--dry',
+      'Dry run of the saved draft (implies --draft): writes are not sent but answered with placeholders and listed with their request payloads in sideEffects; reads, model calls and code run for real. Logged as a test run. Not with --follow, --async or --wait-timeout'
+    )
+    .option(
+      '--allow <block>',
+      "Send this block's writes for real during a dry run (its id, display name or key, or <workflow>.<block> for a workflow it calls); for an Agent, only its own tool calls, not a workflow or custom block it calls; repeatable",
+      collectRepeated
+    )
+    .option(
+      '--mock <block>=<json|@file>',
+      'Answer this block with the given JSON object instead of running it during a dry run (its id, display name or key, or <workflow>.<block> for a workflow it calls), to steer a branch or give a stubbed write a realistic result; a bare --mock <block> takes its output from --mock-from. Not a locked block, or one of a locked workflow or folder; data only (the API reference lists the fields a mock cannot set). The run records only which blocks were mocked, not the outputs, so a rerun reads them again with --mock-from; repeatable',
+      collectRepeated
+    )
+    .option(
+      '--mock-from <runId>',
+      "Answer each block a bare --mock <block> names with the output it recorded in this earlier run of the workflow, redacted as the run shows it: this workflow's blocks (not a child's; not inside a loop or parallel unless that run mocked it); fields a mock cannot set, such as cost or model, are left out"
+    )
+    .option(
+      '--trigger <blockId>',
+      'Enter the run through this runnable trigger, by its block id; runs the saved draft (implies --draft)'
+    )
+    .option(
+      '--sample',
+      "Run with the selected trigger's sample payload instead of --input; runs the saved draft (implies --draft), whose writes are sent unless --dry"
     )
     .option(
       '--from-block <block>',
-      'Run manually from this saved workflow block: its id, display name or key'
+      'Rerun the saved draft from this block (its id, display name or key), reusing the outputs --source-run produced before it; a failed run prints this command as next'
     )
     .option(
       '--source-run <runId>',
-      'Prior run whose persisted state supplies upstream outputs (requires --from-block)'
+      'Earlier run of this workflow, deployed or draft, whose outputs the blocks before --from-block keep (requires --from-block)'
     )
     .option(
       '--stop-after <block>',
-      'Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty'
+      'Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --draft). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty'
     )
     .option(
       '--dir <dir>',
@@ -661,5 +1112,5 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     .option('--include-thinking', 'Show model reasoning while following (requires --follow)')
     .option('--include-tool-calls', 'Show tool calls while following (requires --follow)')
     .addHelpText('after', RUN_HELP)
-    .action(followOrDelegate(previous))
+    .action(runWorkflow)
 }

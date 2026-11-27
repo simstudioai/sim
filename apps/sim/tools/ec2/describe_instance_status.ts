@@ -15,6 +15,7 @@ export const describeInstanceStatusTool: InternalToolConfig<
   name: 'EC2 Describe Instance Status',
   description: 'Get status checks and scheduled events for EC2 instances',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

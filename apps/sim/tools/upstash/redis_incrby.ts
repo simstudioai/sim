@@ -12,6 +12,8 @@ export const upstashRedisIncrbyTool: ToolConfig<
   description:
     'Increment the integer value of a key by a given amount. Use a negative value to decrement. If the key does not exist, it is set to 0 before the operation.',
   version: '1.0.0',
+  // tool-effect: the Upstash REST API takes every command as a GET; INCRBY changes the stored value
+  effect: 'write',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

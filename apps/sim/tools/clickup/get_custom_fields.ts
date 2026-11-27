@@ -18,6 +18,7 @@ export const clickupGetCustomFieldsTool: ToolConfig<
   name: 'ClickUp Get Custom Fields',
   description: 'List the custom fields accessible in a ClickUp list',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

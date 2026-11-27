@@ -24,6 +24,7 @@ export const signalWithStartTool: ToolConfig<
   description:
     'Atomically signal a Temporal workflow execution, starting it first if it is not already running.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

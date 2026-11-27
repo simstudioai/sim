@@ -14,6 +14,7 @@ export const googleBigQueryListTableDataTool: ToolConfig<
   description:
     'Preview rows from a Google BigQuery table without running a query. Pair with Get Table to know the column order.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

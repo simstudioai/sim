@@ -13,6 +13,7 @@ export const jupyterCreateFileTool: InternalToolConfig<
   name: 'Jupyter Create File',
   description: 'Create a file, notebook, or directory on a Jupyter server',
   version: '1.0.0',
+  effect: 'write',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

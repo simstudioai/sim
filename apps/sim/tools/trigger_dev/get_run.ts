@@ -14,6 +14,7 @@ export const triggerDevGetRunTool: ToolConfig<TriggerDevRunIdParams, TriggerDevR
   description:
     'Retrieve a Trigger.dev run by its ID, including status, payload, output, attempts, and timing details.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

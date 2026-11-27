@@ -12,6 +12,7 @@ export const getAllocationTool: InternalToolConfig<GetAllocationParams, SapConcu
   description:
     'Get a single allocation (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/allocations/{allocationId}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

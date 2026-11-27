@@ -8,7 +8,9 @@ import {
   appendResponseRenderParams,
   mapValueRange,
   RESPONSE_RENDER_PARAMS,
+  sheetWritePlaceholder,
   UPDATED_DATA_OUTPUT,
+  writeSheetRows,
 } from '@/tools/google_sheets/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -20,6 +22,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
   name: 'Write to Google Sheets',
   description: 'Write data to a Google Sheets spreadsheet',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -90,60 +93,14 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      let processedValues: any = params.values || []
-
-      // Handle array of objects
-      if (
-        Array.isArray(processedValues) &&
-        processedValues.length > 0 &&
-        typeof processedValues[0] === 'object' &&
-        !Array.isArray(processedValues[0])
-      ) {
-        // It's an array of objects
-
-        // First, extract all unique keys from all objects to create headers
-        const allKeys = new Set<string>()
-        processedValues.forEach((obj: any) => {
-          if (obj && typeof obj === 'object') {
-            Object.keys(obj).forEach((key) => allKeys.add(key))
-          }
-        })
-        const headers = Array.from(allKeys)
-
-        // Then create rows with object values in the order of headers
-        const rows = processedValues.map((obj: any) => {
-          if (!obj || typeof obj !== 'object') {
-            // Handle non-object items by creating an array with empty values
-            return Array(headers.length).fill('')
-          }
-          return headers.map((key) => {
-            const value = obj[key]
-            // Handle nested objects/arrays by converting to JSON string
-            if (value !== null && typeof value === 'object') {
-              return JSON.stringify(value)
-            }
-            return value === undefined ? '' : value
-          })
-        })
-
-        // Add headers as the first row, then add data rows
-        processedValues = [headers, ...rows]
-      }
-
-      const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
-        values: processedValues,
-      }
-
-      // Only include range if it's provided
-      if (params.range) {
-        body.range = params.range
-      }
-
-      return body
-    },
+    body: (params) => ({
+      majorDimension: params.majorDimension || 'ROWS',
+      values: writeSheetRows(params.values),
+      ...(params.range ? { range: params.range } : {}),
+    }),
   },
+
+  dryRunOutput: (params) => sheetWritePlaceholder(params, writeSheetRows(params.values)),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
@@ -197,9 +154,9 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
   name: 'Write to Google Sheets V2',
   description: 'Write data to a specific sheet in a Google Sheets spreadsheet',
   version: '2.0.0',
+  effect: 'write',
 
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'spreadsheetId', label: 'Spreadsheet', target: true },
@@ -292,48 +249,13 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      let processedValues: any = params.values || []
-
-      // Handle array of objects
-      if (
-        Array.isArray(processedValues) &&
-        processedValues.length > 0 &&
-        typeof processedValues[0] === 'object' &&
-        !Array.isArray(processedValues[0])
-      ) {
-        const allKeys = new Set<string>()
-        processedValues.forEach((obj: any) => {
-          if (obj && typeof obj === 'object') {
-            Object.keys(obj).forEach((key) => allKeys.add(key))
-          }
-        })
-        const headers = Array.from(allKeys)
-
-        const rows = processedValues.map((obj: any) => {
-          if (!obj || typeof obj !== 'object') {
-            return Array(headers.length).fill('')
-          }
-          return headers.map((key) => {
-            const value = obj[key]
-            if (value !== null && typeof value === 'object') {
-              return JSON.stringify(value)
-            }
-            return value === undefined ? '' : value
-          })
-        })
-
-        processedValues = [headers, ...rows]
-      }
-
-      const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
-        values: processedValues,
-      }
-
-      return body
-    },
+    body: (params) => ({
+      majorDimension: params.majorDimension || 'ROWS',
+      values: writeSheetRows(params.values),
+    }),
   },
+
+  dryRunOutput: (params) => sheetWritePlaceholder(params, writeSheetRows(params.values)),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()

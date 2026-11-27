@@ -1,9 +1,11 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { hostname, tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
 import { REQUEST_CANCELLED, SimApiError } from '../../http/client'
+import { runActionsInvoked } from '../../runtime/build'
 import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
 import { digest } from './source-dir'
 import { attachWorkflowSourceDiff, attachWorkflowSourceStatus } from './workflow-source-status'
@@ -15,6 +17,7 @@ const { mockRequest, mockProfileFrom } = contextMockFns
 const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const WORKSPACE_ID = 'ws_local'
 const BASE = {
+  version: 1,
   workflowId: WORKFLOW_ID,
   workspaceId: WORKSPACE_ID,
   fingerprint: 'sf1:a',
@@ -64,12 +67,12 @@ function printed(): Record<string, unknown> {
 }
 
 /** A dry run's answer: the graph diff and the findings. */
-function dryRun(diagnostics: Array<Record<string, unknown>> = [], modified = 0) {
+function dry(diagnostics: Array<Record<string, unknown>> = [], modified = 0) {
   return {
     data: {
       workflowId: WORKFLOW_ID,
       workspaceId: WORKSPACE_ID,
-      dryRun: true,
+      dry: true,
       applied: false,
       diff: {
         noop: modified === 0,
@@ -116,21 +119,63 @@ afterEach(() => {
 
 describe('workflows source status', () => {
   it.each(['status', 'diff'] as const)(
-    'on a starter no workflow was created from, %s names the create to run, not a get',
+    'on a starter no workflow was created from, %s names the create to run, not a get, quoting its directory',
     async (command) => {
-      const starter = join(root, 'starter')
+      const starter = join(root, 'my starter')
       write(starter, 'workflow.ts', GOT['workflow.ts'])
       write(starter, '.sim/starter.json', JSON.stringify({ workspaceId: WORKSPACE_ID }))
 
       await expect(run(starter, command)).rejects.toThrow(
-        `It holds a starter no workflow was created from yet: run \`sim workflows source create --dir ${starter} --workspace ${WORKSPACE_ID} --dry-run\``
+        `It holds a starter no workflow was created from yet: run \`sim workflows source create --dir '${starter}' --workspace ${WORKSPACE_ID} --dry\``
       )
       expect(mockRequest).not.toHaveBeenCalled()
     }
   )
 
+  it("names the starter's create with the root --profile the caller typed", async () => {
+    const starter = join(root, 'starter')
+    write(starter, 'workflow.ts', GOT['workflow.ts'])
+    write(starter, '.sim/starter.json', JSON.stringify({ workspaceId: WORKSPACE_ID }))
+    const program = new Command('sim').option('-P, --profile <name>').option('--endpoint <url>')
+    const source = new Command('source')
+    attachWorkflowSourceStatus(source)
+    program.addCommand(source)
+    runActionsInvoked(program)
+    program.exitOverride()
+    for (const each of source.commands) each.exitOverride()
+
+    await expect(
+      program.parseAsync([
+        'node',
+        'sim',
+        '--profile',
+        'staging',
+        'source',
+        'status',
+        '--dir',
+        starter,
+      ])
+    ).rejects.toThrow(
+      `run \`sim --profile staging workflows source create --dir ${starter} --workspace ${WORKSPACE_ID} --dry\``
+    )
+  })
+
+  it('refuses while another command holds the directory, asking the server nothing', async () => {
+    mkdirSync(join(root, '.sim/command.lock'))
+    writeFileSync(
+      join(root, '.sim/command.lock/owner.json'),
+      JSON.stringify({ pid: process.pid, host: hostname() })
+    )
+
+    const error = (await run(root, 'status').catch((caught: unknown) => caught)) as SimApiError
+
+    expect(error.code).toBe('SOURCE_DIR_BUSY')
+    expect(error.exitCode).toBe(SOURCE_BUSY_EXIT_CODE)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
   it('is clean, exit 0, with nothing changed on either side', async () => {
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run(root, 'status')
 
@@ -160,7 +205,7 @@ describe('workflows source status', () => {
       query: { allowDelete: true },
       body: { files: GOT, lock: LOCK, base: BASE },
     })
-    expect(request.query).not.toHaveProperty('dryRun')
+    expect(request.query).not.toHaveProperty('dry')
     expect(request.body).not.toHaveProperty('provenance')
     expect(process.exitCode ?? 0).toBe(0)
   })
@@ -175,7 +220,7 @@ describe('workflows source status', () => {
       column: 8,
       frame: '> 1 | return $ref.nosuch.x',
     }
-    mockRequest.mockResolvedValue(dryRun([warning, STALE]))
+    mockRequest.mockResolvedValue(dry([warning, STALE]))
 
     await run(root, 'status')
 
@@ -207,7 +252,7 @@ describe('workflows source status', () => {
       severity: 'info',
       message: '40 more findings were left out.',
     }
-    mockRequest.mockResolvedValue(dryRun([warning, truncated]))
+    mockRequest.mockResolvedValue(dry([warning, truncated]))
 
     await run(root, 'status')
 
@@ -225,7 +270,7 @@ describe('workflows source status', () => {
     )
     unlinkSync(join(root, 'functions/score.js'))
     write(root, 'functions/rank.js', 'return 2\n')
-    mockRequest.mockResolvedValue(dryRun([], 1))
+    mockRequest.mockResolvedValue(dry([], 1))
 
     await run(root, 'status')
 
@@ -246,9 +291,26 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(11)
   })
 
+  it('carries --summary-file onto the apply it recommends', async () => {
+    const file = join(root, 'my plan.md')
+    write(
+      root,
+      'workflow.ts',
+      ENTRY.replace('})\n})', "})\n  fn('Rank', { code: codeFile('./functions/rank.js') })\n})")
+    )
+    write(root, 'functions/rank.js', 'return 2\n')
+    mockRequest.mockResolvedValue(dry([], 1))
+
+    await run(root, 'status', '--summary-file', file)
+
+    expect(printed().next).toMatchObject({
+      command: `sim workflows source apply --dir ${root} --yes --summary-file '${file}'`,
+    })
+  })
+
   it('names --allow-delete in the apply it recommends when the edit removes a variable', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
-    const plan = dryRun([], 1)
+    const plan = dry([], 1)
     plan.data.diff.variables.removed = ['threshold'] as never[]
     mockRequest.mockResolvedValue(plan)
 
@@ -261,7 +323,7 @@ describe('workflows source status', () => {
 
   it('leaves out a function file no codeFile() names, which applying never sends, and says so', async () => {
     write(root, 'functions/notes.js', 'return 3\n')
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await run(root, 'status')
 
@@ -278,6 +340,37 @@ describe('workflows source status', () => {
     expect(printed()).toMatchObject({ files: [] })
   })
 
+  it('lists the files no codeFile() names in --summary-file, not "No local changes" alone', async () => {
+    write(root, 'functions/notes.js', 'return 3\n')
+    mockRequest.mockResolvedValue(dry())
+    const file = join(root, 'status.md')
+
+    await run(root, 'status', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain('applying never sends it: functions/notes.js')
+  })
+
+  it('lists the plan errors in --summary-file, not only their count', async () => {
+    mockRequest.mockResolvedValue(
+      dry([
+        {
+          code: 'E_UNRESOLVED_BLOCK',
+          severity: 'error',
+          message: 'No block named score.',
+          file: 'workflow.ts',
+          line: 4,
+        },
+      ])
+    )
+    const file = join(root, 'status.md')
+
+    await run(root, 'status', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain(
+      '`E_UNRESOLVED_BLOCK` workflow.ts:4: No block named score.'
+    )
+  })
+
   it('does not report a recorded function file as deleted once no codeFile() names it but it is still on disk', async () => {
     write(
       root,
@@ -285,7 +378,7 @@ describe('workflows source status', () => {
       ENTRY.replace("  fn('Score', { code: codeFile('./functions/score.js') })\n", '')
     )
     write(root, '.sim/lock.json', JSON.stringify({ ...LOCK, blocks: {} }))
-    mockRequest.mockResolvedValue(dryRun([], 1))
+    mockRequest.mockResolvedValue(dry([], 1))
 
     await run(root, 'status')
 
@@ -303,7 +396,7 @@ describe('workflows source status', () => {
   })
 
   it('reports drift when the workflow changed on the server and nothing here, exit 12', async () => {
-    mockRequest.mockResolvedValue(dryRun([STALE]))
+    mockRequest.mockResolvedValue(dry([STALE]))
 
     await run(root, 'status')
 
@@ -317,9 +410,23 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(12)
   })
 
+  it('writes the drift to --summary-file for a scheduled job to act on', async () => {
+    mockRequest.mockResolvedValue(dry([STALE]))
+    const file = join(root, 'status.md')
+
+    await run(root, 'status', '--summary-file', file)
+
+    const markdown = readFileSync(file, 'utf8')
+    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/%]+ -->$/)
+    expect(markdown).toContain('**Changed on the server since the directory was read**')
+    expect(markdown).toContain(`- workflow ${WORKFLOW_ID}: changed on the server`)
+    expect(markdown).toContain(`Next: \`sim workflows source get ${WORKFLOW_ID} --dir ${root}\``)
+    expect(process.exitCode).toBe(12)
+  })
+
   it('reports a conflict when both sides changed, exit 12, and names a fresh get', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
-    mockRequest.mockResolvedValue(dryRun([STALE]))
+    mockRequest.mockResolvedValue(dry([STALE]))
 
     await run(root, 'status')
 
@@ -331,26 +438,14 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(12)
   })
 
-  it('falls back to the apply dry run on a server without the plan read', async () => {
-    mockRequest
-      .mockRejectedValueOnce(new SimApiError('Not found', 404, 'NOT_FOUND'))
-      .mockResolvedValueOnce(dryRun())
-
-    await run(root, 'status')
-
-    expect(mockRequest.mock.calls.map(([path]) => path)).toEqual([
-      `/api/v2/workflows/${WORKFLOW_ID}/source/plan`,
-      `/api/v2/workflows/${WORKFLOW_ID}/source`,
-    ])
-    expect(mockRequest.mock.calls[1][1].query).toEqual({ dryRun: true, allowDelete: true })
-    expect(printed()).toMatchObject({ state: 'clean', server: 'checked' })
-  })
-
   it('reports a workflow the server no longer has as deleted there', async () => {
     mockRequest.mockRejectedValue(new SimApiError('Workflow not found', 404, 'NOT_FOUND'))
 
     await run(root, 'status')
 
+    expect(mockRequest.mock.calls.map(([path]) => path)).toEqual([
+      `/api/v2/workflows/${WORKFLOW_ID}/source/plan`,
+    ])
     expect(printed()).toMatchObject({
       state: 'drift',
       drift: [{ kind: 'workflow', key: WORKFLOW_ID, server: 'deleted' }],
@@ -436,7 +531,7 @@ describe('workflows source status', () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
     mkdirSync(join(root, '.sim/sdk/workspace.d.ts'), { recursive: true })
     write(root, '.sim/sdk/workspace.manifest.json', '{}\n')
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(dry())
 
     await expect(run(root, 'status')).rejects.toMatchObject({ name: 'SourceDirError' })
     expect(process.exitCode).toBeUndefined()
@@ -466,18 +561,8 @@ describe('workflows source status', () => {
       local: [{ files: [{ path: 'functions/score.js', change: 'edited' }] }],
     })
   })
-  it.each([
-    [
-      'the workspace record, which records the folder base on disk, over a stale record of its own',
-      true,
-      [],
-    ],
-    [
-      'a record of its own when the workspace record predates the folder base (an older CLI wrote it)',
-      false,
-      [{ path: 'functions/score.js', change: 'edited' }],
-    ],
-  ])('in a workspace folder, reads %s', async (_label, rootCurrent, files) => {
+
+  it("ignores a written record in a workspace folder, reading only the workspace directory's", async () => {
     const ws = join(root, 'ws')
     const folder = join(ws, 'workflows/score')
     write(
@@ -487,11 +572,8 @@ describe('workflows source status', () => {
     )
     writeWorkflowDir(folder, { at: ws, prefix: 'workflows/score/' })
     const rootRecord = JSON.parse(readFileSync(join(ws, '.sim/written.json'), 'utf8'))
-    rootRecord.files['workflows/score/.sim/base.json'] = rootCurrent
-      ? digest(JSON.stringify(BASE))
-      : digest('an older base')
+    rootRecord.files['workflows/score/.sim/base.json'] = digest('another base')
     write(ws, '.sim/written.json', JSON.stringify(rootRecord))
-    // A nested record an older CLI left: score.js as it was before the last write.
     write(
       folder,
       '.sim/written.json',
@@ -505,14 +587,14 @@ describe('workflows source status', () => {
 
     expect(printed()).toMatchObject({ server: 'offline' })
     const local = (printed().local ?? []) as Array<{ files: unknown[] }>
-    expect(local.flatMap((entry) => entry.files)).toEqual(files)
+    expect(local.flatMap((entry) => entry.files)).toEqual([])
   })
 })
 
 describe('workflows source diff', () => {
   it('shows an edit against the base text, and with --server against the server now', async () => {
     write(root, 'functions/score.js', 'return 2\n')
-    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+    mockRequest.mockResolvedValue({ data: { ...dry().data, files: GOT } })
 
     await run(root, 'diff')
 
@@ -531,7 +613,7 @@ describe('workflows source diff', () => {
     })
 
     mockRequest.mockResolvedValue({
-      data: { ...dryRun().data, files: { ...GOT, 'workflow.ts': `${ENTRY}// theirs\n` } },
+      data: { ...dry().data, files: { ...GOT, 'workflow.ts': `${ENTRY}// theirs\n` } },
     })
     await run(root, 'diff', '--server', 'workflow.ts')
 
@@ -543,7 +625,7 @@ describe('workflows source diff', () => {
 
   it('selects files by ./, an absolute path or a path from the current directory', async () => {
     write(root, 'functions/score.js', 'return 2\n')
-    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+    mockRequest.mockResolvedValue({ data: { ...dry().data, files: GOT } })
     const cwd = process.cwd()
     try {
       process.chdir(dirname(root))
@@ -562,7 +644,7 @@ describe('workflows source diff', () => {
 
   it('refuses a filter that selects no file instead of printing no changes', async () => {
     write(root, 'functions/score.js', 'return 2\n')
-    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+    mockRequest.mockResolvedValue({ data: { ...dry().data, files: GOT } })
 
     await expect(run(root, 'diff', 'functions/scroe.js')).rejects.toMatchObject({
       code: 'SOURCE_PATH_UNMATCHED',
@@ -573,7 +655,7 @@ describe('workflows source diff', () => {
 
   it('prints a colorless unified diff for a person when stdout is not a terminal', async () => {
     write(root, 'functions/score.js', 'return 2\n')
-    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+    mockRequest.mockResolvedValue({ data: { ...dry().data, files: GOT } })
     mockProfileFrom.mockReturnValue({
       ...mockedProfile(),
       workspaceId: WORKSPACE_ID,

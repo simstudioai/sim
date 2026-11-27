@@ -6,6 +6,7 @@ export const deleteNoteTool: ToolConfig<ObsidianDeleteNoteParams, ObsidianDelete
   name: 'Obsidian Delete Note',
   description: 'Delete a note from your Obsidian vault',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

@@ -29,6 +29,7 @@ export const getCampaignLeadStatisticsTool: ToolConfig<
   name: 'Smartlead Get Campaign Lead Statistics',
   description: 'Retrieves per-lead engagement statistics for a Smartlead campaign.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

@@ -186,9 +186,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
   // Only explicit cancellation affects the run; browser attachment is independent.
   const recordCancelled = (errorMessage?: string): CopilotRequestCancelReasonValue => {
-    const rawReason = abortController.signal.reason
+    const { aborted, reason: rawReason } = abortController.signal
     let cancelReason: CopilotRequestCancelReasonValue
-    if (isExplicitStopReason(rawReason)) {
+    // A cancelled verdict on a live signal came from the worker's terminal (live or replayed in
+    // recovery), which it sends only for a Stop.
+    if (!aborted || isExplicitStopReason(rawReason)) {
       cancelReason = CopilotRequestCancelReason.ExplicitStop
     } else {
       cancelReason = CopilotRequestCancelReason.Unknown

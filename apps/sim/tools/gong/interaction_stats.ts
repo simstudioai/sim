@@ -12,6 +12,7 @@ export const interactionStatsTool: ToolConfig<
   description:
     'Retrieve interaction statistics for users by date range from Gong. Only includes calls with Whisper enabled.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

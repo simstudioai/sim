@@ -1633,11 +1633,16 @@ function unwrapPageResult(result: unknown): unknown {
   return result
 }
 
-function waitForLoadComplete(contents: WebContents, timeoutMs: number): Promise<void> {
+function waitForLoadComplete(
+  contents: WebContents,
+  timeoutMs: number,
+  signal?: AbortSignal
+): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false
     let sawStart = contents.isLoading()
     const cleanup = () => {
+      signal?.removeEventListener('abort', finish)
       contents.removeListener('did-start-loading', start)
       contents.removeListener('did-stop-loading', finish)
       contents.removeListener('did-fail-load', fail)
@@ -1688,7 +1693,58 @@ function waitForLoadComplete(contents: WebContents, timeoutMs: number): Promise<
     contents.on('did-stop-loading', finish)
     contents.on('did-fail-load', fail)
     contents.on('destroyed', destroyed)
+    signal?.addEventListener('abort', finish)
   })
+}
+
+/** Tools that read or act in the page itself, which a tab with no page yet cannot serve. */
+const BROWSER_TOOL_USES_PAGE = {
+  browser_navigate: false,
+  browser_open_url: false,
+  browser_go_back: false,
+  browser_go_forward: false,
+  browser_reload: false,
+  browser_open_tab: false,
+  browser_switch_tab: false,
+  browser_close_tab: false,
+  browser_list_tabs: false,
+  browser_list_sessions: false,
+  browser_list_downloads: false,
+  browser_save_download: false,
+  browser_wait_for: true,
+  browser_snapshot: true,
+  browser_find: true,
+  browser_read_text: true,
+  browser_screenshot: true,
+  browser_extract: true,
+  browser_click: true,
+  browser_click_at: true,
+  browser_type: true,
+  browser_fill_form: true,
+  browser_batch: true,
+  browser_insert_text: true,
+  browser_press_key: true,
+  browser_scroll: true,
+  browser_select_option: true,
+  browser_set_checked: true,
+  browser_upload_file: true,
+  browser_hover: true,
+  browser_drag: true,
+  browser_zoom: false,
+  browser_request_takeover: false,
+} as const satisfies Readonly<Record<BrowserToolName, boolean>>
+
+/**
+ * A tab a link or popup just opened reports no URL until its first page commits, so a page tool
+ * reaching it first would refuse it as blank. Returns the wait for that first load, run before the
+ * action records any page state, or null when the agent's tab already has a page.
+ */
+function firstPageLoad(signal: AbortSignal, maxWaitMs: number): Promise<void> | null {
+  const contents = session.automationTab()?.view.webContents
+  if (!contents || contents.isDestroyed() || !contents.isLoading()) return null
+  const url = contents.getURL()
+  if (url !== '' && url !== 'about:blank') return null
+  return waitForLoadComplete(contents, maxWaitMs, signal)
 }
 
 async function navigationResult(
@@ -5445,6 +5501,9 @@ export async function executeTool(
             tool !== 'browser_request_takeover' &&
             !BROWSER_TOOL_OBSERVES_ONLY[tool]
           const watchdogMs = browserToolWatchdogMs(tool, params)
+          // The waits for the user and for a first page spend the action's own budget: the client
+          // times the call as queue plus watchdog, so time spent before acting cannot be extra.
+          const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
           if (yieldsToUser && isUserWorkingInPage()) {
             await yieldToUser(
               toolCallId,
@@ -5454,16 +5513,36 @@ export async function executeTool(
                 : Math.min(USER_TAKEOVER_MAX_WAIT_MS, Math.floor(watchdogMs / 2))
             )
           }
+          const firstPage = BROWSER_TOOL_USES_PAGE[tool]
+            ? firstPageLoad(
+                executionController.signal,
+                watchdogMs === null
+                  ? NAVIGATION_TIMEOUT_MS
+                  : Math.min(NAVIGATION_TIMEOUT_MS, Math.floor(watchdogMs / 2))
+              )
+            : null
+          if (firstPage) {
+            // Raced with the cancellation so its rejection is observed; a cancel aborts the wait
+            // before it rejects, which is why the abort is checked again afterwards.
+            await Promise.race([firstPage, cancellation])
+            if (executionController.signal.aborted) {
+              throw new ToolError('This browser action was cancelled.')
+            }
+          }
           const response = dialogResponse(tool, params)
           state.dialogResponse = response
             ? { contents: session.requireAutomationTab().view.webContents, response }
             : null
           const executionEpoch = ++state.toolExecutionEpoch
-          const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
           // Checked right before each input the action sends: a user who starts working in the
           // page mid-action (between a batch's steps, during a click's target probes) wins it.
+          // The pre-action waits can spend the whole budget; the watchdog's timer only fires once
+          // the action yields, so an input dispatched before then must check the deadline itself.
           const assertCurrentExecution = () => {
-            if (state.toolExecutionEpoch !== executionEpoch) {
+            if (
+              state.toolExecutionEpoch !== executionEpoch ||
+              (executionDeadline !== undefined && Date.now() >= executionDeadline)
+            ) {
               throw new ToolError('This browser action expired before it could dispatch input.')
             }
             if (yieldsToUser && isUserWorkingInPage()) {
@@ -5516,20 +5595,24 @@ export async function executeTool(
           )
           const cancellableExecution = Promise.race([execution, cancellation])
           const guardedExecution =
-            watchdogMs === null
+            executionDeadline === undefined
               ? cancellableExecution
-              : raceAgainstWatchdog(cancellableExecution, watchdogMs, () => {
-                  executionController.abort()
-                  if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
-                  if (
-                    tool === 'browser_snapshot' ||
-                    tool === 'browser_open_url' ||
-                    tool === 'browser_find' ||
-                    observeRequest(tool, params) !== undefined
-                  ) {
-                    invalidateSnapshot(state)
+              : raceAgainstWatchdog(
+                  cancellableExecution,
+                  Math.max(0, executionDeadline - Date.now()),
+                  () => {
+                    executionController.abort()
+                    if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
+                    if (
+                      tool === 'browser_snapshot' ||
+                      tool === 'browser_open_url' ||
+                      tool === 'browser_find' ||
+                      observeRequest(tool, params) !== undefined
+                    ) {
+                      invalidateSnapshot(state)
+                    }
                   }
-                })
+                )
           let observedResult: unknown
           try {
             observedResult = await guardedExecution

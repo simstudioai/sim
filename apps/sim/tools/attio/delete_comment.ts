@@ -13,6 +13,7 @@ export const attioDeleteCommentTool: ToolConfig<
   name: 'Attio Delete Comment',
   description: 'Delete a comment in Attio (if head of thread, deletes entire thread)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -11,6 +11,7 @@ export const getListItemTool: InternalToolConfig<GetListItemParams, SapConcurRes
   name: 'SAP Concur Get List Item',
   description: 'Get a single list item (GET /list/v4/items/{itemId}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

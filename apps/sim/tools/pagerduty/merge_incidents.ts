@@ -15,6 +15,7 @@ export const mergeIncidentsTool: ToolConfig<
   description:
     'Merge one or more source incidents into a target incident. Source incidents are resolved and their alerts move to the target.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

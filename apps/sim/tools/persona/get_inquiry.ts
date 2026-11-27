@@ -16,6 +16,7 @@ export const personaGetInquiryTool: ToolConfig<PersonaGetInquiryParams, PersonaI
   description:
     'Retrieve a single identity verification inquiry by ID, including its status, collected fields, and decision timestamps.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

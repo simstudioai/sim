@@ -15,6 +15,7 @@ export const searchTechnologiesTool: ToolConfig<
   description:
     'Search the technology catalog by name. Returns up to 25 technologies. Free endpoint, rate limited to 10 requests per minute.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: findymailHosting<FindymailSearchTechnologiesParams>(() => {
     // Free catalog search — consumes no Findymail credits.

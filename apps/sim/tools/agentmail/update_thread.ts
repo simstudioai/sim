@@ -8,6 +8,7 @@ export const agentmailUpdateThreadTool: ToolConfig<UpdateThreadParams, UpdateThr
   name: 'Update Thread Labels',
   description: 'Add or remove labels on an email thread in AgentMail',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

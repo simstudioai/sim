@@ -1,8 +1,11 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { Expression, MemberExpression, Node } from '@babel/types'
-import { isLikelyWorkflowReferenceSegment } from '@sim/utils/workflow-references'
-import { babelErrorShape, childNodes, memberSegment } from '../babel'
-import { ENV_VAR_NAME, formatStoredPath, type RefSegment } from './ref-path'
+import {
+  findWorkflowReferenceTokens,
+  isLikelyWorkflowReferenceSegment,
+} from '@sim/utils/workflow-references'
+import { babelErrorShape, babelMessage, childNodes, memberSegment } from '../babel'
+import { ENV_VAR_NAME, formatStoredPath, parseStoredPath, type RefSegment } from './ref-path'
 import { type CodeFileLanguage, ENV_ROOT, REF_ROOT } from './to-file'
 
 interface CodeFileSyntaxError {
@@ -56,7 +59,7 @@ function toSyntaxError(error: unknown): CodeFileSyntaxError {
   const line = typeof shape.loc?.line === 'number' ? shape.loc.line : 1
   const column = typeof shape.loc?.column === 'number' ? shape.loc.column + 1 : 1
   return {
-    message: typeof shape.message === 'string' ? shape.message : 'Invalid JavaScript',
+    message: babelMessage(shape),
     start: typeof shape.pos === 'number' ? shape.pos : 0,
     line,
     column,
@@ -201,4 +204,35 @@ function collectReplacements(program: Node): Replacement[] {
     }
   }
   return replacements
+}
+
+/**
+ * The `<key.path>` references a code file writes as text, found by the runtime's own scanner (a
+ * JavaScript string, a Python or shell line): the run resolves each one, so compile checks them as
+ * it checks a `$ref` chain. A token with no path (`<b>` in HTML text) is no reference.
+ */
+function referenceTags(text: string): CodeFileRef[] {
+  const tags: CodeFileRef[] = []
+  for (const token of findWorkflowReferenceTokens(text)) {
+    if (token.kind === 'environment') {
+      const name = token.value.slice(2, -2).trim()
+      if (ENV_VAR_NAME.test(name)) {
+        tags.push({ kind: 'env', name, start: token.start, end: token.end })
+      }
+      continue
+    }
+    if (token.kind !== 'workflow') continue
+    const segments = parseStoredPath(token.value.slice(1, -1))
+    if (!segments || segments.length < 2) continue
+    tags.push({ kind: 'ref', segments, start: token.start, end: token.end, tag: true })
+  }
+  return tags
+}
+
+/**
+ * Every reference a code file makes as compile reads it, in file order: the `$ref`/`$env` chains
+ * {@link fromCodeFile} parsed from `text` (`parsed`), plus the stored tags any language keeps.
+ */
+export function codeFileRefs(parsed: readonly CodeFileRef[], text: string): CodeFileRef[] {
+  return [...parsed, ...referenceTags(text)].sort((a, b) => a.start - b.start)
 }

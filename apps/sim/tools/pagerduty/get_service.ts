@@ -11,6 +11,7 @@ export const getServiceTool: ToolConfig<PagerDutyGetServiceParams, PagerDutyGetS
   name: 'PagerDuty Get Service',
   description: 'Get a single service from PagerDuty by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

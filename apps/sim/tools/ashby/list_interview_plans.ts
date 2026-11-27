@@ -30,6 +30,7 @@ export const listInterviewPlansTool: ToolConfig<Params, Response> = {
   description:
     'Lists Ashby interview plans, including optional archived plans and incremental changes.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -11,6 +11,7 @@ export const rb2bLinkedinToPersonalEmailTool: ToolConfig<
   name: 'RB2B LinkedIn to Personal Email',
   description: 'Return the personal email addresses associated with a LinkedIn profile.',
   version: '1.0.0',
+  effect: 'write',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

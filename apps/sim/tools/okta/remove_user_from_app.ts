@@ -17,6 +17,7 @@ export const oktaRemoveUserFromAppTool: ToolConfig<
   description:
     'Unassign a user from an Okta application, revoking their access. Destructive and irreversible: the app profile for that user is permanently removed, and if provisioning is enabled the downstream account is deactivated.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

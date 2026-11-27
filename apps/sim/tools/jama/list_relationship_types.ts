@@ -28,6 +28,7 @@ export const jamaListRelationshipTypesTool: ToolConfig<
   description:
     "List Relationship Types in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

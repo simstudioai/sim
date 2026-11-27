@@ -429,12 +429,13 @@ sim blocks get <blockId>
 ```text
 Reading it for `sim workflows operations apply`:
   id                    the type to add: `blocks get table` answers table_v2 (an add of legacy
-                        table is refused)
+                        table is refused); `note` says so when it is not the type asked for
   inputSchema           the field ids inputs takes; operationInputSchema, an operation's own
   inputDefinitions      the block's inputs by name; one a pair of fields shares (tableId for
                         tableSelector and manualTableId) is accepted in place of the pair
   outputs               what it outputs on success; a failed block outputs {"error":"…"}
-                        instead, read on its error path as <name.error>
+                        instead, read on its error path as <name.error> (a Function also
+                        outputs <name.errorMessage>, the thrown message without line or code)
 Block settings such as retry are not fields: `sim workflows operations apply --help`.
 ```
 
@@ -1082,7 +1083,7 @@ sim files batch-delete [file-ids...] [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | No | Files to delete, each by identifier or by the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike. At most 100 entries may be paths. (space-separated, or @path / @- with one value per line; @@value for a literal leading @) (required, or pass the values as arguments). |
+| `--file-ids <value...>` | No | Files to delete, each by identifier or by the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike. At most 100 entries may be paths. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @) (required, or pass the values as arguments). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
@@ -1580,7 +1581,7 @@ sim files share set <fileId> [options]
 | `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
 | `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
 | `--password <value>` | No | Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply. |
-| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -1629,7 +1630,7 @@ Also available as `sim files mv`.
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | No | Destination folder path; omit for root. |
 
 </CommandTable>
@@ -1735,7 +1736,7 @@ sim files search [options]
 | `--query <value>` | Yes | Regular expression, or exact text when `mode` is `exact`. |
 | `--mode <value>` | No | How `query` is read. Defaults to "regex". Accepted values: `exact`, `regex`. |
 | `--max-results <value>` | No | Maximum matching lines to return. Defaults to 50. |
-| `--folder <value...>` | No | Folders to search, by path as shown in the app; omit to search the whole workspace (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder <value...>` | No | Folders to search, by path as shown in the app; omit to search the whole workspace (space-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-subfolders` | No | Whether each folder scope includes nested folders; on by default. |
 | `--no-include-subfolders` | No | Send --include-subfolders as false. |
 
@@ -1950,7 +1951,7 @@ sim knowledge from-workspace-files create <knowledgeBaseId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file <value...>` | Yes | Workspace file ID or canonical files/&lt;folder&gt;/&lt;name&gt; path (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--file <value...>` | Yes | Workspace file ID or canonical files/&lt;folder&gt;/&lt;name&gt; path (repeatable) (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -2215,7 +2216,7 @@ sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operation <value>` | Yes | What to do with the selected chunks. Accepted values: `enable`, `disable`, `delete`. |
-| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
@@ -2406,7 +2407,7 @@ sim knowledge documents batch-update <knowledgeBaseId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operation <value>` | Yes | Whether the selected documents become enabled or disabled for search. Accepted values: `enable`, `disable`. |
-| `--document <value...>` | No | Documents to update, by identifier. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--document <value...>` | No | Documents to update, by identifier. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--select-all` | No | Apply to every document in the knowledge base. |
 | `--enabled-filter <value>` | No | With `selectAll`, restrict the update to documents in this state. Accepted values: `all`, `enabled`, `disabled`. |
 
@@ -2805,7 +2806,7 @@ sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [optio
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operation <value>` | Yes | Whether to restore or exclude the selected documents. Accepted values: `restore`, `exclude`. |
-| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--document <value...>` | Yes | Connector document identifiers to update. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -3120,7 +3121,7 @@ sim knowledge search [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--query <value>` | No | Text to search for. |
 | `--top-k <value>` | No | Maximum number of search results to return. Must be a whole number between 1 and 100. Defaults to 10. |
 | `--tag-filters <json\|@file>` | No | Tag filters as [&#123;"tagName":"...","operator":"...","value":"..."&#125;] (JSON, or @path / @- to read a file or stdin). |
@@ -3354,9 +3355,9 @@ sim logs stats [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
 | `--include-handled-errors` | No | Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace. |
 | `--no-include-handled-errors` | No | Send --include-handled-errors as false. |
@@ -3383,8 +3384,8 @@ sim logs list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--trigger <value...>` | No | Comma-separated, lowercase trigger types or webhook provider IDs. Matching is exact and case-sensitive; unknown values select no runs. An empty entry is rejected. The sentinel `all` disables this filter, even when listed with other values. At most 100 entries. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--trigger <value...>` | No | Comma-separated, lowercase trigger types or webhook provider IDs. Matching is exact and case-sensitive; unknown values select no runs. An empty entry is rejected. The sentinel `all` disables this filter, even when listed with other values. At most 100 entries. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
@@ -3407,7 +3408,7 @@ sim logs list [options]
 | `--run-id <value>` | No | Exact run identifier to match. |
 | `--sort-by <value>` | No | Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs sort before recorded values in ascending order and after them in descending order. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included. Defaults to "startedAt". Accepted values: `startedAt`, `durationMs`, `cost`, `status`. |
 | `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -5093,7 +5094,7 @@ sim permission-groups members batch-add [options]
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
 | `--group <value>` | Yes | Permission group identifier. |
-| `--user <value...>` | No | User IDs to add; cannot be combined with --all-members (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--user <value...>` | No | User IDs to add; cannot be combined with --all-members (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--all-members` | No | Add every current organization member; cannot be combined with --user. |
 
 </CommandTable>
@@ -5329,9 +5330,9 @@ sim sandboxes create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | Display name, unique within the workspace; 1 to 64 characters. |
 | `--language <value>` | Yes | Dependency ecosystem: `javascript` installs from npm, `python` from PyPI. Accepted values: `javascript`, `python`. |
-| `--dependencies <value...>` | No | Package specifiers installed into the sandbox, one per entry. Defaults to []. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
-| `--cli-tools <value...>` | No | Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates. Defaults to []. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--system-packages <value...>` | No | Debian packages installed into the sandbox, one per entry. Defaults to []. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
+| `--dependencies <value...>` | No | Package specifiers installed into the sandbox, one per entry. Defaults to []. (space-separated, a JSON array, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
+| `--cli-tools <value...>` | No | Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates. Defaults to []. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--system-packages <value...>` | No | Debian packages installed into the sandbox, one per entry. Defaults to []. (space- or comma-separated, a JSON array, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -5438,9 +5439,9 @@ sim sandboxes update <sandboxId> [options]
 | --- | --- | --- |
 | `--name <value>` | No | New display name, unique within the workspace; 1 to 64 characters. |
 | `--language <value>` | No | Replacement dependency ecosystem. The whole spec is revalidated against it, so a Python dependency list does not survive a switch to JavaScript. Accepted values: `javascript`, `python`. |
-| `--dependencies <value...>` | No | Replacement package list; replaces the whole list. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
-| `--cli-tools <value...>` | No | Replacement managed CLI list; replaces the whole list. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--system-packages <value...>` | No | Replacement Debian package list; replaces the whole list. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
+| `--dependencies <value...>` | No | Replacement package list; replaces the whole list. (space-separated, a JSON array, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
+| `--cli-tools <value...>` | No | Replacement managed CLI list; replaces the whole list. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--system-packages <value...>` | No | Replacement Debian package list; replaces the whole list. (space- or comma-separated, a JSON array, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -5890,7 +5891,7 @@ sim tables columns create <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--column <json\|@file>` | Yes | Column definition to add. (JSON, or @path / @- to read a file or stdin). |
+| `--column <json\|@file>` | Yes | Column definition to add: &#123;"name":"status","type":"string"&#125;. Column fields: id - Optional client-provided column identifier; name (required) - Column name; type (required) - Column data type; required - Whether inserts must supply a value for this column; unique - Whether values in the column must be unique; options - Select options for select-type columns, as [&#123;"id":"open","name":"Open"&#125;]; multiple - Whether a select column accepts multiple values; currencyCode - ISO 4217 code for currency columns; position - Zero-based insertion position for the column. A column's type is one of string, number, currency, boolean, date, json, select; a select column also takes options. (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
@@ -6104,7 +6105,7 @@ sim tables batch-delete [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to archive, by identifier. Defaults to []. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
@@ -6233,7 +6234,7 @@ sim tables rows batch-delete <tableId> [options]
 | --- | --- | --- |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--limit <value>` | No | Maximum matching rows to delete. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
-| `--row <value...>` | No | Explicit row identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--row <value...>` | No | Explicit row identifiers to delete. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
@@ -6547,11 +6548,11 @@ sim tables dispatches create <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--group-ids <value...>` | Yes | Workflow or enrichment groups to run. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--group-ids <value...>` | Yes | Workflow or enrichment groups to run. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--run-mode <value>` | No | Whether to run all or only incomplete cells. Defaults to "all". Accepted values: `all`, `incomplete`. |
-| `--row-ids <value...>` | No | Explicit row subset to run. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--row-ids <value...>` | No | Explicit row subset to run. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
-| `--exclude-row-ids <value...>` | No | Rows excluded from a select-all run scope. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--exclude-row-ids <value...>` | No | Rows excluded from a select-all run scope. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--max-rows <n>` | No | Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run. |
 
 </CommandTable>
@@ -6773,7 +6774,7 @@ sim tables cancel-runs <tableId> [options]
 | `--scope <value>` | Yes | Whether to cancel across the table or one row. Accepted values: `all`, `row`. |
 | `--row-id <value>` | No | Row whose runs should be canceled for row scope. |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
-| `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
@@ -6796,7 +6797,7 @@ sim tables create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | Identifier: letters, numbers, and underscores; cannot start with a number. |
 | `--description <value>` | No | Optional table description. |
-| `--schema <json\|@file>` | Yes | Table schema: &#123;"columns":[&#123;"name":"email","type":"string"&#125;]&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--schema <json\|@file>` | Yes | Initial table column definitions: &#123;"columns":[&#123;"name":"email","type":"string","required":true,"unique":true&#125;]&#125;. Column fields: id - Optional client-provided column identifier; name (required) - Column name; type (required) - Column data type; required - Whether inserts must supply a value for this column; unique - Whether values in the column must be unique; options - Select options for select-type columns, as [&#123;"id":"open","name":"Open"&#125;]; multiple - Whether a select column accepts multiple values; currencyCode - ISO 4217 code for currency columns. A column's type is one of string, number, currency, boolean, date, json, select; a select column also takes options. (JSON, or @path / @- to read a file or stdin). |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
@@ -7178,7 +7179,7 @@ sim tables move [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to move, by identifier. Defaults to []. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value...>` | No | Table folders to move, by path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder <value...>` | No | Table folders to move, by path as shown in the app; the leading / is optional (space-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | No | Destination folder path; omit for root. |
 
 </CommandTable>
@@ -7492,7 +7493,7 @@ sim workflow-mcp-servers create [options]
 | `--description <value>` | No | Optional server description. |
 | `--is-public` | No | Whether the server accepts MCP clients without a Sim API key. Defaults to false; a public server lets anyone holding its URL execute the workflows it exposes. |
 | `--no-is-public` | No | Send --is-public as false. |
-| `--workflow <value...>` | No | Deployed workflows to expose as MCP tools on the new server. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--workflow <value...>` | No | Deployed workflows to expose as MCP tools on the new server. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -7756,14 +7757,14 @@ sim workflows operations apply <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
-| `--no-dry-run` | No | Send --dry-run as false. |
+| `--dry` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
+| `--no-dry` | No | Send --dry as false. |
 | `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"source":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId. To move an existing block into a loop or parallel (keeping its id), edit it with params &#123;"parentId":"&lt;loop-id&gt;"&#125;; &#123;"parentId":null&#125; moves it out (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
 | `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after --operations: [&#123;"block_id":"&lt;uuid&gt;","enabled":false&#125;]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Conditional | Confirm this operation (required unless --dry-run). |
+| `-y, --yes` | Conditional | Confirm this operation (required unless --dry). |
 
 </CommandTable>
 
@@ -7772,7 +7773,11 @@ Edges:
   connections maps a source handle to its targets: {"source":"<id>"}, {"source":["<a>","<b>"]},
   or {"source":{"block":"<id>","handle":"<target handle>"}}; "success" is an alias of "source".
   An add's connections create the new block's edges. An edit's connections REPLACE every
-  outgoing edge of that block, on every handle: list again each edge to keep.
+  outgoing edge of that block, on every handle: list again each edge to keep; {} removes them all.
+  Moving a block into or out of a loop or parallel (parentId) removes each of its existing edges
+  that would cross the container's boundary, atomic or not, and names them in warnings. Edges the
+  batch itself asks for across a boundary are refused. Wire into the body from loop-start-source
+  and onward from loop-end-source (parallel-start-source, parallel-end-source).
   To remove one edge, edit its source block with
   {"removeEdges":[{"targetBlockId":"<id>","sourceHandle":"source"}]} (sourceHandle defaults to
   "source").
@@ -7785,12 +7790,14 @@ Source handles:
   parallel-start-source, parallel-end-source  the same for a parallel
 Renames:
   An edit's {"name":"New name"} also rewrites every <old key.field> reference to the block, in
-  other blocks' inputs and in a loop's or parallel's collection and condition.
+  other blocks' inputs and in a loop's or parallel's collection and condition. Edits run after the
+  batch's adds, so a block added in the same batch is rewritten too.
 Inputs:
   inputs takes the field ids `sim blocks get <type>` lists (inputSchema, operationInputSchema),
   or the name a pair of them shares (inputDefinitions: tableId for tableSelector and
   manualTableId; a string goes to the typed field). Add the type it answers with: `blocks get
-  table` answers table_v2, and an add of legacy table is refused.
+  table` answers table_v2, and an add of legacy table is refused. An edit's inputs replace each
+  field they name whole (a responseFormat schema too) and keep the fields they do not name.
   conditions (condition): [{"title":"if","value":"<start.n> > 3"},{"title":"else if","value":"…"},
   {"title":"else","value":""}]; the last entry is the else. Each entry's id comes from its
   position (<block id>-if, <block id>-else-if-0, …, <block id>-else): an id you pass is replaced.
@@ -7799,12 +7806,28 @@ Inputs:
 Block settings, beside inputs in an add's or edit's params:
   "retry":{"enabled":true,"maxTries":3,"waitBetweenTriesMs":1000} retries a failed block; null
   clears it. An api block's retries input repeats the request after a timeout, reset, 429 or
-  5xx, not when the host does not resolve or refuses the connection; "retry" covers that.
+  5xx, not when the host does not resolve or refuses the connection; "retry" covers that. They
+  nest: every try of "retry" runs the request with its retries.
 Outputs:
   A block that fails outputs {"error":"<message>"}: connect its error handle and read
-  <name.error> there (without one, the run fails). A Workflow block's result is the child's
+  <name.error> there (without one, the run fails). A Function's error leads with the line and
+  code that threw; its <name.errorMessage> is the thrown message alone, the one to reply with.
+  A Workflow block's result is the child's
   output; a child ending in a Response block gives {data, status, headers}, so read
-  <call.result.data.x>.
+  <call.result.data.x>. A Table block's row holds its cells under data: read a cell as
+  <name.row.data.column> (<name.rows[0].data.column>).
+References:
+  Inside a loop or parallel body read <loop.currentItem> and <loop.index>, or
+  <parallel.currentItem> and <parallel.index>; after it, <name.results>. A reference to a block
+  that did not run (a branch not taken) is null as a whole value, in a condition or in a
+  Function's code, and '' inside text.
+Order:
+  Operations run in phases whatever their order in the batch: deletes first, then
+  extract_from_subflow, adds, insert_into_subflow and edits; operations of one type keep the
+  order given, except insert_into_subflow, which runs a parent before its children. A delete plus an add with the same name therefore replaces the block in one batch.
+Run logs:
+  `sim logs list --workflow <workflowId>` lists a workflow's runs; `sim logs get <runId> --trace
+  --no-include-workflow-state` shows each block's resolved inputs, outputs and errors.
 ```
 
 API request and response schemas: [applyWorkflowOperations](/api-reference/workflows/applyWorkflowOperations).
@@ -7900,7 +7923,7 @@ sim workflows runs get <runId> [options]
 | --- | --- | --- |
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--include-output` | No | Include the final output in JSON or YAML output. |
-| `--select-output <value...>` | No | Include blockName.path or blockId.path values (e.g. agent_1.content) in JSON or YAML output; names resolve against the workflow’s current blocks, and missing paths are omitted (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-output <value...>` | No | Include blockName.path or blockId.path values (e.g. agent_1.content) in JSON or YAML output; names resolve against the workflow’s current blocks, and missing paths are omitted (space-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
@@ -8462,7 +8485,7 @@ API request and response schemas: [duplicateWorkflow](/api-reference/workflows/d
 
 ### sim workflows run
 
-Run a deployed workflow or execute saved state manually
+Run a deployed workflow, or its saved draft
 
 ```bash
 sim workflows run <workflowId> [options]
@@ -8487,17 +8510,22 @@ sim workflows run <workflowId> [options]
 | `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
 | `--async` | No | Queue the run and return immediately. Defaults to false. |
 | `--execution-timeout-seconds <value>` | No | Maximum duration of the run in seconds, capped by the plan's execution timeout. Requires --async or --wait-timeout. |
-| `--select-output <value...>` | No | Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-output <value...>` | No | Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async (space-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Defaults to true for the installed CLI; Chat defaults to file references and admits requested bytes only for synchronous runs. Rejected when async is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
-| `--manual` | No | Run the current saved workflow state instead of the active deployment. |
-| `--trigger <blockId>` | No | Enter the run through this runnable trigger, by its block id; runs the current saved workflow state (implies --manual). |
-| `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
-| `--from-block <block>` | No | Run manually from this saved workflow block: its id, display name or key. |
-| `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
-| `--stop-after <block>` | No | Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty. |
+| `--draft` | No | Run the saved draft instead of the active deployment, sending its writes. |
+| `--deployment-version <n>` | No | Run this deployed version instead of the active one (a version number from `sim workflows versions list`); a Workflow block in it still runs its child workflow's active deployment. Needs workspace write access, through a full-access API key or an OAuth token with api:write. Not with --draft or any flag that runs the draft. |
+| `--dry` | No | Dry run of the saved draft (implies --draft): writes are not sent but answered with placeholders and listed with their request payloads in sideEffects; reads, model calls and code run for real. Logged as a test run. Not with --follow, --async or --wait-timeout. |
+| `--allow <block>` | No | Send this block's writes for real during a dry run (its id, display name or key, or &lt;workflow&gt;.&lt;block&gt; for a workflow it calls); for an Agent, only its own tool calls, not a workflow or custom block it calls; repeatable. |
+| `--mock <block>=<json\|@file>` | No | Answer this block with the given JSON object instead of running it during a dry run (its id, display name or key, or &lt;workflow&gt;.&lt;block&gt; for a workflow it calls), to steer a branch or give a stubbed write a realistic result; a bare --mock &lt;block&gt; takes its output from --mock-from. Not a locked block, or one of a locked workflow or folder; data only (the API reference lists the fields a mock cannot set). The run records only which blocks were mocked, not the outputs, so a rerun reads them again with --mock-from; repeatable. |
+| `--mock-from <runId>` | No | Answer each block a bare --mock &lt;block&gt; names with the output it recorded in this earlier run of the workflow, redacted as the run shows it: this workflow's blocks (not a child's; not inside a loop or parallel unless that run mocked it); fields a mock cannot set, such as cost or model, are left out. |
+| `--trigger <blockId>` | No | Enter the run through this runnable trigger, by its block id; runs the saved draft (implies --draft). |
+| `--sample` | No | Run with the selected trigger's sample payload instead of --input; runs the saved draft (implies --draft), whose writes are sent unless --dry. |
+| `--from-block <block>` | No | Rerun the saved draft from this block (its id, display name or key), reusing the outputs --source-run produced before it; a failed run prints this command as next. |
+| `--source-run <runId>` | No | Earlier run of this workflow, deployed or draft, whose outputs the blocks before --from-block keep (requires --from-block). |
+| `--stop-after <block>` | No | Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --draft). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty. |
 | `--dir <dir>` | No | This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json. Not with --async or --follow, and not for a run --wait-timeout leaves running. |
 | `--wait-timeout <seconds>` | No | Wait at most this many seconds for a synchronous run (0 waits until it settles). A run still going then continues in the background under async limits: the command prints its run record and exits 4, and `sim workflows runs wait` keeps waiting. Not with --async or --follow. |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
@@ -8506,9 +8534,13 @@ sim workflows run <workflowId> [options]
 
 </CommandTable>
 
-Without --manual (or a flag that implies it) this runs the active deployment; a workflow never deployed has none. --manual runs the saved draft, as the source loop leaves it.
+Without --draft (or a flag that implies it) this runs the active deployment; a workflow never deployed has none. --deployment-version &lt;n&gt; runs that deployed version instead (it needs workspace write access, through a full-access API key or an OAuth token with api:write); the child workflows it calls still run their own active deployment. --draft runs the saved draft, as the source loop leaves it, sending its writes.
+
+--dry runs the saved draft without its writes: each call that could change something (a write tool, any MCP call, an HTTP request other than GET/HEAD/OPTIONS, code's other fetches) gets a placeholder (ids like dry_run_row_1, numbers above 900000000) and is listed in sideEffects.stubbed with the request it would have sent; check those payloads. A read that would send a placeholder is held back too (reason placeholder), and an MCP call its server calls read-only says so (reason mcp-read-only). Reads, model calls and code run for real; code in a remote sandbox (shell, Python, imports) runs for real too, its network requests included, and is listed in sideEffects.unchecked. Child workflows run dry too; custom, Human in the loop and Wait blocks are answered whole, so the run never pauses. --allow &lt;block&gt; sends that block's writes for real (use a test resource). --mock &lt;block&gt;=&lt;json&gt; answers a block with fixed output, to steer a branch; --mock-from &lt;runId&gt; with a bare --mock &lt;block&gt; answers it with the output that run recorded. --allow and --mock also name a block of a workflow this one calls as &lt;workflow&gt;.&lt;block&gt;. --allow, --mock and --mock-from imply --dry; --draft sends every write, so it refuses them. Overrides the run never reached are listed in sideEffects.unreached, and mock fields a block never gets in sideEffects.mockFields. The API reference describes each list and refusal.
 
 The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the workflow's final output) and blockOutputs (what --select-output named). It has no success field: branch on status, or on the exit code. With --follow it is the stream's final frame instead: success and output.
+
+A run that failed in a block has next: &#123; command, reason &#125;, the command that reruns the saved draft from that block (or the outermost loop or parallel holding it) with this run as --source-run. A dry run's keeps --dry and --allow, and reads its mocks again with --mock-from; a mock it cannot read again (a child's block, one never reached, or one passed beside --mock-from) is left out and named in nextNote, for you to pass again. A run paused for input has next: the runs resume command.
 
 Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed first, then the error on stderr), or the command failed; 4 still running when --wait-timeout elapsed.
 
@@ -8541,12 +8573,12 @@ sim workflows export <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--include-references` | No | Include non-secret resource identities for mapped import. |
-| `--include-workspace-bindings` | No | Keep non-secret table, knowledge base, document, folder, channel, and other workspace bindings for a same-workspace import. Defaults to false, which clears these IDs. Registered credential fields and opaque table/tool values are cleared either way; environment references and ordinary workflow variables remain included. |
+| `--include-workspace-bindings` | No | Keep table, knowledge base, document, folder, channel and other workspace bindings. On by default; --no-include-workspace-bindings clears them for a copy to share outside this workspace. Credentials are cleared either way. |
 | `--no-include-workspace-bindings` | No | Send --include-workspace-bindings as false. |
 
 </CommandTable>
 
-Workspace bindings (a table, a child workflow, a knowledge base) print as null unless --include-workspace-bindings, and credentials always do: to read what a block is set to, use `sim workflows state get`.
+A table, child workflow, knowledge base or other workspace binding prints as its id; a credential always prints as null. For a copy to share outside this workspace, pass --no-include-workspace-bindings to clear the bindings too.
 
 API request and response schemas: [exportWorkflow](/api-reference/workflows/exportWorkflow).
 
@@ -8585,7 +8617,7 @@ API request and response schemas: [getSourceResources](/api-reference/workflows/
 Show a workflow’s draft as TypeScript source with its identity lock
 
 ```bash
-sim workflows source get <workflowId> [options]
+sim workflows source get <workflow> [options]
 ```
 
 **Arguments**
@@ -8594,7 +8626,7 @@ sim workflows source get <workflowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
+| `workflow` | Yes | Workflow id, or its exact name |
 
 </CommandTable>
 
@@ -8610,7 +8642,7 @@ sim workflows source get <workflowId> [options]
 
 </CommandTable>
 
-Exit codes with --dir: 0 written; 1 the command failed, the directory is a workspace source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again.
+Exit codes with --dir: 0 written; 1 the command failed, no workflow or several are named exactly the name given (WORKFLOW_NOT_FOUND, WORKFLOW_NAME_AMBIGUOUS: each candidate is listed with its id), the directory is a workspace source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again.
 
 API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
 
@@ -8628,7 +8660,7 @@ sim workflows source apply [workflowId] [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `workflowId` | No | Workflow whose draft the source replaces (default: the workflowId in .sim/base.json) |
+| `workflowId` | No | Refuse unless .sim/base.json names this workflow (default: the workflowId there) |
 
 </CommandTable>
 
@@ -8639,17 +8671,19 @@ sim workflows source apply [workflowId] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. Defaults to `.`. |
-| `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
+| `--dry` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
-| `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
+| `--run [input]` | No | After the write is saved, dry-run the draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it): a run that does not complete exits 1 and deploys nothing. Sandboxed code (Python, shell, imports) really runs in it, network requests included, and is listed in sideEffects.unchecked, so --run --deploy in CI sends those. |
+| `--deploy` | No | After the write is saved (and a --run completed), deploy the workflow (as `sim workflows deploy <workflowId>` does). |
 | `--allow-delete` | No | Delete blocks and variables the source no longer declares; without it, an apply that deletes one is refused. |
 
 </CommandTable>
 
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was written: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it). Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflowId given is not the one .sim/base.json names (SOURCE_WORKFLOW_MISMATCH: the directory holds another workflow's source), the --run test run did not complete (the draft is saved; nothing was deployed), or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was written: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was sent, run `sim login` (or fix or unset SIM_API_KEY when the key comes from it) and the command again; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it); 130 interrupted (Ctrl-C): a write already sent is finished and saved into the directory first, waiting up to 60s for its answer, and a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
 
-API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment), [getSourceResources](/api-reference/workflows/getSourceResources).
+API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment), [getSourceResources](/api-reference/workflows/getSourceResources), [executeWorkflow](/api-reference/workflows/executeWorkflowV2).
 
 ### sim workflows source create
 
@@ -8666,22 +8700,24 @@ sim workflows source create [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
-| `--dir <dir>` | Yes | Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry-run or --yes). |
-| `--dry-run` | No | Check the source and show the outcome without creating anything. |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
+| `--dir <dir>` | Yes | Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry or --yes). |
+| `--dry` | No | Check the source and show the outcome without creating anything. |
 | `--name <name>` | No | The workflow name (default: the source's). |
 | `--folder <path>` | No | The folder to create it in (default: the root). |
 | `-y, --yes` | No | Create without asking for confirmation. |
-| `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
+| `--run [input]` | No | After the write is saved, dry-run the draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it): a run that does not complete exits 1 and deploys nothing. Sandboxed code (Python, shell, imports) really runs in it, network requests included, and is listed in sideEffects.unchecked, so --run --deploy in CI sends those. |
+| `--deploy` | No | After the write is saved (and a --run completed), deploy the workflow (as `sim workflows deploy <workflowId>` does). |
 
 </CommandTable>
 
-Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflow name is taken (SOURCE_NAME_TAKEN: pass --name), or the command failed (a starter is created in the workspace its types were written for unless --workspace names another); 6 the folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was created (run the same command with --yes). Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
+Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflow name is taken (SOURCE_NAME_TAKEN: pass --name), the --run test run did not complete (the workflow is created; nothing was deployed), or the command failed (a starter is created in the workspace its types were written for unless --workspace or SIM_WORKSPACE names another); 6 the folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was sent, run `sim login` (or fix or unset SIM_API_KEY when the key comes from it) and the command again; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was created (run the same command with --yes); 130 interrupted (Ctrl-C): a write already sent is finished and saved into the directory first, waiting up to 60s for its answer, and a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
 
-API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment).
+API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment), [executeWorkflow](/api-reference/workflows/executeWorkflowV2).
 
 ### sim workflows source check
 
-Compile a workflow source directory locally, without the server
+Compile and type-check a workflow source directory locally, without the server
 
 ```bash
 sim workflows source check [options]
@@ -8696,15 +8732,18 @@ sim workflows source check [options]
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
 | `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
 | `--no-strict` | No | Never fail on a warning an apply saves. |
+| `--no-types` | No | Skip the type check (TypeScript 7.0.2 over tsconfig.json) that runs after the compile. |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 
 </CommandTable>
 
-Compiles workflow.ts (and the function files it names) with the compiler the server runs, against the workspace's block catalog the last get or create cached, and prints the findings as the dry run does. No request is made. It covers the source itself (syntax, builders, params, references, wiring). In a workflow folder of a workspace directory (workflows/&lt;key&gt;), it reads the workspace's .sim/base.json and also checks env names, resource keys and table columns against what the directory declares. The dry run still checks what only the server knows (stored values, deployment), so run it before applying. A check also adds the blocks the source now uses to the CLI's tsconfig.json, so tsc type-checks a block the edit added; in a workspace directory it also regenerates .sim/sdk/workspace.d.ts, so tsc types each workflow's inputs as its files declare them.
+Compiles workflow.ts (and the function files it names) with the compiler the server runs, against the workspace's block catalog the last get or create cached, and prints the findings as the dry run does. No request is made to Sim. It covers the source itself (syntax, builders, params, references, wiring). In a workflow folder of a workspace directory (workflows/&lt;key&gt;), it reads the workspace's .sim/base.json and also checks env names, resource keys and table columns against what the directory declares. The dry run still checks what only the server knows (stored values, deployment), so run it before applying. A check also adds the blocks the source now uses to the CLI's tsconfig.json, so a block the edit added is typed; in a workspace directory it also regenerates .sim/sdk/workspace.d.ts from the files, so each key and workflow input they declare is. Then it type-checks the directory with TypeScript 7.0.2 (the release the declarations are built for) over tsconfig.json. Each type error is an E_TYPE error, its message starting with TypeScript's code. One is left out on a line the compile already reports an error on, and in a file still as the last get or apply wrote it when that file had the same error then (against the declarations as that get or apply left them). The first check installs that release with npm into the CLI's cache, once (none when SIM_TYPESCRIPT_DIR already holds it); when it cannot (offline, no npm), the check warns W_TYPES_UNCHECKED and passes or fails on the compile alone. --no-types skips the type check.
 
 Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once). With --output json, stdout is one document that also lists every finding under diagnostics.
 
-These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_CHILD_RESULT_PATH, W_BRANCH_UNWIRED, W_UNRESOLVED_REF, W_REF_OUT_OF_SCOPE, W_LOOP_CONDITION_SYNTAX. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In every mode, as the server refuses them: W_REF_OUT_OF_SCOPE is the error E_APPLY_REF_OUT_OF_SCOPE in any file of a block the edit added or changed; W_LOOP_CONDITION_SYNTAX is the error E_APPLY_LOOP_CONDITION_SYNTAX in any file of a block the edit added or changed; W_UNKNOWN_OPTION is the error E_APPLY_INVALID_SUBBLOCK_FIELD in workflow.ts on a block the edit added or changed; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNKNOWN_BLOCK_TYPE is the error E_APPLY_INVALID_BLOCK_TYPE in workflow.ts on a block the edit added or changed; W_TYPE_NOT_ADDABLE is the error E_APPLY_TYPE_NOT_ADDABLE in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_CODE_FILE_REF_SYNTAX is the error E_APPLY_CODE_FILE_REF_SYNTAX in a function file changed since the get. A block counts as changed when the lock does not bind it, when the source moved it into another container, or when it compiles differently than in the source the last get or apply printed (.sim/stored-edges.json records a digest of each block). That last comparison needs the catalog the source was printed with in the cache: without it, a bound block that did not move counts as unchanged, so the server may refuse what the check passes. A $ref in a function file to a block the lock binds that the source no longer declares stays a warning, unless a warning cap left findings out: the server may infer that block was renamed and rewrite the reference, and refuses it otherwise. W_JSON_REF_UNTYPED is reported only on blocks the lock does not bind, and with --strict on every block.
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_CHILD_RESULT_PATH, W_BRANCH_UNWIRED, W_UNRESOLVED_REF, W_REF_OUT_OF_SCOPE, W_LOOP_CONDITION_SYNTAX. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In every mode, as the server refuses them: W_REF_OUT_OF_SCOPE is the error E_APPLY_REF_OUT_OF_SCOPE in any file of a block the edit added or changed; W_LOOP_CONDITION_SYNTAX is the error E_APPLY_LOOP_CONDITION_SYNTAX in any file of a block the edit added or changed; W_UNKNOWN_OPTION is the error E_APPLY_INVALID_SUBBLOCK_FIELD in workflow.ts on a block the edit added or changed; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNKNOWN_BLOCK_TYPE is the error E_APPLY_INVALID_BLOCK_TYPE in workflow.ts on a block the edit added or changed; W_TYPE_NOT_ADDABLE is the error E_APPLY_TYPE_NOT_ADDABLE in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_CODE_FILE_REF_SYNTAX is the error E_APPLY_CODE_FILE_REF_SYNTAX in a function file changed since the get. A block counts as changed when the lock does not bind it, when the source moved it into another container, or when it compiles differently than in the source the last get or apply printed (.sim/stored-edges.json records a digest of each block). That last comparison needs the catalog the source was printed with in the cache: without it, a bound block that did not move counts as unchanged, so the server may refuse what the check passes. A $ref in a function file to a block the lock binds that the source no longer declares stays a warning, unless a warning cap left findings out: the server may infer that block was renamed and rewrite the reference, and refuses it otherwise. W_JSON_REF_UNTYPED is reported, as the server reports it, only on a field the edit made store the reference anew: one whose text differs from what the printed source stored, through block renames, or where the reference was typed then, as when an edit elsewhere (a Start input, a Function's code) changes its type. Without the record or that catalog, it is reported on every block the edit added or changed; with --strict, on every block.
+
+Exit 10 (busy, retry): another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
 ### sim workflows source status
 
@@ -8720,17 +8759,18 @@ sim workflows source status [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
 | `--offline` | No | Report local changes only, without asking the server. |
 | `--json` | No | Print the machine-readable status (same as --output json). |
 
 </CommandTable>
 
-With --json, `plan` is what applying would do as `apply --dry-run --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
+With --json, `plan` is what applying would do as `apply --dry --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
 
-Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 7 the source is too large for the server to read in one dry run; 1 the command failed; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
+Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); a server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11); 1 the command failed; 7 the source is too large for the server to read in one dry run; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`.
 
-API request and response schemas: [planWorkflowSource](/api-reference/workflows/planWorkflowSource), [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [getSourceResources](/api-reference/workflows/getSourceResources).
+API request and response schemas: [planWorkflowSource](/api-reference/workflows/planWorkflowSource), [getSourceResources](/api-reference/workflows/getSourceResources).
 
 ### sim workflows source diff
 
@@ -8791,12 +8831,45 @@ sim workflows source params <builder> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--dir <dir>` | No | Source directory whose catalog to read. Defaults to `.`. |
+| `--full` | No | Print every param with its type, enum, default and doc, not the brief form. |
 
 </CommandTable>
 
-Prints a builder's params (required first, with enums and defaults), the gate field that picks which others apply, and its outputs, from the block catalog the last get, create or check cached. No request is made. &lt;builder&gt; is the dotted builder path as source writes it: table.upsertRow, agent, trigger.schedule, slack.sendMessage (slack.tool.sendMessage names the same builder). A namespace (gmail, trigger.gmail) lists its builders; a block type prints the builder written for it (function is fn) or lists them (table_v2); a construct core.d.ts declares (loop, parallel, t, env) prints its declaration. Run it from a workflow or workspace source directory, or pass --dir.
+Prints a builder in brief (an example call, the required params with types, the optional ones by name, the gate field that picks which others apply, and the outputs), from the block catalog the last get, create or check cached. --full prints every param with its type, enum, default and doc. A legacy builder names the one that replaces it. No request is made. &lt;builder&gt; is the dotted builder path as source writes it: table.upsertRow, agent, trigger.schedule, slack.sendMessage (slack.tool.sendMessage names the same builder). A namespace (gmail, trigger.gmail) lists its builders; a block type prints the builder written for it (function is fn) or lists them (table_v2); a construct core.d.ts declares (loop, parallel, t, env) prints its declaration. Run it from a workflow or workspace source directory, or pass --dir.
 
 Exit codes: 0 printed; 1 no builder or namespace of that name (the closest one is named), or no cached catalog (run a get once).
+
+### sim workflows source find
+
+Print a block's declaration, edges and readers with line numbers (offline)
+
+```bash
+sim workflows source find <block> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `block` | Yes | Block name, key or identifier; a part of a name matches every block |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workflow source directory to read. Defaults to `.`. |
+
+</CommandTable>
+
+Prints each block the name matches, read from the directory alone (no request is made): its declaration in workflow.ts with line numbers, its function file, the wiring statements of its incoming and outgoing edges, and every block that reads its outputs (a param, a branch, or a function file's $ref), each as file:line. &lt;block&gt; is a block name (Security Score), its key (securityscore) or its identifier (securityScore); with no exact match, every block whose name contains it is printed (at most 20). Run it from a workflow source directory, or pass --dir. When the source does not compile, readers are left out (JSON output carries compiles: false).
+
+Exit codes: 0 printed; 1 no block matches (the closest name is suggested), or the directory is not a workflow source directory.
 
 ### sim workflows get
 
@@ -8934,14 +9007,14 @@ sim workflows state replace <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
-| `--no-dry-run` | No | Send --dry-run as false. |
+| `--dry` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
+| `--no-dry` | No | Send --dry as false. |
 | `--blocks <json\|@file>` | Yes | Blocks keyed by block id. (JSON, or @path / @- to read a file or stdin). |
 | `--edges <json\|@file>` | Yes | Directed connections between blocks. (JSON, or @path / @- to read a file or stdin). |
 | `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Conditional | Confirm this operation (required unless --dry-run). |
+| `-y, --yes` | Conditional | Confirm this operation (required unless --dry). |
 
 </CommandTable>
 
@@ -9069,7 +9142,7 @@ sim workflows move [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | Yes | Destination folder path; / moves the workflows to the workspace root. |
 
 </CommandTable>
@@ -9435,7 +9508,7 @@ sim workspaces invitations create [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--emails <value...>` | Yes | Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--emails <value...>` | Yes | Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--permission <value>` | No | Workspace permission to grant. Existing workspace access is preserved. Defaults to "read". Accepted values: `admin`, `write`, `read`. |
 | `--membership <value>` | No | Organization membership: member or admin uses a seat when billing is enabled. External grants workspace access only and requires an eligible paid account when billing is enabled. Existing members of another organization remain external. Defaults to "member". Accepted values: `member`, `admin`, `external`. |
 
@@ -9996,7 +10069,7 @@ sim workspaces sync-exclusions [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | Yes | Workflow identifiers in the current workspace. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--workflow <value...>` | Yes | Workflow identifiers in the current workspace. (space- or comma-separated, a JSON array, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--fork-sync-excluded <true\|false>` | Yes | Whether the named workflows should be skipped as sync sources and targets. Accepted values: `true`, `false`. |
 
 </CommandTable>
@@ -10025,7 +10098,7 @@ sim workspaces source get [options]
 
 A directory that already holds a .sim/base.json is refreshed from the workspace it was read from, whatever the profile's default workspace.
 
-Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), the directory is a workflow source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and running the get again downloads only the rest; 10 (busy, retry) another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again.
+Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace or SIM_WORKSPACE names another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), the directory is a workflow source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and running the get again downloads only the rest; 10 (busy, retry) another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again.
 
 API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [downloadFile](/api-reference/files/downloadFile), [downloadKnowledgeDocument](/api-reference/knowledge-bases/downloadKnowledgeDocument).
 
@@ -10044,23 +10117,25 @@ sim workspaces source apply [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
-| `--dry-run` | No | Plan and check without writing anything. |
+| `--dry` | No | Plan and check without writing anything. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
 | `--allow-delete` | No | Delete resources, columns and data the directory no longer declares (with --to, only what it deleted since the last promotion: the target's own resources are kept). |
 | `--delete-target-only` | No | With --to and --allow-delete, also delete the target's resources this directory never declared and no promotion from it left there (prod-only tables and their rows, skills made in prod). Without it a promotion keeps them, naming each with a warning. |
 | `--only <kinds>` | No | Apply only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
 | `--to <workspaceId>` | No | Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place. Only .sim/targets/&lt;workspaceId&gt;.json changes, the record the next promotion compares with: a resource changed there since is kept, or refused as stale (exit 5) when the directory changed it too. |
+| `--run <key=input>` | No | After the apply, dry-run workflows/&lt;key&gt;/'s saved draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it; `--run <key>` alone: no input). Repeat it to test more workflows. deployments/ is applied only after every run completed, and only when every draft it publishes was test-run; a run that does not complete exits 1 and leaves the applied drafts in place. Sandboxed code (Python, shell, imports) really runs in it, network requests included, and is listed in runs[].sideEffects.unchecked. |
 
 </CommandTable>
 
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), or every change it would write was held back because it uses a declared secret the workspace has no value for or a declared credential key nothing binds to (nothing was written; a dry run of such an apply exits 1 too), the directory was read from another workspace than the one --workspace names (SOURCE_OTHER_WORKSPACE: drop --workspace, or promote it with --to; without --workspace an apply targets the workspace the directory was read from), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource (a workflow or its folder, a table) is locked (a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was written is saved into the directory, and applying again continues. An apply a resource refused part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again (binary files already uploaded are not sent again); 10 another apply is writing the workspace (SOURCE_BUSY), or another command is using the directory (SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it); 15 written in part: changes that use a declared secret the workspace has no value for, or a declared credential key nothing binds to, were held back and the rest was applied and saved (set the secret or connect the credential, then apply again); a dry run that would do so exits 15 too, having written nothing. Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), or every change it would write was held back because it uses a declared secret the workspace has no value for or a declared credential key nothing binds to (nothing was written; a dry run of such an apply exits 1 too), the directory was read from another workspace than the one --workspace or SIM_WORKSPACE names (SOURCE_OTHER_WORKSPACE: drop it, or promote it with --to; without either an apply targets the workspace the directory was read from), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), a --run test run did not complete (the apply is written; deployments/ was not applied), or the command failed; 5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource (a workflow or its folder, a table) is locked (a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was written is saved into the directory, and applying again continues. An apply a resource refused part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again (binary files already uploaded are not sent again); 10 another apply is writing the workspace (SOURCE_BUSY), or another command is using the directory (SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was sent, run `sim login` (or fix or unset SIM_API_KEY when the key comes from it) and the command again; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it); 15 written in part: changes that use a declared secret the workspace has no value for, or a declared credential key nothing binds to, were held back and the rest was applied and saved (set the secret or connect the credential, then apply again); a dry run that would do so exits 15 too, having written nothing; 130 interrupted (Ctrl-C): a write already sent is finished and saved into the directory first, waiting up to 60s for its answer, and a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
 
-API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource), [findMissingWorkspaceSourceBlobs](/api-reference/workflows/findMissingWorkspaceSourceBlobs), [stageWorkspaceSourceBlobs](/api-reference/workflows/stageWorkspaceSourceBlobs), [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment).
+API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource), [findMissingWorkspaceSourceBlobs](/api-reference/workflows/findMissingWorkspaceSourceBlobs), [stageWorkspaceSourceBlobs](/api-reference/workflows/stageWorkspaceSourceBlobs), [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment), [executeWorkflow](/api-reference/workflows/executeWorkflowV2).
 
 ### sim workspaces source check
 
-Compile every workflow of a workspace source directory locally, without the server
+Compile and type-check every workflow of a workspace source directory locally, without the server
 
 ```bash
 sim workspaces source check [options]
@@ -10075,15 +10150,16 @@ sim workspaces source check [options]
 | `--dir <dir>` | No | Workspace source directory: the kind folders and .sim/base.json. Defaults to `.`. |
 | `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
 | `--no-strict` | No | Never fail on a warning an apply saves. |
+| `--no-types` | No | Skip the type check (TypeScript 7.0.2 over tsconfig.json) that runs after the compile. |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 
 </CommandTable>
 
-Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each names) with the compiler the server runs, against the workspace's block catalog the last get cached (in a fresh clone with no cache, such as CI, it downloads the catalog once with the profile's credentials). No other request is made. It checks, against what the directory declares: - env names (secrets.ts), with a did-you-mean - credential keys (credentials.ts) - the keys of tables, knowledge bases, skills, custom tools, MCP servers and workflows, with a did-you-mean, and a key holding a look-alike letter (a Cyrillic а) named by its code point - the columns and select options of a table row write - a child workflow call: an inputMapping key the child's Start trigger does not declare, and a child with no Start trigger - each tables/&lt;key&gt;.rows.jsonl: a malformed line, an undeclared column, a managed key two lines share, an empty required cell, a repeated unique value, a value its column's type or options cannot hold - block names whose words mix Latin with Cyrillic, Greek, Armenian or Cherokee letters The dry run still checks what only the server knows (stored values, MCP tool names, model ids, deployments, credential bindings), so run it before applying. A check also regenerates .sim/sdk/workspace.d.ts from the declarations (so tsc types a key added since the get, and each workflow's inputs) and adds the blocks the workflows now use to the CLI's tsconfig.json.
+Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each names) with the compiler the server runs, against the workspace's block catalog the last get cached (in a fresh clone with no cache, such as CI, it downloads the catalog once with the profile's credentials). No other request is made to Sim. It checks, against what the directory declares: - env names (secrets.ts), with a did-you-mean - credential keys (credentials.ts) - the keys of tables, knowledge bases, skills, custom tools, MCP servers and workflows, with a did-you-mean, and a key holding a look-alike letter (a Cyrillic а) named by its code point - the columns and select options of a table row write - a child workflow call: an inputMapping key the child's Start trigger does not declare, and a child with no Start trigger - each tables/&lt;key&gt;.rows.jsonl: a malformed line, an undeclared column, a managed key two lines share, an empty required cell, a repeated unique value, a value its column's type or options cannot hold - block names whose words mix Latin with Cyrillic, Greek, Armenian or Cherokee letters The dry run still checks what only the server knows (stored values, MCP tool names, model ids, deployments, credential bindings), so run it before applying. A check also regenerates .sim/sdk/workspace.d.ts from the declarations (so a key added since the get is typed, and each workflow's inputs) and adds the blocks the workflows now use to the CLI's tsconfig.json. Then it type-checks the directory with TypeScript 7.0.2 (the release the declarations are built for) over tsconfig.json. Each type error is an E_TYPE error, its message starting with TypeScript's code. One is left out on a line the compile already reports an error on, and in a file still as the last get or apply wrote it when that file had the same error then (against the declarations as that get or apply left them). The first check installs that release with npm into the CLI's cache, once (none when SIM_TYPESCRIPT_DIR already holds it); when it cannot (offline, no npm), the check warns W_TYPES_UNCHECKED and passes or fails on the compile alone. --no-types skips the type check.
 
-Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once). With --output json, stdout is one document that also lists every finding under diagnostics.
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog that could not be downloaded (a check downloads it once when none is cached, with the profile's credentials; 13 when there is no login to download it with). With --output json, stdout is one document that also lists every finding under diagnostics.
 
-These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_CHILD_RESULT_PATH, W_BRANCH_UNWIRED, W_UNRESOLVED_REF, W_REF_OUT_OF_SCOPE, W_LOOP_CONDITION_SYNTAX. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In every mode, as the server refuses them: W_REF_OUT_OF_SCOPE is the error E_APPLY_REF_OUT_OF_SCOPE in any file of a block the edit added or changed; W_LOOP_CONDITION_SYNTAX is the error E_APPLY_LOOP_CONDITION_SYNTAX in any file of a block the edit added or changed; W_UNKNOWN_OPTION is the error E_APPLY_INVALID_SUBBLOCK_FIELD in workflow.ts on a block the edit added or changed; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNKNOWN_BLOCK_TYPE is the error E_APPLY_INVALID_BLOCK_TYPE in workflow.ts on a block the edit added or changed; W_TYPE_NOT_ADDABLE is the error E_APPLY_TYPE_NOT_ADDABLE in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_CODE_FILE_REF_SYNTAX is the error E_APPLY_CODE_FILE_REF_SYNTAX in a function file changed since the get. A block counts as changed when the lock does not bind it, when the source moved it into another container, or when it compiles differently than in the source the last get or apply printed (.sim/stored-edges.json records a digest of each block). That last comparison needs the catalog the source was printed with in the cache: without it, a bound block that did not move counts as unchanged, so the server may refuse what the check passes. A $ref in a function file to a block the lock binds that the source no longer declares stays a warning, unless a warning cap left findings out: the server may infer that block was renamed and rewrite the reference, and refuses it otherwise. W_JSON_REF_UNTYPED is reported only on blocks the lock does not bind, and with --strict on every block.
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_CHILD_RESULT_PATH, W_BRANCH_UNWIRED, W_UNRESOLVED_REF, W_REF_OUT_OF_SCOPE, W_LOOP_CONDITION_SYNTAX. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In every mode, as the server refuses them: W_REF_OUT_OF_SCOPE is the error E_APPLY_REF_OUT_OF_SCOPE in any file of a block the edit added or changed; W_LOOP_CONDITION_SYNTAX is the error E_APPLY_LOOP_CONDITION_SYNTAX in any file of a block the edit added or changed; W_UNKNOWN_OPTION is the error E_APPLY_INVALID_SUBBLOCK_FIELD in workflow.ts on a block the edit added or changed; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNKNOWN_BLOCK_TYPE is the error E_APPLY_INVALID_BLOCK_TYPE in workflow.ts on a block the edit added or changed; W_TYPE_NOT_ADDABLE is the error E_APPLY_TYPE_NOT_ADDABLE in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_CODE_FILE_REF_SYNTAX is the error E_APPLY_CODE_FILE_REF_SYNTAX in a function file changed since the get. A block counts as changed when the lock does not bind it, when the source moved it into another container, or when it compiles differently than in the source the last get or apply printed (.sim/stored-edges.json records a digest of each block). That last comparison needs the catalog the source was printed with in the cache: without it, a bound block that did not move counts as unchanged, so the server may refuse what the check passes. A $ref in a function file to a block the lock binds that the source no longer declares stays a warning, unless a warning cap left findings out: the server may infer that block was renamed and rewrite the reference, and refuses it otherwise. W_JSON_REF_UNTYPED is reported, as the server reports it, only on a field the edit made store the reference anew: one whose text differs from what the printed source stored, through block renames, or where the reference was typed then, as when an edit elsewhere (a Start input, a Function's code) changes its type. Without the record or that catalog, it is reported on every block the edit added or changed; with --strict, on every block.
 
 Exit 10 (busy, retry): another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
@@ -10103,6 +10179,7 @@ sim workspaces source status [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
 | `--only <kinds>` | No | Report only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
 | `--offline` | No | Report local changes only, without asking the server. |
@@ -10110,13 +10187,11 @@ sim workspaces source status [options]
 
 </CommandTable>
 
-With --json, `plan` is what applying would do as `apply --dry-run --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
+With --json, `plan` is what applying would do as `apply --dry --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
 
-Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 7 the source is too large for the server to read in one dry run; 1 the command failed; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
+Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); a server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11); 1 the command failed; 7 the source is too large for the server to read in one dry run; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished; 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`.
 
-Exit 10 (busy, retry): another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
-
-API request and response schemas: [planWorkspaceSource](/api-reference/workflows/planWorkspaceSource), [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
+API request and response schemas: [planWorkspaceSource](/api-reference/workflows/planWorkspaceSource).
 
 ### sim workspaces source diff
 

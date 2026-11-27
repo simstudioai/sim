@@ -39,9 +39,13 @@ import {
   getModelsWithVerbosity,
   getProviderDefaultModel as getProviderDefaultModelFromDefinitions,
   getProviderModels,
+  isAutoModel,
   isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
-  updateOllamaModels as updateOllamaModelsInDefinitions,
+  SIM_AUTO_MODEL_ID,
+  updateLiteLLMModels,
+  updateOllamaModels,
+  updateVLLMModels,
 } from '@/providers/models'
 import {
   getModelPricing as getRegisteredModelPricing,
@@ -171,18 +175,16 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
-  updateOllamaModelsInDefinitions(models)
+  updateOllamaModels(models)
   providers.ollama.models = getProviderModels('ollama')
 }
 
 export function updateVLLMProviderModels(models: string[]): void {
-  const { updateVLLMModels } = require('@/providers/models')
   updateVLLMModels(models)
   providers.vllm.models = getProviderModels('vllm')
 }
 
 export function updateLiteLLMProviderModels(models: string[]): void {
-  const { updateLiteLLMModels } = require('@/providers/models')
   updateLiteLLMModels(models)
   providers.litellm.models = getProviderModels('litellm')
 }
@@ -258,7 +260,19 @@ function filterBlacklistedModelsFromProviderMap(
   return filtered
 }
 
+/**
+ * The provider that serves `model`, defaulting an unrecognised id to Ollama.
+ *
+ * Throws for a blacklisted provider or model, and for sim-auto: the pseudo-model has no
+ * provider of its own until the model router (`lib/model-router`) swaps in a concrete one at
+ * execution time, so answering Ollama for it would send `sim-auto` to a server that has
+ * never heard of it.
+ */
 export function getProviderFromModel(model: string): ProviderId {
+  if (isAutoModel(model)) {
+    throw new Error(`${SIM_AUTO_MODEL_ID} has no provider until the model router resolves it`)
+  }
+
   const normalizedModel = model.toLowerCase()
 
   let providerId = findProviderFromModel(model)

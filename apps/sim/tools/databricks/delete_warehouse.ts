@@ -19,6 +19,7 @@ export const deleteWarehouseTool: ToolConfig<
   name: 'Databricks Delete Warehouse',
   description: 'Delete a SQL warehouse.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

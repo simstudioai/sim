@@ -13,6 +13,7 @@ export const gitlabRetryPipelineTool: ToolConfig<
   name: 'GitLab Retry Pipeline',
   description: 'Retry a failed GitLab pipeline',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetSeasonsTool: ToolConfig<
   name: 'Get All Seasons',
   description: 'Retrieve all motorsport seasons from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

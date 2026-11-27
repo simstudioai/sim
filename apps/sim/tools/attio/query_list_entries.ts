@@ -14,6 +14,7 @@ export const attioQueryListEntriesTool: ToolConfig<
   name: 'Attio Query List Entries',
   description: 'Query entries in an Attio list with optional filter, sort, and pagination',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

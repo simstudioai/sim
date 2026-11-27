@@ -53,6 +53,7 @@ export const stopScheduleTool: ToolConfig<
   name: 'Dagster Stop Schedule',
   description: 'Disable (stop) a running schedule in Dagster.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

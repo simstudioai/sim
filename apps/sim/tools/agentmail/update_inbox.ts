@@ -8,6 +8,7 @@ export const agentmailUpdateInboxTool: ToolConfig<UpdateInboxParams, UpdateInbox
   name: 'Update Inbox',
   description: 'Update the display name of an email inbox in AgentMail',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

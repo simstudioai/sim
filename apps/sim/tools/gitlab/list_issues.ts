@@ -9,6 +9,7 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
   name: 'GitLab List Issues',
   description: 'List issues in a GitLab project',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

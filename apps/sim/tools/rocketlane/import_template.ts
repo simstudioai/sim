@@ -18,6 +18,7 @@ export const rocketlaneImportTemplateTool: ToolConfig<
   name: 'Rocketlane Import Template',
   description: 'Import a project template into an existing Rocketlane project',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

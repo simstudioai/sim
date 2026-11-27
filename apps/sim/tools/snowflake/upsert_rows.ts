@@ -37,6 +37,7 @@ function parseMatchColumns(value: unknown): string[] {
 export const upsertRowsTool: ToolConfig<SnowflakeUpsertRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_upsert_rows',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Upsert Rows',
   description: 'Update matching rows and insert unmatched rows with a bound MERGE statement.',

@@ -22,6 +22,7 @@ export const signalWorkflowTool: ToolConfig<
   name: 'Temporal Signal Workflow',
   description: 'Send a signal to a running Temporal workflow execution.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

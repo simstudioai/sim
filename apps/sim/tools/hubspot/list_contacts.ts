@@ -13,6 +13,7 @@ export const hubspotListContactsTool: ToolConfig<
   name: 'List Contacts from HubSpot',
   description: 'Retrieve all contacts from HubSpot account with pagination support',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

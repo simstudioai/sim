@@ -13,6 +13,7 @@ export const getSloTool: ToolConfig<GetSloParams, GetSloResponse> = {
   name: 'Datadog Get SLO',
   description: 'Get the configuration of a single service level objective by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

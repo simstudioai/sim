@@ -10,6 +10,7 @@ export const linearDeleteCommentTool: ToolConfig<
   name: 'Linear Delete Comment',
   description: 'Delete a comment from Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

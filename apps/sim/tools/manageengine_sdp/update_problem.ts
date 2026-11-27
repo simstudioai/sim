@@ -17,6 +17,7 @@ export const manageengineSdpUpdateProblemTool: ToolConfig<SdpUpdateProblemParams
   description:
     'Update a ManageEngine ServiceDesk Plus Cloud problem: change its title, status, assignment or classification.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

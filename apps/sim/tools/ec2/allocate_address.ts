@@ -11,6 +11,7 @@ export const allocateAddressTool: InternalToolConfig<
   name: 'EC2 Allocate Address',
   description: 'Allocate a new Elastic IP address for use in a VPC',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const tailscaleSetDeviceRoutesTool: ToolConfig<
   name: 'Tailscale Set Device Routes',
   description: 'Replace the enabled subnet routes for a device',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

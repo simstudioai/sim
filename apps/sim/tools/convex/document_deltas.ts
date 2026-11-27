@@ -16,6 +16,7 @@ export const documentDeltasTool: ToolConfig<
   description:
     'List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag. Requires streaming export, available on Convex paid plans.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CONVEX_CREDENTIAL_OAUTH,
 
   params: {

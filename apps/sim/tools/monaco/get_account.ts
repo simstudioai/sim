@@ -16,6 +16,7 @@ export const monacoGetAccountTool: ToolConfig<MonacoGetAccountParams, MonacoGetA
   description:
     'Get one Monaco account by ID, including enriched company information, scoring, heat score explanations, and custom fields.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

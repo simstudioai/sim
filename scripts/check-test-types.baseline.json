@@ -51,7 +51,6 @@
     "TS2554": 4
   },
   "apps/sim/app/api/billing/route.test.ts": {
-    "TS2345": 1,
     "TS2554": 4
   },
   "apps/sim/app/api/billing/switch-plan/route.test.ts": {
@@ -1078,9 +1077,6 @@
     "TS2345": 1,
     "TS2352": 1,
     "TS2353": 1
-  },
-  "apps/sim/lib/core/network/gateway.server.test.ts": {
-    "TS2740": 2
   },
   "apps/sim/lib/core/network/resource-scope.server.test.ts": {
     "TS18048": 1,

@@ -30,6 +30,7 @@ export const bufferGetIdeaGroupsTool: ToolConfig<
   description:
     'List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas',
   version: '1.0.0',
+  effect: 'read',
   oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {

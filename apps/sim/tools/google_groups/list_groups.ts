@@ -6,6 +6,7 @@ export const listGroupsTool: ToolConfig<GoogleGroupsListParams, GoogleGroupsResp
   name: 'Google Groups List Groups',
   description: 'List all groups in a Google Workspace domain',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

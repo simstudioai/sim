@@ -13,6 +13,7 @@ export const deleteDashboardTool: ToolConfig<DeleteDashboardParams, DeleteDashbo
   name: 'Datadog Delete Dashboard',
   description: 'Delete a dashboard by ID.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

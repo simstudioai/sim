@@ -23,6 +23,7 @@ import {
 } from '@/lib/uploads/utils/user-file-base64.server'
 import { sanitizeInputFormat, sanitizeTools } from '@/lib/workflows/comparison/normalize'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
+import { getBlock } from '@/blocks/registry'
 import { validateBlockType } from '@/ee/access-control/utils/permission-check'
 import {
   BlockType,
@@ -64,6 +65,7 @@ import {
   attachTrustedExecutionCost,
   buildBlockExecutionError,
   normalizeError,
+  readErrorOutputs,
   readTrustedExecutionCost,
   type TrustedExecutionCost,
 } from '@/executor/utils/errors'
@@ -72,6 +74,7 @@ import {
   getIterationContext,
 } from '@/executor/utils/iteration-context'
 import { isJSONString } from '@/executor/utils/json'
+import { mockOutputRefusal } from '@/executor/utils/mock-output'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import type {
@@ -91,6 +94,7 @@ import {
 import { createAgentStreamPump } from '@/providers/stream-pump'
 import { isRunAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { SerializedBlock } from '@/serializer/types'
+import { redactSideEffectPayload } from '@/tools/side-effects'
 
 const logger = createLogger('BlockExecutor')
 
@@ -283,6 +287,14 @@ export class BlockExecutor {
     const testHooks = this.contextExtensions.testHooks
     const mockedBlockId = node.metadata.originalBlockId ?? block.id
     const isMocked = !isSentinel && testHooks?.mocksBlock(mockedBlockId) === true
+    const sideEffects = isSentinel || isMocked ? undefined : this.contextExtensions.sideEffects
+    const site = sideEffects && {
+      workflowId: blockCtx.workflowId,
+      blockId: mockedBlockId,
+      blockName: block.metadata?.name ?? mockedBlockId,
+      blockType: block.metadata?.id ?? '',
+    }
+    const answeredBy = site && sideEffects?.answersBlock(site) ? sideEffects : undefined
     try {
       /**
        * Only the handler call is retried. A streaming handler returns before any
@@ -300,6 +312,19 @@ export class BlockExecutor {
             inputsForLog,
             inputDisplayRegistry
           )
+        }
+        if (answeredBy && site) {
+          return answeredBy.answerBlock({
+            ...site,
+            input: () =>
+              redactSideEffectPayload({
+                payload: blockLog?.input ?? {},
+                params: inputsForLog,
+                blockTypes: [site.blockType],
+                executionContext: blockCtx,
+                registry: inputDisplayRegistry,
+              }),
+          })
         }
         const invocationMetadata = retry ? { ...nodeMetadata, retry } : nodeMetadata
         return handler.executeWithNode
@@ -439,7 +464,13 @@ export class BlockExecutor {
       const stateOutput = outputForState as NormalizedBlockOutput
       const settledBlockRegistry = blockCtx.resolvedSecretTraceRegistry
       const stateProvenance = settledBlockRegistry?.exportCommittedProvenanceForValue(stateOutput)
-      this.setNodeOutput(node, stateOutput, duration, stateProvenance)
+      this.setNodeOutput(
+        node,
+        stateOutput,
+        duration,
+        stateProvenance,
+        site !== undefined && sideEffects?.answeredWithPlaceholder(site, stateOutput) === true
+      )
 
       if (!isSentinel && blockLog) {
         const childWorkflowInstanceId =
@@ -523,9 +554,16 @@ export class BlockExecutor {
     node: DAGNode,
     output: NormalizedBlockOutput,
     duration = 0,
-    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
+    answeredWithPlaceholder = false
   ): void {
-    this.state.setBlockOutput(node.id, output, duration, resolvedSecretTraceProvenance)
+    this.state.setBlockOutput(
+      node.id,
+      output,
+      duration,
+      resolvedSecretTraceProvenance,
+      answeredWithPlaceholder
+    )
 
     const originalBlockId = node.metadata.originalBlockId
     const branchIndex = node.metadata.branchIndex
@@ -541,14 +579,16 @@ export class BlockExecutor {
           globalBranchNodeId,
           output,
           duration,
-          resolvedSecretTraceProvenance
+          resolvedSecretTraceProvenance,
+          answeredWithPlaceholder
         )
       }
       this.state.setBlockOutput(
         buildOuterBranchScopedId(originalBlockId, branchIndex),
         output,
         duration,
-        resolvedSecretTraceProvenance
+        resolvedSecretTraceProvenance,
+        answeredWithPlaceholder
       )
     }
   }
@@ -737,6 +777,7 @@ export class BlockExecutor {
     const trustedExecutionCost = readTrustedExecutionCost(error) ?? completedHandlerCost
     const errorOutput: NormalizedBlockOutput = {
       error: errorMessage,
+      ...declaredErrorOutputs(block, isDatabaseError ? undefined : error, errorMessage),
       ...(trustedExecutionCost ? { cost: trustedExecutionCost } : {}),
     }
 
@@ -756,6 +797,9 @@ export class BlockExecutor {
         errorOutput.childWorkflowName = error.childWorkflowName
         if (error.childWorkflowSnapshotId) {
           errorOutput.childWorkflowSnapshotId = error.childWorkflowSnapshotId
+        }
+        if (error.childDeploymentVersionId) {
+          errorOutput.childDeploymentVersionId = error.childDeploymentVersionId
         }
       }
       // A custom block's consumer gets a machine-readable failure class and an
@@ -976,8 +1020,11 @@ export class BlockExecutor {
     return { result: output }
   }
 
-  /** A test mock sees exactly what the block's execution log shows, never raw resolved secrets. */
-  private resolveMockedBlock(
+  /**
+   * A test mock sees exactly what the block's execution log shows, never raw resolved secrets,
+   * and answers with data only ({@link mockOutputRefusal}).
+   */
+  private async resolveMockedBlock(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
@@ -991,7 +1038,7 @@ export class BlockExecutor {
     if (projection && !projection.complete) {
       throw new Error(`Mocked block "${blockName}" has inputs whose secrets cannot be redacted`)
     }
-    return testHooks.resolveMock(
+    const output = await testHooks.resolveMock(
       {
         blockId,
         blockName,
@@ -1003,6 +1050,9 @@ export class BlockExecutor {
       },
       ctx.abortSignal
     )
+    const refusal = mockOutputRefusal(`Mocked block "${blockName}"`, output)
+    if (refusal) throw new Error(refusal)
+    return output
   }
 
   /** Builds the log-facing input copy from resolver-recorded projections only. */
@@ -1461,4 +1511,21 @@ function stripThinkingContentFromOutput(output: unknown): void {
       ;(segment as { thinkingContent?: string }).thinkingContent = undefined
     }
   }
+}
+
+/**
+ * The block's declared error outputs (`BlockConfig.errorOutputs`), each the value its handler
+ * attached to `error` (a Function's thrown message without its line and code), or `message` when
+ * none was attached: a failure the handler never reported has nothing narrower to say. A database
+ * failure passes no `error`, so its masked message is all any output carries.
+ */
+function declaredErrorOutputs(
+  block: SerializedBlock,
+  error: unknown,
+  message: string
+): Record<string, string> {
+  const declared = block.metadata?.id ? getBlock(block.metadata.id)?.errorOutputs : undefined
+  if (!declared) return {}
+  const attached = readErrorOutputs(error)
+  return Object.fromEntries(Object.keys(declared).map((key) => [key, attached?.[key] || message]))
 }

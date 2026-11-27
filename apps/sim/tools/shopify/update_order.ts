@@ -13,6 +13,7 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
   name: 'Shopify Update Order',
   description: 'Update an existing order in your Shopify store (note, tags, email)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

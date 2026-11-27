@@ -12,6 +12,7 @@ export const triggerDevGetBatchTool: ToolConfig<
   description:
     'Retrieve a Trigger.dev batch by its ID, including its status, run IDs, and success and failure counts.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

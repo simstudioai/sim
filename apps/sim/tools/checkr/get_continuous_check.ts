@@ -22,6 +22,7 @@ export const checkrGetContinuousCheckTool: ToolConfig<
   name: 'Checkr Get Continuous Check',
   description: 'Retrieve a continuous check by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

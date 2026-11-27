@@ -14,6 +14,7 @@ export const trelloCreateBoardTool: ToolConfig<TrelloCreateBoardParams, TrelloCr
     name: 'Trello Create Board',
     description: 'Create a new Trello board',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

@@ -9,6 +9,7 @@ export const jsmSaveFormAnswersTool: InternalToolConfig<
   name: 'JSM Save Form Answers',
   description: 'Save answers to a form attached to a Jira issue or JSM request',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

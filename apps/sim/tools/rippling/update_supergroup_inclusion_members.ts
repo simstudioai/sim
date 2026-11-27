@@ -10,6 +10,7 @@ export const ripplingUpdateSupergroupInclusionMembersTool: ToolConfig<RipplingUp
     name: 'Rippling Update Supergroup Inclusion Members',
     description: 'Update inclusion members of a supergroup',
     version: '1.0.0',
+    effect: 'write',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

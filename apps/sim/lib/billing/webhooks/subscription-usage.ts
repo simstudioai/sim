@@ -25,6 +25,11 @@ export async function handleSubscriptionUsageUpdate(event: Stripe.Event): Promis
       plan: subscription.plan,
       status: subscription.status,
       seats: subscription.seats,
+      billingInterval: subscription.billingInterval,
+      metadata: subscription.metadata,
+      periodStart: subscription.periodStart,
+      allowancePeriodStart: subscription.allowancePeriodStart,
+      allowanceSeatMonths: subscription.allowanceSeatMonths,
     })
     .from(subscription)
     .where(eq(subscription.stripeSubscriptionId, event.data.object.id))

@@ -104,6 +104,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
   name: 'Notion Reader',
   description: 'Read content from a Notion page',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -242,6 +243,7 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
   name: 'Notion Reader',
   description: 'Read content from a Notion page',
   version: '2.0.0',
+  effect: 'read',
   oauth: notionReadTool.oauth,
   params: notionReadTool.params,
   request: notionReadTool.request,

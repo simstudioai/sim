@@ -21,8 +21,14 @@ import {
   type CatalogToolSummary,
   projectToolDetail,
 } from '@/lib/catalog/projection/tool'
+import { accessIdEffect, blockEffect } from '@/blocks/access-effect'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
-import { type BlockConfig, isHiddenFromDisplay, type SubBlockConfig } from '@/blocks/types'
+import {
+  type BlockConfig,
+  isHiddenFromDisplay,
+  type OutputFieldDefinition,
+  type SubBlockConfig,
+} from '@/blocks/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('CatalogBlockProjection')
@@ -46,16 +52,17 @@ export interface CatalogInputDefinition {
   schema?: unknown
 }
 
-/** A declared output of a block. */
-export interface CatalogBlockOutput {
-  type: string
-  description?: string
-}
+/** A declared output of a block, nesting the way a tool's output does. */
+export type CatalogBlockOutput = Pick<
+  CatalogToolOutput,
+  'type' | 'description' | 'properties' | 'items'
+>
 
 /** One operation a block exposes, resolved to the tool that performs it. */
 export interface CatalogBlockOperation {
   toolId?: string
   toolName?: string
+  effect?: CatalogToolDetail['effect']
   description?: string
   /** Tool params plus operation-scoped block inputs, minus anything the block supplies itself. */
   inputs: Record<string, CatalogInputDefinition | CatalogToolDetail['params'][string]>
@@ -108,6 +115,8 @@ export interface CatalogTriggerConfigField {
 /** The full authoring shape of one block. */
 export interface CatalogBlockDetail extends CatalogBlockSummary {
   bestPractices?: string
+  /** What running the block does outside Sim ({@link blockEffect}); absent when it has no tools. */
+  effect?: CatalogToolDetail['effect']
   /** Configuration fields that apply regardless of the selected operation. */
   inputSchema: CatalogSubBlock[]
   /** Configuration fields keyed by the operation that reveals them. */
@@ -328,23 +337,26 @@ export function resolveToolIdForOperation(
 
 /** Projects a block's declared outputs, dropping the ones hidden from display. */
 export function projectBlockOutputs(
-  outputs: BlockConfig['outputs'] | undefined
+  outputs: Record<string, OutputFieldDefinition> | undefined
 ): Record<string, CatalogBlockOutput> {
   const projected: Record<string, CatalogBlockOutput> = {}
   for (const [key, definition] of Object.entries(outputs ?? {})) {
     if (isHiddenFromDisplay(definition)) continue
-    if (typeof definition === 'string') {
-      projected[key] = { type: definition }
-      continue
-    }
-    if (!definition || typeof definition !== 'object') continue
-    const entry: CatalogBlockOutput = { type: String(definition.type ?? 'any') }
-    if ('description' in definition && typeof definition.description === 'string') {
-      entry.description = definition.description
-    }
-    projected[key] = entry
+    projected[key] = projectBlockOutput(definition)
   }
   return projected
+}
+
+function projectBlockOutput(definition: OutputFieldDefinition): CatalogBlockOutput {
+  if (typeof definition === 'string') return { type: definition }
+  const entry: CatalogBlockOutput = { type: definition.type }
+  if (definition.description !== undefined) entry.description = definition.description
+  if (definition.properties) entry.properties = projectBlockOutputs(definition.properties)
+  if (definition.items) {
+    const { items: _nested, ...element } = projectBlockOutput(definition.items)
+    entry.items = element
+  }
+  return entry
 }
 
 /**
@@ -453,8 +465,15 @@ function projectCustomBlockDetail(block: BlockConfig): CatalogBlockDetail {
     tools: [],
     triggers: [],
     outputs: projectBlockOutputs(block.outputs),
+    ...effectOf(block),
     ...(block.bestPractices !== undefined ? { bestPractices: block.bestPractices } : {}),
   }
+}
+
+/** The block's effect as its detail carries it: absent for a block with no tools. */
+function effectOf(block: BlockConfig): Pick<CatalogBlockDetail, 'effect'> {
+  const effect = blockEffect(block)
+  return effect ? { effect } : {}
 }
 
 /** Projects one block config to its full catalog detail. */
@@ -483,6 +502,7 @@ export function projectBlockDetail(
             id: toolId,
             name: toolId,
             description: '',
+            effect: accessIdEffect(toolId),
             hostedApiKey: 'none',
             params: {},
             outputs: {},
@@ -507,7 +527,7 @@ export function projectBlockDetail(
       inputs,
       outputs: tool?.outputs ?? {},
       inputSchema: operationFields[operationId] ?? [],
-      ...(toolId !== undefined ? { toolId } : {}),
+      ...(toolId !== undefined ? { toolId, effect: tool?.effect ?? accessIdEffect(toolId) } : {}),
       ...(tool ? { toolName: tool.name, description: describeTool(tool) } : {}),
     }
   }
@@ -521,6 +541,7 @@ export function projectBlockDetail(
     tools,
     triggers: projectBlockTriggers(block),
     outputs: projectBlockOutputs(block.outputs),
+    ...effectOf(block),
     ...(block.bestPractices !== undefined ? { bestPractices: block.bestPractices } : {}),
   }
 }

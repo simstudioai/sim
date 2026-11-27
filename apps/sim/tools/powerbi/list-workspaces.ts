@@ -22,6 +22,7 @@ export const powerbiListWorkspacesTool: ToolConfig<
   name: 'Power BI List Workspaces',
   description: 'List accessible Power BI workspaces with optional OData filtering and pagination.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: { required: true, provider: 'microsoft-powerbi' },
   params: {

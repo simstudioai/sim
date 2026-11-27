@@ -8,6 +8,7 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
   name: 'Search Notion Workspace',
   description: 'Search across all pages and databases in Notion workspace',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -169,6 +170,7 @@ export const notionSearchV2Tool: ToolConfig<NotionSearchParams, NotionSearchV2Re
   name: 'Search Notion Workspace',
   description: 'Search across all pages and databases in Notion workspace',
   version: '2.0.0',
+  effect: 'read',
   oauth: notionSearchTool.oauth,
   params: notionSearchTool.params,
   request: notionSearchTool.request,

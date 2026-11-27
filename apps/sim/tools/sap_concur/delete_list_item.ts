@@ -12,6 +12,7 @@ export const deleteListItemTool: InternalToolConfig<DeleteListItemParams, SapCon
   description:
     'Delete a list item from all lists that contain it (DELETE /list/v4/items/{itemId}). This is not scoped to a single list, and all children of that list item are also deleted.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

@@ -49,7 +49,7 @@ async function resolveWorkspaceHostContextForViewer(
       billingEntity: ownerBilling.organizationId
         ? { type: 'organization', id: ownerBilling.organizationId }
         : { type: 'user', id: access.workspace.billedAccountUserId },
-      payerSubscription: { plan: ownerBilling.plan },
+      payerSubscription: { plan: ownerBilling.plan, status: ownerBilling.status },
     }),
   ])
 

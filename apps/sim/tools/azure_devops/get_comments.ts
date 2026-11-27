@@ -13,6 +13,7 @@ export const getCommentsTool: ToolConfig<GetCommentsParams, GetCommentsResponse>
   name: 'Azure DevOps Get Comments',
   description: 'List comments for an Azure DevOps work item.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

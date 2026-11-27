@@ -14,6 +14,7 @@ export const salesforceDeleteLeadTool: ToolConfig<
   name: 'Delete Lead from Salesforce',
   description: 'Delete a lead',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

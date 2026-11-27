@@ -28,6 +28,7 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
   name: 'Jira Get Worklogs',
   description: 'Get all worklog entries from a Jira issue',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

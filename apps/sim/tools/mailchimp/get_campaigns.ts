@@ -31,6 +31,7 @@ export const mailchimpGetCampaignsTool: ToolConfig<
   name: 'Get Campaigns from Mailchimp',
   description: 'Retrieve a list of campaigns from Mailchimp',
   version: '1.0.0',
+  effect: 'read',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

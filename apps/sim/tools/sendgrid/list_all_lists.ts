@@ -8,6 +8,7 @@ export const sendGridListAllListsTool: ToolConfig<ListAllListsParams, ListsResul
   name: 'SendGrid List All Lists',
   description: 'Get all contact lists from SendGrid',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

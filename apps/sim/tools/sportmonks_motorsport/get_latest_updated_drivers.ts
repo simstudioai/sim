@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetLatestUpdatedDriversTool: ToolConfig<
   name: 'Get Latest Updated Drivers',
   description: 'Retrieve the most recently updated motorsport drivers from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

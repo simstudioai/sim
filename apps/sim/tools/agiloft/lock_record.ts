@@ -9,6 +9,7 @@ export const agiloftLockRecordTool: InternalToolConfig<
   name: 'Agiloft Lock Record',
   description: 'Lock, unlock, or check the lock status of an Agiloft record.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     instanceUrl: {

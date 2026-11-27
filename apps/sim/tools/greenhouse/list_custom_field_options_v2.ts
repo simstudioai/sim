@@ -21,6 +21,7 @@ export const greenhouseListCustomFieldOptionsV2Tool: ToolConfig<
   description:
     'Lists one page of custom field options with cursor pagination and documented filters.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

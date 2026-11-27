@@ -14,6 +14,7 @@ export const greenhouseListJobsTool: ToolConfig<
   description:
     'Lists jobs from Greenhouse with optional filtering by status, department, or office',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

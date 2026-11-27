@@ -18,6 +18,7 @@ export const getRunTool: ToolConfig<TinyFishGetRunParams, TinyFishGetRunResponse
   description:
     'Get the status, extracted result, and step history of a TinyFish automation run by its ID',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     runId: {

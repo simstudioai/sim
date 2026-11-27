@@ -8,6 +8,7 @@ export const getUserTool: ToolConfig<GongGetUserParams, GongGetUserResponse> = {
   name: 'Gong Get User',
   description: 'Retrieve details for a specific user from Gong.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

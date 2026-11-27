@@ -14,6 +14,7 @@ export const incidentStatusesListTool: ToolConfig<
   description:
     'List all incident statuses configured in your Incident.io workspace. Returns status details including id, name, description, and category.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

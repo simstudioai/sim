@@ -4,7 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
-import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
+import type { PiiBlockOutputRedaction, SideEffectPolicy } from '@/executor/execution/types'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/handler'
 import type {
   ExecutionContext,
@@ -82,6 +82,8 @@ export function buildCustomBlockExecutionContext(
     piiBlockOutputRedaction?: PiiBlockOutputRedaction
     /** The invoking run's unrecorded model spend, which a child billed on its log adds to. */
     unrecordedModelCost?: UnrecordedModelCost
+    /** The invoking run's side-effect policy, which the child's writes follow. */
+    sideEffects?: SideEffectPolicy
   }
 ): ExecutionContext {
   // Prefer the invoking agent run's ids so correlation and cancellation both
@@ -105,6 +107,7 @@ export function buildCustomBlockExecutionContext(
     environmentVariables: options.environmentVariables,
     piiBlockOutputRedaction: options.piiBlockOutputRedaction,
     unrecordedModelCost: options.unrecordedModelCost,
+    sideEffects: options.sideEffects,
     blockStates: new Map(),
     executedBlocks: new Set(),
     blockLogs: [],

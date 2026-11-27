@@ -6,6 +6,7 @@ export const a2aCancelTaskTool: InternalToolConfig<A2ACancelTaskParams, A2ACance
   name: 'A2A Cancel Task',
   description: 'Request cancellation of an in-progress A2A task.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     agentUrl: {

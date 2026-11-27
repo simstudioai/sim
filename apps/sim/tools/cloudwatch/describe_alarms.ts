@@ -13,6 +13,7 @@ export const describeAlarmsTool: InternalToolConfig<
   name: 'CloudWatch Describe Alarms',
   description: 'List and filter CloudWatch alarms',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

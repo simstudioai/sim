@@ -9,6 +9,7 @@ export const vercelCreateAliasTool: ToolConfig<VercelCreateAliasParams, VercelCr
     name: 'Vercel Create Alias',
     description: 'Assign an alias (domain/subdomain) to a deployment',
     version: '1.0.0',
+    effect: 'write',
     oauth: VERCEL_CREDENTIAL_OAUTH,
 
     params: {

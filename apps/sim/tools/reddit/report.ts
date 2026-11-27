@@ -20,6 +20,7 @@ export const reportTool: ToolConfig<RedditReportParams, RedditReportResponse> = 
   name: 'Report Reddit Post/Comment',
   description: 'Report a Reddit post or comment to subreddit moderators for a rules violation',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

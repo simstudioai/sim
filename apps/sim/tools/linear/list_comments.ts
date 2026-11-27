@@ -11,6 +11,7 @@ export const linearListCommentsTool: ToolConfig<
   name: 'Linear List Comments',
   description: 'List all comments on an issue in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

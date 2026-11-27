@@ -19,6 +19,7 @@ export const higgsfieldDeleteCharacterTool: ToolConfig<
   name: 'Higgsfield Delete Character',
   description: 'Permanently delete a Soul ID character reference.',
   version: '1.0.0',
+  effect: 'write',
   oauth: higgsfieldOAuth,
   params: {
     ...higgsfieldAuthParams,

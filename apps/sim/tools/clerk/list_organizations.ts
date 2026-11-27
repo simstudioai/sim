@@ -18,6 +18,7 @@ export const clerkListOrganizationsTool: ToolConfig<
   name: 'List Organizations from Clerk',
   description: 'List all organizations in your Clerk application with optional filtering',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

@@ -23,6 +23,7 @@ export const listAccessPoliciesTool: ToolConfig<
   description:
     'Lists the Cloudflare Access (Zero Trust) policies attached to an application, in precedence order. Requires an API token with Account Access: Apps and Policies Read.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

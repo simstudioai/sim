@@ -13,6 +13,7 @@ export const listAccountsTool: InternalToolConfig<
   name: 'Identity Center List Accounts',
   description: 'List all AWS accounts in your organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

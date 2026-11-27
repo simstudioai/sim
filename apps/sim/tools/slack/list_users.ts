@@ -4,10 +4,11 @@ import type { ToolConfig } from '@/tools/types'
 
 export const slackListUsersTool: ToolConfig<SlackListUsersParams, SlackListUsersResponse> = {
   id: 'slack_list_users',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Slack List Users',
   description: 'List all users in a Slack workspace. Returns user profiles with names and avatars.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

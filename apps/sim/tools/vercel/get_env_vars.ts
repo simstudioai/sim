@@ -8,6 +8,7 @@ export const vercelGetEnvVarsTool: ToolConfig<VercelGetEnvVarsParams, VercelGetE
   name: 'Vercel Get Environment Variables',
   description: 'Retrieve environment variables for a Vercel project',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const planeDeleteStateTool: ToolConfig<PlaneDeleteStateParams, PlaneDelet
   name: 'Plane Delete a state',
   description: 'Delete a state in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

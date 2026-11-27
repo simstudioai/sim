@@ -20,6 +20,7 @@ export const rampListReimbursementsTool: ToolConfig<
   name: 'Ramp List Reimbursements',
   description: 'List reimbursements in one page in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

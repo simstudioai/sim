@@ -51,6 +51,7 @@ export const getProjectTool: ToolConfig<PostHogGetProjectParams, PostHogGetProje
   name: 'PostHog Get Project',
   description: 'Get a PostHog project by ID, including its configuration and capture settings.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

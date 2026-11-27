@@ -7,6 +7,7 @@ export const slackJoinConversationTool = createSlackWebApiTool({
   id: 'slack_join_conversation',
   name: 'Slack Join Conversation',
   description: 'Join a public Slack channel as the authenticated bot.',
+  effect: 'write',
   endpoint: 'conversations.join',
   method: 'POST',
   oauth: {

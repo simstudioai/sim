@@ -22,6 +22,7 @@ export const attachTagsToLeadsTool: ToolConfig<
   name: 'Email Bison Attach Tags to Leads',
   description: 'Attaches Email Bison tags to one or more leads.',
   version: '1.0.0',
+  effect: 'write',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

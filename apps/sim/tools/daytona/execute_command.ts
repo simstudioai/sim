@@ -15,6 +15,7 @@ export const daytonaExecuteCommandTool: ToolConfig<
   name: 'Daytona Execute Command',
   description: 'Execute a shell command inside a Daytona sandbox',
   version: '1.0.0',
+  effect: 'write',
   oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {

@@ -116,6 +116,21 @@ async function sites(client: NativeClient) {
   return array(await client.json('/oauth/token/accessible-resources', { memo: true }))
 }
 
+/** The cloud ID of the grant's site served at `host`, as a link to one of its pages names it. */
+export async function atlassianSiteId(
+  client: NativeClient,
+  host: string
+): Promise<string | undefined> {
+  const site = (await sites(client)).find((row) => {
+    try {
+      return new URL(string(row.url)).host === host
+    } catch {
+      return false
+    }
+  })
+  return string(site?.id) || undefined
+}
+
 /**
  * One Atlassian site's page; `ranking` marks a page whose order or completeness differs from the
  * all-terms search.
@@ -125,6 +140,73 @@ interface SitePage {
   excluded: boolean
   next?: string
   ranking?: 'relevance' | 'unavailable'
+}
+
+/**
+ * The account ID of the one user a site finds for an email, or undefined. Jira hides most email
+ * addresses, so a lone match with a hidden address is taken as that person. Account IDs span sites, so a
+ * person found on any searched site applies to all of them.
+ */
+async function jiraAccountId(
+  client: NativeClient,
+  cloudId: string,
+  email: string
+): Promise<string | undefined> {
+  const found = array(
+    await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/user/search`, {
+      query: { query: email, maxResults: '2' },
+      memo: true,
+    })
+  )
+  const exact = found.filter((row) => string(row.emailAddress).toLowerCase() === email)
+  /** Search also matches prefixes, so a user showing a different address is never this person. */
+  const users = exact.length
+    ? exact
+    : found.length === 1 && !string(found[0]?.emailAddress)
+      ? found
+      : []
+  const accountId = string(users[0]?.accountId)
+  return users.length === 1 && /^[\w:-]+$/.test(accountId) ? accountId : undefined
+}
+
+/**
+ * The JQL or CQL clause limiting a search to a person: issues they are assigned or reported, or
+ * pages they created or edited. Jira finds anyone else by email (Atlassian account IDs span
+ * sites); Confluence has no email lookup, so it filters only to the connected user.
+ */
+async function atlassianPersonClause(
+  client: NativeClient,
+  provider: 'jira' | 'confluence',
+  involving: string | undefined,
+  sites: Record<string, unknown>[]
+): Promise<string | undefined> {
+  if (!involving) return undefined
+  if (provider === 'confluence') {
+    if (involving !== 'me')
+      throw new NativeSearchError(
+        'unavailable',
+        'Confluence filters only to you (involving: me); for anyone else, search their name.'
+      )
+    return 'contributor = currentUser()'
+  }
+  let user = 'currentUser()'
+  if (involving !== 'me') {
+    const lookups = await Promise.allSettled(
+      sites.map((site) => jiraAccountId(client, string(site.id), involving))
+    )
+    const failed = lookups.find((lookup) => lookup.status === 'rejected')
+    if (failed && lookups.every((lookup) => lookup.status === 'rejected')) throw failed.reason
+    const accountIds = new Set(
+      lookups.flatMap((lookup) =>
+        lookup.status === 'fulfilled' && lookup.value ? [lookup.value] : []
+      )
+    )
+    const [accountId] = accountIds
+    if (accountIds.size !== 1 || !accountId)
+      throw new NativeSearchError('unavailable', 'No single Jira user has this email.')
+    user = JSON.stringify(accountId)
+  }
+  return `(assignee = ${user} OR reporter = ${user})`
 }
 
 export async function searchAtlassian(
@@ -158,9 +240,11 @@ export async function searchAtlassian(
       : undefined
   const dates = nativeDateBounds(input)
   const field = provider === 'jira' ? 'updated' : 'lastmodified'
+  const person = await atlassianPersonClause(client, provider, input.involving, selected)
   const scope =
     [
       policyScope,
+      person,
       dates.start
         ? `${field} >= "${new Date(Date.parse(dates.start) - 86400000).toISOString().slice(0, 10)}"`
         : '',

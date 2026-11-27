@@ -24,6 +24,7 @@ export const fivetranGetConnectionWarningsTool: ToolConfig<
   name: 'Fivetran Get Connection Warnings',
   description: 'List the active warnings on a Fivetran connection, grouped by destination table.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

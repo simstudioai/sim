@@ -16,6 +16,7 @@ export const hubspotSearchLineItemsTool: ToolConfig<
   name: 'Search Line Items in HubSpot',
   description: 'Search for line items in HubSpot using filters, sorting, and queries',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

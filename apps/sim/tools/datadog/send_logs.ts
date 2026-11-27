@@ -9,6 +9,7 @@ export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
   name: 'Datadog Send Logs',
   description: 'Send log entries to Datadog for centralized logging and analysis.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_API_KEY_CREDENTIAL_OAUTH,
 
   params: {

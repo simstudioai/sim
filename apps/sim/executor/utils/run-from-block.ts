@@ -1,4 +1,4 @@
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { normalizeName } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { SerializableExecutionState } from '@/executor/execution/types'
@@ -6,6 +6,7 @@ import type { NormalizedBlockOutput } from '@/executor/types'
 import {
   buildLoopSentinelStartId,
   buildParallelSentinelStartId,
+  stripCloneSuffixes,
 } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedWorkflow } from '@/serializer/types'
 
@@ -260,6 +261,28 @@ export function validateRunFromBlock(
   }
 
   return { valid: true }
+}
+
+/**
+ * Where a run-from-block rerun of a failure in `blockId` starts, in a workflow's stored `blocks`:
+ * the block itself at the top level, else the outermost loop or parallel holding it, since
+ * {@link validateRunFromBlock} refuses a start inside one. A parallel branch id (`block₍0₎`) is
+ * read as its block. Undefined when the block, or a container it sits in, is not in `blocks`.
+ */
+export function findRerunStartBlockId(
+  blockId: string,
+  blocks: Readonly<Record<string, unknown>>
+): string | undefined {
+  const visited = new Set<string>()
+  let current = stripCloneSuffixes(blockId)
+  while (!visited.has(current) && Object.hasOwn(blocks, current)) {
+    visited.add(current)
+    const block = blocks[current]
+    const parentId = isRecordLike(block) && isRecordLike(block.data) ? block.data.parentId : null
+    if (typeof parentId !== 'string' || !parentId) return current
+    current = parentId
+  }
+  return undefined
 }
 
 /**

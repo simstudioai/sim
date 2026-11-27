@@ -22,6 +22,7 @@ export const polymarketGetSeriesByIdTool: ToolConfig<
   name: 'Get Series by ID from Polymarket',
   description: 'Retrieve a specific series (related market group) by ID from Polymarket',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     seriesId: {

@@ -455,7 +455,7 @@
       "put": {
         "operationId": "replaceWorkflowState",
         "summary": "Replace workflow state",
-        "description": "Replace the draft graph in one write. Requires workspace write access. Concurrent row-locked writes are last-write-wins; IDs owned by another workflow return `409`. Deployments, schedules, and webhook registrations are unchanged. Deploy to serve the edits.\n\nLint is advisory. Use `dryRun=true` to validate without saving, auditing, or notifying collaborators. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Replace the draft graph in one write. Requires workspace write access. Concurrent row-locked writes are last-write-wins; IDs owned by another workflow return `409`. Deployments, schedules, and webhook registrations are unchanged. Deploy to serve the edits.\n\nLint is advisory. Use `dry=true` to validate without saving, auditing, or notifying collaborators. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.state.replace",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -481,7 +481,7 @@
             }
           },
           {
-            "name": "dryRun",
+            "name": "dry",
             "in": "query",
             "required": false,
             "description": "Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.",
@@ -538,7 +538,7 @@
                         "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                         "warnings": [],
                         "needsRedeployment": true,
-                        "dryRun": false,
+                        "dry": false,
                         "lint": {
                           "sources": [],
                           "sinks": [],
@@ -702,7 +702,7 @@
       "post": {
         "operationId": "applyWorkflowOperations",
         "summary": "Apply workflow operations",
-        "description": "Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect `skipped` and `inputValidationErrors` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With `atomic=true`, declined operations or dropped inputs return `409` (`OPERATIONS_NOT_APPLIED`) without saving. A `409` with code `CONFLICT` means the workflow changed after the batch read it and nothing was saved; re-read the workflow and retry. Use returned `mintedBlockIds` in later requests. `dryRun=true` evaluates without saving, auditing, or notifying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect `skipped` and `inputValidationErrors` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With `atomic=true`, declined operations or dropped inputs return `409` (`OPERATIONS_NOT_APPLIED`) without saving. A `409` with code `CONFLICT` means the workflow changed after the batch read it and nothing was saved; re-read the workflow and retry. Use returned `mintedBlockIds` in later requests. `dry=true` evaluates without saving, auditing, or notifying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.operations.apply",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -728,7 +728,7 @@
             }
           },
           {
-            "name": "dryRun",
+            "name": "dry",
             "in": "query",
             "required": false,
             "description": "Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.",
@@ -845,7 +845,7 @@
                           "Workflow lint found issues (Blocks missing required fields: 1). The findings are in `lint`."
                         ],
                         "needsRedeployment": true,
-                        "dryRun": false
+                        "dry": false
                       }
                     }
                   }
@@ -4222,7 +4222,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute workflow",
-        "description": "Run the active deployment, set `run: { source: \"deployment\", version }` to run an earlier deployment version, or set `run.source: \"manual\"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or a full-access API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and a full-access API key or OAuth `api:write` scope; an unknown version returns `404`. Manual runs require a full-access personal API key or OAuth `api:write` scope, and workspace write access; workspace API keys are refused, and manual runs cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: \"failed\"` and `error.code: \"TIMEOUT\"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: \"ASYNC_ENQUEUE_AMBIGUOUS\"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.",
+        "description": "Run the active deployment, set `run: { source: \"deployment\", version }` to run an earlier deployment version, or set `run.source: \"draft\"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or a full-access API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and a full-access API key or OAuth `api:write` scope; an unknown version returns `404`. Draft runs require a full-access personal API key or OAuth `api:write` scope, and workspace write access; workspace API keys are refused, and draft runs cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: \"failed\"` and `error.code: \"TIMEOUT\"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: \"ASYNC_ENQUEUE_AMBIGUOUS\"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.execute",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -4312,7 +4312,7 @@
                   "summary": "Request example 4",
                   "value": {
                     "run": {
-                      "source": "manual"
+                      "source": "draft"
                     }
                   }
                 },
@@ -4320,7 +4320,7 @@
                   "summary": "Request example 5",
                   "value": {
                     "run": {
-                      "source": "manual"
+                      "source": "draft"
                     },
                     "waitTimeoutSeconds": 240
                   }
@@ -4329,7 +4329,7 @@
                   "summary": "Request example 6",
                   "value": {
                     "run": {
-                      "source": "manual",
+                      "source": "draft",
                       "entry": {
                         "type": "block",
                         "blockId": "block_123",
@@ -4342,7 +4342,7 @@
                   "summary": "Request example 7",
                   "value": {
                     "run": {
-                      "source": "manual",
+                      "source": "draft",
                       "entry": {
                         "type": "block",
                         "blockId": "block_123",
@@ -4394,6 +4394,7 @@
                         "startedAt": "2026-08-09T18:04:10.000Z",
                         "endedAt": "2026-08-09T18:04:11.000Z",
                         "durationMs": 1000,
+                        "paused": null,
                         "executionTimeoutSeconds": 3000
                       }
                     }
@@ -4975,7 +4976,8 @@
                             "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a/files/file_1a2b3c",
                             "base64": null
                           }
-                        ]
+                        ],
+                        "overrides": null
                       }
                     }
                   }
@@ -5131,7 +5133,7 @@
       "post": {
         "operationId": "resumeWorkflowRunV2",
         "summary": "Resume workflow run",
-        "description": "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
+        "description": "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt; when it pauses again, `paused.runId` names the run to resume next. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.runs.resume",
         "x-oauth-scope": "api:write",
         "tags": ["Workflow Runs"],
@@ -5229,7 +5231,8 @@
                         "error": null,
                         "startedAt": "2026-08-09T18:04:10.000Z",
                         "endedAt": "2026-08-09T18:04:11.000Z",
-                        "durationMs": 1000
+                        "durationMs": 1000,
+                        "paused": null
                       }
                     }
                   }
@@ -6036,7 +6039,7 @@
       "post": {
         "operationId": "applyWorkflowSource",
         "summary": "Apply workflow source",
-        "description": "Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and `base` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is saved; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. A `409` means the draft changed since the source was read (`details.currentFingerprint`): get the source again, reapply the edit and retry. A rename onto a name another workflow in the folder took meanwhile returns `409` with `details.code` `SOURCE_NAME_TAKEN`. A `base.workflowId` that names another workflow is refused with `400` (`E_APPLY_WORKFLOW_MISMATCH`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns `applied: false` without saving. The response re-prints the saved source with its new lock and `base`. `dryRun=true` runs every check without saving and answers `200` with the findings in `diagnostics`, a stale `base` included (`E_APPLY_STALE`). A request refused before the source is evaluated is refused on a dry run too: `400` for an invalid body, `413` for a body over the size limit, and `423` for a locked workflow or folder. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and `base` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is saved; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. A `409` means the draft changed since the source was read (`details.currentFingerprint`): get the source again, reapply the edit and retry. A rename onto a name another workflow in the folder took meanwhile returns `409` with `details.code` `SOURCE_NAME_TAKEN`. A `base.workflowId` that names another workflow is refused with `400` (`E_APPLY_WORKFLOW_MISMATCH`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns `applied: false` without saving. The response re-prints the saved source with its new lock and `base`. `dry=true` runs every check without saving and answers `200` with the findings in `diagnostics`, a stale `base` included (`E_APPLY_STALE`). A request refused before the source is evaluated is refused on a dry run too: `400` for an invalid body, `413` for a body over the size limit, and `423` for a locked workflow or folder. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.source.apply",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -6062,12 +6065,12 @@
             }
           },
           {
-            "name": "dryRun",
+            "name": "dry",
             "in": "query",
             "required": false,
-            "description": "Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.",
+            "description": "Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.",
             "schema": {
-              "description": "Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.",
+              "description": "Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.",
               "type": "boolean"
             }
           },
@@ -6148,7 +6151,7 @@
                       "data": {
                         "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                         "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                        "dryRun": false,
+                        "dry": false,
                         "applied": false,
                         "diff": {
                           "noop": true,
@@ -6194,6 +6197,7 @@
                         },
                         "mintedIds": {},
                         "notes": [],
+                        "deployedVersion": 3,
                         "needsRedeployment": false
                       }
                     }
@@ -6242,7 +6246,7 @@
       "post": {
         "operationId": "planWorkflowSource",
         "summary": "Plan workflow source",
-        "description": "Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since `base` (`E_APPLY_STALE`), the diff, and every finding, exactly as `dryRun=true` reports them, with `200`. A read: it needs only workspace read access, draws on the source-plan budget rather than the source-write budget (a server already running as many plans as it allows answers `429`), and records no audit or analytics event, so `sim workflows source status` never spends what an apply needs. `allowDelete=true` plans block and variable deletes instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "description": "Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since `base` (`E_APPLY_STALE`), the diff, and every finding, exactly as `dry=true` reports them, with `200`. A read: it needs only workspace read access, draws on the source-plan budget rather than the source-write budget (a server already running as many plans as it allows answers `429`), and records no audit or analytics event, so `sim workflows source status` never spends what an apply needs. `allowDelete=true` plans block and variable deletes instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.source.plan",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -6344,7 +6348,7 @@
                       "data": {
                         "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                         "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                        "dryRun": true,
+                        "dry": true,
                         "applied": false,
                         "diff": {
                           "noop": true,
@@ -6390,6 +6394,7 @@
                         },
                         "mintedIds": {},
                         "notes": [],
+                        "deployedVersion": 3,
                         "needsRedeployment": false
                       }
                     }
@@ -6432,7 +6437,7 @@
       "post": {
         "operationId": "createWorkflowFromSource",
         "summary": "Create workflow from source",
-        "description": "Create a workflow from TypeScript workflow source in one all-or-nothing write. Requires workspace write access. The source is compiled and checked against the same rules as Apply Workflow Source; every block is new. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is created; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. The name defaults to the one in the source's `workflow('…')` call; a name already used in the folder returns `409` with `details.code` `SOURCE_NAME_TAKEN`. The response carries the new `workflowId` and the source re-printed from what was saved, with its lock and `base`, ready for the next apply. The workflow is not deployed. `dryRun=true` runs every check without creating anything and answers `200` with the findings in `diagnostics`. A request refused before the source is evaluated is refused on a dry run too: `400` for an invalid body, `404` for a missing folder, `413` for a body over the size limit, and `423` for a locked folder. A taken name is checked after the source compiles and answers `409` (`SOURCE_NAME_TAKEN`) on a dry run as on a create. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Create a workflow from TypeScript workflow source in one all-or-nothing write. Requires workspace write access. The source is compiled and checked against the same rules as Apply Workflow Source; every block is new. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is created; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. The name defaults to the one in the source's `workflow('…')` call; a name already used in the folder returns `409` with `details.code` `SOURCE_NAME_TAKEN`. The response carries the new `workflowId` and the source re-printed from what was saved, with its lock and `base`, ready for the next apply. The workflow is not deployed. `dry=true` runs every check without creating anything and answers `200` with the findings in `diagnostics`. A request refused before the source is evaluated is refused on a dry run too: `400` for an invalid body, `404` for a missing folder, `413` for a body over the size limit, and `423` for a locked folder. A taken name is checked after the source compiles and answers `409` (`SOURCE_NAME_TAKEN`) on a dry run as on a create. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.source.create",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -6458,12 +6463,12 @@
             }
           },
           {
-            "name": "dryRun",
+            "name": "dry",
             "in": "query",
             "required": false,
-            "description": "Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.",
+            "description": "Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.",
             "schema": {
-              "description": "Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.",
+              "description": "Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.",
               "type": "boolean"
             }
           },
@@ -6526,7 +6531,7 @@
                       "data": {
                         "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                         "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                        "dryRun": false,
+                        "dry": false,
                         "applied": true,
                         "diff": {
                           "noop": false,
@@ -6580,6 +6585,7 @@
                           "start": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77"
                         },
                         "notes": [],
+                        "deployedVersion": null,
                         "needsRedeployment": false
                       }
                     }
@@ -6736,7 +6742,7 @@
                           {
                             "key": "lookup-order",
                             "id": "ctl_2b8d6f03",
-                            "name": "lookup_order"
+                            "name": "Lookup order"
                           }
                         ],
                         "mcpServers": [
@@ -8867,7 +8873,7 @@
       "post": {
         "operationId": "applyWorkspaceSource",
         "summary": "Apply workspace source",
-        "description": "Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), the binary-file manifest (path, SHA-256 and size), and the `base` from Get Workspace Source. Binary bytes are staged first and the apply names them by hash: `sim workspaces source apply` stages them itself, and other clients find the ones the server lacks (Find Missing Workspace Source Blobs) and upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs`, a binary upload MCP clients cannot send. A directory without binary files needs no staging; a write whose bytes are not staged refuses the whole apply with `E_BLOB_MISSING` before anything is written, and a dry run lists those paths in `needBlobs`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); another apply still writing the workspace `409` (`SOURCE_BUSY`: nothing was written, apply again once it finished; a dry run never waits on one); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow, skill, secret and deployment changes follow use cases a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for those kinds (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dryRun=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.",
+        "description": "Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), the binary-file manifest (path, SHA-256 and size), and the `base` from Get Workspace Source. Binary bytes are staged first and the apply names them by hash: `sim workspaces source apply` stages them itself, and other clients find the ones the server lacks (Find Missing Workspace Source Blobs) and upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs`, a binary upload MCP clients cannot send. A directory without binary files needs no staging; a write whose bytes are not staged refuses the whole apply with `E_BLOB_MISSING` before anything is written, and a dry run lists those paths in `needBlobs`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); another apply still writing the workspace `409` (`SOURCE_BUSY`: nothing was written, apply again once it finished; a dry run never waits on one); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow, skill, secret and deployment changes follow use cases a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for those kinds (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dry=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workspaces.source.apply",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -8893,7 +8899,7 @@
             }
           },
           {
-            "name": "dryRun",
+            "name": "dry",
             "in": "query",
             "required": false,
             "description": "Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.",
@@ -8972,7 +8978,7 @@
                     "value": {
                       "data": {
                         "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                        "dryRun": false,
+                        "dry": false,
                         "plan": [
                           {
                             "kind": "table",
@@ -9054,7 +9060,7 @@
       "post": {
         "operationId": "planWorkspaceSource",
         "summary": "Plan workspace source",
-        "description": "Report what Apply Workspace Source would do with this directory, without writing: every planned change and finding, exactly as `dryRun=true` reports them (a resource changed on the server since the directory was read included). A read: it needs only workspace read access, draws on the source-plan budget, one unit per workflow folder it evaluates as an apply does, takes no apply lease or apply slot and records no audit event, so `sim workspaces source status` never spends the source-write budget or holds up an apply. A server already running as many plans as it allows answers `429`. Each change is still checked by the operation that owns it, so a change the caller may not write is reported as refused. The body is an apply body without `provenance`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
+        "description": "Report what Apply Workspace Source would do with this directory, without writing: every planned change and finding, exactly as `dry=true` reports them (a resource changed on the server since the directory was read included). A read: it needs only workspace read access, draws on the source-plan budget, one unit per workflow folder it evaluates as an apply does, takes no apply lease or apply slot and records no audit event, so `sim workspaces source status` never spends the source-write budget or holds up an apply. A server already running as many plans as it allows answers `429`. Each change is still checked by the operation that owns it, so a change the caller may not write is reported as refused. The body is an apply body without `provenance`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workspaces.source.plan",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -9149,7 +9155,7 @@
                     "value": {
                       "data": {
                         "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                        "dryRun": true,
+                        "dry": true,
                         "plan": [
                           {
                             "kind": "table",
@@ -11472,12 +11478,12 @@
           "lint": {
             "$ref": "#/components/schemas/WorkflowLintReport"
           },
-          "dryRun": {
+          "dry": {
             "type": "boolean",
             "description": "Whether this request only validated. `true` means nothing was persisted; the findings describe what a committed write of the same body would produce."
           }
         },
-        "required": ["id", "warnings", "needsRedeployment", "lint", "dryRun"],
+        "required": ["id", "warnings", "needsRedeployment", "lint", "dry"],
         "additionalProperties": false,
         "title": "Replace workflow state result",
         "description": "Outcome of replacing a workflow draft graph, with its advisory findings."
@@ -11500,7 +11506,7 @@
               "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "warnings": [],
               "needsRedeployment": true,
-              "dryRun": false,
+              "dry": false,
               "lint": {
                 "sources": [],
                 "sinks": [],
@@ -12135,7 +12141,7 @@
           "lint": {
             "$ref": "#/components/schemas/WorkflowLintReport"
           },
-          "dryRun": {
+          "dry": {
             "type": "boolean",
             "description": "Whether this request only evaluated. `true` means nothing was persisted; the outcome describes what a committed apply of the same body would produce."
           }
@@ -12150,7 +12156,7 @@
           "inputValidationErrors",
           "mintedBlockIds",
           "lint",
-          "dryRun"
+          "dry"
         ],
         "additionalProperties": false,
         "title": "Apply workflow operations result",
@@ -12216,7 +12222,7 @@
                 "Workflow lint found issues (Blocks missing required fields: 1). The findings are in `lint`."
               ],
               "needsRedeployment": true,
-              "dryRun": false
+              "dry": false
             }
           }
         ]
@@ -17191,12 +17197,364 @@
           "blockType": {
             "description": "Integration or block type that failed, when attributable. Present whenever `blockId` is.",
             "type": "string"
+          },
+          "rerunFromBlockId": {
+            "description": "Block a rerun of this failure starts from (`run.entry` of type `block` naming it, with this run as `sourceRunId`): the failing block, or the outermost loop or parallel holding it, since a run cannot start inside one. Set by Execute workflow from the graph the run executed and by Get workflow run from the saved draft, whenever `blockId` is and that graph still has the block.",
+            "type": "string"
           }
         },
         "required": ["message", "code"],
         "additionalProperties": false,
         "title": "Execution error",
         "description": "Structured in-band failure details for a workflow run."
+      },
+      "WorkflowRunSideEffects": {
+        "type": "object",
+        "properties": {
+          "stubbed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow whose block it was: the run workflow, or a child workflow it called."
+                },
+                "blockId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block id in that workflow; null when the call named no block."
+                },
+                "block": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block display name; null when the call named no block."
+                },
+                "tool": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Tool the block (or an Agent) called; null when the whole block was answered instead of run."
+                },
+                "request": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "description": "Request field."
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "What the call would have sent: an in-process operation's input, an HTTP call's `method`, `url` and `body` (never header values; for code's `fetch`, header names, the URL capped with only query parameter names, the body capped, and the code's workspace and personal secrets masked, though a secret typed into the code itself is not), or a custom or MCP tool's `arguments`. For a block answered whole, its logged inputs. Credentials, secrets, password fields and (when the workspace redacts it) PII are redacted; null when the run could not prove none remain, or could not build the request once they were masked (such as a URL that is wholly a secret)."
+                },
+                "returned": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "description": "Placeholder field."
+                  },
+                  "description": "Placeholder output the block or tool call returned to the run instead."
+                },
+                "mcp": {
+                  "description": "The MCP server and tool an MCP block's call named; absent for any other call.",
+                  "type": "object",
+                  "properties": {
+                    "server": {
+                      "type": "string",
+                      "description": "MCP server or managed connection id."
+                    },
+                    "tool": {
+                      "type": "string",
+                      "description": "MCP tool name."
+                    }
+                  },
+                  "required": ["server", "tool"],
+                  "additionalProperties": false
+                },
+                "reason": {
+                  "description": "Why a call that is not a plain write was held back; absent for a plain write. `placeholder`: a read whose request holds a placeholder the run returned earlier (a `dry_run_<kind>_<n>` string or a number above 900000000, such as a placeholder row's id in a URL, or free text quoting one), so it depends on a call that was never sent. `mcp-read-only`: an MCP call whose server declares the tool read-only and not destructive (`readOnlyHint`, not `destructiveHint`), a claim Sim cannot verify; name its block in `run.allow` to send it.",
+                  "type": "string",
+                  "enum": ["placeholder", "mcp-read-only"]
+                }
+              },
+              "required": ["workflowId", "blockId", "block", "tool", "request", "returned"],
+              "additionalProperties": false
+            },
+            "description": "Calls that were not sent, in the order the run reached them, each answered with a placeholder (a table row insert, upsert or update echoes the data it would have written, secrets masked; placeholder ids and values the request cannot determine are `dry_run_<kind>_<n>` strings and numbers above 900000000): writes, every MCP call, and reads that would send a placeholder (`reason`). Code run in the isolate (JavaScript without imports: a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes) sends its GET, HEAD and OPTIONS `fetch` calls (an API that writes on a GET is not stubbed); any other request, or one carrying a method-override header, gets an empty 200 (header `x-sim-dry-run: stubbed`) and is listed here as tool `function_execute`."
+          },
+          "allowed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow whose block it was: the run workflow, or a child workflow it called."
+                },
+                "blockId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block id in that workflow; null when the call named no block."
+                },
+                "block": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block display name; null when the call named no block."
+                },
+                "tool": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Tool sent; null when the whole block ran."
+                },
+                "mcp": {
+                  "description": "The MCP server and tool an MCP block's call named; absent for any other call.",
+                  "type": "object",
+                  "properties": {
+                    "server": {
+                      "type": "string",
+                      "description": "MCP server or managed connection id."
+                    },
+                    "tool": {
+                      "type": "string",
+                      "description": "MCP tool name."
+                    }
+                  },
+                  "required": ["server", "tool"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["workflowId", "blockId", "block", "tool"],
+              "additionalProperties": false
+            },
+            "description": "Writes sent for real because `run.allow` named their block, once per block and tool (an MCP block's per MCP tool)."
+          },
+          "unchecked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow whose block it was: the run workflow, or a child workflow it called."
+                },
+                "blockId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block id in that workflow; null when the call named no block."
+                },
+                "block": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block display name; null when the call named no block."
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Why the run cannot see what this code changed."
+                }
+              },
+              "required": ["workflowId", "blockId", "block", "reason"],
+              "additionalProperties": false
+            },
+            "description": "Blocks whose code ran for real in a remote sandbox (shell, Python, JavaScript with imports, a selected sandbox or files), once per block: a Function block's code, a Condition's expressions, or code an Agent's model wrote, whose network calls the run cannot see. Code run in the isolate is not listed: its network writes are stubbed."
+          },
+          "omitted": {
+            "type": "object",
+            "properties": {
+              "stubbed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Writes left out of `stubbed`."
+              },
+              "allowed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Writes left out of `allowed`."
+              },
+              "unchecked": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Blocks left out of `unchecked`."
+              }
+            },
+            "required": ["stubbed", "allowed", "unchecked"],
+            "additionalProperties": false,
+            "description": "Entries each list left out once it held 50."
+          },
+          "unreached": {
+            "description": "Allowed and mocked blocks the run never reached: on a branch it did not take, upstream of a block entry, or in a child it never called. Absent when none.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow of the block."
+                },
+                "blockId": {
+                  "type": "string",
+                  "description": "Block id in that workflow."
+                },
+                "block": {
+                  "type": "string",
+                  "description": "Block display name."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["allow", "mock"],
+                  "description": "`allow` for a `run.allow` entry, `mock` for `run.mocks` or `run.mocksFrom`."
+                }
+              },
+              "required": ["workflowId", "blockId", "block", "kind"],
+              "additionalProperties": false
+            }
+          },
+          "mockFields": {
+            "description": "Mocks with fields a block reading them gets nothing from. Absent when none.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workflowId": {
+                  "type": "string",
+                  "description": "Workflow of the block."
+                },
+                "blockId": {
+                  "type": "string",
+                  "description": "Block id in that workflow."
+                },
+                "block": {
+                  "type": "string",
+                  "description": "Block display name."
+                },
+                "undeclared": {
+                  "description": "Top-level fields a passed mock sets that its block does not declare as outputs, likely misspelt. Agent and Function blocks, whose outputs the model or code decides, never have any.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "description": "Output field."
+                  }
+                },
+                "dropped": {
+                  "description": "Fields of an output read from a run (`run.mocksFrom`) that a mock cannot set (see `run.mocks`), so left out.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "description": "Output field."
+                  }
+                }
+              },
+              "required": ["workflowId", "blockId", "block"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["stubbed", "allowed", "unchecked", "omitted"],
+        "additionalProperties": false,
+        "title": "Workflow run side effects",
+        "description": "What a dry run did with each write it reached. `stubbed`, `allowed`, `unchecked` and `omitted` are always present; `unreached` and `mockFields` only when they hold an entry."
+      },
+      "WorkflowRunOverrides": {
+        "type": "object",
+        "properties": {
+          "allow": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Block selector."
+            },
+            "description": "Blocks whose writes the run sent (`run.allow`)."
+          },
+          "mocks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Block selector."
+            },
+            "description": "Blocks the run answered with outputs the caller passed (`run.mocks`). Only the blocks are recorded, so a rerun passes the outputs again."
+          },
+          "mocksFrom": {
+            "description": "Blocks the run answered with their outputs in another run (`run.mocksFrom`), which a rerun reads again. Absent when none.",
+            "type": "object",
+            "properties": {
+              "runId": {
+                "type": "string",
+                "description": "Run the outputs were read from."
+              },
+              "blocks": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "Block id."
+                },
+                "description": "Blocks answered, by id."
+              }
+            },
+            "required": ["runId", "blocks"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["allow", "mocks"],
+        "additionalProperties": false,
+        "title": "Workflow run overrides",
+        "description": "A dry run's overrides as a rerun passes them again, never a mock output: each entry `<blockId>` for a block of this workflow, or `<workflowId>.<blockId>` for a block of a workflow it called."
       },
       "WorkflowRunResult": {
         "type": "object",
@@ -17275,6 +17633,58 @@
               }
             ],
             "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
+          },
+          "paused": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string",
+                    "description": "Run to name in Resume workflow run: the run this pause is recorded under, which for a resumed run that paused again is the run it resumed."
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "contextId": {
+                          "type": "string",
+                          "description": "Pause context to name in `contextId` when resuming this point."
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["human", "time"],
+                          "description": "`human` waits for a resume request; `time` resumes automatically at `resumeAt`."
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["paused", "queued", "resuming", "resumed", "failed"],
+                          "description": "Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt."
+                        }
+                      },
+                      "required": ["contextId", "kind", "status"],
+                      "additionalProperties": false
+                    },
+                    "description": "Every point the run is paused at. Resume one with Resume workflow run, naming `runId` and its `contextId`."
+                  }
+                },
+                "required": ["runId", "points"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the run waits when `status` is `paused`; null otherwise."
+          },
+          "sideEffects": {
+            "description": "What a dry run (`run.dry`) did with each write it reached, whatever its status; absent otherwise.",
+            "$ref": "#/components/schemas/WorkflowRunSideEffects"
+          },
+          "overrides": {
+            "description": "A dry run's overrides (`run.dry`); absent for any other run.",
+            "$ref": "#/components/schemas/WorkflowRunOverrides"
           }
         },
         "required": [
@@ -17284,7 +17694,8 @@
           "output",
           "blockOutputs",
           "error",
-          "executionTimeoutSeconds"
+          "executionTimeoutSeconds",
+          "paused"
         ],
         "additionalProperties": false,
         "title": "Workflow run result",
@@ -17316,6 +17727,7 @@
               "startedAt": "2026-08-09T18:04:10.000Z",
               "endedAt": "2026-08-09T18:04:11.000Z",
               "durationMs": 1000,
+              "paused": null,
               "executionTimeoutSeconds": 3000
             }
           }
@@ -17391,7 +17803,7 @@
             }
           },
           "run": {
-            "description": "Workflow state and entry point to execute. Omit for the active deployment; `source: \"deployment\"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.",
+            "description": "Workflow state and entry point to execute. Omit for the active deployment; `source: \"deployment\"` with `version` runs that deployment version, and `source: \"draft\"` the saved draft. A draft run requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.",
             "oneOf": [
               {
                 "type": "object",
@@ -17416,11 +17828,11 @@
                 "properties": {
                   "source": {
                     "type": "string",
-                    "const": "manual",
-                    "description": "Execute the current saved workflow state manually."
+                    "const": "draft",
+                    "description": "Run the saved draft."
                   },
                   "entry": {
-                    "description": "Manual entry mode. Omit to enter through the workflow trigger; a block entry requires an exact source run.",
+                    "description": "Where the draft run enters. Omit to enter through the workflow trigger; a block entry requires an exact source run.",
                     "oneOf": [
                       {
                         "type": "object",
@@ -17428,15 +17840,15 @@
                           "type": {
                             "type": "string",
                             "const": "trigger",
-                            "description": "Enter the manual run through a runnable trigger."
+                            "description": "Enter the draft run through a runnable trigger."
                           },
                           "blockId": {
                             "description": "Runnable trigger block to enter through. Omit only when the saved workflow has exactly one runnable trigger.",
                             "type": "string",
                             "minLength": 1
                           },
-                          "useMockPayload": {
-                            "description": "Use the selected trigger's server-derived mock payload. Cannot be combined with `input`.",
+                          "sample": {
+                            "description": "Run with the selected trigger's sample payload, which the server derives from the trigger, instead of `input`. Its writes are sent unless `dry`. Cannot be combined with `input`.",
                             "type": "boolean"
                           }
                         },
@@ -17449,17 +17861,17 @@
                           "type": {
                             "type": "string",
                             "const": "block",
-                            "description": "Resume manual execution at a block using persisted upstream state."
+                            "description": "Start the draft run at a block, using persisted upstream state."
                           },
                           "blockId": {
                             "type": "string",
                             "minLength": 1,
-                            "description": "Saved workflow block at which manual execution should resume: its id, display name or reference key (the name lowercased, whitespace and dots removed)."
+                            "description": "Saved workflow block at which the draft run starts: its id, display name or reference key (the name lowercased, whitespace and dots removed)."
                           },
                           "sourceRunId": {
                             "type": "string",
                             "minLength": 1,
-                            "description": "Run in this workflow whose persisted execution state supplies upstream block results. Missing or expired state returns 404."
+                            "description": "Run in this workflow whose persisted execution state supplies upstream block results. Missing or expired state returns 404. A test run (a dry run, or a workflow test) holds placeholders for the writes it did not send, so it is the source only of a `dry` run."
                           }
                         },
                         "required": ["type", "blockId", "sourceRunId"],
@@ -17471,6 +17883,64 @@
                     "description": "Saved workflow block after which the run stops (its id, display name or reference key); downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.",
                     "type": "string",
                     "minLength": 1
+                  },
+                  "dry": {
+                    "description": "Dry run: a call that could change something outside the run (a tool call not declared `read`, every MCP call, an HTTP request other than a GET, HEAD or OPTIONS without a method-override header) is not sent but answered with a correctly shaped placeholder, and the run returns what it held back in `sideEffects`, each list described there. Reads, model calls, credential resolution and code run for real. Child workflows inherit it; custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole, so the run never pauses. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event, does not count as a run of the workflow, and is logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`.",
+                    "type": "boolean"
+                  },
+                  "allow": {
+                    "description": "Blocks whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. Name a block of this workflow by id, display name or reference key, or a block of a workflow it calls as `<workflow>.<block>` (the workflow's id or name, then the block's id, name or key), at most 256 characters. A selector holding a dot names a block of this workflow only by its exact id or display name; otherwise its workflow part is matched against the workflows its Workflow blocks call at any depth, then, for a child chosen as the run goes, a workflow of this workspace by id or exact name. A selector matching several blocks is refused with them. A child's entry applies wherever that workflow runs, at every depth. A Human in the loop or Wait block, a block that runs another workflow (a Workflow or custom block), a loop or parallel, a disabled block, or a block of a workflow reached only as a custom block's cannot be allowed. Allowing an Agent sends only its own tool calls: a workflow or custom block it calls stays stubbed. An entry the run never reaches is listed in `sideEffects.unreached`.",
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  },
+                  "mocks": {
+                    "description": "Blocks answered with this output object instead of running, to steer branches or give a stubbed write a realistic result, keyed like `allow` entries (a block of this workflow, or `<workflow>.<block>` of a workflow it calls). Requires `dry`. A locked block (or one inside a locked loop or parallel), a loop or parallel, and a disabled block cannot be mocked; a block of a locked workflow, or of one in a locked folder, returns `423`. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`), nor hold a large-value reference (an object with `__simLargeValueRef`). A field the block does not declare is listed in `sideEffects.mockFields`, not refused. The run records only which blocks were mocked, so a rerun passes the outputs again; its log shows a mocked block’s output like any other block’s.",
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "maxLength": 256,
+                      "description": "Block selector."
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "description": "Output field."
+                      },
+                      "description": "Output object that answers the block instead of its handler."
+                    },
+                    "maxProperties": 50
+                  },
+                  "mocksFrom": {
+                    "description": "Answer blocks with their outputs in an earlier run of this workflow. Requires `dry`. The run records the source run and blocks, so a rerun names them again.",
+                    "type": "object",
+                    "properties": {
+                      "runId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Run of this workflow whose recorded block outputs answer the blocks. An unknown or expired run returns `404`; one still running, or whose log is not written yet, `409`; reading it needs what reading the run does, and a permission group that hides execution data returns `403`."
+                      },
+                      "blocks": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "description": "This workflow's blocks (not a child's; not inside a loop or parallel unless that run mocked it), by id, display name or reference key, answered with the output each recorded in that run, redacted as the run shows it. Refused: a block the run did not execute, and, when that run was a test run, a block it answered with a placeholder rather than mocking or allowing it. Fields a mock cannot set (see `mocks`) are left out and listed in `sideEffects.mockFields`; an output holding a large-value reference is refused. Other refusals are those of `mocks`, and a block cannot be named here and in `mocks` both."
+                      }
+                    },
+                    "required": ["runId", "blocks"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["source"],
@@ -17553,18 +18023,18 @@
           },
           {
             "run": {
-              "source": "manual"
+              "source": "draft"
             }
           },
           {
             "run": {
-              "source": "manual"
+              "source": "draft"
             },
             "waitTimeoutSeconds": 240
           },
           {
             "run": {
-              "source": "manual",
+              "source": "draft",
               "entry": {
                 "type": "block",
                 "blockId": "block_123",
@@ -17574,7 +18044,7 @@
           },
           {
             "run": {
-              "source": "manual",
+              "source": "draft",
               "entry": {
                 "type": "block",
                 "blockId": "block_123",
@@ -18248,6 +18718,10 @@
                     "type": "number",
                     "description": "Number of pause points that have resumed."
                   },
+                  "runId": {
+                    "type": "string",
+                    "description": "Run to name in Resume workflow run: the run this pause is recorded under, which for a resumed run that paused again is the run it resumed."
+                  },
                   "points": {
                     "type": "array",
                     "items": {
@@ -18265,6 +18739,7 @@
                   "automaticResumeWaitingReason",
                   "pausePointCount",
                   "resumedCount",
+                  "runId",
                   "points"
                 ],
                 "additionalProperties": false
@@ -18346,6 +18821,17 @@
               }
             ],
             "description": "Run-produced files when `includeOutput=true`, or null when not requested or execution data is hidden by organization permission groups."
+          },
+          "overrides": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowRunOverrides"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A failed dry run's overrides, which a rerun of it passes again; null for any other run, or when execution data is hidden by organization permission groups."
           }
         },
         "required": [
@@ -18362,7 +18848,8 @@
           "error",
           "output",
           "blockOutputs",
-          "files"
+          "files",
+          "overrides"
         ],
         "additionalProperties": false,
         "title": "Workflow run status",
@@ -18409,7 +18896,8 @@
                   "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a/files/file_1a2b3c",
                   "base64": null
                 }
-              ]
+              ],
+              "overrides": null
             }
           }
         ]
@@ -18457,7 +18945,40 @@
           "error": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ExecutionError"
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "Human-readable workflow execution failure message."
+                  },
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "TIMEOUT",
+                      "CANCELLED",
+                      "USAGE_LIMIT_EXCEEDED",
+                      "INVALID_INPUT",
+                      "BLOCK_EXECUTION_FAILED",
+                      "CHILD_WORKFLOW_FAILED",
+                      "EXECUTION_FAILED"
+                    ],
+                    "description": "Stable machine-readable execution failure code. `BLOCK_EXECUTION_FAILED` and `CHILD_WORKFLOW_FAILED` are reported only where block attribution is available; elsewhere a block-level failure is reported as `EXECUTION_FAILED`."
+                  },
+                  "blockId": {
+                    "description": "Identifier of the failing block, when attributable. Get workflow run reads it from the run trace, so it is absent there when the trace is unavailable or hidden by organization permission groups, when no failed block in the trace recorded the run error, and for a timeout, cancellation, usage-limit, or invalid-input failure.",
+                    "type": "string"
+                  },
+                  "blockName": {
+                    "description": "Display name of the failing block, when attributable. Present whenever `blockId` is.",
+                    "type": "string"
+                  },
+                  "blockType": {
+                    "description": "Integration or block type that failed, when attributable. Present whenever `blockId` is.",
+                    "type": "string"
+                  }
+                },
+                "required": ["message", "code"],
+                "additionalProperties": false
               },
               {
                 "type": "null"
@@ -18479,9 +19000,53 @@
             "description": "Execution duration in milliseconds.",
             "type": "number",
             "minimum": 0
+          },
+          "paused": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string",
+                    "description": "Run to name in Resume workflow run: the run this pause is recorded under, which for a resumed run that paused again is the run it resumed."
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "contextId": {
+                          "type": "string",
+                          "description": "Pause context to name in `contextId` when resuming this point."
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["human", "time"],
+                          "description": "`human` waits for a resume request; `time` resumes automatically at `resumeAt`."
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["paused", "queued", "resuming", "resumed", "failed"],
+                          "description": "Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt."
+                        }
+                      },
+                      "required": ["contextId", "kind", "status"],
+                      "additionalProperties": false
+                    },
+                    "description": "Every point the run is paused at. Resume one with Resume workflow run, naming `runId` and its `contextId`."
+                  }
+                },
+                "required": ["runId", "points"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the run waits when `status` is `paused`; null otherwise."
           }
         },
-        "required": ["runId", "workflowId", "status", "output", "blockOutputs", "error"],
+        "required": ["runId", "workflowId", "status", "output", "blockOutputs", "error", "paused"],
         "additionalProperties": false,
         "title": "Workflow resume result",
         "description": "Synchronous resumed run output and in-band execution status. Run failures are reported in band, not as HTTP errors, so branch on `status`."
@@ -18511,7 +19076,8 @@
               "error": null,
               "startedAt": "2026-08-09T18:04:10.000Z",
               "endedAt": "2026-08-09T18:04:11.000Z",
-              "durationMs": 1000
+              "durationMs": 1000,
+              "paused": null
             }
           }
         ]
@@ -19090,10 +19656,9 @@
                 "type": "object",
                 "properties": {
                   "version": {
-                    "default": 1,
-                    "description": "Base format version; a base written before it existed reads as 1.",
                     "type": "number",
-                    "const": 1
+                    "const": 1,
+                    "description": "Base format version."
                   },
                   "workflowId": {
                     "type": "string",
@@ -19149,7 +19714,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_LIMIT_EXCEEDED",
@@ -19223,6 +19787,7 @@
                         "E_CODE_FILE_PATH",
                         "W_CODE_FILE_INLINED",
                         "W_CODE_FILE_REF_SYNTAX",
+                        "W_CODE_FILE_REF_QUOTED",
                         "W_UNRESOLVED_REF",
                         "W_FORWARD_REF_LITERALIZED",
                         "W_COMMENT_MOVED",
@@ -19305,7 +19870,9 @@
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
                         "E_NAME_TAKEN",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `W_CANON_UNRESOLVED_ID`."
                     },
@@ -19406,9 +19973,9 @@
                 "type": "string",
                 "description": "Workspace id."
               },
-              "dryRun": {
+              "dry": {
                 "type": "boolean",
-                "description": "True when nothing was written because `dryRun` was set."
+                "description": "True when nothing was written because `dry` was set."
               },
               "applied": {
                 "type": "boolean",
@@ -19625,7 +20192,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_LIMIT_EXCEEDED",
@@ -19699,6 +20265,7 @@
                         "E_CODE_FILE_PATH",
                         "W_CODE_FILE_INLINED",
                         "W_CODE_FILE_REF_SYNTAX",
+                        "W_CODE_FILE_REF_QUOTED",
                         "W_UNRESOLVED_REF",
                         "W_FORWARD_REF_LITERALIZED",
                         "W_COMMENT_MOVED",
@@ -19781,7 +20348,9 @@
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
                         "E_NAME_TAKEN",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -20008,10 +20577,9 @@
                 "type": "object",
                 "properties": {
                   "version": {
-                    "default": 1,
-                    "description": "Base format version; a base written before it existed reads as 1.",
                     "type": "number",
-                    "const": 1
+                    "const": 1,
+                    "description": "Base format version."
                   },
                   "workflowId": {
                     "type": "string",
@@ -20056,15 +20624,28 @@
                 },
                 "description": "Non-fatal notes about the write."
               },
+              "deployedVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The live deployment version `needsRedeployment` compares the draft against, or null when the workflow is not deployed."
+              },
               "needsRedeployment": {
                 "type": "boolean",
-                "description": "Whether the draft now differs from the live deployment; apply never deploys."
+                "description": "Whether the draft now differs from the live deployment; apply never deploys. False when nothing is deployed, so read it beside `deployedVersion`."
               }
             },
             "required": [
               "workflowId",
               "workspaceId",
-              "dryRun",
+              "dry",
               "applied",
               "diff",
               "diagnostics",
@@ -20073,6 +20654,7 @@
               "base",
               "mintedIds",
               "notes",
+              "deployedVersion",
               "needsRedeployment"
             ],
             "additionalProperties": false,
@@ -20088,7 +20670,7 @@
             "data": {
               "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-              "dryRun": false,
+              "dry": false,
               "applied": false,
               "diff": {
                 "noop": true,
@@ -20134,6 +20716,7 @@
               },
               "mintedIds": {},
               "notes": [],
+              "deployedVersion": 3,
               "needsRedeployment": false
             }
           }
@@ -20299,10 +20882,9 @@
             "type": "object",
             "properties": {
               "version": {
-                "default": 1,
-                "description": "Base format version; a base written before it existed reads as 1.",
                 "type": "number",
-                "const": 1
+                "const": 1,
+                "description": "Base format version."
               },
               "workflowId": {
                 "type": "string",
@@ -20324,7 +20906,7 @@
                 "description": "Hash of the block catalog the source was printed against."
               }
             },
-            "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
+            "required": ["version", "workflowId", "workspaceId", "fingerprint", "catalogHash"],
             "additionalProperties": {
               "description": "An `x-` extension field, kept verbatim."
             },
@@ -20374,9 +20956,9 @@
                 "type": "string",
                 "description": "Workspace id."
               },
-              "dryRun": {
+              "dry": {
                 "type": "boolean",
-                "description": "True when nothing was written because `dryRun` was set."
+                "description": "True when nothing was written because `dry` was set."
               },
               "applied": {
                 "type": "boolean",
@@ -20593,7 +21175,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_LIMIT_EXCEEDED",
@@ -20667,6 +21248,7 @@
                         "E_CODE_FILE_PATH",
                         "W_CODE_FILE_INLINED",
                         "W_CODE_FILE_REF_SYNTAX",
+                        "W_CODE_FILE_REF_QUOTED",
                         "W_UNRESOLVED_REF",
                         "W_FORWARD_REF_LITERALIZED",
                         "W_COMMENT_MOVED",
@@ -20749,7 +21331,9 @@
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
                         "E_NAME_TAKEN",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -20976,10 +21560,9 @@
                 "type": "object",
                 "properties": {
                   "version": {
-                    "default": 1,
-                    "description": "Base format version; a base written before it existed reads as 1.",
                     "type": "number",
-                    "const": 1
+                    "const": 1,
+                    "description": "Base format version."
                   },
                   "workflowId": {
                     "type": "string",
@@ -21024,15 +21607,28 @@
                 },
                 "description": "Non-fatal notes about the write."
               },
+              "deployedVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The live deployment version `needsRedeployment` compares the draft against, or null when the workflow is not deployed."
+              },
               "needsRedeployment": {
                 "type": "boolean",
-                "description": "Whether the draft now differs from the live deployment; apply never deploys."
+                "description": "Whether the draft now differs from the live deployment; apply never deploys. False when nothing is deployed, so read it beside `deployedVersion`."
               }
             },
             "required": [
               "workflowId",
               "workspaceId",
-              "dryRun",
+              "dry",
               "applied",
               "diff",
               "diagnostics",
@@ -21041,6 +21637,7 @@
               "base",
               "mintedIds",
               "notes",
+              "deployedVersion",
               "needsRedeployment"
             ],
             "additionalProperties": false,
@@ -21056,7 +21653,7 @@
             "data": {
               "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-              "dryRun": true,
+              "dry": true,
               "applied": false,
               "diff": {
                 "noop": true,
@@ -21102,6 +21699,7 @@
               },
               "mintedIds": {},
               "notes": [],
+              "deployedVersion": 3,
               "needsRedeployment": false
             }
           }
@@ -21267,10 +21865,9 @@
             "type": "object",
             "properties": {
               "version": {
-                "default": 1,
-                "description": "Base format version; a base written before it existed reads as 1.",
                 "type": "number",
-                "const": 1
+                "const": 1,
+                "description": "Base format version."
               },
               "workflowId": {
                 "type": "string",
@@ -21292,7 +21889,7 @@
                 "description": "Hash of the block catalog the source was printed against."
               }
             },
-            "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
+            "required": ["version", "workflowId", "workspaceId", "fingerprint", "catalogHash"],
             "additionalProperties": {
               "description": "An `x-` extension field, kept verbatim."
             },
@@ -21318,9 +21915,9 @@
                 "type": "string",
                 "description": "Workspace id."
               },
-              "dryRun": {
+              "dry": {
                 "type": "boolean",
-                "description": "True when nothing was written because `dryRun` was set."
+                "description": "True when nothing was written because `dry` was set."
               },
               "applied": {
                 "type": "boolean",
@@ -21537,7 +22134,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_LIMIT_EXCEEDED",
@@ -21611,6 +22207,7 @@
                         "E_CODE_FILE_PATH",
                         "W_CODE_FILE_INLINED",
                         "W_CODE_FILE_REF_SYNTAX",
+                        "W_CODE_FILE_REF_QUOTED",
                         "W_UNRESOLVED_REF",
                         "W_FORWARD_REF_LITERALIZED",
                         "W_COMMENT_MOVED",
@@ -21693,7 +22290,9 @@
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
                         "E_NAME_TAKEN",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -21920,10 +22519,9 @@
                 "type": "object",
                 "properties": {
                   "version": {
-                    "default": 1,
-                    "description": "Base format version; a base written before it existed reads as 1.",
                     "type": "number",
-                    "const": 1
+                    "const": 1,
+                    "description": "Base format version."
                   },
                   "workflowId": {
                     "type": "string",
@@ -21968,15 +22566,28 @@
                 },
                 "description": "Non-fatal notes about the write."
               },
+              "deployedVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The live deployment version `needsRedeployment` compares the draft against, or null when the workflow is not deployed."
+              },
               "needsRedeployment": {
                 "type": "boolean",
-                "description": "Whether the draft now differs from the live deployment; apply never deploys."
+                "description": "Whether the draft now differs from the live deployment; apply never deploys. False when nothing is deployed, so read it beside `deployedVersion`."
               }
             },
             "required": [
               "workflowId",
               "workspaceId",
-              "dryRun",
+              "dry",
               "applied",
               "diff",
               "diagnostics",
@@ -21985,6 +22596,7 @@
               "base",
               "mintedIds",
               "notes",
+              "deployedVersion",
               "needsRedeployment"
             ],
             "additionalProperties": false,
@@ -22000,7 +22612,7 @@
             "data": {
               "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-              "dryRun": false,
+              "dry": false,
               "applied": true,
               "diff": {
                 "noop": false,
@@ -22054,6 +22666,7 @@
                 "start": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77"
               },
               "notes": [],
+              "deployedVersion": null,
               "needsRedeployment": false
             }
           }
@@ -22469,7 +23082,7 @@
                 {
                   "key": "lookup-order",
                   "id": "ctl_2b8d6f03",
-                  "name": "lookup_order"
+                  "name": "Lookup order"
                 }
               ],
               "mcpServers": [
@@ -26394,16 +27007,7 @@
                                 "description": "Stored id of the binary file."
                               },
                               "rev": {
-                                "anyOf": [
-                                  {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
-                                  },
-                                  {
-                                    "type": "string"
-                                  }
-                                ],
+                                "type": "string",
                                 "description": "Content revision as last read."
                               },
                               "sha256": {
@@ -26598,7 +27202,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_INVALID_CHARACTER",
@@ -26670,6 +27273,7 @@
                         "E_CODE_FILE_PATH",
                         "W_CODE_FILE_INLINED",
                         "W_CODE_FILE_REF_SYNTAX",
+                        "W_CODE_FILE_REF_QUOTED",
                         "W_UNRESOLVED_REF",
                         "W_FORWARD_REF_LITERALIZED",
                         "W_COMMENT_MOVED",
@@ -26750,7 +27354,9 @@
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },
@@ -26891,9 +27497,9 @@
                 "type": "string",
                 "description": "Workspace id."
               },
-              "dryRun": {
+              "dry": {
                 "type": "boolean",
-                "description": "True when nothing was written because `dryRun` was set."
+                "description": "True when nothing was written because `dry` was set."
               },
               "plan": {
                 "type": "array",
@@ -27183,7 +27789,6 @@
                       "E_SYNTAX",
                       "E_SDK_HEADER",
                       "E_SDK_MAJOR",
-                      "E_SDK_MAJOR_OLD",
                       "E_UNSUPPORTED_SYNTAX",
                       "E_WORKFLOW_EXPORT",
                       "E_INVALID_CHARACTER",
@@ -27255,6 +27860,7 @@
                       "E_CODE_FILE_PATH",
                       "W_CODE_FILE_INLINED",
                       "W_CODE_FILE_REF_SYNTAX",
+                      "W_CODE_FILE_REF_QUOTED",
                       "W_UNRESOLVED_REF",
                       "W_FORWARD_REF_LITERALIZED",
                       "W_COMMENT_MOVED",
@@ -27335,7 +27941,9 @@
                       "E_APPLY_INVALID_SCHEDULE",
                       "E_APPLY_BLOCK_DELETE",
                       "E_APPLY_VARIABLE_DELETE",
-                      "E_WORKFLOW_META_INVALID"
+                      "E_WORKFLOW_META_INVALID",
+                      "E_TYPE",
+                      "W_TYPES_UNCHECKED"
                     ],
                     "description": "Diagnostic code."
                   },
@@ -27438,16 +28046,7 @@
                                 "description": "Stored id of the binary file."
                               },
                               "rev": {
-                                "anyOf": [
-                                  {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
-                                  },
-                                  {
-                                    "type": "string"
-                                  }
-                                ],
+                                "type": "string",
                                 "description": "Content revision as last read."
                               },
                               "sha256": {
@@ -27607,7 +28206,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_INVALID_CHARACTER",
@@ -27679,6 +28277,7 @@
                         "E_CODE_FILE_PATH",
                         "W_CODE_FILE_INLINED",
                         "W_CODE_FILE_REF_SYNTAX",
+                        "W_CODE_FILE_REF_QUOTED",
                         "W_UNRESOLVED_REF",
                         "W_FORWARD_REF_LITERALIZED",
                         "W_COMMENT_MOVED",
@@ -27759,7 +28358,9 @@
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },
@@ -27838,7 +28439,7 @@
             },
             "required": [
               "workspaceId",
-              "dryRun",
+              "dry",
               "plan",
               "applied",
               "needBlobs",
@@ -27858,7 +28459,7 @@
           {
             "data": {
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-              "dryRun": false,
+              "dry": false,
               "plan": [
                 {
                   "kind": "table",
@@ -28010,16 +28611,7 @@
                             "description": "Stored id of the binary file."
                           },
                           "rev": {
-                            "anyOf": [
-                              {
-                                "type": "integer",
-                                "minimum": -9007199254740991,
-                                "maximum": 9007199254740991
-                              },
-                              {
-                                "type": "string"
-                              }
-                            ],
+                            "type": "string",
                             "description": "Content revision as last read."
                           },
                           "sha256": {
@@ -28189,9 +28781,9 @@
                 "type": "string",
                 "description": "Workspace id."
               },
-              "dryRun": {
+              "dry": {
                 "type": "boolean",
-                "description": "True when nothing was written because `dryRun` was set."
+                "description": "True when nothing was written because `dry` was set."
               },
               "plan": {
                 "type": "array",
@@ -28481,7 +29073,6 @@
                       "E_SYNTAX",
                       "E_SDK_HEADER",
                       "E_SDK_MAJOR",
-                      "E_SDK_MAJOR_OLD",
                       "E_UNSUPPORTED_SYNTAX",
                       "E_WORKFLOW_EXPORT",
                       "E_INVALID_CHARACTER",
@@ -28553,6 +29144,7 @@
                       "E_CODE_FILE_PATH",
                       "W_CODE_FILE_INLINED",
                       "W_CODE_FILE_REF_SYNTAX",
+                      "W_CODE_FILE_REF_QUOTED",
                       "W_UNRESOLVED_REF",
                       "W_FORWARD_REF_LITERALIZED",
                       "W_COMMENT_MOVED",
@@ -28633,7 +29225,9 @@
                       "E_APPLY_INVALID_SCHEDULE",
                       "E_APPLY_BLOCK_DELETE",
                       "E_APPLY_VARIABLE_DELETE",
-                      "E_WORKFLOW_META_INVALID"
+                      "E_WORKFLOW_META_INVALID",
+                      "E_TYPE",
+                      "W_TYPES_UNCHECKED"
                     ],
                     "description": "Diagnostic code."
                   },
@@ -28736,16 +29330,7 @@
                                 "description": "Stored id of the binary file."
                               },
                               "rev": {
-                                "anyOf": [
-                                  {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
-                                  },
-                                  {
-                                    "type": "string"
-                                  }
-                                ],
+                                "type": "string",
                                 "description": "Content revision as last read."
                               },
                               "sha256": {
@@ -28905,7 +29490,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_INVALID_CHARACTER",
@@ -28977,6 +29561,7 @@
                         "E_CODE_FILE_PATH",
                         "W_CODE_FILE_INLINED",
                         "W_CODE_FILE_REF_SYNTAX",
+                        "W_CODE_FILE_REF_QUOTED",
                         "W_UNRESOLVED_REF",
                         "W_FORWARD_REF_LITERALIZED",
                         "W_COMMENT_MOVED",
@@ -29057,7 +29642,9 @@
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },
@@ -29136,7 +29723,7 @@
             },
             "required": [
               "workspaceId",
-              "dryRun",
+              "dry",
               "plan",
               "applied",
               "needBlobs",
@@ -29156,7 +29743,7 @@
           {
             "data": {
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-              "dryRun": true,
+              "dry": true,
               "plan": [
                 {
                   "kind": "table",
@@ -29308,16 +29895,7 @@
                             "description": "Stored id of the binary file."
                           },
                           "rev": {
-                            "anyOf": [
-                              {
-                                "type": "integer",
-                                "minimum": -9007199254740991,
-                                "maximum": 9007199254740991
-                              },
-                              {
-                                "type": "string"
-                              }
-                            ],
+                            "type": "string",
                             "description": "Content revision as last read."
                           },
                           "sha256": {

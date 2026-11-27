@@ -7,6 +7,7 @@ export const updateGroupTool: ToolConfig<GoogleGroupsUpdateParams, GoogleGroupsR
   name: 'Google Groups Update Group',
   description: 'Update an existing Google Group',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

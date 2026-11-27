@@ -8,6 +8,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   description:
     'Search the web and return top 5 results with LLM-friendly content. Each result is automatically processed through Jina Reader API. Supports geographic filtering, site restrictions, and pagination.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     q: {

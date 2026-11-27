@@ -18,6 +18,7 @@ export const rabbitmqListVhostsTool: ToolConfig<
   description:
     'List the virtual hosts on the broker with their message totals, so you can discover which scopes exist.',
   version: '1.0.0',
+  effect: 'read',
 
   params: { ...RABBITMQ_CONNECTION_PARAMS },
 

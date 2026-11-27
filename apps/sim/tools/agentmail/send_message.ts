@@ -8,6 +8,7 @@ export const agentmailSendMessageTool: ToolConfig<SendMessageParams, SendMessage
   name: 'Send Message',
   description: 'Send an email message from an AgentMail inbox',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

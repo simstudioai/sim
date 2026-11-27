@@ -12,6 +12,7 @@ export const deleteZoneTool: ToolConfig<CloudflareDeleteZoneParams, CloudflareDe
     name: 'Cloudflare Delete Zone',
     description: 'Deletes a zone (domain) from the Cloudflare account.',
     version: '1.0.0',
+    effect: 'write',
     oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
     params: {

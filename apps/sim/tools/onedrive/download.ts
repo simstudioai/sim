@@ -6,6 +6,7 @@ export const downloadTool: InternalToolConfig<OneDriveToolParams, OneDriveDownlo
   name: 'Download File from OneDrive',
   description: 'Download a file from OneDrive',
   version: '1.0',
+  effect: 'read',
 
   oauth: {
     required: true,

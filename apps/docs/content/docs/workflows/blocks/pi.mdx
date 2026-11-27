@@ -232,7 +232,7 @@ Enable the Pi sandbox as below and supply a provider BYOK key. For private repos
 
 Create PR runs in a sandbox image with the Pi CLI, Git, Node.js, and Bun baked in. Repository dependencies are not preinstalled; Pi can run `bun install` when a repository needs them.
 
-1. **Enable sandbox execution.** On self-hosted Sim, set `E2B_ENABLED=true`, `E2B_API_KEY`, `E2B_PI_TEMPLATE_ID` (the Pi template id), and `NEXT_PUBLIC_E2B_ENABLED=true` (this reveals Plan, Create PR, Update PR, and Review Code in the UI). Build the template with `bun run apps/sim/scripts/build-pi-e2b-template.ts`. These modes stay hidden until `NEXT_PUBLIC_E2B_ENABLED` is set.
+1. **Enable sandbox execution.** On self-hosted Sim, set `E2B_ENABLED=true`, `E2B_API_KEY`, and `E2B_PI_TEMPLATE_ID` (the Pi template id). Build the template with `bun run apps/sim/scripts/build-pi-e2b-template.ts`. Plan, Create PR, Update PR, and Review Code stay hidden until `E2B_ENABLED` is set.
 
    The repository template requests **4 vCPU and 8 GiB of RAM**. Confirm your account’s build and session limits against [E2B pricing](https://e2b.dev/pricing); account limits can be lower than Sim’s requested lifetime. Sizing is fixed when the template is built — E2B has no per-sandbox override — so changing it means rebuilding the template, not restarting Sim. Sandboxes are billed per second against the resources they are allocated, not the ones they use. Both numbers live in `apps/sim/scripts/pi-sandbox-packages.ts` and are shared with the Daytona snapshot so the failover image cannot drift from the primary.
 

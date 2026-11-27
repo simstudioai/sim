@@ -14,6 +14,7 @@ export const addUserTagsTool: ToolConfig<ThriveAddUserTagsParams, ThriveMessageR
   name: 'Thrive Add User Tags',
   description: 'Add one or more tags to a learner in Thrive.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

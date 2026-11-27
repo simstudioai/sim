@@ -24,6 +24,7 @@ export const monacoUnlinkOpportunityContactsTool: ToolConfig<
   description:
     'Unlink one or more contacts from a Monaco opportunity. Contacts that are not currently linked are recorded as removed so they stay off the opportunity.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

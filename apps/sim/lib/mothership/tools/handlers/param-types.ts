@@ -11,7 +11,9 @@ export interface RunWorkflowParams {
   async?: boolean
   /** Optional trigger block ID when the workflow has multiple entrypoints and the caller wants a specific one. */
   triggerBlockId?: string
-  /** When true, run with the resolved trigger's generated mock payload instead of workflow_input. */
+  /** When true, run with the resolved trigger's sample payload instead of workflow_input. */
+  sample?: boolean
+  /** The former name of `sample`, accepted until the Mothership tool contract sends `sample`. */
   useMockPayload?: boolean
   /** Reuse the recorded input from a past execution of this workflow instead of supplying workflow_input. */
   inputFromExecutionId?: string
@@ -32,7 +34,9 @@ export interface RunWorkflowUntilBlockParams {
   input?: unknown
   /** Optional trigger block ID when the workflow has multiple entrypoints and the caller wants a specific one. */
   triggerBlockId?: string
-  /** When true, run with the resolved trigger's generated mock payload instead of workflow_input. */
+  /** When true, run with the resolved trigger's sample payload instead of workflow_input. */
+  sample?: boolean
+  /** The former name of `sample`, accepted until the Mothership tool contract sends `sample`. */
   useMockPayload?: boolean
   /** Reuse the recorded input from a past execution of this workflow instead of supplying workflow_input. */
   inputFromExecutionId?: string

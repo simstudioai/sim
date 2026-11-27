@@ -14,6 +14,7 @@ export const googleAdsCampaignPerformanceTool: ToolConfig<
   name: 'Google Ads Campaign Performance',
   description: 'Get performance metrics for Google Ads campaigns over a date range',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

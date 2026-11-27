@@ -8,6 +8,7 @@ export const reactTool: ToolConfig<DSPyReActParams, DSPyReActResponse> = {
   description:
     'Run a ReAct agent using a self-hosted DSPy ReAct program endpoint for multi-step reasoning and action',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     baseUrl: {

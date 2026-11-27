@@ -13,6 +13,7 @@ export const getFunctionConcurrencyTool: InternalToolConfig<
   name: 'Lambda Get Function Concurrency',
   description: 'Get the reserved concurrency configured for a function',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

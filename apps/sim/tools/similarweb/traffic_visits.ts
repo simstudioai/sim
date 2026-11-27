@@ -13,6 +13,7 @@ export const similarwebTrafficVisitsTool: ToolConfig<
   name: 'SimilarWeb Traffic Visits',
   description: 'Get total website visits over time (desktop and mobile combined)',
   version: '1.0.0',
+  effect: 'read',
   oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {

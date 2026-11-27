@@ -11,6 +11,8 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
   name: 'Write to Google Slides Presentation',
   description: 'Write or update content in a Google Slides presentation',
   version: '1.0',
+  // tool-effect: the GET reads the presentation; postProcess then writes the slides with batchUpdate
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'google-drive',

@@ -15,6 +15,7 @@ export const rootlyAcknowledgeAlertTool: ToolConfig<
   name: 'Rootly Acknowledge Alert',
   description: 'Acknowledge an alert in Rootly.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

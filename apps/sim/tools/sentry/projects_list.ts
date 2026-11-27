@@ -10,6 +10,7 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
   description:
     'List all projects in a Sentry organization. Returns project details including name, platform, teams, and configuration.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {

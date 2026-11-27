@@ -14,6 +14,7 @@ export const hubspotCreateEmailTool: ToolConfig<
   description:
     'Log an email engagement in HubSpot and optionally associate it with contacts. Requires the hs_timestamp property',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

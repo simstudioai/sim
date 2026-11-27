@@ -19,6 +19,7 @@ export const rocketlaneUpdateFieldTool: ToolConfig<
   description:
     'Update the label, description, enabled state, or privacy of an existing Rocketlane field',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

@@ -7,6 +7,7 @@ export const updateVectorTool: ToolConfig<PineconeUpdateVectorParams, PineconeRe
   name: 'Pinecone Update Vector',
   description: 'Update the values, sparse values, or metadata of a vector in a Pinecone namespace',
   version: '1.0',
+  effect: 'write',
 
   params: {
     indexHost: {

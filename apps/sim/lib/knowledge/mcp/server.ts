@@ -22,6 +22,7 @@ import {
   recordOrganizationSearchMcpActivity,
   type SearchMcpActivityInput,
 } from '@/lib/knowledge/mcp/activity'
+import { registerSearchPeopleTool } from '@/lib/knowledge/mcp/people'
 import { shareReadBudget } from '@/lib/knowledge/mcp/read-budget'
 import {
   KNOWLEDGE_MCP_READ_ONLY,
@@ -32,6 +33,7 @@ import { toolError } from '@/lib/mcp/tool-result'
 import {
   LIVE_DATE_ORDER_MESSAGE,
   LIVE_MORE_RANKED_BELOW_MESSAGE,
+  LIVE_NO_PERSON_FILTER_MESSAGE,
   LIVE_NOT_STARTED_MESSAGE,
   LIVE_OVER_ACCOUNT_LIMIT_MESSAGE,
   readLiveDocument,
@@ -92,6 +94,7 @@ const LIVE_ACCOUNT_NOTES = {
   dateOrderPartial: LIVE_DATE_ORDER_MESSAGE,
   notSearchedByDeadline: LIVE_NOT_STARTED_MESSAGE,
   notSearchedOverLimit: LIVE_OVER_ACCOUNT_LIMIT_MESSAGE,
+  notFilteredByPerson: LIVE_NO_PERSON_FILTER_MESSAGE,
 }
 
 /**
@@ -158,6 +161,8 @@ interface KnowledgeMcpContext {
   organizationId: string
   request: NextRequest
   auth: V2ApiKeyAuthContext
+  /** Registers search_people, which its use cases authorize on every call. */
+  searchPeople?: boolean
 }
 
 /** A request owns its server; no credential or principal survives into another HTTP request. */
@@ -234,7 +239,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     async (input: unknown, extra: { signal: AbortSignal }) =>
       execute('search', knowledgeOperations.search, extra.signal, async (registry, signal) => {
         const parsed = liveSearchMcpSchema.parse(input)
-        const { query, topK, nativeQueries, ...filters } = parsed
+        const { query, topK, nativeQueries, involving, ...filters } = parsed
         const result = await searchLiveKnowledge.execute({
           principal,
           input: {
@@ -243,6 +248,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
             query,
             topK: topK ?? liveSearchMcpDefaultTopK(parsed),
             nativeQueries,
+            involving,
             filters,
             resultSecretRegistry: registry,
             signal,
@@ -272,7 +278,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     {
       title: 'Read document',
       description:
-        'Read live documents using the exact document IDs returned by search: documentId for one, or documentIds to read several in one call rather than one call each. Access and the admin’s source settings are checked again on every read. When a document’s hasMore is true, pass its next.startChunkIndex and next.startOffset with the same documentId to continue. Cite citationUrl when available.',
+        'Read live documents using the exact document IDs returned by search: documentId for one, or documentIds to read several in one call rather than one call each. A link the user shares to a Google Drive, Gmail, Calendar, Slack, Jira, Confluence, GitHub, GitLab, Linear, Notion or Fireflies item reads the same way, without searching for it first. Access and the admin’s source settings are checked again on every read. When a document’s hasMore is true, pass its next.startChunkIndex and next.startOffset with the returned documentId to continue. Cite citationUrl when available.',
       inputSchema: readLiveDocumentMcpSchema,
       annotations: KNOWLEDGE_MCP_READ_ONLY,
     },
@@ -341,7 +347,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     {
       title: 'Chat',
       description:
-        'Ask the Sim Assistant to research a question in your accessible organization sources and write a cited answer. It runs its own multi-step search, so it usually takes 30 to 60 seconds and returns a synthesized answer rather than the sources. To answer a question yourself, use search and read_document, which return sources in seconds; use chat only when the user asks for the Sim Assistant’s answer. Starts a new private conversation. Use source, modifiedAfter, or documentIds to narrow the evidence. It searches the public web only when your sources lack the answer, and makes no source changes.',
+        'Ask the Sim Assistant to research a question in your accessible organization sources and write a cited answer. It runs its own multi-step search, so it usually takes 30 to 60 seconds and returns a synthesized answer rather than the sources. To answer a question yourself, use search and read_document, which return sources in seconds; use chat only when the user asks for the Sim Assistant’s answer. Starts a new private conversation and returns its chatId; pass that chatId with the next question to ask a follow-up that builds on the earlier answers. Use source, modifiedAfter, or documentIds to narrow the evidence. It searches the public web only when your sources lack the answer, and makes no source changes.',
       inputSchema: chatSearchMcpSchema,
       annotations: {
         readOnlyHint: false,
@@ -350,16 +356,19 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
         openWorldHint: true,
       },
     },
-    async ({ query, ...filters }, extra) =>
+    async ({ query, chatId, ...filters }, extra) =>
       execute('chat', organizationSearchChatOperation, extra.signal, async (registry, signal) => {
         const { organizationSearchChat } = await import('@/lib/knowledge/application/chat')
         const result = await organizationSearchChat.execute({
           principal,
-          input: { organizationId, query, filters, resultSecretRegistry: registry, signal },
+          input: { organizationId, query, chatId, filters, resultSecretRegistry: registry, signal },
         })
         return projectResult(result, registry)
       })
   )
+
+  if (context.searchPeople)
+    registerSearchPeopleTool(server, { execute, principal, organizationId, request })
 
   return server
 }

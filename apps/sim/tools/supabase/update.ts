@@ -9,6 +9,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
   name: 'Supabase Update Row',
   description: 'Update rows in a Supabase table based on filter criteria',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

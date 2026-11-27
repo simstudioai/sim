@@ -19,6 +19,7 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
   name: 'Gmail Search',
   description: 'Search emails in Gmail',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -239,6 +240,7 @@ export const gmailSearchV2Tool: ToolConfig<GmailSearchParams, GmailSearchV2Respo
   name: 'Gmail Search',
   description: 'Search emails in Gmail.',
   version: '2.0.0',
+  effect: 'read',
   oauth: gmailSearchTool.oauth,
   params: gmailSearchTool.params,
   request: gmailSearchTool.request,

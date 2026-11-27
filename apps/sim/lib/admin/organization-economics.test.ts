@@ -6,7 +6,7 @@ import {
 
 describe('getTeamOrganizationEconomics', () => {
   it('derives the pooled Pro allowance and invoice from internal seats', () => {
-    expect(getTeamOrganizationEconomics('team_6000', 3)).toEqual({
+    expect(getTeamOrganizationEconomics({ plan: 'team_6000' }, 3)).toEqual({
       seats: 3,
       planAllowanceDollars: 90,
       monthlyInvoiceAmountUsd: 75,
@@ -14,7 +14,7 @@ describe('getTeamOrganizationEconomics', () => {
   })
 
   it('derives the pooled Max allowance and invoice from internal seats', () => {
-    expect(getTeamOrganizationEconomics('team_25000', 2)).toEqual({
+    expect(getTeamOrganizationEconomics({ plan: 'team_25000' }, 2)).toEqual({
       seats: 2,
       planAllowanceDollars: 250,
       monthlyInvoiceAmountUsd: 200,
@@ -22,7 +22,7 @@ describe('getTeamOrganizationEconomics', () => {
   })
 
   it('does not invent pricing for non-Team plans', () => {
-    expect(getTeamOrganizationEconomics('enterprise', 5)).toBeNull()
+    expect(getTeamOrganizationEconomics({ plan: 'enterprise' }, 5)).toBeNull()
   })
 })
 

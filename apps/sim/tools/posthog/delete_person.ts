@@ -23,6 +23,7 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
     description:
       'Request deletion of one PostHog person. Associated event and recording deletion is not requested. Deletion can be queued asynchronously even when the current result reports no person deleted.',
     version: '1.0.0',
+    effect: 'write',
     errorExtractor: 'posthog-errors',
 
     params: {

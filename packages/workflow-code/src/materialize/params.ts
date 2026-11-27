@@ -3,6 +3,7 @@ import { mcpBinding, mcpToolId } from '../agent-tools'
 import { shouldDecode } from '../canonicalize/params'
 import { decodeToolParam, toolParamDeclaration } from '../canonicalize/tools'
 import type { CatalogSubBlock } from '../catalog/types'
+import { JSON_TEXT_CONTAINER_TYPES, parseJsonContainer } from '../json-text'
 import type { LockItem } from '../lock'
 import type { BlockKey, CanonicalParam, CanonicalTool, SubBlockId } from '../model'
 import { deepEqual, getOwn, parseStoredList, setOwn } from '../records'
@@ -25,11 +26,18 @@ export interface ParamSite {
   forceText: boolean
 }
 
-/** Whether prev stored text, or, with no prev value, the catalog `storage` is `json-string`. */
+/**
+ * Whether prev stored text, or, with no prev value, the catalog `storage` is `json-string`. For a
+ * {@link JSON_TEXT_CONTAINER_TYPES} field, prev text counts only when it encoded a container: a
+ * whole-value reference there is text, and a container written over it is stored native.
+ */
 function storesAsText(site: ParamSite): boolean {
-  return site.prevRaw !== undefined && site.prevRaw !== null
-    ? typeof site.prevRaw === 'string'
-    : site.declaration?.storage === 'json-string'
+  const { prevRaw, declaration } = site
+  if (prevRaw === undefined || prevRaw === null) return declaration?.storage === 'json-string'
+  if (typeof prevRaw !== 'string') return false
+  return declaration && JSON_TEXT_CONTAINER_TYPES.has(declaration.type)
+    ? parseJsonContainer(prevRaw) !== undefined
+    : true
 }
 
 /**

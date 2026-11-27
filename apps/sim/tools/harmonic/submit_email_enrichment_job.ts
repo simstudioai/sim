@@ -22,6 +22,7 @@ export const harmonicSubmitEmailEnrichmentJobTool: ToolConfig<
   description:
     'Queue bulk email enrichment for up to 5,000 people, given either person URNs or LinkedIn profile URLs.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 

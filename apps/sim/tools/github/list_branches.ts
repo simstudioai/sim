@@ -10,6 +10,7 @@ export const listBranchesTool: ToolConfig<ListBranchesParams, BranchListResponse
   description:
     'List all branches in a GitHub repository. Optionally filter by protected status and control pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -145,6 +146,7 @@ export const listBranchesV2Tool: ToolConfig<ListBranchesParams, any> = {
   name: listBranchesTool.name,
   description: listBranchesTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listBranchesTool.params,
   request: listBranchesTool.request,

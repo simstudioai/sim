@@ -30,6 +30,7 @@ export const sportmonksGetTransferTool: ToolConfig<
   name: 'Get Transfer by ID',
   description: 'Retrieve a single transfer by its ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

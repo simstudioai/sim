@@ -10,6 +10,7 @@ export const paidPagesTool: ToolConfig<AhrefsPaidPagesParams, AhrefsPaidPagesRes
   description:
     "Get a target domain's pages that receive paid search traffic, sorted by estimated paid traffic. Returns page URLs with their paid traffic, keyword counts, and estimated spend.",
   version: '1.0.0',
+  effect: 'read',
   oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {

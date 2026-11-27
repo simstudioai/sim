@@ -11,6 +11,7 @@ export const createAliasTool: InternalToolConfig<
   name: 'Lambda Create Alias',
   description: 'Create an alias that points to a published function version',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

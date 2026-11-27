@@ -21,7 +21,7 @@ A billable workflow run can include:
 | Hosted tools | Operation charges when using Sim-provided provider keys |
 | Sandbox runtime | Applicable runtime charges, such as a Pi sandbox |
 
-Sim-hosted models and tools are available on paid plans. On the Free plan, add your own provider keys under **Settings → BYOK**; a run that needs a Sim-hosted key fails with an upgrade message instead.
+Sim-hosted models and tools, and Chat with Sim, are available on paid plans. On the Free plan, add your own provider keys under **Settings → BYOK**; a run that needs a Sim-hosted key fails with an upgrade message instead. Free credits cover run charges, code execution, knowledge base indexing, and AI-assisted editing in the workflow editor.
 
 With your own provider keys, you pay the provider directly for those calls. The workflow base charge and unrelated hosted-tool or sandbox usage still apply. Local Ollama or vLLM inference avoids an external model API charge, but still needs infrastructure and any enabled Sim run charge.
 
@@ -181,6 +181,12 @@ Current monthly pricing and allocations are:
 
 Pro and Max are available for individuals or teams. Team subscriptions pool credits across internal seats. For example, Max for Teams with three seats has a 75,000-credit monthly allocation and a 12,000-credit weekly refresh allowance. External collaborators do not add seats, but their work in an organization-owned workspace is billed to that organization.
 
+### Pro free trial
+
+A new individual Pro subscriber gets a 14-day free trial. Checkout requires a card, which is charged for Pro when the trial ends unless you cancel first under **Settings → Subscription**. During the trial you get Pro features and Sim-hosted models and tools, with a fixed allowance of 2,000 credits: there is no weekly refresh, the usage limit cannot be raised, and nothing is billed past it. When the trial converts, the full Pro allowance applies.
+
+Each account and each card can start one trial. A checkout whose card already started a trial is charged right away instead. Team plans and Max don't include a trial.
+
 See [current pricing](https://www.sim.ai/pricing) and **Settings → Subscription** for the plan available to your account. Internal membership, external eligibility, and workspace migration are explained in [Roles and permissions](/platform/permissions#internal-and-external-membership).
 
 ### Weekly refresh
@@ -189,7 +195,7 @@ Each seven-day window from the billing period's start excludes usage up to the w
 
 ### Annual billing
 
-Pro and Max annual subscriptions have a 15% discount while retaining their advertised included credits. Team pricing uses the same per-seat rate.
+Pro and Max annual subscriptions have a 15% discount while retaining their advertised included credits. An annual billing period is the whole year, so it includes twelve months of credits up front (72,000 per seat on Pro, 300,000 on Max), usable any time during the year. Team pricing uses the same per-seat rate.
 
 | Plan | Monthly billing | Annual equivalent per month | Annual price per seat |
 | --- | --- | --- | --- |

@@ -15,6 +15,7 @@ export const trelloGetCardTool: ToolConfig<TrelloGetCardParams, TrelloGetCardRes
   name: 'Trello Get Card',
   description: 'Retrieve a single Trello card by ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

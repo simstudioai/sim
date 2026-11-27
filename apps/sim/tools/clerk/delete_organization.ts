@@ -19,6 +19,7 @@ export const clerkDeleteOrganizationTool: ToolConfig<
   name: 'Delete Organization from Clerk',
   description: 'Delete an organization from your Clerk application',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

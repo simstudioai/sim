@@ -15,6 +15,7 @@ export const instagramPublishStoryTool: InternalToolConfig<
   description:
     'Publish an image or video story for an Instagram professional account from a Sim file',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

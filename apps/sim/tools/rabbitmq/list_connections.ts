@@ -28,6 +28,7 @@ export const rabbitmqListConnectionsTool: ToolConfig<
   description:
     'List client connections to the broker with their user, state, and channel count. Connections are cluster-wide, not scoped to one virtual host.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

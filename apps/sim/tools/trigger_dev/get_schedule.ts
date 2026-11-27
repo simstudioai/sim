@@ -19,6 +19,7 @@ export const triggerDevGetScheduleTool: ToolConfig<
   name: 'Trigger.dev Get Schedule',
   description: 'Retrieve a Trigger.dev schedule by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

@@ -9,6 +9,7 @@ export const listTagsTool: ToolConfig<ListTagsParams, TagsListResponse> = {
   description:
     'List tags for a GitHub repository. Returns tag names with their commit SHA and download URLs.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -136,6 +137,7 @@ export const listTagsV2Tool: ToolConfig<ListTagsParams, any> = {
   name: listTagsTool.name,
   description: listTagsTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listTagsTool.params,
   request: listTagsTool.request,

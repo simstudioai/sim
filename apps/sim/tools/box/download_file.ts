@@ -50,6 +50,7 @@ export const boxDownloadFileTool = {
   name: 'Box Download File',
   description: 'Download a file from Box',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

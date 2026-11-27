@@ -121,18 +121,31 @@ describe('the agent discovery note', () => {
     return out
   }
 
-  it('leads root and group help when an agent runs the CLI', () => {
+  it('leads the root help when an agent runs the CLI', () => {
     expect(helpOf(['--help'], { CLAUDECODE: '1' })).toMatch(/^=== AGENT COMMAND DISCOVERY ===/)
-    expect(helpOf(['workflows', '--help'], { CLAUDECODE: '1' })).toContain('sim cli search')
   })
 
-  it('stays off leaf help, where the command is already found', () => {
-    expect(helpOf(['workflows', 'runs', 'get', '--help'], { CLAUDECODE: '1' })).not.toContain(
-      'AGENT COMMAND DISCOVERY'
-    )
+  it('stays off group and leaf help, where the agent has already found its area', () => {
+    for (const argv of [
+      ['workflows', '--help'],
+      ['workflows', 'source', '--help'],
+      ['workflows', 'runs', 'get', '--help'],
+    ]) {
+      expect(helpOf(argv, { CLAUDECODE: '1' }), argv.join(' ')).not.toContain(
+        'AGENT COMMAND DISCOVERY'
+      )
+    }
   })
 
   it('is never shown to a person', () => {
     expect(helpOf(['--help'], {})).not.toContain('AGENT COMMAND DISCOVERY')
+  })
+
+  it('leaves the worked examples to a person, keeping the notes an agent needs', () => {
+    const agent = helpOf(['--help'], { CLAUDECODE: '1' })
+    const person = helpOf(['--help'], {})
+    expect(person).toContain('\nExamples:\n')
+    expect(agent).not.toContain('\nExamples:\n')
+    expect(agent).toContain("A command's workspace is, first to last")
   })
 })

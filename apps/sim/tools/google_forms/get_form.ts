@@ -11,6 +11,7 @@ export const getFormTool: ToolConfig<GoogleFormsGetFormParams, GoogleFormsGetFor
   name: 'Google Forms: Get Form',
   description: 'Retrieve a form structure including its items, settings, and metadata',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

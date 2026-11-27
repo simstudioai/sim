@@ -14,6 +14,7 @@ export const getPurchaseRequestTool: InternalToolConfig<
   name: 'SAP Concur Get Purchase Request',
   description: 'Get a purchase request by ID (GET /purchaserequest/v4/purchaserequests/{id}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

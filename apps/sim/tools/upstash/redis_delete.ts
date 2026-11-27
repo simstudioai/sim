@@ -11,6 +11,7 @@ export const upstashRedisDeleteTool: ToolConfig<
   name: 'Upstash Redis Delete',
   description: 'Delete a key from Upstash Redis.',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

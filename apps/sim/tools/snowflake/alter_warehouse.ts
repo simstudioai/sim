@@ -19,6 +19,7 @@ export const alterWarehouseTool: ToolConfig<
 > = {
   id: 'snowflake_alter_warehouse',
   version: '1.0.0',
+  effect: 'write',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Alter Warehouse',
   description: 'Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings.',

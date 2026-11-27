@@ -6,6 +6,7 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
   name: 'Airtable List Records',
   description: 'Read records from an Airtable table',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

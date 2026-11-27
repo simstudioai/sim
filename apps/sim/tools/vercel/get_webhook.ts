@@ -8,6 +8,7 @@ export const vercelGetWebhookTool: ToolConfig<VercelGetWebhookParams, VercelGetW
   name: 'Vercel Get Webhook',
   description: 'Get details about a specific Vercel webhook',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

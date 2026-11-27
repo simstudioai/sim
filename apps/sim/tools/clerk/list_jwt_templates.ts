@@ -18,6 +18,7 @@ export const clerkListJwtTemplatesTool: ToolConfig<
   name: 'List JWT Templates from Clerk',
   description: 'List custom JWT templates configured on your Clerk instance',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

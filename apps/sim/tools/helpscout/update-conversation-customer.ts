@@ -22,6 +22,7 @@ export const helpScoutUpdateConversationCustomerTool: ToolConfig<
   name: 'Help Scout Change Conversation Customer',
   description: 'Change the primary customer of a Help Scout conversation.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

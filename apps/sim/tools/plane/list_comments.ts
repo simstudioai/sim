@@ -30,6 +30,7 @@ export const planeListCommentsTool: ToolConfig<PlaneListCommentsParams, PlaneLis
     name: 'Plane List comments',
     description: 'List comments in Plane. Supports API v1 compatibility.',
     version: '1.0.0',
+    effect: 'read',
     oauth: PLANE_CREDENTIAL_OAUTH,
     params: {
       ...PLANE_CREDENTIAL_PARAMS,

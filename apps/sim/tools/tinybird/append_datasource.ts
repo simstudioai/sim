@@ -24,6 +24,7 @@ export const appendDatasourceTool: ToolConfig<
   description:
     'Append data to a Tinybird Data Source from a remote file URL (CSV, NDJSON, Parquet).',
   version: '1.0.0',
+  effect: 'write',
   oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 

@@ -38,6 +38,7 @@ export const bitbucketGetPullRequestDiffstatTool: InternalToolConfig<
   name: 'Bitbucket Get Pull Request Diffstat',
   description: 'List per-file change statistics for a pull request',
   version: '1.0.0',
+  effect: 'read',
   oauth: {
     required: true,
     provider: 'bitbucket',

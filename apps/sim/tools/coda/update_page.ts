@@ -20,6 +20,7 @@ export const codaUpdatePageTool: ToolConfig<CodaUpdatePageParams, CodaPageMutati
   description:
     'Update a Coda page: rename it, change its subtitle, icon, cover, or visibility, and append, prepend, or replace content with Markdown or HTML. Applied asynchronously.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

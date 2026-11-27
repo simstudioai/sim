@@ -17,6 +17,7 @@ export const manageengineSdpAddChangeNoteTool: ToolConfig<SdpAddChangeNoteParams
   name: 'ManageEngine SDP Add Change Note',
   description: 'Add a note to a ManageEngine ServiceDesk Plus Cloud change.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

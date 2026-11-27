@@ -18,6 +18,7 @@ export const oktaGetGroupRuleTool: ToolConfig<OktaGetGroupRuleParams, OktaGetGro
   description:
     'Retrieve a single Okta group rule by ID, including the expression that decides which users it matches and the groups those users are assigned to.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

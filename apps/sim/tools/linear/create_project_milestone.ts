@@ -14,6 +14,7 @@ export const linearCreateProjectMilestoneTool: ToolConfig<
   name: 'Linear Create Project Milestone',
   description: 'Create a new project milestone in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

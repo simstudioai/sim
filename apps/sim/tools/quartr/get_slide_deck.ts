@@ -19,6 +19,7 @@ export const quartrGetSlideDeckTool: ToolConfig<
   description:
     'Retrieve a slide presentation from Quartr by its document ID and download the PDF file.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

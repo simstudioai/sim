@@ -29,6 +29,7 @@ export const helpScoutListThreadsTool: ToolConfig<
   description:
     'List the threads (customer messages, replies, notes, and activity) of a Help Scout conversation, newest first, including full chat threads.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

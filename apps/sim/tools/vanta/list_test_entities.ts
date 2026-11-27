@@ -18,6 +18,7 @@ export const vantaListTestEntitiesTool: InternalToolConfig<
   description:
     'List the failing or deactivated resource entities for a specific Vanta test, useful for finding exactly which resources need remediation',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

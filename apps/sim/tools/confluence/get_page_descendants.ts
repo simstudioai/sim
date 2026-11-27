@@ -37,6 +37,7 @@ export const confluenceGetPageDescendantsTool: InternalToolConfig<
   name: 'Confluence Get Page Descendants',
   description: 'Get all descendants of a Confluence page recursively.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

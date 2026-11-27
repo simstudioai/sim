@@ -45,6 +45,7 @@ export const fivetranUpdateConnectionTool: ToolConfig<
   description:
     'Update a Fivetran connection: pause or resume it, change its sync frequency or schedule, or update its configuration.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

@@ -7,6 +7,7 @@ export const zoomUpdateMeetingTool: ToolConfig<ZoomUpdateMeetingParams, ZoomUpda
     name: 'Zoom Update Meeting',
     description: 'Update an existing Zoom meeting',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

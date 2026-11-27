@@ -14,6 +14,7 @@ export const linearListAttachmentsTool: ToolConfig<
   name: 'Linear List Attachments',
   description: 'List all attachments on an issue in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

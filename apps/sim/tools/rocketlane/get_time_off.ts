@@ -18,6 +18,7 @@ export const rocketlaneGetTimeOffTool: ToolConfig<
   name: 'Rocketlane Get Time-Off',
   description: 'Retrieve a Rocketlane time-off by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

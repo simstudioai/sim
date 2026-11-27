@@ -25,6 +25,7 @@ export const quickbooksReadAccountingTransactionsTool: ToolConfig<
   name: 'QuickBooks Read Accounting Transactions',
   description: 'List or read one journal entry, deposit, or transfer',
   version: '1.0.0',
+  effect: 'read',
   params: {
     accessToken: {
       type: 'string',

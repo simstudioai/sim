@@ -15,6 +15,7 @@ export const listGroupsTool: ToolConfig<
   name: 'List Azure AD Groups',
   description: 'List groups in Azure AD (Microsoft Entra ID)',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

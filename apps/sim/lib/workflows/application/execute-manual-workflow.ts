@@ -1,14 +1,17 @@
 import { requirePrincipalSubjectUserId, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
-import { formatQuotedNameList } from '@sim/utils/string'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
-import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   inlinesRunFiles,
   withholdUnadmittedInlineFiles,
 } from '@/lib/workflows/application/admit-run-files'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
+import { resolveBlockSelector } from '@/lib/workflows/application/block-selector'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import {
+  type DryRunRequest,
+  resolveRunOverrides,
+} from '@/lib/workflows/application/dry-run-overrides'
 import type { ExecuteWorkflowInput } from '@/lib/workflows/application/execute-workflow'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
@@ -25,7 +28,7 @@ import {
   validateTriggerInput,
 } from '@/lib/workflows/triggers/run-options'
 
-interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mode'> {
+interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mode'>, DryRunRequest {
   input?: unknown
   mode: 'sync' | 'stream' | 'sync-result-stream'
   stopAfterBlockId?: string
@@ -33,7 +36,8 @@ interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mod
 
 export interface ExecuteManualWorkflowInput extends ManualExecutionInput {
   triggerBlockId?: string
-  useMockPayload: boolean
+  /** Run with the selected trigger's sample payload instead of `input`. */
+  sample: boolean
 }
 
 export interface ExecuteManualWorkflowFromBlockInput extends ManualExecutionInput {
@@ -57,44 +61,6 @@ async function loadManualState(workflowId: string) {
 }
 
 type ManualWorkflowState = Awaited<ReturnType<typeof loadManualState>>
-
-/** At most this many block names are listed when a block selector matches none. */
-const MAX_LISTED_BLOCKS = 25
-
-/** `"name" (id)` for each block of `ids`, at most {@link MAX_LISTED_BLOCKS} of them. */
-function listBlocks(state: ManualWorkflowState, ids: string[]): string {
-  return formatQuotedNameList(
-    ids,
-    MAX_LISTED_BLOCKS,
-    (id) => `"${state.blocks[id]?.name ?? id}" (${id})`
-  )
-}
-
-/**
- * The id of the saved block `selector` names: its id, else the one block whose display name or
- * reference key (the name lowercased, whitespace and dots removed: "Score lead" and `scorelead`)
- * matches it. A selector matching no block, or several, is refused with the candidates, so a
- * caller never has to read block ids out of the stored workflow. `field` names the wire field.
- */
-function resolveBlockSelector(state: ManualWorkflowState, selector: string, field: string): string {
-  if (Object.hasOwn(state.blocks, selector)) return selector
-  const key = normalizeWorkflowBlockName(selector)
-  const matches = Object.keys(state.blocks).filter((id) => {
-    const name = state.blocks[id]?.name
-    return typeof name === 'string' && normalizeWorkflowBlockName(name) === key
-  })
-  if (matches.length === 1) return matches[0]
-  if (matches.length > 1) {
-    throw new OrchestrationError(
-      'validation',
-      `${field} "${selector}" names ${matches.length} blocks: ${listBlocks(state, matches)}. Pass one of their ids.`
-    )
-  }
-  throw new OrchestrationError(
-    'validation',
-    `${field} "${selector}" is not a block in the current saved workflow. Pass a block's id, name or key: ${listBlocks(state, Object.keys(state.blocks))}.`
-  )
-}
 
 /** Blocks a run entering at `entryBlockId` can reach; the executor skips disabled blocks. */
 function reachableFrom(state: ManualWorkflowState, entryBlockId: string): Set<string> {
@@ -131,7 +97,7 @@ function resolveStopAfterBlock(
   entryBlockId: string
 ): string | undefined {
   if (selector === undefined) return undefined
-  const blockId = resolveBlockSelector(state, selector, 'run.stopAfterBlockId')
+  const blockId = resolveBlockSelector(state.blocks, selector, 'run.stopAfterBlockId')
   const block = state.blocks[blockId]
   if (block.enabled === false) {
     throw new OrchestrationError(
@@ -158,7 +124,7 @@ function listTriggers(options: ReturnType<typeof resolveTriggerRunOptions>): str
   return options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
 }
 
-function executionServiceInput(params: {
+async function executionServiceInput(params: {
   principal: WorkflowExecutionPrincipal
   context: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
   input: ManualExecutionInput
@@ -167,6 +133,15 @@ function executionServiceInput(params: {
   stopAfterBlockId: string | undefined
 }) {
   return {
+    ...(await resolveRunOverrides({
+      principal: params.principal,
+      workspaceId: params.context.workspaceId,
+      workflow: params.context.workflow,
+      blocks: params.draftState.blocks,
+      mode: params.input.mode,
+      detachable: params.input.detachable,
+      request: params.input,
+    })),
     workflowId: params.context.workflowId,
     principal: params.principal,
     userId: requirePrincipalSubjectUserId(params.principal),
@@ -191,7 +166,6 @@ function executionServiceInput(params: {
     requestHeaders: params.input.requestHeaders,
     includeThinking: params.input.includeThinking,
     includeToolCalls: params.input.includeToolCalls,
-    triggerType: 'manual' as const,
     useDraftState: true,
     draftState: params.draftState,
   }
@@ -201,11 +175,8 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.executeManual,
   resolveContext: resolveContext<ExecuteManualWorkflowInput>,
   async execute({ principal, context, input }): Promise<ExecuteWorkflowServiceResult> {
-    if (input.useMockPayload && input.input !== undefined) {
-      throw new OrchestrationError(
-        'validation',
-        'input and run.entry.useMockPayload cannot be combined'
-      )
+    if (input.sample && input.input !== undefined) {
+      throw new OrchestrationError('validation', 'input and run.entry.sample cannot be combined')
     }
     const state = await loadManualState(context.workflowId)
     const options = resolveTriggerRunOptions(mergeSubblockStateWithValues(state.blocks))
@@ -238,7 +209,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
       input.stopAfterBlockId,
       selected.triggerBlockId
     )
-    const executionInput = input.useMockPayload ? selected.mockPayload : input.input
+    const executionInput = input.sample ? selected.mockPayload : input.input
     const validation = validateTriggerInput(selected, executionInput)
     if (!validation.ok) {
       if (!validation.error) throw new Error('Trigger input validation failed without an error')
@@ -246,7 +217,13 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
     }
 
     const result = await executeWorkflowService({
-      ...executionServiceInput({ principal, context, input, draftState: state, stopAfterBlockId }),
+      ...(await executionServiceInput({
+        principal,
+        context,
+        input,
+        draftState: state,
+        stopAfterBlockId,
+      })),
       input: executionInput,
       triggerBlockId: selected.triggerBlockId,
     })
@@ -259,10 +236,14 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
   resolveContext: resolveContext<ExecuteManualWorkflowFromBlockInput>,
   async execute({ principal, context, input }): Promise<ExecuteWorkflowServiceResult> {
     const state = await loadManualState(context.workflowId)
-    const blockId = resolveBlockSelector(state, input.blockId, 'run.entry.blockId')
+    const blockId = resolveBlockSelector(state.blocks, input.blockId, 'run.entry.blockId')
     const stopAfterBlockId = resolveStopAfterBlock(state, input.stopAfterBlockId, blockId)
 
-    const sourceSnapshot = await getExecutionStateForWorkflow(input.sourceRunId, context.workflowId)
+    const sourceSnapshot = await getExecutionStateForWorkflow(
+      input.sourceRunId,
+      context.workflowId,
+      { allowTestRun: input.dry === true }
+    )
     if (!sourceSnapshot) {
       throw new OrchestrationError(
         'not_found',
@@ -271,7 +252,13 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
     }
 
     const result = await executeWorkflowService({
-      ...executionServiceInput({ principal, context, input, draftState: state, stopAfterBlockId }),
+      ...(await executionServiceInput({
+        principal,
+        context,
+        input,
+        draftState: state,
+        stopAfterBlockId,
+      })),
       input: input.input,
       runFromBlock: {
         startBlockId: blockId,

@@ -16,6 +16,7 @@ export const createLeadTool: ToolConfig<InstantlyCreateLeadParams, InstantlyLead
   name: 'Instantly Create Lead',
   description: 'Creates an Instantly V2 lead in a campaign or lead list.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

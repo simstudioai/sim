@@ -38,6 +38,7 @@ export const deleteParagraphBulletsTool: ToolConfig<
   name: 'Delete Paragraph Bullets in Google Slides',
   description: 'Remove bullets/numbering from paragraphs in a shape or table cell.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

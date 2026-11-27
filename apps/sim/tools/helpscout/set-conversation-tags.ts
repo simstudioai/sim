@@ -32,6 +32,7 @@ export const helpScoutSetConversationTagsTool: ToolConfig<
   description:
     'Replace the full tag list on a Help Scout conversation. Tags left out are removed, [] removes every tag, and unknown tags are created.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

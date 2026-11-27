@@ -12,6 +12,7 @@ export const slackDeleteScheduledMessageTool: ToolConfig<
   name: 'Slack Delete Scheduled Message',
   description: 'Delete a pending scheduled message before it posts to Slack.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -12,6 +12,7 @@ export const pitchbookLimitedPartnerTargetAllocationsTool: ToolConfig<
   description:
     'Retrieve a limited partner’s target allocation ranges per asset class, in both value and percentage terms',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

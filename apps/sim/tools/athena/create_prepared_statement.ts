@@ -14,6 +14,7 @@ export const createPreparedStatementTool: InternalToolConfig<
   description:
     'Create a parameterized prepared statement in an Athena workgroup for use with EXECUTE or execution parameters',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

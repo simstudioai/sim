@@ -24,6 +24,7 @@ export const ungroupObjectsTool: ToolConfig<UngroupObjectsParams, UngroupObjects
   name: 'Ungroup Objects in Google Slides',
   description: 'Ungroup one or more object groups, releasing their children back to the slide.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

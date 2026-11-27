@@ -14,6 +14,7 @@ export const trelloUpdateListTool: ToolConfig<TrelloUpdateListParams, TrelloUpda
   name: 'Trello Update List',
   description: 'Rename, move, archive, or reopen a Trello list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

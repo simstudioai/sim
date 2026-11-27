@@ -17,6 +17,7 @@ export const windchillUndoCheckOutDocumentTool: InternalToolConfig<
   name: 'Windchill Undo Check Out Document',
   description: 'Undo checkout for one document',
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

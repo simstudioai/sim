@@ -33,6 +33,7 @@ export const setCustomFieldValuesTool: ToolConfig<
   description:
     'Sets several custom field values on one Ashby Application, Candidate, Job, or Opening in a single call. Prefer this over repeated single-field writes to the same object - Ashby recommends it because concurrent single-field calls can race and overwrite each other. Requires the candidatesWrite permission.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

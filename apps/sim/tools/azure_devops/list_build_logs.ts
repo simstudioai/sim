@@ -10,6 +10,7 @@ export const listBuildLogsTool: ToolConfig<ListBuildLogsParams, ListBuildLogsRes
   description:
     'List all log entries for a specific build in Azure DevOps. Returns log IDs, types, and line counts — use the log ID with the Get Build Log tool to fetch actual log text.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

@@ -23,6 +23,7 @@ export const starGistTool: ToolConfig<StarGistParams, StarGistResponse> = {
   name: 'GitHub Star Gist',
   description: 'Star a gist',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -87,6 +88,7 @@ export const starGistV2Tool: ToolConfig<StarGistParams, any> = {
   name: starGistTool.name,
   description: starGistTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: starGistTool.params,
   request: starGistTool.request,

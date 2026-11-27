@@ -206,6 +206,7 @@ describe('confirmed CLI resource effects', () => {
         startedAt: table.createdAt,
         endedAt: table.updatedAt,
         totalDurationMs: 10,
+        failure: null,
         files: null,
         executedByEmail: null,
         workflow: {

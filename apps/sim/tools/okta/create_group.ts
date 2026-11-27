@@ -12,6 +12,7 @@ export const oktaCreateGroupTool: ToolConfig<OktaCreateGroupParams, OktaCreateGr
   name: 'Create Group in Okta',
   description: 'Create a new group in your Okta organization',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

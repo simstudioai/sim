@@ -47,7 +47,8 @@ const run = spawnSync(
     'playwright',
     'test',
     ...selected.map((file) => `^${escapeRegExp(resolve(report.config.rootDir, file))}$`),
-    '--reporter=line,json',
+    // `github` turns failures into annotations; an explicit --reporter replaces the config's.
+    process.env.CI ? '--reporter=github,line,json' : '--reporter=line,json',
   ],
   { stdio: 'inherit', env: process.env }
 )

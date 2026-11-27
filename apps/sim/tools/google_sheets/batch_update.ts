@@ -18,6 +18,7 @@ export const batchUpdateV2Tool: ToolConfig<
   name: 'Batch Update Google Sheets V2',
   description: 'Update multiple ranges in a Google Sheets spreadsheet in a single request',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

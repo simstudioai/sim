@@ -10,6 +10,7 @@ export const xSearchUsersTool: ToolConfig<XSearchUsersParams, XUserListResponse>
   name: 'X Search Users',
   description: 'Search for X users by name, username, or bio',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

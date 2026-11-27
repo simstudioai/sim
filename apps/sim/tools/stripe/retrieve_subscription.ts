@@ -12,6 +12,7 @@ export const stripeRetrieveSubscriptionTool: ToolConfig<
   name: 'Stripe Retrieve Subscription',
   description: 'Retrieve an existing subscription by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

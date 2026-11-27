@@ -7,6 +7,7 @@ export const updateTool: InternalToolConfig<MSSQLUpdateParams, MSSQLUpdateRespon
   name: 'Microsoft SQL Server Update',
   description: 'Update rows in a Microsoft SQL Server table',
   version: '1.0',
+  effect: 'write',
   oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {

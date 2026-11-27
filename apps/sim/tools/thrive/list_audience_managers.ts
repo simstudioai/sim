@@ -16,6 +16,7 @@ export const listAudienceManagersTool: ToolConfig<
   name: 'Thrive List Audience Managers',
   description: 'List the managers of a Thrive audience.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

@@ -28,6 +28,7 @@ export const rabbitmqListChannelsTool: ToolConfig<
   description:
     'List open channels with their prefetch limit and unacknowledged message count, which is where stalled consumers show up. Channels are cluster-wide, not scoped to one virtual host.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

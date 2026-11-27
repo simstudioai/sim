@@ -10,6 +10,7 @@ export const linearUnarchiveIssueTool: ToolConfig<
   name: 'Linear Unarchive Issue',
   description: 'Unarchive (restore) an archived issue in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

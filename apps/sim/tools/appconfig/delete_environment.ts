@@ -13,6 +13,7 @@ export const deleteEnvironmentTool: InternalToolConfig<
   name: 'AppConfig Delete Environment',
   description: 'Delete an AWS AppConfig environment',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

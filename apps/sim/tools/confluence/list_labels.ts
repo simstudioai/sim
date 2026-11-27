@@ -31,6 +31,7 @@ export const confluenceListLabelsTool: InternalToolConfig<
   name: 'Confluence List Labels',
   description: 'List all labels on a Confluence page.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -68,6 +68,7 @@ export const intercomOpenConversationV2Tool: ToolConfig<
   name: 'Open Conversation in Intercom',
   description: 'Open a closed or snoozed conversation in Intercom',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

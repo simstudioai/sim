@@ -30,6 +30,7 @@ export const getCampaignAnalyticsByDateTool: ToolConfig<
   description:
     'Retrieves Smartlead campaign performance totals for a date range. Smartlead rejects ranges longer than roughly one month.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

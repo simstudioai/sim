@@ -11,9 +11,10 @@ interface PaidAccessOptions {
   /**
    * The verdict for a free payer whose credit balance cannot be read. Chat admits, because a
    * database blip must not lock a paying customer out and every turn is bounded by the usage
-   * check that follows. A hosted key denies, because nothing after acquisition bounds it.
+   * check that follows. A hosted key throws: nothing after acquisition bounds it, and a refusal
+   * would read as the payer's plan, which disables a schedule at once.
    */
-  onBalanceUnavailable: 'admit' | 'deny'
+  onBalanceUnavailable: 'admit' | 'throw'
 }
 
 /**
@@ -22,8 +23,9 @@ interface PaidAccessOptions {
  * free plan, unless that payer holds prepaid credits, which an admin grants to customers billed
  * outside a subscription.
  *
- * The plan is the payer's entitled subscription (active or past due), so a canceled
- * plan reads as free; a blocked payer is refused by the usage check every caller runs next.
+ * The plan is the payer's entitled subscription (active, trialing, or past due), so a
+ * canceled plan reads as free and a trial reads as its plan; a blocked payer is refused by the
+ * usage check every caller runs next.
  */
 export async function payerHasPaidAccess(
   payer: UsageUpgradePayer,
@@ -43,7 +45,12 @@ export async function payerHasPaidAccess(
       verdict: options.onBalanceUnavailable,
       error: getErrorMessage(error),
     })
-    return options.onBalanceUnavailable === 'admit'
+    if (options.onBalanceUnavailable === 'throw') {
+      throw new Error("Couldn't verify the plan for Sim's hosted key. Try again in a moment.", {
+        cause: error,
+      })
+    }
+    return true
   }
 }
 

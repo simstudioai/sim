@@ -11,6 +11,7 @@ export const linearCreateProjectTool: ToolConfig<
   name: 'Linear Create Project',
   description: 'Create a new project in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

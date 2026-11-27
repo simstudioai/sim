@@ -15,6 +15,7 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
   name: 'Create SharePoint List',
   description: 'Create a new list in a SharePoint site',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

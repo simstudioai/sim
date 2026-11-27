@@ -6,6 +6,7 @@ export const openFileTool: ToolConfig<ObsidianOpenFileParams, ObsidianOpenFileRe
   name: 'Obsidian Open File',
   description: 'Open a file in the Obsidian UI (creates the file if it does not exist)',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

@@ -16,6 +16,7 @@ export const describeSecurityGroupsTool: InternalToolConfig<
   name: 'EC2 Describe Security Groups',
   description: 'List security groups with their inbound and outbound rules',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

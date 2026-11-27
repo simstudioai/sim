@@ -33,6 +33,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
   name: 'Get SharePoint List',
   description: 'Get metadata (and optionally columns/items) for a SharePoint list',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -28,7 +28,7 @@ Forking and sync require Enterprise on billing-enabled deployments. Billing-disa
 
 ### 1. Export and inspect the workflow
 
-`--include-references` adds a versioned manifest of resource identities and their occurrences. Default export clears registered credential fields and workspace bindings. It does not remove every ordinary variable value or literal configuration; inspect the payload before sharing it. Credentials and secret values are not transferred as destination resources.
+`--include-references` adds a versioned manifest of resource identities and their occurrences. `sim workflows export` clears registered credential fields and keeps non-secret workspace bindings, such as table and knowledge base IDs; `--no-include-workspace-bindings` clears those too. It does not remove every ordinary variable value or literal configuration; inspect the payload before sharing it. Credentials and secret values are not transferred as destination resources.
 
 Pin JSON because import does not accept YAML:
 
@@ -40,7 +40,7 @@ sim --profile destination --workspace "$DESTINATION_WORKSPACE" --output json \
   workflows import-preview --workflow @workflow.json > preview.json
 ```
 
-`--include-workspace-bindings` can preserve non-secret bindings for a same-workspace round trip. Otherwise, configure required bindings reported by import.
+With `--include-references`, import preview lists the bindings the destination has to map.
 
 ### 2. Map destination resources
 
@@ -239,6 +239,7 @@ Validate provider connections in the destination environment as well as the plat
 - [Workspace forking](/platform/enterprise/forks)
 - [Workflow commands](/cli/workflows)
 - [Workspace commands](/cli/workspaces)
+- [Promote to another workspace](/workflows/code/promote): copy a workspace directory kept in git to another workspace, without linking the two
 - [Selectors](/cli/selectors)
 - [Exit codes](/cli/scripting#exit-codes)
 - [Workflow-sync contributor harness](/api-reference/workflow-sync#related-docs)

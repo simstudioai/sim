@@ -2,28 +2,36 @@ import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { getPlanPricing } from '@/lib/billing/core/billing'
+import { PRO_TRIAL_USAGE_LIMIT_DOLLARS } from '@/lib/billing/constants'
+import {
+  getOrgIncludedUsageDollars,
+  getPlanPricing,
+  isTrialingSubscription,
+  type OrgAllowanceInput,
+} from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('CreditPurchase')
 
 /**
  * Sets usage limit to planBase + creditBalance.
- * This ensures users can use their plan's included amount plus any prepaid credits.
+ * This ensures users can use their plan's included amount plus any prepaid credits. A personal
+ * trial's base is its fixed allowance, not the plan's.
  */
 export async function setUsageLimitForCredits(
   entityType: 'user' | 'organization',
   entityId: string,
-  plan: string,
+  subscription: OrgAllowanceInput & { plan: string; status: string | null },
   seats: number | null,
   creditBalance: number
 ): Promise<void> {
   try {
-    const { basePrice } = getPlanPricing(plan)
-
-    const seatCount = seats || 1
     const planBase =
-      entityType === 'organization' ? Number(basePrice) * seatCount : Number(basePrice)
+      entityType === 'organization'
+        ? getOrgIncludedUsageDollars({ ...subscription, seats })
+        : isTrialingSubscription(subscription)
+          ? PRO_TRIAL_USAGE_LIMIT_DOLLARS
+          : getPlanPricing(subscription).basePrice
     const creditBalanceNum = Number(creditBalance)
     const newLimit = planBase + creditBalanceNum
 
@@ -44,7 +52,7 @@ export async function setUsageLimitForCredits(
 
         logger.info('Set org usage limit to planBase + credits', {
           organizationId: entityId,
-          plan,
+          plan: subscription.plan,
           seats,
           planBase,
           creditBalance,
@@ -70,7 +78,7 @@ export async function setUsageLimitForCredits(
 
         logger.info('Set user usage limit to planBase + credits', {
           userId: entityId,
-          plan,
+          plan: subscription.plan,
           planBase,
           creditBalance,
           previousLimit: currentLimit,

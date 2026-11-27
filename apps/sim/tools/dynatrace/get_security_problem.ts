@@ -48,6 +48,7 @@ export const getSecurityProblemTool: ToolConfig<
   description:
     'Get a single vulnerability with its description, remediation guidance, affected entities, and risk assessment.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

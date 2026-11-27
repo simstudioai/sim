@@ -11,6 +11,7 @@ export const slackListsUpdateTool: ToolConfig<SlackListsUpdateParams, SlackLists
   name: 'Slack Lists Update List',
   description: 'Update a Slack List name, description, or task tracking fields.',
   version: '1.0.0',
+  effect: 'write',
   oauth: {
     required: true,
     provider: 'slack',

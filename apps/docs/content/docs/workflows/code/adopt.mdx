@@ -1,0 +1,84 @@
+---
+title: Bring existing workflows into code
+description: Put workflows built in the workflow builder into git, keep editing them in the builder, and decide who owns each change.
+---
+
+Result: workflows you built in the workflow builder kept in a git repository, with edits from the builder and from the files brought together instead of overwritten.
+
+Nothing has to be converted. Every workflow already has a source form: `get` prints it, and the workflow keeps its ID, block IDs, webhook URLs, schedules and run history.
+
+## Choose what to put in git
+
+- **One workflow**: `sim workflows source get <workflowId> --dir <dir>` writes one workflow directory. Use it when a few workflows change through code and the rest stay in the builder.
+- **A whole workspace**: `sim workspaces source get --dir <dir>` writes the workflows together with the tables, knowledge bases, files, custom tools, skills, MCP servers, secret names and credential keys they use. Use it when the repository should describe the workspace, so one apply can create what a workflow needs before the workflow.
+
+A workspace directory manages only the kinds whose folder or file it holds: to leave one kind in the builder only, read the rest with `--only`, such as `--only tables,workflows`.
+
+## 1. Read the workflows
+
+```bash
+sim workspaces source get --dir ./workspace
+```
+
+`get` names everything it could not write, such as a resource over a [limit](/workflows/code/limits), and lists it in `.sim/skipped.json`. Each workflow lands in `workflows/<key>/workflow.ts`, keyed by its name.
+
+## 2. Confirm the files match Sim
+
+```bash
+sim workspaces source check --dir ./workspace
+sim workspaces source status --dir ./workspace
+```
+
+A fresh `get` applies back unchanged, so `check` reports no errors and `status` exits `0` until someone edits either side. A warning on a block you have not changed does not fail the check: it describes a value the workflow already stores, such as a required field left empty in the builder. Fix it in the file when you next change that block.
+
+## 3. Commit the directory
+
+Commit everything `get` wrote, `.sim/` included. The `.sim/` files are how a later apply recognizes each block and resource and knows which version you read. [Directory layout](/workflows/code/directory) lists what to commit for each kind of directory.
+
+## 4. Change it from the files
+
+Make the first change through the loop in [Edit a workflow](/workflows/code/edit) or [Manage a workspace as code](/workflows/code/workspace), then commit the files the apply rewrote. To review changes on pull requests and apply them on merge, see [Run in CI](/workflows/code/ci).
+
+## Keep editing in the workflow builder
+
+The builder stays fully editable. Its **Code** tab shows the same workflow as read-only source. The files and the builder never overwrite each other silently:
+
+- A builder edit since the `get` is **drift**: `status` exits `12`. When the directory holds no unapplied edits, its `Next:` line is a `get` into the same directory, which brings the files up to date. Commit them.
+- When the files and the builder changed the same workflow, it is a **conflict**: an apply is refused with exit `5` and writes nothing; see [Exit 5](/workflows/code/troubleshooting#exit-5). There is no automatic merge.
+- In a workspace directory, drift on a resource you did not edit is kept: the apply writes your changes and leaves the other resource as Sim holds it (`W_SERVER_CHANGED`).
+
+To find drift before an apply does, run `status` on a schedule; see [Detect drift on a schedule](/workflows/code/ci#detect-drift-on-a-schedule).
+
+## What stays in the builder
+
+Block positions, values in fields the current settings hide, and your comments stay in the stored workflow, and an apply keeps them; [How it works](/workflows/code/how-it-works#the-canonical-form) has the rules. An apply saves the draft only: deploy with `apply --deploy` or `sim workflows deploy`, or, in a workspace directory, with a file in `deployments/`.
+
+## Agree on who changes what
+
+Decide per workflow where its changes are made, and write it down for the team:
+
+- **Files first**: changes go through pull requests, and the builder is for viewing and quick fixes that someone brings back with a `get`. Run the scheduled drift check.
+- **Builder first**: the repository is a record. Refresh it with a `get` on a schedule or after a change, and open a pull request with what changed.
+
+Locked blocks cannot be changed from the files, by anyone. Lock a block in the builder to keep it out of reach of an apply.
+
+## Roll back
+
+- **The deployed version**: `sim workflows rollback <workflowId>` (workspace Admin) makes the previous deployment live again and leaves the draft and the directory as they are.
+- **The draft, from a deployment**: `sim workflows revert create <workflowId> <version> --yes` replaces the draft with that deployed version. The directory then has drift (`status` exits `12`); `get` brings it up to date.
+- **The draft, from git**: restore the source files of an earlier commit but keep the current `.sim/`, then apply:
+
+  ```bash
+  git restore --source=<commit> -- ./support-triage ':(exclude,glob)support-triage/**/.sim/**'
+  sim workflows source apply --dir ./support-triage --dry
+  ```
+
+  Applying an earlier commit as a whole, `.sim/` included, is refused as stale (exit `5`), because its `.sim/base.json` records an older version than Sim holds. A block or resource deleted since that commit comes back as a new one, without its run history, webhook URLs or schedules, and blocks added since are deletes the apply refuses without `--allow-delete`.
+
+## Related docs
+
+- [Edit a workflow](/workflows/code/edit)
+- [Manage a workspace as code](/workflows/code/workspace)
+- [Run in CI](/workflows/code/ci)
+- [How it works](/workflows/code/how-it-works)
+- [Troubleshooting](/workflows/code/troubleshooting)

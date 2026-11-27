@@ -8,6 +8,7 @@ export const slackGetTeamProfileTool = createSlackWebApiTool({
   name: 'Slack Get Workspace Profile Fields',
   description:
     'Read the workspace’s custom profile field definitions, optionally filtered by visibility.',
+  effect: 'read',
   endpoint: 'team.profile.get',
   method: 'GET',
   oauth: {

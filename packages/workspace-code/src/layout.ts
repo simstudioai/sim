@@ -23,6 +23,10 @@ const RESOURCE_KEY_SOURCE = '[a-z][a-z0-9_-]{0,63}'
 
 const RESOURCE_KEY_PATTERN = new RegExp(`^${RESOURCE_KEY_SOURCE}$`)
 
+/** What a resource key may hold, for the hint of a key {@link isResourceKey} refuses. */
+export const RESOURCE_KEY_HINT =
+  'A key is lowercase letters, digits, `-` and `_`, starting with a letter, at most 64 characters.'
+
 /** Whether `value` is a resource key: lowercase, starting with a letter, at most 64 characters. */
 export function isResourceKey(value: string): boolean {
   return RESOURCE_KEY_PATTERN.test(value)

@@ -14,6 +14,7 @@ export const getReportTool: ToolConfig<JotformGetReportParams, JotformReportResp
   name: 'Jotform Get Report',
   description: 'Get the details and shareable URL of a single Jotform report.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

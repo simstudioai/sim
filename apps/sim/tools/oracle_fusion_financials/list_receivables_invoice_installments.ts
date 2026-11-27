@@ -20,6 +20,7 @@ export const oracleFusionFinancialsListReceivablesInvoiceInstallmentsTool: Inter
   name: 'Oracle Fusion Financials List Receivables Invoice Installments',
   description: 'List one page of Oracle Fusion receivables invoice installments.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     ...oracleFusionFinancialsListParamFields,

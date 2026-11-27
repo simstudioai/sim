@@ -6,6 +6,7 @@ export const getActiveTool: ToolConfig<ObsidianGetActiveParams, ObsidianGetActiv
   name: 'Obsidian Get Active File',
   description: 'Retrieve the content of the currently active file in Obsidian',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

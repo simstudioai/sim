@@ -1,16 +1,33 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { COOKBOOK_EXAMPLES } from '@sim/workflow-sdk/codegen'
+import { escapeRegExp } from '@sim/utils/string'
+import { COOKBOOK_EXAMPLES, WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runEmbeddedCli } from '../../embed'
 import { SimApiError } from '../../http/client'
 import { buildProgram } from '../../program'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
+import { provideTypescript } from '../../test/typescript'
 import { digest } from './source-dir'
-import { PRIMER_MAX_BYTES, sourcePrimer } from './source-primer'
+import {
+  AGENTS_POINTER_MARKER,
+  agentsPointer,
+  PATTERNS_HEADING,
+  PRIMER_MAX_BYTES,
+  sourcePrimer,
+} from './source-primer'
 import { attachWorkflowSourceCheck } from './workflow-source-check'
 import { attachWorkflowSourceGet } from './workflow-source-get'
 
@@ -40,6 +57,7 @@ function source(
       files,
       lock: { version: 1, blocks: {}, variables: {} },
       base: {
+        version: 1,
         workflowId: WORKFLOW_ID,
         workspaceId: WORKSPACE_ID,
         fingerprint: 'sf1:x',
@@ -111,7 +129,8 @@ const MANIFEST = {
     credentials: [],
     workflows: [],
     skills: [{ key: 'triage', id: 'skill-1', name: 'Triage' }],
-    customTools: [{ key: 'lookup-order', id: 'tool-1', name: 'lookup_order' }],
+    customTools: [{ key: 'lookup-order', id: 'tool-1', name: 'Lookup order' }],
+    mcpServers: [],
     env: [],
     truncated: false,
   },
@@ -139,11 +158,142 @@ beforeEach(() => {
   rootDir = mkdtempSync(join(tmpdir(), 'sim-source-'))
   outDir = join(rootDir, 'out')
   vi.stubEnv('SIM_CONFIG_DIR', join(rootDir, 'config'))
+  provideTypescript(join(rootDir, 'config'))
   vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 
 afterEach(() => {
   rmSync(rootDir, { recursive: true, force: true })
+})
+
+describe('sim workflows source get <name>', () => {
+  const LIST_PATH = '/api/v2/workflows'
+  const OTHER_ID = '00000000-0000-4000-8000-00000000000c'
+  const listed =
+    (...workflows: Array<{ id: string; name: string; folderPath?: string }>) =>
+    () => ({
+      data: workflows.map((workflow) => ({ folderPath: '', ...workflow })),
+      nextCursor: null,
+    })
+
+  async function getNamed(name: string): Promise<unknown> {
+    return program()
+      .parseAsync(['node', 'sim', 'workflows', 'source', 'get', name, '--dir', outDir])
+      .then(
+        () => null,
+        (error: unknown) => error
+      )
+  }
+
+  it('gets the one workflow whose name matches exactly, not one that only contains it', async () => {
+    serve({
+      [LIST_PATH]: listed(
+        { id: OTHER_ID, name: 'Lead Scorer v2' },
+        { id: WORKFLOW_ID, name: 'Lead Scorer' }
+      ),
+    })
+
+    expect(await getNamed('Lead Scorer')).toBeNull()
+
+    expect(callsTo(LIST_PATH)[0][1].query).toMatchObject({ search: 'Lead Scorer' })
+    expect(callsTo(SOURCE_PATH)).toHaveLength(1)
+    expect(JSON.parse(readFileSync(join(outDir, '.sim/base.json'), 'utf8')).workflowId).toBe(
+      WORKFLOW_ID
+    )
+  })
+
+  it('reads every page of substring hits before deciding, so an exact match after the first is found', async () => {
+    const hits = Array.from({ length: 100 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, '1')}`,
+      name: `Lead Scorer ${index}`,
+      folderPath: '',
+    }))
+    serve({
+      [LIST_PATH]: () => {
+        const cursor = callsTo(LIST_PATH).at(-1)?.[1].query?.cursor
+        return cursor
+          ? { data: [{ id: WORKFLOW_ID, name: 'Lead Scorer', folderPath: '' }], nextCursor: null }
+          : { data: hits, nextCursor: 'page-2' }
+      },
+    })
+
+    expect(await getNamed('Lead Scorer')).toBeNull()
+
+    expect(callsTo(LIST_PATH)).toHaveLength(2)
+    expect(JSON.parse(readFileSync(join(outDir, '.sim/base.json'), 'utf8')).workflowId).toBe(
+      WORKFLOW_ID
+    )
+  })
+
+  it("looks a name up in the workspace the directory was read from, not the profile's", async () => {
+    mkdirSync(join(outDir, '.sim'), { recursive: true })
+    writeFileSync(
+      join(outDir, '.sim/base.json'),
+      JSON.stringify({
+        version: 1,
+        workflowId: WORKFLOW_ID,
+        workspaceId: WORKSPACE_ID,
+        fingerprint: 'sf1:a',
+        catalogHash: 'h',
+      })
+    )
+    serve({ [LIST_PATH]: listed({ id: WORKFLOW_ID, name: 'Lead Scorer' }) })
+
+    expect(await getNamed('Lead Scorer')).toBeNull()
+
+    expect(callsTo(LIST_PATH)[0][1].query).toMatchObject({ workspaceId: WORKSPACE_ID })
+  })
+
+  it.each([
+    [
+      'several workflows hold the name',
+      [
+        { id: WORKFLOW_ID, name: 'Lead Scorer', folderPath: 'sales' },
+        { id: OTHER_ID, name: 'Lead Scorer', folderPath: 'ops' },
+      ],
+      'WORKFLOW_NAME_AMBIGUOUS',
+    ],
+    ['none holds it exactly', [{ id: OTHER_ID, name: 'Lead Scorer v2' }], 'WORKFLOW_NOT_FOUND'],
+  ])(
+    'refuses when %s, naming each candidate with its id, and reads no source',
+    async (_case, workflows, code) => {
+      serve({ [LIST_PATH]: listed(...workflows) })
+
+      const error = await getNamed('Lead Scorer')
+
+      expect(error).toMatchObject({ code })
+      for (const { id } of workflows) expect(String((error as Error).message)).toContain(id)
+      expect(callsTo(SOURCE_PATH)).toHaveLength(0)
+      expect(existsSync(join(outDir, '.sim/base.json'))).toBe(false)
+    }
+  )
+
+  it('refuses a blank name before listing anything', async () => {
+    serve({ [LIST_PATH]: listed({ id: WORKFLOW_ID, name: 'Lead Scorer' }) })
+
+    for (const name of ['', '  ']) {
+      expect(await getNamed(name)).toMatchObject({ code: 'WORKFLOW_NOT_FOUND' })
+    }
+    expect(callsTo(LIST_PATH)).toHaveLength(0)
+  })
+
+  it('finds a name longer than the list search takes by its first 200 characters', async () => {
+    const long = `${'Lead Scorer '.repeat(20)}final`
+    serve({ [LIST_PATH]: listed({ id: WORKFLOW_ID, name: long }) })
+
+    expect(await getNamed(long)).toBeNull()
+
+    expect(callsTo(LIST_PATH)[0][1].query?.search).toBe(long.slice(0, 200))
+  })
+
+  it('never cuts the search inside a character a long name holds', async () => {
+    const long = `${'a'.repeat(199)}😀 scorer`
+    serve({ [LIST_PATH]: listed({ id: WORKFLOW_ID, name: long }) })
+
+    expect(await getNamed(long)).toBeNull()
+
+    expect(callsTo(LIST_PATH)[0][1].query?.search).toBe('a'.repeat(199))
+  })
 })
 
 describe('sim workflows source get --dir', () => {
@@ -171,7 +321,7 @@ describe('sim workflows source get --dir', () => {
     expect(callsTo(CATALOG_PATH)[0][1].query).toBeUndefined()
   })
 
-  it('prints the primer, which opens the guide, with a snippet for each builder the source calls and no other', async () => {
+  it('writes the primer atop the guide with a snippet for each builder the source calls and no other, without printing it', async () => {
     serve({
       [SOURCE_PATH]: () =>
         source({ 'workflow.ts': "// @sim-sdk 1\nconst mail = gmail.sendEmail('Mail', {})\n" }),
@@ -179,22 +329,170 @@ describe('sim workflows source get --dir', () => {
 
     await get('--dir', outDir)
 
-    const { primer } = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
-    expect(readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8').startsWith(primer)).toBe(true)
-    expect(primer).toContain('- `gmail.sendEmail` (Gmail: Send Email)')
-    expect(primer).not.toContain('`slack.sendMessage`')
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed).not.toHaveProperty('primer')
+    expect(printed.guide).toBe('.sim/AGENTS.md')
+    const agents = readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8')
+    expect(agents).toContain('- `gmail.sendEmail` (Gmail: Send Email)')
+    expect(agents).not.toContain('`slack.sendMessage`')
   })
 
-  it.each(['workflow', 'workspace'] as const)(
-    'names in the %s primer only commands and flags this CLI has',
-    (kind) => {
+  it("names the primer's edit loop: the test run and deploy for a coding agent, the apply alone in Mothership", async () => {
+    serve()
+    const editLoop = async (...args: string[]) => {
+      await get('--dir', outDir, ...args)
+      return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}').editLoop
+    }
+
+    expect(await editLoop()).toEqual([
+      `sim workflows source check --dir ${outDir} && sim workflows source apply --dir ${outDir} --yes --run '{…}' --deploy`,
+    ])
+    vi.stubEnv('SIM_CLI_HOST', 'mothership')
+    expect(await editLoop('--force')).toEqual([
+      `sim workflows source check --dir ${outDir} && sim workflows source apply --dir ${outDir} --yes`,
+    ])
+  })
+
+  it('names the tables the workflow uses and the output paths its runs fail on, which the read does not', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { codeFile, fn, table, trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('Invoices', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const lookup = table.queryRows('Lookup Customer', { tableId: table('customers') })",
+      "  const discount = fn('Apply Discount', { code: codeFile('./functions/apply-discount.js') })",
+      '  start.to(lookup)',
+      '  lookup.to(discount)',
+      '})',
+      '',
+    ].join('\n')
+    const read = {
+      code: 'W_UNRESOLVED_REF',
+      severity: 'warning',
+      message: '<nosuch.x> names no block.',
+      blockKey: 'applydiscount',
+    }
+    serve({
+      [SOURCE_PATH]: () => {
+        const answer = source(
+          {
+            'workflow.ts': workflow,
+            'functions/apply-discount.js':
+              'const customer = $ref.lookupcustomer.row\nreturn $ref.nosuch.x\n',
+          },
+          ['function', 'start_trigger', 'table_v2']
+        )
+        return { data: { ...answer.data, diagnostics: [read] } }
+      },
+    })
+
+    await get('--dir', outDir)
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed.tables).toEqual(['customers'])
+    expect(printed.diagnostics).toEqual([
+      expect.objectContaining({ code: 'W_UNRESOLVED_REF', message: read.message }),
+      expect.objectContaining({
+        code: 'W_UNKNOWN_OUTPUT_PATH',
+        file: 'functions/apply-discount.js',
+        line: 1,
+        hint: expect.stringContaining('rows'),
+      }),
+    ])
+  })
+
+  it('says how many output paths no block produces the warning cap left out', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { codeFile, fn, table, trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('Invoices', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const lookup = table.queryRows('Lookup Customer', { tableId: table('customers') })",
+      "  const discount = fn('Apply Discount', { code: codeFile('./functions/apply-discount.js') })",
+      '  start.to(lookup)',
+      '  lookup.to(discount)',
+      '})',
+      '',
+    ].join('\n')
+    const reads = Array.from({ length: 22 }, (_, index) => `$ref.lookupcustomer.row${index}`)
+    serve({
+      [SOURCE_PATH]: () =>
+        source(
+          {
+            'workflow.ts': workflow,
+            'functions/apply-discount.js': `return [${reads.join(', ')}]\n`,
+          },
+          ['function', 'start_trigger', 'table_v2']
+        ),
+    })
+
+    await get('--dir', outDir)
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    const codes = printed.diagnostics.map((finding: { code: string }) => finding.code)
+    expect(codes.filter((code: string) => code === 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(20)
+    expect(printed.diagnostics.at(-1)).toEqual(
+      expect.objectContaining({
+        code: 'I_FINDINGS_TRUNCATED',
+        message: expect.stringContaining('2 more'),
+      })
+    )
+  })
+
+  it('writes a root AGENTS.md pointing at the guide, and never replaces one it did not write', async () => {
+    serve({ [SOURCE_PATH]: () => source() })
+
+    await get('--dir', outDir)
+
+    const pointer = readFileSync(join(outDir, 'AGENTS.md'), 'utf8')
+    expect(pointer).toContain('.sim/AGENTS.md')
+    expect(pointer.startsWith(AGENTS_POINTER_MARKER)).toBe(true)
+
+    writeFileSync(join(outDir, 'AGENTS.md'), '# My own rules\n')
+    await get('--dir', outDir, '--force')
+
+    expect(readFileSync(join(outDir, 'AGENTS.md'), 'utf8')).toBe('# My own rules\n')
+  })
+
+  it("leaves a root AGENTS.md that links to the user's own guide untouched, and still refreshes", async () => {
+    serve({ [SOURCE_PATH]: () => source() })
+    await get('--dir', outDir)
+    const guide = join(outDir, '..', 'my-guide.md')
+    writeFileSync(guide, '# Mine\n')
+    rmSync(join(outDir, 'AGENTS.md'))
+    symlinkSync(guide, join(outDir, 'AGENTS.md'))
+
+    await get('--dir', outDir, '--force')
+
+    expect(readFileSync(guide, 'utf8')).toBe('# Mine\n')
+    expect(existsSync(join(outDir, '.sim/AGENTS.md'))).toBe(true)
+  })
+
+  /** Each primer there is: the workspace directory has the `cli` one alone. */
+  const PRIMERS = [
+    ['workflow', 'cli'],
+    ['workflow', 'chat'],
+    ['workspace', 'cli'],
+  ] as const
+
+  it.each(PRIMERS)(
+    'names in the %s %s primer only commands and flags this CLI has',
+    (kind, surface) => {
       const program = buildProgram()
-      const named = [...sourcePrimer(kind).matchAll(/`(sim [^`]+)`/g)].map((match) => match[1])
+      const roots = new Set(program.commands.map((command) => command.name()))
+      // A `sim_cli` command is named without `sim`, as that tool takes it.
+      const named = [
+        ...`${sourcePrimer(kind, surface)}${agentsPointer(kind, surface)}`.matchAll(/`([^`]+)`/g),
+      ]
+        .flatMap((match) => match[1].split(' && '))
+        .map((line) => line.replace(/^sim /, ''))
+        .filter((line) => roots.has(line.split(' ')[0]) && line.includes(' '))
       expect(named.length).toBeGreaterThan(0)
       for (const line of named) {
         let command: Command = program
-        const words = line.split(/\s+/).slice(1)
-        for (const word of words) {
+        for (const word of line.split(/\s+/)) {
           if (word.startsWith('-') || word.startsWith('<') || /^['"{.]/.test(word)) break
           const next = command.commands.find(
             (child) => child.name() === word || child.aliases().includes(word)
@@ -218,9 +516,94 @@ describe('sim workflows source get --dir', () => {
     }
   )
 
-  it('keeps the primer without snippets within its byte budget for both directory kinds', () => {
-    for (const kind of ['workflow', 'workspace'] as const) {
-      expect(Buffer.byteLength(sourcePrimer(kind))).toBeLessThanOrEqual(PRIMER_MAX_BYTES)
+  it('keeps every primer without snippets within its byte budget', () => {
+    for (const [kind, surface] of PRIMERS) {
+      expect(
+        Buffer.byteLength(sourcePrimer(kind, surface)),
+        `${kind} ${surface}`
+      ).toBeLessThanOrEqual(PRIMER_MAX_BYTES)
+    }
+  })
+
+  it('teaches the chat no command its workbench or Sim refuses it, and the test run through sim_cli', () => {
+    const chat = `${sourcePrimer('workflow', 'chat')}${agentsPointer('workflow', 'chat')}`
+    expect(chat).not.toMatch(/workspaces source/)
+    expect(chat).not.toMatch(/ --run(?![\w-])/)
+    expect(chat).not.toMatch(/&& sim workflows run\b/)
+    expect(chat).toMatch(/sim_cli[^\n]*`workflows run <workflowId> --dry\b/)
+    expect(chat).toContain(
+      '`workflows deploy <workflowId> --expected-draft-fingerprint <fingerprint>`'
+    )
+    expect(sourcePrimer('workflow', 'cli')).toContain("--run '{…}' --deploy")
+  })
+
+  it.each(PRIMERS)(
+    'quotes in the %s %s primer patterns only code the type-checked examples hold',
+    (kind, surface) => {
+      const examples = [
+        ...Object.values(COOKBOOK_EXAMPLES),
+        ...Object.values(WORKSPACE_COOKBOOK),
+      ].join('\n')
+      const lines = sourcePrimer(kind, surface).split('\n')
+      const start = lines.findIndex((line) => line.startsWith(PATTERNS_HEADING))
+      const end = lines.findIndex((line, index) => index > start && !line.startsWith('  - '))
+      const spans = lines
+        .slice(start + 1, end)
+        .flatMap((line) => [...line.matchAll(/`([^`]+)`/g)].map((match) => match[1]))
+      expect(spans.length).toBeGreaterThan(20)
+      const missing = spans.filter(
+        (span) => !new RegExp(escapeRegExp(span).replace(/<[^>]+>/g, '.+?')).test(examples)
+      )
+      expect(missing).toEqual([])
+    }
+  )
+
+  it('writes the chat primer and pointer inside Mothership, and the coding-agent ones elsewhere', async () => {
+    const guides = () =>
+      ['.sim/AGENTS.md', 'AGENTS.md', '.sim/GUIDE-advanced.md'].map((file) =>
+        readFileSync(join(outDir, file), 'utf8')
+      )
+    serve()
+    await get('--dir', outDir)
+    for (const guide of guides()) {
+      expect(guide).toContain("--yes --run '{…}' --deploy")
+      expect(guide).not.toContain('sim_cli')
+    }
+
+    vi.stubEnv('SIM_CLI_HOST', 'mothership')
+    await get('--dir', outDir, '--force')
+
+    for (const guide of guides()) {
+      expect(guide).not.toMatch(/--run '|(^|[\s`])--deploy(?![\w-])/m)
+      expect(guide).toContain('with sim_cli')
+    }
+  })
+
+  it('gives the chat loop in the source help inside Mothership and to an embedded run', async () => {
+    const render = () => {
+      const source = buildProgram()
+        .commands.find((command) => command.name() === 'workflows')
+        ?.commands.find((command) => command.name() === 'source')
+      let text = ''
+      source?.configureOutput({ writeOut: (chunk) => (text += chunk) })
+      source?.outputHelp()
+      return text
+    }
+    expect(render()).toContain("--yes --run '{…}' --deploy")
+    expect(render()).toContain('sim workspaces source get')
+
+    const embedded = (host?: string) =>
+      runEmbeddedCli(
+        ['workflows', 'source', '--help'],
+        { endpoint: 'https://sim.test', apiKey: 'key' },
+        { host }
+      )
+    expect((await embedded()).stdout).toContain("--yes --run '{…}' --deploy")
+    const mothership = (await embedded('mothership')).stdout
+    vi.stubEnv('SIM_CLI_HOST', 'mothership')
+    for (const chat of [mothership, render()]) {
+      expect(chat).not.toMatch(/ --run(?![\w-])|workspaces source/)
+      expect(chat).toContain("workflows run <workflowId> --dry --input '{…}' --dir ./wf")
     }
   })
 
@@ -263,6 +646,108 @@ describe('sim workflows source get --dir', () => {
 
     expect(existsSync(join(outDir, '.sim/sdk/blocks/gmail_v2.d.ts'))).toBe(true)
     expect(typecheck('tsconfig.json')).toMatch(unknownParam)
+  })
+
+  it('type-checks the directory in the check, with the blocks the edit added', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('W', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      '})',
+      '',
+    ].join('\n')
+    serve({ [SOURCE_PATH]: () => source({ 'workflow.ts': workflow }, []) })
+    await get('--dir', outDir)
+    writeFileSync(
+      join(outDir, 'workflow.ts'),
+      workflow
+        .replace('{ trigger, workflow }', '{ gmail, trigger, workflow }')
+        .replace(
+          "  const start = trigger.start('Start', {})\n",
+          "  const start = trigger.start('Start', {})\n  const mail = gmail.sendEmail('Mail', {\n    to: 'a@b.c',\n    subject: 's',\n    body: start.missing,\n  })\n  start.to(mail)\n"
+        )
+    )
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: WORKSPACE_ID,
+      output: 'json',
+    })
+    const check = new Command('source')
+    attachWorkflowSourceCheck(check)
+    check.commands.forEach((command) => command.exitOverride())
+    await check.parseAsync(['node', 'source', 'check', '--dir', outDir])
+
+    expect(process.exitCode).toBe(1)
+    process.exitCode = undefined
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed.checked).toEqual(['compile', 'types'])
+    expect(
+      (printed.diagnostics as Array<{ code: string }>).filter(({ code }) => code === 'E_TYPE')
+    ).toEqual([
+      expect.objectContaining({
+        file: 'workflow.ts',
+        line: 9,
+        message: expect.stringMatching(/^TS2339: Property 'missing' does not exist/),
+      }),
+    ])
+  })
+
+  it('names the refresh when a row write names a column the table types the last get wrote lack', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { table, trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('W', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const save = table.insertRow('Save', { tableId: table('tickets'), data: { subject: 's', category: 'c' } })",
+      '  start.to(save)',
+      '})',
+      '',
+    ].join('\n')
+    serve({
+      [SOURCE_PATH]: () => source({ 'workflow.ts': workflow }, ['table_v2']),
+      [MANIFEST_PATH]: () => ({
+        data: {
+          ...MANIFEST.data,
+          tables: [
+            {
+              key: 'tickets',
+              id: 'tbl-1',
+              name: 'tickets',
+              columns: [
+                { name: 'subject', type: 'string' },
+                { name: 'body', type: 'string' },
+              ],
+            },
+          ],
+        },
+      }),
+    })
+    await get('--dir', outDir)
+    writeFileSync(join(outDir, 'workflow.ts'), `${workflow}\n`)
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: WORKSPACE_ID,
+      output: 'json',
+    })
+    const check = new Command('source')
+    attachWorkflowSourceCheck(check)
+    check.commands.forEach((command) => command.exitOverride())
+    await check.parseAsync(['node', 'source', 'check', '--dir', outDir])
+
+    expect(process.exitCode).toBe(1)
+    process.exitCode = undefined
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(
+      (printed.diagnostics as Array<{ code: string }>).filter(({ code }) => code === 'E_TYPE')
+    ).toEqual([
+      expect.objectContaining({
+        message: expect.stringMatching(/^TS2353: .*'category' does not exist/),
+        hint: expect.stringContaining(`sim workflows source status --dir ${outDir}`),
+      }),
+    ])
   })
 
   it('writes the example workflows beside the guide, outside what the tsconfig files type-check', async () => {

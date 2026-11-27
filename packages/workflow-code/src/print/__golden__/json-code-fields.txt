@@ -12,6 +12,7 @@ export default workflow('Fixture', {}, () => {
 }`,
   })
   const sugared = agent('Sugared', { model: 'm', responseFormat: { name: 'ticket', strict: true } })
+  start.to(sugared)
   const typedRefs = table.insertRow('Typed refs', {
     tableId: table('tickets'),
     data: {
@@ -22,6 +23,4 @@ export default workflow('Fixture', {}, () => {
       tags: ['a', start.count],
     },
   })
-
-  start.to(sugared)
 })

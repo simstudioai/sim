@@ -14,6 +14,7 @@ export const createScheduleTool: ToolConfig<
   name: 'Cal.com Create Schedule',
   description: 'Create a new availability schedule in Cal.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

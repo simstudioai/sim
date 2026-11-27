@@ -24,6 +24,7 @@ export const checkrDeleteCandidatePiiTool: ToolConfig<
   description:
     "Request removal of a candidate's personally identifiable information. Fails if PII was already removed.",
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

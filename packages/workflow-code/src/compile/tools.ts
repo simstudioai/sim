@@ -32,7 +32,7 @@ import {
 import { deepEqual, getOwn, setOwn } from '../records'
 import { CUSTOM_TOOL_TYPE, hasToolForm } from '../sdk'
 import { holdsSecret, literalSecretFinding } from '../secrets'
-import { type CompileContext, lookup, rangeOf, unsupported } from './context'
+import { type CompileContext, lockBinds, lookup, rangeOf, unsupported } from './context'
 import { didYouMean, hintForNode, nodeLabel, suggestBuilder } from './hints'
 import {
   calleePath,
@@ -233,7 +233,8 @@ function compileToolCall(
           hint:
             suggestBuilder(
               [path.root, ...path.rest].filter((segment) => segment !== 'tool').join('.'),
-              catalogBuilderPaths(ctx.catalog)
+              catalogBuilderPaths(ctx.catalog),
+              ctx.catalog
             ) ?? 'Write namespace.tool.method(params, options), or raw(tool).',
         }),
         blockKey: site.decl.key,
@@ -508,7 +509,11 @@ function matchStoredTools(
   return matches
 }
 
-/** Fills each `stored()` param from the stored tool its tool matched; `false` after a refusal. */
+/**
+ * Fills each `stored()` param from the stored tool its tool matched; `false` after a refusal. A
+ * tool of a block the lock of an unread stored workflow binds leaves it out unread, as `stored()`
+ * on a block param does.
+ */
 function resolveStoredParams(
   ctx: CompileContext,
   site: ValueSite,
@@ -516,6 +521,7 @@ function resolveStoredParams(
   tools: readonly CanonicalTool[],
   storedTools: readonly CanonicalTool[]
 ): boolean {
+  if (!ctx.stored && lockBinds(ctx, site.decl)) return true
   const matches = matchStoredTools(calls, tools, storedTools)
   let ok = true
   calls.forEach((call, index) => {

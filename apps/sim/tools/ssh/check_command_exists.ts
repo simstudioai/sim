@@ -8,6 +8,7 @@ export const checkCommandExistsTool: CheckCommandExistsToolConfig = {
   name: 'SSH Check Command Exists',
   description: 'Check if a command/program exists on the remote SSH server',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

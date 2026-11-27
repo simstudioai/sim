@@ -13,6 +13,7 @@ export const updateApplicationTool: InternalToolConfig<
   name: 'AppConfig Update Application',
   description: 'Update the name or description of an AWS AppConfig application',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

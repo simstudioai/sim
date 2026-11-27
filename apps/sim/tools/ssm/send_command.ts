@@ -7,6 +7,7 @@ export const sendCommandTool: InternalToolConfig<SsmSendCommandParams, SsmSendCo
   name: 'SSM Send Command',
   description: 'Run an SSM document on managed nodes with AWS Systems Manager Run Command',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

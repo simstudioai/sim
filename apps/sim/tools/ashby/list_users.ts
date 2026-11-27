@@ -31,6 +31,7 @@ export const listUsersTool: ToolConfig<AshbyListUsersParams, AshbyListUsersRespo
   name: 'Ashby List Users',
   description: 'Lists all users in Ashby with pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

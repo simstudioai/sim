@@ -12,6 +12,7 @@ export const removeAudienceMemberTool: ToolConfig<
   name: 'Thrive Remove Audience Member',
   description: 'Remove a single member from a Thrive audience.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

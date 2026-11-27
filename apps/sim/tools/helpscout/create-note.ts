@@ -26,6 +26,7 @@ export const helpScoutCreateNoteTool: ToolConfig<
   name: 'Help Scout Add Note',
   description: 'Add an internal note to a Help Scout conversation. Customers never see notes.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

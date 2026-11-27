@@ -8,6 +8,7 @@ export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTracke
   name: 'Gong List Trackers',
   description: 'Retrieve smart tracker and keyword tracker definitions from Gong settings.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

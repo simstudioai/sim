@@ -12,6 +12,7 @@ export const googleMapsTimezoneTool: ToolConfig<
   name: 'Google Maps Timezone',
   description: 'Get timezone information for a location',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

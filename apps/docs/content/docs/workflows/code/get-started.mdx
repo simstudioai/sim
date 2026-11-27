@@ -1,0 +1,74 @@
+---
+title: Get started
+description: Change one setting of a workflow from your terminal, save it, and see it in the workflow builder.
+---
+
+This walks through one change end to end: read a workflow as a file, edit it, check it, save it, and see the result in the workflow builder.
+
+## Before you start
+
+- Workflows as code is [enabled](/workflows/code) for your workspace. Where it is not, step 2 answers `403`.
+- The Sim CLI is installed and you are signed in with a default workspace. See [Your first command](/cli#your-first-command).
+- Optional: npm (Node.js), which the type check in step 4 uses once to install TypeScript; without it `check` reports `W_TYPES_UNCHECKED` and the compile still runs.
+
+## 1. Find the workflow ID
+
+```bash
+sim workflows list --search "support"
+```
+
+## 2. Read it as a file
+
+```bash
+sim workflows source get <workflowId> --dir ./support-triage
+```
+
+This writes `workflow.ts`, the type declarations, and `.sim/`, which records which block is which. See [Directory layout](/workflows/code/directory).
+
+## 3. Change one setting
+
+Open `workflow.ts` and change one value, such as an agent's `model` or a message's `text`. Each `const` is a block, and a change to one setting is a one-line diff. The forms you can write are in [File syntax](/workflows/code/syntax).
+
+## 4. Check it
+
+```bash
+sim workflows source check --dir ./support-triage
+```
+
+`check` compiles the file on your machine and type-checks it. Each problem prints with its line, the code around it, and a hint. The first check installs the TypeScript release the declarations are built for, once.
+
+## 5. See what changed
+
+```bash
+sim workflows source status --dir ./support-triage
+sim workflows source diff --dir ./support-triage
+```
+
+`status` lists your edits, asks the server whether the workflow changed since the `get`, and ends with the one command to run next.
+
+## 6. Save the draft
+
+```bash
+sim workflows source apply --dir ./support-triage --dry
+sim workflows source apply --dir ./support-triage --yes
+```
+
+The dry run runs every check a save runs and writes nothing. `--yes` saves the draft and rewrites `workflow.ts` in canonical form, so read it again before the next edit.
+
+## 7. See it in the builder
+
+Open the workflow in the workflow builder. It shows your change, and updates for anyone who has the workflow open. The **Code** tab shows the same workflow as read-only source. Saving writes the draft only: deploy it when you are ready.
+
+## Create a new workflow
+
+```bash
+sim workflows source create --dir ./new-workflow --workspace <workspaceId>
+```
+
+See [Create a workflow](/workflows/code/create).
+
+## Related docs
+
+- [Edit a workflow](/workflows/code/edit)
+- [Use with coding agents](/workflows/code/coding-agents)
+- [Exit codes](/workflows/code/exit-codes)

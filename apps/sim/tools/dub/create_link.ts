@@ -8,6 +8,7 @@ export const createLinkTool: ToolConfig<DubCreateLinkParams, DubCreateLinkRespon
   description:
     'Create a new short link with Dub. Supports custom domains, slugs, UTM parameters, and more.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {

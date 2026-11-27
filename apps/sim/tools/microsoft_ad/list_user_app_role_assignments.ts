@@ -16,6 +16,7 @@ export const listUserAppRoleAssignmentsTool: ToolConfig<
   description:
     'List the application role assignments granted to a user, including assignments the user inherits from groups they are a direct member of',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

@@ -8,6 +8,7 @@ export const agentmailGetInboxTool: ToolConfig<GetInboxParams, GetInboxResult> =
   name: 'Get Inbox',
   description: 'Get details of a specific email inbox in AgentMail',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

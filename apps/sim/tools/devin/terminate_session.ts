@@ -13,6 +13,7 @@ export const devinTerminateSessionTool: ToolConfig<
   description:
     'Terminate a Devin session. Optionally archive the session instead of permanently terminating it.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {

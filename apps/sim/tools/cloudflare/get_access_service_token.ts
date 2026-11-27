@@ -22,6 +22,7 @@ export const getAccessServiceTokenTool: ToolConfig<
   name: 'Cloudflare Get Access Service Token',
   description: 'Fetches a single service token.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

@@ -27,6 +27,7 @@ export const helpScoutGetConversationTool: ToolConfig<
   name: 'Help Scout Get Conversation',
   description: 'Get a Help Scout conversation by ID, optionally with its threads.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

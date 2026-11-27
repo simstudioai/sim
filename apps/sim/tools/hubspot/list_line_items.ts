@@ -16,6 +16,7 @@ export const hubspotListLineItemsTool: ToolConfig<
   name: 'List Line Items from HubSpot',
   description: 'Retrieve all line items from HubSpot account with pagination support',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

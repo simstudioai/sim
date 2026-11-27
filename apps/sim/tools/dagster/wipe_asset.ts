@@ -47,6 +47,7 @@ export const wipeAssetTool: ToolConfig<DagsterWipeAssetParams, DagsterWipeAssetR
   description:
     'DESTRUCTIVE: permanently wipes ALL materialization history (every partition) for an asset. This cannot be undone.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

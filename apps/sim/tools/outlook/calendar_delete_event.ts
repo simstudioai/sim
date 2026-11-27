@@ -14,6 +14,7 @@ export const outlookCalendarDeleteEventTool: ToolConfig<
   name: 'Outlook Delete Calendar Event',
   description: 'Delete an Outlook calendar event by ID',
   version: '1.0.0',
+  effect: 'write',
 
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 

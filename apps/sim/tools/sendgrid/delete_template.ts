@@ -9,6 +9,7 @@ export const sendGridDeleteTemplateTool: ToolConfig<DeleteTemplateParams, ToolRe
   name: 'SendGrid Delete Template',
   description: 'Delete an email template from SendGrid',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

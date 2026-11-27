@@ -205,6 +205,7 @@ const applied = {
   base: source.base,
   mintedIds: {},
   notes: [],
+  deployedVersion: 3,
   needsRedeployment: true,
   sdkMajor: 1,
 }
@@ -394,17 +395,17 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
     expect(mocks.apply).not.toHaveBeenCalled()
   })
 
-  it('passes dryRun through as a boolean', async () => {
+  it('passes dry through as a boolean', async () => {
     mocks.apply.mockResolvedValue({ ...applied, dryRun: true, applied: false })
 
-    const response = await POST(applyRequest(applyBody, '?dryRun=true'), context)
+    const response = await POST(applyRequest(applyBody, '?dry=true'), context)
 
     expect(response.status).toBe(200)
     expect(mocks.apply.mock.calls[0][0].input).toMatchObject({
       workflowId: WORKFLOW_ID,
       dryRun: true,
     })
-    expect((await response.json()).data.applied).toBe(false)
+    expect((await response.json()).data).toMatchObject({ applied: false, dry: true })
   })
 
   it('rejects a base without workflowId with 400 before applying', async () => {
@@ -458,7 +459,7 @@ describe('source write rate limit', () => {
 
   it('answers 429 to dry runs well inside the generic budget, while reads still answer', async () => {
     const limitedAt = await writesUntilLimited(() =>
-      POST(applyRequest(applyBody, '?dryRun=true'), context)
+      POST(applyRequest(applyBody, '?dry=true'), context)
     )
 
     expect(limitedAt).not.toBeNull()
@@ -473,7 +474,7 @@ describe('source write rate limit', () => {
         ? new Promise((resolve) => finish.push(() => resolve({ ...applied, dryRun: true })))
         : Promise.resolve(applied)
     )
-    const dryRun = () => POST(applyRequest(applyBody, '?dryRun=true'), context)
+    const dryRun = () => POST(applyRequest(applyBody, '?dry=true'), context)
     const running = Array.from({ length: 4 }, () => dryRun())
     await vi.waitFor(() => expect(finish).toHaveLength(4))
 
@@ -572,8 +573,8 @@ describe('source plan budget', () => {
 
     expect(limitedAt).not.toBeNull()
     expect(limitedAt).toBeLessThan(GENERIC_BUDGET)
-    expect((await POST(applyRequest(applyBody, '?dryRun=true'), context)).status).toBe(429)
-    expect((await create('?dryRun=true')).status).toBe(429)
+    expect((await POST(applyRequest(applyBody, '?dry=true'), context)).status).toBe(429)
+    expect((await create('?dry=true')).status).toBe(429)
     expect((await POST(applyRequest(applyBody), context)).status).not.toBe(429)
     expect((await create('')).status).not.toBe(429)
   })

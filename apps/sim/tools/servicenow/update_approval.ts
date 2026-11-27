@@ -24,6 +24,7 @@ export const updateApprovalTool: ToolConfig<
   description:
     'Approve or reject a ServiceNow approval record by setting its state on the Approval [sysapproval_approver] table.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

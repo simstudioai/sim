@@ -14,8 +14,8 @@ export const salesforceCreateTaskTool: ToolConfig<
   name: 'Create Task in Salesforce',
   description: 'Create a new task',
   version: '1.0.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'whoId', label: 'Contact or lead', target: true },

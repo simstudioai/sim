@@ -7,6 +7,7 @@ export const zoomGetMeetingTool: ToolConfig<ZoomGetMeetingParams, ZoomGetMeeting
   name: 'Zoom Get Meeting',
   description: 'Get details of a specific Zoom meeting',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -48,6 +48,7 @@ export const startSensorTool: ToolConfig<DagsterStartSensorParams, DagsterSensor
     name: 'Dagster Start Sensor',
     description: 'Enable (start) a sensor in a Dagster repository.',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       host: {

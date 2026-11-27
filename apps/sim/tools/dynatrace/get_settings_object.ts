@@ -23,6 +23,7 @@ export const getSettingsObjectTool: ToolConfig<
   description:
     'Get a single settings object with its value and its update token. Read it before updating so the token can guard against a concurrent change.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

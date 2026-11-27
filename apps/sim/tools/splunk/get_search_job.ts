@@ -20,6 +20,7 @@ export const getSearchJobTool: ToolConfig<SplunkGetSearchJobParams, SplunkGetSea
   description:
     'Get the status and progress of a Splunk search job by search ID, including dispatch state, completion progress, and event/result counts.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {

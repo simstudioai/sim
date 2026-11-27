@@ -15,6 +15,7 @@ export const tailscaleSetDeviceNameTool: ToolConfig<
   name: 'Tailscale Set Device Name',
   description: 'Rename a device or reset its name to the OS hostname',
   version: '1.0.0',
+  effect: 'write',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

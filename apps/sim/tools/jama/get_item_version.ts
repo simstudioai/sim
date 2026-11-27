@@ -21,6 +21,7 @@ export const jamaGetItemVersionTool: ToolConfig<
   name: 'Jama Get Item Version',
   description: "Get Item Version in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'read',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

@@ -20,6 +20,7 @@ export const flowCreateCommentTool: ToolConfig<FlowCreateCommentParams, FlowCrea
     description:
       'Start a thread on an entity or reply using the original comment ID as entityId. Set the branch explicitly; replies do not inherit it.',
     version: '1.0.0',
+    effect: 'write',
     oauth: FLOW_OAUTH,
     params: {
       ...FLOW_AUTH_PARAMS,

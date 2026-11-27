@@ -33,6 +33,7 @@ export const managedAgentRespondToolConfirmationTool: InternalToolConfig<
   description:
     'Allow or deny the tool calls a Managed Agent session is waiting on before it can continue.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

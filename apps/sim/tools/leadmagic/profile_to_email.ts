@@ -14,6 +14,7 @@ export const profileToEmailTool: ToolConfig<
   description:
     'Extract a verified work email from a LinkedIn profile URL. Charges 5 credits when an email is found; free when no result.',
   version: '1.0.0',
+  effect: 'write',
 
   hosting: leadmagicHosting<LeadMagicProfileToEmailParams>((_params, output) => {
     // 5 credits when email found, 0 otherwise.

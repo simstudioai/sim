@@ -19,6 +19,7 @@ export const updateWorksheetTool: ToolConfig<ExcelUpdateWorksheetParams, ExcelWo
   name: 'Microsoft Excel Update Worksheet',
   description: 'Update Worksheet in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: {

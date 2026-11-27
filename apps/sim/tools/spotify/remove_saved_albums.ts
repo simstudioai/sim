@@ -18,6 +18,7 @@ export const spotifyRemoveSavedAlbumsTool: ToolConfig<
   name: 'Spotify Remove Saved Albums',
   description: "Remove albums from the user's library.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

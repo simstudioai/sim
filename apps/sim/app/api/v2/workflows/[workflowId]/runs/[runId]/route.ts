@@ -3,7 +3,7 @@ import {
   v2WorkflowRunStatusSchema,
 } from '@/lib/api/contracts/v2/workflows'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { presentV2RunError, v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
 import { classifyRecordedExecutionError } from '@/executor/utils/errors'
@@ -49,14 +49,20 @@ export const GET = defineV2JsonRoute({
       paused: status.paused
         ? v2WorkflowRunStatusSchema.shape.paused.parse({
             ...status.paused,
+            runId: status.pausedRunId,
             points: status.pausePoints ?? [],
           })
         : null,
       cost: status.cost,
-      error: status.error ? classifyRecordedExecutionError(status.error, status.failedBlock) : null,
+      error: presentV2RunError(
+        status.error ? classifyRecordedExecutionError(status.error, status.failedBlock) : null,
+        status.rerunFromBlockId
+      ),
       output: status.finalOutput,
       blockOutputs: status.blockOutputs,
       files: status.files,
+      // Only a failed dry run's: what a rerun of it names again.
+      overrides: status.status === 'failed' ? status.overrides : null,
     },
   }),
 })

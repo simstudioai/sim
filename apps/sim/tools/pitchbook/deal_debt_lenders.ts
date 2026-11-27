@@ -9,6 +9,7 @@ export const pitchbookDealDebtLendersTool: ToolConfig<PitchbookProfileParams, Pi
   description:
     'Retrieve the debt raised in a deal and the lenders behind it, with rate, maturity, seniority, and covenant terms',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

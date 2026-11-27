@@ -23,6 +23,7 @@ export const createCommentTool: ToolConfig<
   name: 'Create Google Drive Comment',
   description: 'Add a comment to a file in Google Drive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

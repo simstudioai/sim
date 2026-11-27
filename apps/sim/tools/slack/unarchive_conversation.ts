@@ -7,6 +7,7 @@ export const slackUnarchiveConversationTool = createSlackWebApiTool({
   name: 'Slack Unarchive Conversation',
   description:
     'Restore an archived Slack channel. Slack does not currently let bot tokens unarchive conversations, so this fails with the Sim app or a custom bot until Slack lifts that limit.',
+  effect: 'write',
   endpoint: 'conversations.unarchive',
   method: 'POST',
   oauth: { required: true, provider: 'slack', requiredScopes: [] },

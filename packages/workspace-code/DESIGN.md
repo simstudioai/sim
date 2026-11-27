@@ -116,7 +116,7 @@ skill's `content` are handled by hand. A fixture in the kind's test must set eve
 **Changing canonical output breaks every checkout.** Any change to a kind's `canonical()` (or to
 `@sim/workflow-code` canonicalize, for workflows) changes stored fingerprints, so every directory
 in the field reads as changed or stale after the deploy. Treat it as a format change: bump the
-`rf`/`sf` prefix and accept the old one for a release, or ship it with a note to re-run get.
+`rf`/`sf` prefix, and a directory read before the change re-runs get.
 
 ### The workflow kind
 
@@ -239,7 +239,11 @@ write is refused as stale rather than published. A deploy's idempotency key hash
 fingerprint and the live version it replaces. The flag, the deploy and the chat are separate writes, so the
 apply checks what the chat write refuses (an identifier another chat holds,
 `E_DEPLOY_CHAT_IDENTIFIER`, at plan time and again before the first write; the password, the
-outputs, the auth mode) before it writes any of them. The base records each part's fingerprint
+outputs, the auth mode) before it writes any of them. A chat stores its outputs by block id, and
+a stored output reads by the block's name in the draft, else in the live version it serves: a kept
+chat whose output block the going-live draft re-created (by this apply's edit, or an earlier
+apply's, as \`apply --run\` writes deployments after its test runs) is rewritten to the block of
+that name (\`checkKeptOutputs\`). The base records each part's fingerprint
 (`x-parts`: `api`, `chat`), so a re-run after an apply stopped between them finds every part
 either the base's or the directory's and finishes the write (`partway` in `three-way.ts`), while a
 part that matches neither is still `E_APPLY_STALE`. A first deploy that stopped before its chat leaves a deployment with no
@@ -396,8 +400,7 @@ unchanged. One workflow keeps its own `SOURCE_LIMITS` (`@sim/workflow-code/limit
 
 `.sim/base.json` carries `version: 1`. As with the workflow lock, adding an optional field does not
 bump the version: validators learn a field before writers emit it, and data waits under an `x-` key,
-which the parser tolerates and preserves. Nothing upgrades an older version yet; a bump is a hard
-refusal until a migration is written.
+which the parser tolerates and preserves. A reader refuses any other version.
 
 ## SDK and CLI
 

@@ -8,6 +8,7 @@ export const deleteFormTool: ToolConfig<TypeformDeleteFormParams, TypeformDelete
   name: 'Typeform Delete Form',
   description: 'Permanently delete a form and all its responses',
   version: '1.0.0',
+  effect: 'write',
   oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {

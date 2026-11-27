@@ -54,6 +54,7 @@ export const bitbucketListPipelinesTool: ToolConfig<
   name: 'Bitbucket List Pipelines',
   description: 'List pipelines for a Bitbucket Cloud repository',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pipeline'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

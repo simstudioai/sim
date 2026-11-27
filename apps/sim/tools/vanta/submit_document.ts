@@ -11,6 +11,7 @@ export const vantaSubmitDocumentTool: InternalToolConfig<
   description:
     'Submit a Vanta document collection for review so uploaded evidence becomes visible to auditors. Requires credentials with write access.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

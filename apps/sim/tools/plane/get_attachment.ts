@@ -23,6 +23,7 @@ export const planeGetAttachmentTool: ToolConfig<
   name: 'Plane Get an attachment',
   description: 'Get an attachment in Plane. Requires API v2.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

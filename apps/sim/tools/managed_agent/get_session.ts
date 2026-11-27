@@ -33,6 +33,7 @@ export const managedAgentGetSessionTool: InternalToolConfig<
   description:
     'Read a Managed Agent session: status, stop reason, token usage, metadata, and any tool calls awaiting approval.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

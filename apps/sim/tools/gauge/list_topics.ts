@@ -13,6 +13,7 @@ export const gaugeListTopicsTool: ToolConfig<GaugeListTopicsParams, GaugeListTop
   name: 'Gauge List Topics',
   description: 'List one page of tracked-prompt topics in a category.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

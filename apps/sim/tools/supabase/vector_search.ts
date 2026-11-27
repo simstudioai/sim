@@ -15,6 +15,7 @@ export const vectorSearchTool: ToolConfig<
   name: 'Supabase Vector Search',
   description: 'Perform similarity search using pgvector in a Supabase table',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

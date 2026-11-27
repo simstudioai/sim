@@ -12,13 +12,12 @@ export default workflow(
         { variableId: vars.count, value: t`count is ${vars.count}` },
       ],
     })
+    start.to(setCount)
     const echo = agent(
       'Echo',
       { model: raw({ $sim: 'var', key: 'count' }), temperature: t`count is ${vars.count}` },
       { extra: { systemPrompt: vars.count } }
     )
-
-    start.to(setCount)
     setCount.to(echo)
   }
 )

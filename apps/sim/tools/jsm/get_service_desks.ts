@@ -10,6 +10,7 @@ export const jsmGetServiceDesksTool: InternalToolConfig<
   name: 'JSM Get Service Desks',
   description: 'Get all service desks from Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

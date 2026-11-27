@@ -8,6 +8,7 @@ export const removeLabelTool: ToolConfig<RemoveLabelParams, LabelsResponse> = {
   name: 'GitHub Remove Label',
   description: 'Remove a label from an issue in a GitHub repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -109,6 +110,7 @@ export const removeLabelV2Tool: ToolConfig = {
   name: removeLabelTool.name,
   description: removeLabelTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: removeLabelTool.params,
   request: removeLabelTool.request,
   oauth: removeLabelTool.oauth,

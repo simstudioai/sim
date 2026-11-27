@@ -16,6 +16,7 @@ export const rb2bLinkedinToBusinessProfileTool: ToolConfig<
   description:
     'Return a full business profile (name, title, company, emails and more) for a LinkedIn profile.',
   version: '1.0.0',
+  effect: 'write',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

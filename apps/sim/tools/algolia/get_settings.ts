@@ -7,6 +7,7 @@ export const getSettingsTool: ToolConfig<AlgoliaGetSettingsParams, AlgoliaGetSet
   name: 'Algolia Get Settings',
   description: 'Retrieve the settings of an Algolia index',
   version: '1.0',
+  effect: 'read',
   oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {

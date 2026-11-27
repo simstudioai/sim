@@ -6,6 +6,7 @@ export const grainListHooksTool: ToolConfig<GrainListHooksParams, GrainListHooks
   name: 'Grain List Webhooks',
   description: 'List all webhooks for the account',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

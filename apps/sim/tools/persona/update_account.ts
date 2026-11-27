@@ -21,6 +21,7 @@ export const personaUpdateAccountTool: ToolConfig<
   description:
     'Update an account’s reference ID, country code, fields, or tags. Only the provided values are changed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

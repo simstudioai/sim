@@ -12,6 +12,7 @@ export const spotifyGetArtistAlbumsTool: ToolConfig<
   name: 'Spotify Get Artist Albums',
   description: 'Get albums by an artist on Spotify. Can filter by album type.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

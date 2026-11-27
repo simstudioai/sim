@@ -10,6 +10,7 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
   name: 'Google Search',
   description: 'Search the web with the Custom Search API',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     query: {

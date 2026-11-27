@@ -11,6 +11,7 @@ export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDele
     name: 'Jira Delete Worklog',
     description: 'Delete a worklog entry from a Jira issue',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

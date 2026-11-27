@@ -7,6 +7,7 @@ export const knowledgeDeleteDocumentTool: InternalToolConfig<any, KnowledgeDelet
     name: 'Knowledge Delete Document',
     description: 'Delete a document from a knowledge base',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       knowledgeBaseId: {

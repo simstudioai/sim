@@ -23,6 +23,7 @@ export const zohoDeskSearchAccountsTool: ToolConfig<
   name: 'Zoho Desk Search Accounts',
   description: 'Search Accounts in Zoho Desk.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,

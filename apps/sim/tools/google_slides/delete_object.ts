@@ -28,6 +28,7 @@ export const deleteObjectTool: ToolConfig<DeleteObjectParams, DeleteObjectRespon
   description:
     'Delete a page element (shape, image, table, etc.) or an entire slide from a Google Slides presentation',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -18,6 +18,7 @@ import type {
   ExecutionMetadata,
   ExecutionTestHooks,
   SerializableExecutionState,
+  SideEffectPolicy,
 } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import { attachExecutionResult, hasExecutionResult } from '@/executor/utils/errors'
@@ -66,6 +67,8 @@ export interface ExecuteWorkflowOptions {
   stopAfterBlockId?: string
   /** Workflow test run: mocked blocks await these hooks instead of running. */
   testHooks?: ExecutionTestHooks
+  /** A dry run's or workflow test's handling of writes; every child execution inherits it. */
+  sideEffects?: SideEffectPolicy
   /** Run-from-block configuration using a prior execution snapshot. */
   runFromBlock?: {
     startBlockId: string
@@ -233,6 +236,7 @@ export async function executeWorkflow(
       abortSignal: streamConfig?.abortSignal,
       stopAfterBlockId: streamConfig?.stopAfterBlockId,
       testHooks: streamConfig?.testHooks,
+      sideEffects: streamConfig?.sideEffects,
       trustedInitialResolvedSecretTraceProvenance:
         streamConfig?.trustedInitialResolvedSecretTraceProvenance,
       runFromBlock: streamConfig?.runFromBlock,

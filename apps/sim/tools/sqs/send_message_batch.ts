@@ -10,6 +10,7 @@ export const sendMessageBatchTool: InternalToolConfig<
   name: 'SQS Send Message Batch',
   description: 'Send up to 10 messages to an Amazon SQS queue in a single request',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -9,6 +9,7 @@ export const slackGetUserPresenceTool: ToolConfig<
   name: 'Slack Get User Presence',
   description: 'Check whether a Slack user is currently active or away',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

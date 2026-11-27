@@ -29,6 +29,7 @@ export const s3PutObjectTool: InternalToolConfig = {
   name: 'S3 Put Object',
   description: 'Upload a file to an AWS S3 bucket',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

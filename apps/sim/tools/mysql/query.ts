@@ -7,6 +7,7 @@ export const queryTool: InternalToolConfig<MySQLQueryParams, MySQLResponse> = {
   name: 'MySQL Query',
   description: 'Execute SELECT query on MySQL database',
   version: '1.0',
+  effect: 'write',
   oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {

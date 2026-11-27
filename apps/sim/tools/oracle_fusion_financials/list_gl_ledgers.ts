@@ -20,6 +20,7 @@ export const oracleFusionFinancialsListGlLedgersTool: InternalToolConfig<
   name: 'Oracle Fusion Financials List GL Ledgers',
   description: 'List one bounded page of Oracle Fusion gl ledgers.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     ...oracleFusionFinancialsListParamFields,

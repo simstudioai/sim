@@ -8,6 +8,7 @@ export const getScheduleTool: ToolConfig<CalcomGetScheduleParams, CalcomGetSched
   name: 'Cal.com Get Schedule',
   description: 'Get a specific schedule by ID from Cal.com',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

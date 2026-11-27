@@ -22,6 +22,7 @@ export const personaGenerateInquiryLinkTool: ToolConfig<
   description:
     'Generate a one-time link for an inquiry that the individual can open to complete their identity verification.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

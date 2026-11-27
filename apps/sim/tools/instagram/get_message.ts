@@ -20,6 +20,7 @@ export const instagramGetMessageTool: ToolConfig<
   name: 'Instagram Get Message',
   description: 'Get a single Instagram Direct message by id (only recent messages are available)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

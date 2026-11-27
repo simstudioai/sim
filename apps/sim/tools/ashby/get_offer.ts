@@ -18,6 +18,7 @@ export const getOfferTool: ToolConfig<AshbyGetOfferParams, AshbyGetOfferResponse
   name: 'Ashby Get Offer',
   description: 'Retrieves full details about a single offer by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

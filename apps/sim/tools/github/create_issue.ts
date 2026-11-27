@@ -9,11 +9,32 @@ import {
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
+/** A comma-separated `assignees` or `labels` param as the names the request sends. */
+function nameList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+}
+
+/** The issue fields a create request sends: its title, and the body, labels and assignees it sets. */
+function requestedIssue(params: CreateIssueParams) {
+  const labels = nameList(params.labels)
+  const assignees = nameList(params.assignees)
+  return {
+    title: params.title,
+    ...(params.body ? { body: params.body } : {}),
+    ...(labels.length > 0 ? { labels } : {}),
+    ...(assignees.length > 0 ? { assignees } : {}),
+  }
+}
+
 export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
   id: 'github_create_issue',
   name: 'GitHub Create Issue',
   description: 'Create a new issue in a GitHub repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -76,29 +97,17 @@ export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
       Authorization: `Bearer ${params.apiKey}`,
       'X-GitHub-Api-Version': '2022-11-28',
     }),
-    body: (params) => {
-      const body: any = {
-        title: params.title,
-      }
-      if (params.body) body.body = params.body
-      if (params.assignees) {
-        const assigneesArray = params.assignees
-          .split(',')
-          .map((a) => a.trim())
-          .filter((a) => a)
-        if (assigneesArray.length > 0) body.assignees = assigneesArray
-      }
-      if (params.labels) {
-        const labelsArray = params.labels
-          .split(',')
-          .map((l) => l.trim())
-          .filter((l) => l)
-        if (labelsArray.length > 0) body.labels = labelsArray
-      }
-      if (params.milestone) body.milestone = params.milestone
-      return body
-    },
+    body: (params) => ({
+      ...requestedIssue(params),
+      ...(params.milestone ? { milestone: params.milestone } : {}),
+    }),
   },
+
+  /**
+   * A dry run's placeholder holds what the call sets on the issue it creates; its number, state,
+   * URL and times stay placeholders.
+   */
+  dryRunOutput: (params) => ({ metadata: requestedIssue(params) }),
 
   transformResponse: async (response) => {
     const issue = await response.json()
@@ -157,9 +166,25 @@ export const createIssueV2Tool: ToolConfig<CreateIssueParams, any> = {
   name: createIssueTool.name,
   description: createIssueTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createIssueTool.params,
   request: createIssueTool.request,
+
+  /**
+   * A dry run's placeholder holds what the call sets on the issue it creates, each label and
+   * assignee by the name it sends and the milestone by its number (null when none is set); its
+   * id, number, state, URL and times stay placeholders.
+   */
+  dryRunOutput: (params) => {
+    const { labels, assignees, ...issue } = requestedIssue(params)
+    return {
+      ...issue,
+      ...(labels ? { labels: labels.map((name) => ({ name })) } : {}),
+      ...(assignees ? { assignees: assignees.map((login) => ({ login })) } : {}),
+      milestone: params.milestone ? { number: params.milestone } : null,
+    }
+  },
 
   transformResponse: async (response: Response) => {
     const issue = await response.json()

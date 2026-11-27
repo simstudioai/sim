@@ -14,6 +14,7 @@ export const deleteDocumentTool: ToolConfig<
   name: 'Elasticsearch Delete Document',
   description: 'Delete a document from Elasticsearch by ID.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     deploymentType: {

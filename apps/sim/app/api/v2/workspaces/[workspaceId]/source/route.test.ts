@@ -98,7 +98,7 @@ describe('POST /api/v2/workspaces/{workspaceId}/source', () => {
         .filter(([key]) => String(key).endsWith(':api-key:key-1'))
         .map(([key, , cost]) => `${String(key).split(':')[1]} ${cost}`)
 
-    expect((await apply('?dryRun=true', folders)).status).toBe(200)
+    expect((await apply('?dry=true', folders)).status).toBe(200)
     expect(charges()).toEqual(['source.plan 1', 'source.plan 39'])
 
     v2RouteMocks.operationRate.mockClear()
@@ -123,10 +123,10 @@ describe('POST /api/v2/workspaces/{workspaceId}/source', () => {
         ? new Promise((resolve) => finish.push(() => resolve(result)))
         : Promise.resolve({ ...result, dryRun: false })
     )
-    const running = Array.from({ length: 4 }, () => apply('?dryRun=true'))
+    const running = Array.from({ length: 4 }, () => apply('?dry=true'))
     await vi.waitFor(() => expect(finish).toHaveLength(4))
 
-    expect((await apply('?dryRun=true')).status).toBe(429)
+    expect((await apply('?dry=true')).status).toBe(429)
     expect((await apply('')).status).toBe(200)
 
     for (const done of finish) done()

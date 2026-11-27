@@ -20,6 +20,7 @@ export const rabbitmqDeletePolicyTool: ToolConfig<
   description:
     'Delete a RabbitMQ policy. Every queue and exchange it matched immediately loses the settings it applied.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

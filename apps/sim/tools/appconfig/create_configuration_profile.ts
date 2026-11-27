@@ -13,6 +13,7 @@ export const createConfigurationProfileTool: InternalToolConfig<
   name: 'AppConfig Create Configuration Profile',
   description: 'Create a configuration profile in an AWS AppConfig application',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

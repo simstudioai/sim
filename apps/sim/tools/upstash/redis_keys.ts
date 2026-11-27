@@ -8,6 +8,7 @@ export const upstashRedisKeysTool: ToolConfig<UpstashRedisKeysParams, UpstashRed
   name: 'Upstash Redis Keys',
   description: 'List keys matching a pattern in Upstash Redis. Defaults to listing all keys (*).',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

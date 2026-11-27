@@ -18,6 +18,7 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
   description:
     'Search for files and folders across OneDrive by name, metadata, or content (recursive)',
   version: '1.0',
+  effect: 'read',
 
   oauth: {
     required: true,

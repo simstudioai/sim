@@ -13,6 +13,7 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
   description:
     "Extract raw content from multiple web pages simultaneously using Tavily's extraction API. Supports basic and advanced extraction depths with detailed error reporting for failed URLs.",
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.TAVILY_ERRORS,
   oauth: TAVILY_CREDENTIAL_OAUTH,
 

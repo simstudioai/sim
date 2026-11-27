@@ -13,6 +13,7 @@ export const googleBigQueryDeleteTableTool: ToolConfig<
   name: 'BigQuery Delete Table',
   description: 'Delete a table from a Google BigQuery dataset',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

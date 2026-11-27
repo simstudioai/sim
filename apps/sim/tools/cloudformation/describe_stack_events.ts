@@ -13,6 +13,7 @@ export const describeStackEventsTool: InternalToolConfig<
   name: 'CloudFormation Describe Stack Events',
   description: 'Get the event history for a CloudFormation stack',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

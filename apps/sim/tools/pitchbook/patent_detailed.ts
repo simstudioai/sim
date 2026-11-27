@@ -9,6 +9,7 @@ export const pitchbookPatentDetailedTool: ToolConfig<PitchbookProfileParams, Pit
   description:
     'Retrieve the full record for a single patent: title, status, dates, assignees, inventors, citations, and claim counts',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

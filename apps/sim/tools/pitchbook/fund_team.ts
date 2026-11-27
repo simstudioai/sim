@@ -8,6 +8,7 @@ export const pitchbookFundTeamTool: ToolConfig<PitchbookProfileParams, Pitchbook
   name: 'PitchBook Fund Team',
   description: 'Retrieve the active and former people on a fund’s team',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -8,6 +8,7 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
   name: 'Notion Page Updater',
   description: 'Update properties of a Notion page',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -116,6 +117,7 @@ export const notionUpdatePageV2Tool: ToolConfig<
   name: 'Notion Page Updater',
   description: 'Update properties of a Notion page',
   version: '2.0.0',
+  effect: 'write',
   oauth: notionUpdatePageTool.oauth,
   params: notionUpdatePageTool.params,
   request: notionUpdatePageTool.request,

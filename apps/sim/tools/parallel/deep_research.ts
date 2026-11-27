@@ -58,6 +58,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
   description:
     'Research the web with Parallel AI and synthesize findings from multiple sources with citations. Can take up to 45 minutes to complete.',
   version: '1.0.0',
+  effect: 'write',
 
   hosting: {
     envKeyPrefix: 'PARALLEL_API_KEY',

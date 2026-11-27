@@ -11,6 +11,7 @@ export const hubspotGetNoteTool: ToolConfig<HubSpotGetNoteParams, HubSpotGetNote
   name: 'Get Note from HubSpot',
   description: 'Retrieve a single note by ID from HubSpot',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -18,6 +18,7 @@ export const shopifyAdjustInventoryTool: ToolConfig<
   name: 'Shopify Adjust Inventory',
   description: 'Adjust inventory quantity for a product variant at a specific location',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

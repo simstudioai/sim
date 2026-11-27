@@ -1,3 +1,4 @@
+import { isReadRequest } from '@/lib/core/utils/http-methods'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type { RequestParams, RequestResponse } from '@/tools/http/types'
 import {
@@ -17,6 +18,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   description:
     'Make HTTP requests with comprehensive support for methods, headers, query parameters, path parameters, and form data. Features configurable timeout and status validation for robust API interactions.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {
@@ -70,23 +72,25 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       type: 'number',
       visibility: 'hidden',
       description:
-        'Number of retry attempts after a timeout, a connection reset, a 429 or a 5xx response. A host that does not resolve or refuses the connection fails without retrying. Default: 0 (no retries).',
+        'Times to resend the request (default: 0, max: 10), only after a timeout, a connection reset, a 429 or a 5xx response, and only for GET, HEAD, PUT and DELETE unless retryNonIdempotent is true. A host that does not resolve or refuses the connection, and any other 4xx, fail at once.',
     },
     retryDelayMs: {
       type: 'number',
       visibility: 'hidden',
-      description: 'Initial retry delay in milliseconds (default: 500)',
+      description:
+        'Wait before the first retry in milliseconds (default: 500); it doubles each retry, with jitter, up to retryMaxDelayMs.',
     },
     retryMaxDelayMs: {
       type: 'number',
       visibility: 'hidden',
-      description: 'Maximum delay between retries in milliseconds (default: 30000)',
+      description:
+        'Longest wait between retries in milliseconds (default: 30000). A Retry-After header asking for longer ends the retries.',
     },
     retryNonIdempotent: {
       type: 'boolean',
       visibility: 'hidden',
       description:
-        'Allow retries for non-idempotent methods like POST/PATCH (may create duplicate requests).',
+        'Also retry POST, PATCH and other non-idempotent methods (may create duplicate requests).',
     },
     redirectPolicyVersion: {
       type: 'string',
@@ -99,6 +103,16 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       description:
         'Send credential-bearing headers when a redirect targets a different origin. Enabled by default for compatibility.',
     },
+  },
+
+  readsWhen: (params) => {
+    const method: unknown = params.method || 'GET'
+    if (typeof method !== 'string') return false
+    try {
+      return isReadRequest(method, Object.keys(transformTable(params.headers || null)))
+    } catch {
+      return false
+    }
   },
 
   timeoutParamIsDeadline: true,

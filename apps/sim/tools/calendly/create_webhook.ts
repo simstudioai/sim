@@ -14,6 +14,7 @@ export const createWebhookTool: ToolConfig<
   name: 'Calendly Create Webhook',
   description: 'Create a new webhook subscription to receive real-time event notifications',
   version: '1.0.0',
+  effect: 'write',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

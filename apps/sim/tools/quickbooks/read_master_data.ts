@@ -43,6 +43,7 @@ export const quickbooksReadMasterDataTool: ToolConfig<
   name: 'QuickBooks Read Master Data',
   description: 'List or read one account, class, customer, department, employee, item, or vendor',
   version: '1.0.0',
+  effect: 'read',
   params: {
     accessToken: {
       type: 'string',

@@ -21,6 +21,7 @@ export const mintlifySendAgentMessageTool: ToolConfig<
   description:
     'Send a follow-up instruction to an existing Mintlify agent job. The message is processed asynchronously.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     projectId: {

@@ -13,6 +13,7 @@ export const listAttachedRolePoliciesTool: InternalToolConfig<
   name: 'IAM List Attached Role Policies',
   description: 'List all managed policies attached to an IAM role',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

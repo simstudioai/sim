@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useQueryStates } from 'nuqs'
 import { getUpgradeCardCta, type PlanTier, type UpgradeCardId } from '@/lib/billing/client'
 import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS } from '@/lib/billing/constants'
+import { formatMonthlyPlanPrice } from '@/lib/billing/plan-helpers'
 import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 import {
   PricingCard,
@@ -54,11 +55,6 @@ function sectionsForColumn(col: number): PricingCardSection[] {
 /** The four card columns (Free, Pro, Max, Enterprise) transposed once at module load - the source data is static, so this never needs to be redone per render. */
 const SECTIONS_BY_COLUMN = [0, 1, 2, 3].map(sectionsForColumn)
 
-/** Round a dollar amount down to the annual-billing discounted price. */
-function annualPrice(dollars: number): number {
-  return Math.round(dollars * (1 - ANNUAL_DISCOUNT_RATE))
-}
-
 /**
  * Resolve a card's canonical label and variant from the free-tier matrix. A
  * `sales` intent ("Talk to sales") routes to the demo-request form, matching
@@ -99,8 +95,8 @@ export function PricingPlans({ heading }: PricingPlansProps) {
   const setIsAnnual = (next: boolean) => setParams({ billing: next ? 'annual' : 'monthly' })
 
   const discountPct = Math.round(ANNUAL_DISCOUNT_RATE * 100)
-  const proPrice = isAnnual ? annualPrice(CREDIT_TIERS[0].dollars) : CREDIT_TIERS[0].dollars
-  const maxPrice = isAnnual ? annualPrice(CREDIT_TIERS[1].dollars) : CREDIT_TIERS[1].dollars
+  const proPrice = formatMonthlyPlanPrice(CREDIT_TIERS[0].dollars, isAnnual)
+  const maxPrice = formatMonthlyPlanPrice(CREDIT_TIERS[1].dollars, isAnnual)
   const priceSubtext = isAnnual
     ? 'per user/month, billed annually'
     : 'per user/month, billed monthly'
@@ -127,7 +123,7 @@ export function PricingPlans({ heading }: PricingPlansProps) {
         />
         <PricingCard
           name='Pro'
-          price={`$${proPrice}`}
+          price={proPrice}
           discountLabel={discountLabel}
           priceSubtext={priceSubtext}
           cta={proCta}
@@ -135,7 +131,7 @@ export function PricingPlans({ heading }: PricingPlansProps) {
         />
         <PricingCard
           name='Max'
-          price={`$${maxPrice}`}
+          price={maxPrice}
           discountLabel={discountLabel}
           priceSubtext={priceSubtext}
           cta={maxCta}

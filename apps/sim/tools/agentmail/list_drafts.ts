@@ -8,6 +8,7 @@ export const agentmailListDraftsTool: ToolConfig<ListDraftsParams, ListDraftsRes
   name: 'List Drafts',
   description: 'List email drafts in an inbox in AgentMail',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

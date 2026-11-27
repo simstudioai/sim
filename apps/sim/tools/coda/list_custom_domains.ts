@@ -25,6 +25,7 @@ export const codaListCustomDomainsTool: ToolConfig<CodaDocParams, CodaListCustom
   name: 'Coda List Custom Domains',
   description: 'List the custom domains connected to a published Coda doc and their setup status',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

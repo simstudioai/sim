@@ -14,6 +14,7 @@ export const googleBooksVolumeDetailsTool: ToolConfig<
   name: 'Google Books Volume Details',
   description: 'Get detailed information about a specific book volume',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

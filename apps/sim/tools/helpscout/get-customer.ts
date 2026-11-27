@@ -23,6 +23,7 @@ export const helpScoutGetCustomerTool: ToolConfig<
   description:
     'Get a Help Scout customer by ID, including emails, phones, websites, social profiles, and properties.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

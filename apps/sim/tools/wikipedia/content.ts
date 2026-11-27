@@ -11,6 +11,7 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
     name: 'Wikipedia Page Content',
     description: 'Get the full HTML content of a Wikipedia page.',
     version: '1.0.0',
+    effect: 'read',
 
     params: {
       pageTitle: {

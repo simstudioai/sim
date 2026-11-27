@@ -11,6 +11,7 @@ export const profoundQueryFanoutsTool: ToolConfig<
   description:
     'Query fanout report showing how AI models expand prompts into sub-queries in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

@@ -40,7 +40,7 @@ Set `WORKFLOW_ID` to that value. You can also use [List workflows](/api-referenc
 
 Open **Deploy** in the workflow builder and deploy the version you want to run. Deployment requires workspace **Admin** access and the applicable deployment permission.
 
-These examples run the active deployment. Draft edits take effect after you deploy an update. V2 also supports explicit manual draft execution for personal-key or OAuth callers with write access; see [Execute workflow](/api-reference/workflows/executeWorkflowV2).
+These examples run the active deployment. Draft edits take effect after you deploy an update. V2 also runs the saved draft (`run.source: "draft"`) for personal-key or OAuth callers with write access; see [Execute workflow](/api-reference/workflows/executeWorkflowV2).
 </Step>
 <Step>
 ### Call and inspect the result

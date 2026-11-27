@@ -14,6 +14,7 @@ export const deleteAccountAssignmentTool: InternalToolConfig<
   description:
     'Revoke a user or group access to an AWS account by removing a permission set assignment',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

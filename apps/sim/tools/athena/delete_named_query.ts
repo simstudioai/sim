@@ -13,6 +13,7 @@ export const deleteNamedQueryTool: InternalToolConfig<
   name: 'Athena Delete Named Query',
   description: 'Delete a saved/named query in AWS Athena',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

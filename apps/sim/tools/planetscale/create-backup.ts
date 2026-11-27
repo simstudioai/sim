@@ -26,6 +26,7 @@ export const planetScaleCreateBackupTool: ToolConfig<
   name: 'PlanetScale Create Backup',
   description: 'Create a backup',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

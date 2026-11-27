@@ -22,6 +22,7 @@ export const personaResumeInquiryTool: ToolConfig<
   description:
     'Resume a pending or expired inquiry, creating a new session so the individual can continue verification. Returns a session token.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

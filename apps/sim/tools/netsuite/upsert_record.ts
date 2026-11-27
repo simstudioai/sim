@@ -11,6 +11,7 @@ export const netsuiteUpsertRecordTool: InternalToolConfig<
   name: 'NetSuite Upsert Record',
   description: 'Create or update a NetSuite record by external ID with PUT.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

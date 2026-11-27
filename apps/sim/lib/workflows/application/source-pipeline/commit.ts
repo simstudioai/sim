@@ -22,7 +22,7 @@ import {
   PlanBindingError,
   type PlannedSource,
 } from '@/lib/workflows/application/source-pipeline/plan'
-import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import { readDeploymentDrift, UNDEPLOYED } from '@/lib/workflows/deployment-status'
 
 const logger = createLogger('ApplyWorkflowSource')
 
@@ -67,7 +67,7 @@ export async function commitSource(
         diff: plan.diff,
         diagnostics: plan.diagnostics,
         wroteSourceMeta: sourceMetaChanged,
-        needsRedeployment: await checkNeedsRedeployment(workflowId),
+        ...(await readDeploymentDrift(workflowId)),
       })
     }
 
@@ -95,7 +95,7 @@ export async function commitSource(
       mintedIds: plan.mintedIds,
       workflowName: committed.name,
       notes: committed.warnings,
-      needsRedeployment: target.kind === 'new' ? false : await checkNeedsRedeployment(workflowId),
+      ...(target.kind === 'new' ? UNDEPLOYED : await readDeploymentDrift(workflowId)),
     })
   })
 }

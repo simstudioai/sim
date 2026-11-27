@@ -18,6 +18,7 @@ export const updateTaskTool: ToolConfig<
   name: 'Update Microsoft Planner Task',
   description: 'Update a task in Microsoft Planner',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

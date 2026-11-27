@@ -34,6 +34,7 @@ export const spotifyGetAlbumTracksTool: ToolConfig<
   name: 'Spotify Get Album Tracks',
   description: 'Get the tracks from an album.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

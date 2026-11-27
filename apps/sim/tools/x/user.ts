@@ -10,6 +10,7 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
   name: 'X User',
   description: 'Get user profile information',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

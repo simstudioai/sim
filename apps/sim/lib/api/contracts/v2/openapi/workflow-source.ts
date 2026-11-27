@@ -79,7 +79,7 @@ export const workflowSourceOpenApiRoutes = [
       applicationOperation: workflowOperations.applySource,
       operationId: 'applyWorkflowSource',
       summary: 'Apply workflow source',
-      description: `Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and \`base\` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is saved; a source over a size limit (\`E_LIMIT_EXCEEDED\`) gets the same body with \`413\`. A \`409\` means the draft changed since the source was read (\`details.currentFingerprint\`): get the source again, reapply the edit and retry. A rename onto a name another workflow in the folder took meanwhile returns \`409\` with \`details.code\` \`SOURCE_NAME_TAKEN\`. A \`base.workflowId\` that names another workflow is refused with \`400\` (\`E_APPLY_WORKFLOW_MISMATCH\`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns \`applied: false\` without saving. The response re-prints the saved source with its new lock and \`base\`. \`dryRun=true\` runs every check without saving and answers \`200\` with the findings in \`diagnostics\`, a stale \`base\` included (\`E_APPLY_STALE\`). A request refused before the source is evaluated is refused on a dry run too: \`400\` for an invalid body, \`413\` for a body over the size limit, and \`423\` for a locked workflow or folder. Returns \`403\` while workflows as code is not enabled. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and \`base\` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is saved; a source over a size limit (\`E_LIMIT_EXCEEDED\`) gets the same body with \`413\`. A \`409\` means the draft changed since the source was read (\`details.currentFingerprint\`): get the source again, reapply the edit and retry. A rename onto a name another workflow in the folder took meanwhile returns \`409\` with \`details.code\` \`SOURCE_NAME_TAKEN\`. A \`base.workflowId\` that names another workflow is refused with \`400\` (\`E_APPLY_WORKFLOW_MISMATCH\`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns \`applied: false\` without saving. The response re-prints the saved source with its new lock and \`base\`. \`dry=true\` runs every check without saving and answers \`200\` with the findings in \`diagnostics\`, a stale \`base\` included (\`E_APPLY_STALE\`). A request refused before the source is evaluated is refused on a dry run too: \`400\` for an invalid body, \`413\` for a body over the size limit, and \`423\` for a locked workflow or folder. Returns \`403\` while workflows as code is not enabled. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Workflows'],
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The applied (or evaluated) source.', headers: RATE_LIMIT_HEADERS },
@@ -115,7 +115,7 @@ export const workflowSourceOpenApiRoutes = [
             data: {
               workflowId: WORKFLOW_SOURCE_EXAMPLE.workflowId,
               workspaceId: WORKFLOW_SOURCE_EXAMPLE.workspaceId,
-              dryRun: false,
+              dry: false,
               applied: false,
               diff: {
                 noop: true,
@@ -129,6 +129,7 @@ export const workflowSourceOpenApiRoutes = [
               base: WORKFLOW_SOURCE_EXAMPLE.base,
               mintedIds: {},
               notes: [],
+              deployedVersion: 3,
               needsRedeployment: false,
             },
           },
@@ -142,7 +143,7 @@ export const workflowSourceOpenApiRoutes = [
       applicationOperation: workflowOperations.planSource,
       operationId: 'planWorkflowSource',
       summary: 'Plan workflow source',
-      description: `Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since \`base\` (\`E_APPLY_STALE\`), the diff, and every finding, exactly as \`dryRun=true\` reports them, with \`200\`. A read: it needs only workspace read access, draws on the source-plan budget rather than the source-write budget (a server already running as many plans as it allows answers \`429\`), and records no audit or analytics event, so \`sim workflows source status\` never spends what an apply needs. \`allowDelete=true\` plans block and variable deletes instead of reporting \`E_APPLY_BLOCK_DELETE\` or \`E_APPLY_VARIABLE_DELETE\`. Returns \`403\` while workflows as code is not enabled. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since \`base\` (\`E_APPLY_STALE\`), the diff, and every finding, exactly as \`dry=true\` reports them, with \`200\`. A read: it needs only workspace read access, draws on the source-plan budget rather than the source-write budget (a server already running as many plans as it allows answers \`429\`), and records no audit or analytics event, so \`sim workflows source status\` never spends what an apply needs. \`allowDelete=true\` plans block and variable deletes instead of reporting \`E_APPLY_BLOCK_DELETE\` or \`E_APPLY_VARIABLE_DELETE\`. Returns \`403\` while workflows as code is not enabled. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Workflows'],
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The evaluated source.', headers: RATE_LIMIT_HEADERS },
@@ -178,7 +179,7 @@ export const workflowSourceOpenApiRoutes = [
             data: {
               workflowId: WORKFLOW_SOURCE_EXAMPLE.workflowId,
               workspaceId: WORKFLOW_SOURCE_EXAMPLE.workspaceId,
-              dryRun: true,
+              dry: true,
               applied: false,
               diff: {
                 noop: true,
@@ -192,6 +193,7 @@ export const workflowSourceOpenApiRoutes = [
               base: WORKFLOW_SOURCE_EXAMPLE.base,
               mintedIds: {},
               notes: [],
+              deployedVersion: 3,
               needsRedeployment: false,
             },
           },
@@ -205,7 +207,7 @@ export const workflowSourceOpenApiRoutes = [
       applicationOperation: workflowOperations.createFromSource,
       operationId: 'createWorkflowFromSource',
       summary: 'Create workflow from source',
-      description: `Create a workflow from TypeScript workflow source in one all-or-nothing write. Requires workspace write access. The source is compiled and checked against the same rules as Apply Workflow Source; every block is new. Any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is created; a source over a size limit (\`E_LIMIT_EXCEEDED\`) gets the same body with \`413\`. The name defaults to the one in the source's \`workflow('…')\` call; a name already used in the folder returns \`409\` with \`details.code\` \`SOURCE_NAME_TAKEN\`. The response carries the new \`workflowId\` and the source re-printed from what was saved, with its lock and \`base\`, ready for the next apply. The workflow is not deployed. \`dryRun=true\` runs every check without creating anything and answers \`200\` with the findings in \`diagnostics\`. A request refused before the source is evaluated is refused on a dry run too: \`400\` for an invalid body, \`404\` for a missing folder, \`413\` for a body over the size limit, and \`423\` for a locked folder. A taken name is checked after the source compiles and answers \`409\` (\`SOURCE_NAME_TAKEN\`) on a dry run as on a create. Returns \`403\` while workflows as code is not enabled. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create a workflow from TypeScript workflow source in one all-or-nothing write. Requires workspace write access. The source is compiled and checked against the same rules as Apply Workflow Source; every block is new. Any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is created; a source over a size limit (\`E_LIMIT_EXCEEDED\`) gets the same body with \`413\`. The name defaults to the one in the source's \`workflow('…')\` call; a name already used in the folder returns \`409\` with \`details.code\` \`SOURCE_NAME_TAKEN\`. The response carries the new \`workflowId\` and the source re-printed from what was saved, with its lock and \`base\`, ready for the next apply. The workflow is not deployed. \`dry=true\` runs every check without creating anything and answers \`200\` with the findings in \`diagnostics\`. A request refused before the source is evaluated is refused on a dry run too: \`400\` for an invalid body, \`404\` for a missing folder, \`413\` for a body over the size limit, and \`423\` for a locked folder. A taken name is checked after the source compiles and answers \`409\` (\`SOURCE_NAME_TAKEN\`) on a dry run as on a create. Returns \`403\` while workflows as code is not enabled. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Workflows'],
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created (or evaluated) workflow.', headers: RATE_LIMIT_HEADERS },
@@ -240,7 +242,7 @@ export const workflowSourceOpenApiRoutes = [
             data: {
               workflowId: WORKFLOW_SOURCE_EXAMPLE.workflowId,
               workspaceId: WORKFLOW_SOURCE_EXAMPLE.workspaceId,
-              dryRun: false,
+              dry: false,
               applied: true,
               diff: {
                 noop: false,
@@ -259,6 +261,7 @@ export const workflowSourceOpenApiRoutes = [
               base: WORKFLOW_SOURCE_EXAMPLE.base,
               mintedIds: { start: BLOCK_ID },
               notes: [],
+              deployedVersion: null,
               needsRedeployment: false,
             },
           },

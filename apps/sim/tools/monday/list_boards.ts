@@ -12,6 +12,7 @@ export const mondayListBoardsTool: ToolConfig<MondayListBoardsParams, MondayList
   name: 'Monday List Boards',
   description: 'List boards from your Monday.com account',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

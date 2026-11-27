@@ -7,6 +7,7 @@ export const apifyGetRunTool: ToolConfig<GetRunParams, GetRunResult> = {
   name: 'APIFY Get Run',
   description: 'Get the status and details of an APIFY actor run',
   version: '1.0.0',
+  effect: 'read',
   oauth: APIFY_CREDENTIAL_OAUTH,
 
   params: {

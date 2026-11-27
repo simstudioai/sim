@@ -21,6 +21,7 @@ export const affinitySearchNotesTool: ToolConfig<
   description:
     'Search notes by keyword, ordered by relevance. Narrow to specific notes or to one company, or leave both unset to search the whole account.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

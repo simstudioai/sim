@@ -10,6 +10,7 @@ export const getTagTool: ToolConfig<ThriveGetTagParams, ThriveTagResponse> = {
   name: 'Thrive Get Tag',
   description: 'Get a single tag in Thrive by its ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

@@ -23,7 +23,7 @@
  * An OAuth client secret is set in the server's settings, never in source.
  */
 import { compareStrings } from '@sim/utils/string'
-import { holdsSecret, type Json, withoutAuthScheme } from '@sim/workflow-code'
+import { ENV_VAR_NAME, holdsSecret, type Json, withoutAuthScheme } from '@sim/workflow-code'
 import {
   asDeclared,
   booleanField,
@@ -44,9 +44,10 @@ import {
 } from '../declaration/fields'
 import { call, envRef, printDeclaration } from '../declaration/print'
 import {
-  isDeclarationCall,
   isDeclarationEnvRef,
+  isStoredCall,
   readDeclaration,
+  STORED_CALL,
   unstorableCharacter,
 } from '../declaration/read'
 import { diagnostic, resourceOf, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
@@ -94,7 +95,10 @@ export interface McpServerDecl {
   /** The display name; the key when the declaration leaves it out. */
   name: string
   description?: string
-  /** The server's URL. Its id derives from it, so a changed URL replaces the server. */
+  /**
+   * The server's URL. Its id derives from it, so a new host or path replaces the server; a new
+   * query string updates it in place.
+   */
   url: string
   transport?: (typeof MCP_TRANSPORTS)[number]
   headers?: Record<string, McpHeaderDecl>
@@ -106,14 +110,18 @@ export interface McpServerDecl {
 }
 
 const CALLEE = 'defineMcpServer'
-const STORED_CALL = 'stored'
-/** A whole value that is one env reference: `{{NAME}}`. */
-const WHOLE_ENV_REFERENCE = /^\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}$/
 /** An HTTP header name (RFC 9110 token). */
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 /** A credential-bearing header name, by its words. */
 const CREDENTIAL_HEADER =
   /^(authorization|proxy-authorization|cookie)$|key|token|secret|auth|password|session|signature|credential/i
+
+/** The name of a header value that is one whole env reference (`{{NAME}}`), else null. */
+function wholeEnvName(value: string): string | null {
+  if (!value.startsWith('{{') || !value.endsWith('}}')) return null
+  const name = value.slice(2, -2)
+  return ENV_VAR_NAME.test(name) ? name : null
+}
 
 /** `mcp/<key>.ts`. */
 export function mcpDeclarationPath(key: string): string {
@@ -198,7 +206,7 @@ function readHeaderValue(
   report: Parameters<DeclField<unknown>['read']>[3]
 ): McpHeaderDecl | undefined {
   if (isDeclarationEnvRef(raw)) return `{{${raw.$env}}}`
-  if (isDeclarationCall(raw) && raw.$call === STORED_CALL && raw.args.length === 0) {
+  if (isStoredCall(raw)) {
     return { stored: null }
   }
   if (typeof raw !== 'string') {
@@ -258,8 +266,8 @@ const headersField: DeclField<McpServerDecl['headers']> = {
       : Object.fromEntries(
           Object.entries(headers).map(([name, header]) => {
             if (isStoredHeader(header)) return [name, call(STORED_CALL)]
-            const env = WHOLE_ENV_REFERENCE.exec(header)
-            return [name, env ? envRef(env[1]) : header]
+            const env = wholeEnvName(header)
+            return [name, env === null ? header : envRef(env)]
           })
         ),
   canonical: (headers) =>
@@ -355,7 +363,7 @@ function parseMcpServer(
 
 /** Reads and prints `mcp/<key>.ts`. */
 export const mcpCodec: KindCodec<McpServerDecl> = {
-  group: (paths) => groupByFile(KIND_DIRS['mcp-server'], [DECLARATION_EXTENSION], paths),
+  group: (paths) => groupByFile(KIND_DIRS['mcp-server'], DECLARATION_EXTENSION, paths),
   parse: (key, text) => parseMcpServer(key, text),
   print: (key, decl) => ({
     text: { [mcpDeclarationPath(key)]: printDeclaration(CALLEE, printFields(MCP_FIELDS, decl)) },

@@ -435,6 +435,15 @@ The lazy `sim.files` and `sim.values` helpers are available only in JavaScript f
 
 An uncaught error follows the connected error port or fails the run. Catch an error only when your code can return a meaningful recovery result. `console.log()`, `print()`, and ordinary Shell output appear in `stdout` and the run logs.
 
+On the error path, the failed block has two outputs:
+
+| Output | What it is |
+| --- | --- |
+| `<function.error>` | The message with the line and code that threw: ``Line 4: `throw new Error('invalid phone')` - invalid phone`` |
+| `<function.errorMessage>` | The thrown message alone: `invalid phone` |
+
+Use `<function.errorMessage>` in a reply to a caller, such as a Response block's body, so the caller never sees your code. Use `<function.error>` when you need the line to debug. A failure your code did not throw, such as a timeout, has no line, so both hold the same message.
+
 Function uses the workflow's remaining execution time when a deadline exists. Without a workflow deadline, it still has a fallback timeout of 300,000 ms (5 minutes) by default, configurable through `EXECUTION_TIMEOUT_FREE`. An explicit internal timeout can replace that fallback or shorten the workflow budget; it cannot extend the workflow deadline. There is no separate timeout field in the current block editor. Exceeding the budget terminates execution and reports a block error.
 
 ## Related docs

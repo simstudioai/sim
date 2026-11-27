@@ -9,6 +9,7 @@ export const pitchbookEntityAffiliatesTool: ToolConfig<PitchbookProfileParams, P
     name: 'PitchBook Entity Affiliates',
     description: 'Retrieve the affiliated entities linked to an entity and how each is related',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

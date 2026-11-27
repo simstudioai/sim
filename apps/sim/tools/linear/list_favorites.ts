@@ -10,6 +10,7 @@ export const linearListFavoritesTool: ToolConfig<
   name: 'Linear List Favorites',
   description: 'List all bookmarked items for the current user in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -14,6 +14,7 @@ export const oktaSuspendUserTool: ToolConfig<OktaSuspendUserParams, OktaSuspendU
   description:
     'Suspend a user in your Okta organization. Only users with ACTIVE status can be suspended. Suspended users cannot log in but retain group and app assignments.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

@@ -18,6 +18,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
   name: 'Jira Retrieve',
   description: 'Retrieve detailed information about a specific Jira issue',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

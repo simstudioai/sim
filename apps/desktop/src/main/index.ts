@@ -118,7 +118,11 @@ import { createRunLedger } from '@/main/terminal/run-ledger'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { installBrowserUserAgent } from '@/main/user-agent'
-import { createMainWindow, setupPermissionHandlers } from '@/main/window'
+import {
+  createMainWindow,
+  guardVisibilityListenersAfterDestroy,
+  setupPermissionHandlers,
+} from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents, type WindowPolicyDeps } from '@/main/windows'
 
 const logger = createLogger('DesktopMain')
@@ -318,6 +322,7 @@ function main(): void {
     return getWindows().at(-1) ?? null
   }
   installMainProcessFailureObservers({ events, getWindow: getMainWindow })
+  app.on('browser-window-created', (_event, win) => guardVisibilityListenersAfterDestroy(win))
   const windowForContents = (contents: WebContents) => {
     const win = BrowserWindow.fromWebContents(contents)
     return win && windows.has(win) && !win.isDestroyed() ? win : null

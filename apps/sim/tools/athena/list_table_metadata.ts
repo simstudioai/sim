@@ -13,6 +13,7 @@ export const listTableMetadataTool: InternalToolConfig<
   name: 'Athena List Table Metadata',
   description: 'List tables and their column/partition metadata for an Athena database',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

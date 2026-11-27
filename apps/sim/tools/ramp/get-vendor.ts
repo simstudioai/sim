@@ -9,6 +9,7 @@ export const rampGetVendorTool: ToolConfig<RampGetVendorParams, RampGetVendorRes
   name: 'Ramp Get Vendor',
   description: 'Fetch a vendor in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

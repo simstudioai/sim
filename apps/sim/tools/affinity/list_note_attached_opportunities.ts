@@ -21,6 +21,7 @@ export const affinityListNoteAttachedOpportunitiesTool: ToolConfig<
   name: 'Affinity List Note Attached Opportunities',
   description: 'List the opportunities directly attached to one note.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

@@ -9,6 +9,7 @@ export const linearGetCustomerTool: ToolConfig<LinearGetCustomerParams, LinearGe
     name: 'Linear Get Customer',
     description: 'Get a single customer by ID in Linear',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

@@ -21,6 +21,7 @@ export const salesforceDescribeObjectTool: ToolConfig<
   name: 'Describe Salesforce Object',
   description: 'Get metadata and field information for a Salesforce object',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

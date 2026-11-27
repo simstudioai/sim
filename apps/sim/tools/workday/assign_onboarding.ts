@@ -13,6 +13,7 @@ export const assignOnboardingTool: InternalToolConfig<
   description:
     'Create or update an onboarding plan assignment for a worker. Sets up onboarding stages and manages the assignment lifecycle.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     tenantUrl: {

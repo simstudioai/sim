@@ -9,6 +9,7 @@ export const linqStartTypingTool: ToolConfig<LinqChatActionParams, LinqSuccessRe
   name: 'Start Typing Indicator',
   description: 'Show a typing indicator in a one-on-one chat (iMessage only, not group chats)',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

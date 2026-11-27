@@ -10,6 +10,7 @@ export const slackAddReactionTool: InternalToolConfig<
   name: 'Slack Add Reaction',
   description: 'Add an emoji reaction to a Slack message',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

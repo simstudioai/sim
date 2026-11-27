@@ -9,6 +9,7 @@ export const jsmCreateOrganizationTool: InternalToolConfig<
   name: 'JSM Create Organization',
   description: 'Create a new organization in Jira Service Management',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

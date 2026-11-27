@@ -25,6 +25,7 @@ export const enrichmentRunTool: InternalToolConfig<EnrichmentRunParams, Enrichme
   name: 'Run Enrichment',
   description: 'Run a Sim enrichment (e.g. Work Email, Phone Number) and return its outputs',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     enrichmentId: {

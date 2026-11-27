@@ -180,7 +180,7 @@ async function runWorkflow(
       input: {},
       mode: 'sync',
       requestHeaders: new Headers(),
-      useMockPayload: false,
+      sample: false,
       abortSignal: signal,
     },
   })
@@ -764,7 +764,7 @@ describe('Power BI with persisted delegated credentials and provider wire respon
             input: {},
             mode: 'sync',
             requestHeaders: new Headers(),
-            useMockPayload: false,
+            sample: false,
           },
         })
       ).rejects.toThrow('Insufficient workspace permissions')

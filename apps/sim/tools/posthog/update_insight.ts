@@ -40,6 +40,7 @@ export const updateInsightTool: ToolConfig<
   description:
     'Update an existing insight in PostHog. Can modify name, description, query, dashboards, tags, and favorited status.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'posthog-errors',
 
   params: {

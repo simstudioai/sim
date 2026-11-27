@@ -9,6 +9,7 @@ export const brexGetTransferTool: ToolConfig<BrexGetTransferParams, BrexGetTrans
   name: 'Brex Get Transfer',
   description: 'Get a Brex money transfer by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

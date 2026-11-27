@@ -13,6 +13,7 @@ export const updateEventTool: ToolConfig<LumaUpdateEventParams, LumaUpdateEventR
   description:
     'Update an existing Luma event. Only the fields you provide will be changed; all other fields remain unchanged.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {

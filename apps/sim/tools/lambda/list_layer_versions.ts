@@ -14,6 +14,7 @@ export const listLayerVersionsTool: InternalToolConfig<
   name: 'Lambda List Layer Versions',
   description: 'List the versions of a Lambda layer',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

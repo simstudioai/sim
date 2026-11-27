@@ -14,6 +14,7 @@ export const updateExpectedExpenseTool: InternalToolConfig<
   name: 'SAP Concur Update Expected Expense',
   description: 'Update an expected expense (PUT /travelrequest/v4/expenses/{expenseUuid}).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

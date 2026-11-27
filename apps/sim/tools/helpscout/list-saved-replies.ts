@@ -23,6 +23,7 @@ export const helpScoutListSavedRepliesTool: ToolConfig<
   description:
     'List the saved replies (canned responses) in a Help Scout inbox with a preview of each.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

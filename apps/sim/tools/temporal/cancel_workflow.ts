@@ -21,6 +21,7 @@ export const cancelWorkflowTool: ToolConfig<
   description:
     'Request cooperative cancellation of a running Temporal workflow execution. The workflow decides how to respond to the request.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

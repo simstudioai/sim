@@ -1,6 +1,5 @@
 import {
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -8,57 +7,33 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { createServer, type Server } from 'node:http'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { type ElectronApplication, _electron as electron, expect, test } from '@playwright/test'
-import type { DesktopLocalFileRequest, SimDesktopApi } from '@sim/desktop-bridge'
-import { build } from 'esbuild'
-import postcss from 'postcss'
-import loadPostcssConfig from 'postcss-load-config'
+import type { ElectronApplication, Locator, Page } from '@playwright/test'
+import type {
+  DesktopLocalFileRequest,
+  DesktopPreferences,
+  SimDesktopApi,
+} from '@sim/desktop-bridge'
+import { answerShellDialog } from './executor-sim'
+import {
+  test as base,
+  bundleSimFixture,
+  type DesktopApp,
+  type DesktopBridge,
+  expect,
+  focusFirstWindow,
+  serve,
+} from './harness'
 
-const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
-const SIM_DIR = fileURLToPath(new URL('../../sim/', import.meta.url))
+const PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII='
 
-test('native file tools remember folder consent across chats and restarts until revoked', async () => {
-  test.setTimeout(180_000)
-  const root = mkdtempSync(join(tmpdir(), 'sim-native-files-e2e-'))
-  const source = join(root, 'Reports')
-  const outside = join(root, 'Reports-other')
-  mkdirSync(outside)
-  writeFileSync(join(outside, 'private.txt'), 'outside contents')
-  mkdirSync(join(source, 'empty'), { recursive: true })
-  writeFileSync(join(source, 'report.txt'), 'native file contents')
-  const png =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII='
-  writeFileSync(join(source, 'image.png'), Buffer.from(png, 'base64'))
-  const claimed = new Set<string>()
-  const expireAfterAuthorization = new Set<string>()
-  let signedIn = true
-  const calls: Record<
-    string,
-    { toolName: string; args: Record<string, unknown>; chatId?: string } | undefined
-  > = {
-    directory: { toolName: 'read_local_file', args: { path: source } },
-    text: { toolName: 'read_local_file', args: { path: join(source, 'report.txt') } },
-    otherChat: {
-      toolName: 'read_local_file',
-      args: { path: join(source, 'report.txt') },
-      chatId: 'other-chat',
-    },
-    image: { toolName: 'read_local_file', args: { path: join(source, 'image.png') } },
-    import: {
-      toolName: 'import_local_files',
-      args: { path: source, targetWorkspaceId: 'target-workspace' },
-    },
-  }
-  let server: Server | undefined
-  let app: ElectronApplication | undefined
-  try {
-    const bundle = await build({
-      stdin: {
-        contents: `import { createRoot } from 'react-dom/client';
+/**
+ * Sim's real Desktop settings page, so the Full file access switch is the one users get: a real
+ * click supplies the user activation the setter requires, and a failed save shows Sim's own error.
+ * The Forget button stands in for Sim's chat-side folder removal, which has no settings UI.
+ */
+const SETTINGS_SOURCE = `import { createRoot } from 'react-dom/client';
 import { ToastProvider } from '@sim/emcn';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
@@ -67,62 +42,137 @@ import { Desktop } from '@/app/workspace/[workspaceId]/settings/components/deskt
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider';
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header';
 import { SettingsSectionProvider } from '@/components/settings/settings-panel';
-const router = { bfcacheId: 'fixture', back: () => history.back(), forward: () => history.forward(), refresh: () => location.reload(), push: url => location.assign(url), replace: url => location.replace(url), prefetch: () => {} };
+const router = { back() {}, forward() {}, refresh() {}, push() {}, replace() {}, prefetch() {} };
+const flags = { dashboards: false, 'workflow-tests': false, 'workflow-code': false, changelog: false, 'mothership-model-selector': false, 'mothership-plan-mode': false };
 createRoot(document.getElementById('settings')).render(
   <AppRouterContext.Provider value={router}>
     <PathParamsContext.Provider value={{ workspaceId: 'fixture' }}>
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><SettingsHeaderProvider><SettingsHeaderShell>
-        <FeatureFlagsProvider flags={{ dashboards: false, 'workflow-tests': false, 'mothership-model-selector': false, 'mothership-plan-mode': false }}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ToastProvider><SettingsHeaderProvider><SettingsHeaderShell><FeatureFlagsProvider flags={flags}>
           <SettingsSectionProvider plane='workspace' section='desktop'><Desktop /></SettingsSectionProvider>
-        </FeatureFlagsProvider>
-      </SettingsHeaderShell></SettingsHeaderProvider></ToastProvider></QueryClientProvider>
+        </FeatureFlagsProvider></SettingsHeaderShell></SettingsHeaderProvider></ToastProvider>
+      </QueryClientProvider>
     </PathParamsContext.Provider>
   </AppRouterContext.Provider>
-);`,
-        resolveDir: SIM_DIR,
-        loader: 'tsx',
+);`
+
+const FIXTURE_PAGE = `<!doctype html><title>Local file fixture</title><link rel="stylesheet" href="/settings.css">
+<h1>Local files</h1>
+<button id="forget">Forget folders</button>
+<div id="settings" style="height:calc(100vh - 80px)"></div>
+<script>
+  const forget = document.getElementById('forget')
+  forget.addEventListener('click', async () => {
+    const api = window.simDesktop
+    const result = await api.localFilesystem({ operation: 'list_mounts' })
+    for (const mount of result.data.mounts)
+      await api.localFilesystem({ operation: 'forget_mount', uri: mount.uri })
+    forget.textContent = 'Forgotten'
+  })
+</script>
+<script src="/settings.js"></script>`
+
+type LocalFileResponse = Awaited<ReturnType<NonNullable<SimDesktopApi['localFiles']>>>
+
+interface ToolCall {
+  toolName: 'read_local_file' | 'import_local_files'
+  args: Record<string, unknown>
+  chatId?: string
+}
+
+interface Session {
+  desktop: DesktopApp
+  app: ElectronApplication
+  window: Page
+  fullAccess: Locator
+  invoke(request: DesktopLocalFileRequest): Promise<LocalFileResponse>
+  /** Starts a request and resolves once its folder prompt is up. */
+  requestPermission(
+    request: DesktopLocalFileRequest
+  ): Promise<{ prompt: Page; result: Promise<LocalFileResponse> }>
+  preferences(): Promise<DesktopPreferences>
+}
+
+interface LocalFilesFixture {
+  root: string
+  /** `Reports`: report.txt, image.png, and an empty subfolder. */
+  source: string
+  /** `Reports-other`, a sibling holding private.txt that no call is meant to reach. */
+  outside: string
+  /** The calls the fixture Sim authorizes, by tool call id; any other id is refused. */
+  calls: Record<string, ToolCall | undefined>
+  /** Calls Sim refuses after their first authorization, as it does once a call has ended. */
+  expireAfterAuthorization: Set<string>
+  origin: string
+  signIn(): void
+  /** Launches the app, on `userData` when relaunching the same profile. */
+  open(userData?: string): Promise<Session>
+  close(session: Session): Promise<void>
+}
+
+type FsPatchRuntime = typeof globalThis & {
+  e2eFsPatch?: { fired: string[]; restore(): void | Promise<void> }
+}
+
+/** Undoes a step's fs/promises patch in the main process and returns the race actions that ran. */
+async function restoreFsPatch(app: ElectronApplication): Promise<string[]> {
+  return app.evaluate(async () => {
+    const runtime = globalThis as FsPatchRuntime
+    const patch = runtime.e2eFsPatch
+    runtime.e2eFsPatch = undefined
+    await patch?.restore()
+    return patch?.fired ?? []
+  })
+}
+
+const test = base.extend<{ localFiles: LocalFilesFixture }>({
+  localFiles: async ({ desktop }, use) => {
+    const root = desktop.tempDir('sim-native-files-e2e-')
+    const source = join(root, 'Reports')
+    const outside = join(root, 'Reports-other')
+    mkdirSync(outside)
+    writeFileSync(join(outside, 'private.txt'), 'outside contents')
+    mkdirSync(join(source, 'empty'), { recursive: true })
+    writeFileSync(join(source, 'report.txt'), 'native file contents')
+    writeFileSync(join(source, 'image.png'), Buffer.from(PNG, 'base64'))
+    const claimed = new Set<string>()
+    const expireAfterAuthorization = new Set<string>()
+    let signedIn = true
+    const calls: Record<string, ToolCall | undefined> = {
+      directory: { toolName: 'read_local_file', args: { path: source } },
+      text: { toolName: 'read_local_file', args: { path: join(source, 'report.txt') } },
+      otherChat: {
+        toolName: 'read_local_file',
+        args: { path: join(source, 'report.txt') },
+        chatId: 'other-chat',
       },
-      bundle: true,
-      jsx: 'automatic',
-      write: false,
-      outfile: test.info().outputPath('settings.js'),
-      external: ['node:async_hooks', 'postgres'],
-      banner: { js: 'var process={env:{NODE_ENV:"development"},browser:true};' },
-      format: 'iife',
-      platform: 'browser',
-      tsconfig: join(SIM_DIR, 'tsconfig.json'),
-      define: { 'process.env.NODE_ENV': '"development"' },
-    })
-    const config = await loadPostcssConfig({}, SIM_DIR)
-    const cssPath = join(SIM_DIR, 'app/_styles/globals.css')
-    const css = await postcss(config.plugins).process(readFileSync(cssPath, 'utf8'), {
-      from: cssPath,
-    })
-    server = createServer(async (request, response) => {
-      const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
-      if (path === '/settings.js' || path === '/settings.css') {
-        response.setHeader('Content-Type', path.endsWith('.js') ? 'text/javascript' : 'text/css')
-        response.end(
-          path.endsWith('.js')
-            ? bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text
-            : css.css
-        )
+      image: { toolName: 'read_local_file', args: { path: join(source, 'image.png') } },
+      import: {
+        toolName: 'import_local_files',
+        args: { path: source, targetWorkspaceId: 'target-workspace' },
+      },
+    }
+    const settings = await bundleSimFixture({ source: SETTINGS_SOURCE }, { external: ['postgres'] })
+    const server = await serve(async (request, response, url) => {
+      if (url.pathname === '/settings.js' || url.pathname === '/settings.css') {
+        const script = url.pathname.endsWith('.js')
+        response.writeHead(200, { 'Content-Type': script ? 'text/javascript' : 'text/css' })
+        response.end(script ? settings.js : settings.css)
         return
       }
-      if (path === '/api/auth/get-session') {
-        response.writeHead(200, { 'Content-Type': 'application/json' }).end(
-          JSON.stringify(
-            signedIn
-              ? {
-                  user: { id: 'local-file-user' },
-                  session: { id: 'local-file-session' },
-                }
-              : null
+      if (url.pathname === '/api/auth/get-session') {
+        response
+          .writeHead(200, { 'Content-Type': 'application/json' })
+          .end(
+            JSON.stringify(
+              signedIn
+                ? { user: { id: 'local-file-user' }, session: { id: 'local-file-session' } }
+                : null
+            )
           )
-        )
         return
       }
-      if (path === '/api/auth/sign-out') {
+      if (url.pathname === '/api/auth/sign-out') {
         signedIn = false
         response
           .writeHead(200, {
@@ -132,7 +182,7 @@ createRoot(document.getElementById('settings')).render(
           .end('{}')
         return
       }
-      if (path === '/api/desktop/tool/authorize') {
+      if (url.pathname === '/api/desktop/tool/authorize') {
         let body = ''
         for await (const chunk of request) body += chunk.toString()
         const input = JSON.parse(body)
@@ -158,867 +208,838 @@ createRoot(document.getElementById('settings')).render(
             ? { 'Set-Cookie': 'better-auth.session_token=fixture; HttpOnly; SameSite=Lax; Path=/' }
             : {}),
         })
-        .end(`<!doctype html><title>Local file fixture</title><link rel="stylesheet" href="/settings.css"><h1>Local files</h1>
-          <button id="forget" onclick="window.simDesktop.localFilesystem({operation:'list_mounts'}).then(async result => {
-            for (const mount of result.data.mounts) await window.simDesktop.localFilesystem({operation:'forget_mount', uri:mount.uri});
-            this.textContent='Forgotten';
-          })">Forget folders</button>
-          <div id="settings" style="height:calc(100vh - 80px)"></div><script src="/settings.js"></script>`)
+        .end(FIXTURE_PAGE)
     })
-    await new Promise<void>((resolve) => server?.listen(0, '127.0.0.1', resolve))
-    const address = server.address()
-    if (!address || typeof address === 'string') throw new Error('Missing fixture address')
-    const launch = () =>
-      electron.launch({
-        args: ['.', '--use-mock-keychain'],
-        cwd: DESKTOP_DIR,
-        env: {
-          ...process.env,
-          SIM_DESKTOP_ORIGIN: `http://127.0.0.1:${address.port}`,
-          SIM_DESKTOP_USER_DATA: join(root, 'profile'),
-        },
+    const sessions: Session[] = []
+
+    const open = async (userData?: string): Promise<Session> => {
+      const launched = await desktop.launch({
+        origin: server.origin,
+        userData,
+        args: ['--use-mock-keychain'],
       })
-    app = await launch()
-    let window = await app.firstWindow()
-    await app.evaluate(({ app, BrowserWindow }) => {
-      const host = BrowserWindow.getAllWindows()[0]
-      if (!host) throw new Error('Missing host window')
-      host.webContents.setBackgroundThrottling(false)
-      app.focus({ steal: true })
-      host.focus()
-    })
-    await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toHaveText(
-      'Local files'
-    )
-    const invoke = (input: DesktopLocalFileRequest) =>
-      window.evaluate(async (request) => {
-        const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-        if (!api.localFiles) throw new Error('Native file bridge missing')
-        return api.localFiles(request)
-      }, input)
-    await expect
-      .poll(() =>
-        window.evaluate(async () => {
-          const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-          return (await api.localFilesystem?.({ operation: 'list_mounts' }))?.ok
+      const { app } = launched
+      const window = await app.firstWindow()
+      await focusFirstWindow(app)
+      await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toBeVisible()
+      const invoke = (request: DesktopLocalFileRequest) =>
+        window.evaluate(async (input) => {
+          const api = (globalThis as DesktopBridge).simDesktop
+          if (!api.localFiles) throw new Error('Native file bridge missing')
+          return api.localFiles(input)
+        }, request)
+      await expect
+        .poll(() =>
+          window.evaluate(
+            async () =>
+              (
+                await (globalThis as DesktopBridge).simDesktop.localFilesystem?.({
+                  operation: 'list_mounts',
+                })
+              )?.ok
+          )
+        )
+        .toBe(true)
+      if (userData === undefined) {
+        await window.evaluate(async () => {
+          const settings = (globalThis as DesktopBridge).simDesktop.settings
+          await settings.setPreference('browserEnabled', false)
+          await settings.setPreference('terminalEnabled', false)
         })
-      )
-      .toBe(true)
-    await window.evaluate(async () => {
-      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-      await api.settings.setPreference('browserEnabled', false)
-      await api.settings.setPreference('terminalEnabled', false)
+      }
+      const session: Session = {
+        desktop: launched,
+        app,
+        window,
+        fullAccess: window.getByRole('switch', { name: 'Full file access', exact: true }),
+        invoke,
+        async requestPermission(request) {
+          const shown = app.waitForEvent('window', { timeout: 10_000 })
+          const result = invoke(request)
+          void result.catch(() => {})
+          const prompt = await shown
+          await expect(
+            prompt.getByRole('button', { name: "Don't allow", exact: true })
+          ).toBeVisible()
+          return { prompt, result }
+        },
+        preferences: () =>
+          window.evaluate(() => (globalThis as DesktopBridge).simDesktop.settings.getPreferences()),
+      }
+      sessions.push(session)
+      return session
+    }
+
+    await use({
+      root,
+      source,
+      outside,
+      calls,
+      expireAfterAuthorization,
+      origin: server.origin,
+      signIn: () => {
+        signedIn = true
+      },
+      open,
+      close: (session) => desktop.close(session.desktop),
     })
-    const deniedPrompt = app.waitForEvent('window', { timeout: 10_000 })
-    const deniedReads = ['text', 'otherChat'].map((toolCallId) =>
+    // The apps quit while their server still answers, as they would against a live Sim.
+    try {
+      for (const session of sessions) await desktop.close(session.desktop)
+    } finally {
+      await server.close()
+    }
+  },
+})
+
+test('folder consent is asked once per folder, shared across chats, and bound to the authorized call', async ({
+  localFiles,
+}) => {
+  const { root, source, outside, calls, expireAfterAuthorization } = localFiles
+  const { app, window, invoke, requestPermission } = await localFiles.open()
+
+  await test.step('declining consent fails every read waiting on that folder', async () => {
+    const shown = app.waitForEvent('window', { timeout: 10_000 })
+    const reads = ['text', 'otherChat'].map((toolCallId) =>
       invoke({ operation: 'read', toolCallId })
     )
-    const deniedResults: unknown[] = []
-    for (const read of deniedReads)
-      void read.then((result) => deniedResults.push(result)).catch(() => {})
-    const denial = await deniedPrompt
+    for (const read of reads) void read.catch(() => {})
+    const denial = await shown
     await expect(denial.getByRole('button', { name: "Don't allow", exact: true })).toBeFocused()
-    await denial.screenshot({
-      path:
-        process.env.DESKTOP_LOCAL_FILES_REPORT_PATH ??
-        test.info().outputPath('local-file-consent.png'),
-    })
-    await denial
-      .getByRole('button', { name: "Don't allow", exact: true })
-      .click({ noWaitAfter: true })
-    await expect.poll(() => deniedResults.length).toBe(2)
-    expect(deniedResults).toEqual([
+    await answerShellDialog(denial, "Don't allow")
+    expect(await Promise.all(reads)).toEqual([
       { ok: false, error: expect.any(String) },
       { ok: false, error: expect.any(String) },
     ])
+  })
 
-    const folderPrompt = app.waitForEvent('window')
+  await test.step('an allowed folder serves the queued read, the authorized path, and images', async () => {
+    const shown = app.waitForEvent('window')
     const folderRead = invoke({ operation: 'read', toolCallId: 'directory' })
     void folderRead.catch(() => {})
-    const folderConsent = await folderPrompt
+    const consent = await shown
     const queuedRead = invoke({ operation: 'read', toolCallId: 'text' })
     void queuedRead.catch(() => {})
-    await expect(
-      folderConsent.getByRole('button', { name: 'Allow folder', exact: true })
-    ).toBeVisible()
+    await expect(consent.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
     expect(
-      await folderConsent.evaluate(() => typeof (globalThis as { simDesktop?: unknown }).simDesktop)
+      await consent.evaluate(() => typeof (globalThis as { simDesktop?: unknown }).simDesktop)
     ).toBe('undefined')
-    await folderConsent
-      .getByRole('button', { name: 'Allow folder', exact: true })
-      .click({ noWaitAfter: true })
+    await answerShellDialog(consent, 'Allow folder')
     expect(await folderRead).toMatchObject({ ok: true, data: { representation: 'directory' } })
     expect(await queuedRead).toMatchObject({ ok: true, data: { text: 'native file contents' } })
-    const canonicalRequest = {
+    // The renderer's path is ignored: Sim's authorized arguments decide what is read.
+    const redirected = {
       operation: 'read' as const,
       toolCallId: 'text',
       path: join(outside, 'private.txt'),
     }
-    expect(await invoke(canonicalRequest)).toMatchObject({
+    expect(await invoke(redirected)).toMatchObject({
       ok: true,
       data: { representation: 'text', text: 'native file contents' },
     })
     expect(await invoke({ operation: 'read', toolCallId: 'image' })).toMatchObject({
       ok: true,
-      data: { observations: [{ mediaType: 'image/png', data: png }] },
+      data: { observations: [{ mediaType: 'image/png', data: PNG }] },
     })
-    const requestPermission = async (request: DesktopLocalFileRequest) => {
-      if (!app) throw new Error('Desktop app is not running')
-      const shown = app.waitForEvent('window', { timeout: 10_000 })
-      const result = invoke(request)
-      void result.catch(() => {})
-      const prompt = await shown
-      await expect(prompt.getByRole('button', { name: "Don't allow", exact: true })).toBeVisible()
-      return { prompt, result }
-    }
-    await test.step('File → Folder Access opens over a focused utility window', async () => {
-      if (!app) throw new Error('Desktop app is not running')
-      const serverShown = app.waitForEvent('window', { timeout: 10_000 })
-      await app.evaluate(({ Menu }) => {
-        const item = Menu.getApplicationMenu()
-          ?.items.flatMap((entry) => entry.submenu?.items ?? [])
-          .find((entry) => entry.label === 'Server…')
-        if (!item) throw new Error('Server menu item missing')
-        item.click()
-      })
-      await expect(await serverShown).toHaveTitle('Sim - Server')
-      await expect
-        .poll(() =>
-          app?.evaluate(({ BrowserWindow }) =>
-            BrowserWindow.getAllWindows().some(
-              (win) => win.webContents.getURL().endsWith('server.html') && win.isVisible()
-            )
-          )
-        )
-        .toBe(true)
-      const accessMenu = await app.evaluate(({ BrowserWindow, Menu }) => {
-        const utility = BrowserWindow.getAllWindows().find((win) =>
-          win.webContents.getURL().endsWith('server.html')
-        )
-        if (!utility) throw new Error('Server window missing')
-        const item = Menu.getApplicationMenu()
-          ?.items.flatMap((entry) => entry.submenu?.items ?? [])
-          .find((entry) => entry.label === 'Folder Access…')
-        if (!item) throw new Error('Folder Access menu item missing')
-        const popup = Menu.prototype.popup
-        let shown: { anchoredToUtility: boolean; items: string[] } | undefined
-        Menu.prototype.popup = function (this: Electron.Menu, options) {
-          shown = {
-            anchoredToUtility: options?.window === utility,
-            items: this.items.map((entry) => entry.label),
-          }
-        }
-        try {
-          item.click(undefined, utility)
-        } finally {
-          Menu.prototype.popup = popup
-        }
-        utility.close()
-        return shown
-      })
-      expect(accessMenu?.anchoredToUtility).toBe(true)
-      expect(accessMenu?.items).toContain('Add Folder…')
-    })
+  })
 
-    await test.step('Stop cancels only its own request while chats share a folder prompt', async () => {
-      const sharedFolder = join(root, 'Shared')
-      mkdirSync(sharedFolder)
-      writeFileSync(join(sharedFolder, 'shared.txt'), 'shared contents')
-      for (const toolCallId of ['sharedLeader', 'sharedFollower', 'sharedSurvivor']) {
-        calls[toolCallId] = {
-          toolName: 'read_local_file',
-          args: { path: join(sharedFolder, 'shared.txt') },
-          chatId: toolCallId,
-        }
+  await test.step('a folder grant works in another chat but does not permit symlink escapes', async () => {
+    expect(await invoke({ operation: 'read', toolCallId: 'otherChat' })).toMatchObject({
+      ok: true,
+      data: { text: 'native file contents' },
+    })
+    writeFileSync(join(source, 'empty', 'new.txt'), 'new file in a subfolder')
+    calls.nested = {
+      toolName: 'read_local_file',
+      args: { path: join(source, 'empty', 'new.txt') },
+      chatId: 'another-chat',
+    }
+    expect(await invoke({ operation: 'read', toolCallId: 'nested' })).toMatchObject({
+      ok: true,
+      data: { text: 'new file in a subfolder' },
+    })
+    rmSync(join(source, 'empty', 'new.txt'))
+    symlinkSync(join(outside, 'private.txt'), join(source, 'linked.txt'))
+    calls.escape = { toolName: 'read_local_file', args: { path: join(source, 'linked.txt') } }
+    const escaped = await requestPermission({ operation: 'read', toolCallId: 'escape' })
+    await expect(escaped.prompt.getByRole('dialog')).toContainText(
+      JSON.stringify(realpathSync(outside))
+    )
+    await answerShellDialog(escaped.prompt, "Don't allow")
+    expect(await escaped.result).toMatchObject({ ok: false })
+    rmSync(join(source, 'linked.txt'))
+  })
+
+  await test.step('cancelled calls and changed arguments cannot acquire a grant', async () => {
+    for (const changed of [false, true]) {
+      calls.stale = { toolName: 'read_local_file', args: { path: join(outside, 'private.txt') } }
+      const stale = await requestPermission({ operation: 'read', toolCallId: 'stale' })
+      if (changed) calls.stale.args.path = join(source, 'report.txt')
+      else calls.stale = undefined
+      await answerShellDialog(stale.prompt, 'Allow folder')
+      expect(await stale.result).toMatchObject({ ok: false })
+    }
+  })
+
+  await test.step('Stop cancels only its own request while chats share a folder prompt', async () => {
+    const sharedFolder = join(root, 'Shared')
+    mkdirSync(sharedFolder)
+    writeFileSync(join(sharedFolder, 'shared.txt'), 'shared contents')
+    for (const toolCallId of ['sharedLeader', 'sharedFollower', 'sharedSurvivor']) {
+      calls[toolCallId] = {
+        toolName: 'read_local_file',
+        args: { path: join(sharedFolder, 'shared.txt') },
+        chatId: toolCallId,
       }
-      const leader = await requestPermission({ operation: 'read', toolCallId: 'sharedLeader' })
-      let followerResult: unknown
-      const follower = invoke({ operation: 'read', toolCallId: 'sharedFollower' }).then(
-        (result) => {
-          followerResult = result
+    }
+    // A request joins the pending prompt in the same turn its stat of the file settles, so the
+    // count of those stats says how many requests share the prompt. Sim's authorization lands
+    // before that, which is why it cannot stand in for the join.
+    await app.evaluate(
+      (_electron, file) => {
+        const fs = process.getBuiltinModule('node:fs/promises') as typeof import('node:fs/promises')
+        const original = fs.stat
+        const fired: string[] = []
+        ;(globalThis as FsPatchRuntime).e2eFsPatch = {
+          fired,
+          restore: () => {
+            fs.stat = original
+          },
         }
-      )
+        fs.stat = (async (...args: Parameters<typeof fs.stat>) => {
+          const result = await original(...args)
+          if (args[0] === file) fired.push('joined')
+          return result
+        }) as typeof fs.stat
+      },
+      realpathSync(join(sharedFolder, 'shared.txt'))
+    )
+    const joined = () =>
+      app.evaluate(() => (globalThis as FsPatchRuntime).e2eFsPatch?.fired.length ?? 0)
+    try {
+      const leader = await requestPermission({ operation: 'read', toolCallId: 'sharedLeader' })
+      expect(await joined()).toBe(1)
+      const follower = invoke({ operation: 'read', toolCallId: 'sharedFollower' })
       void follower.catch(() => {})
-      await expect.poll(() => claimed.has('sharedFollower')).toBe(true)
-      await leader.prompt.getByRole('dialog').hover()
+      await expect.poll(joined).toBe(2)
       await invoke({ operation: 'cancel', toolCallId: 'sharedFollower' })
-      await expect.poll(() => followerResult).toMatchObject({ ok: false })
-      await follower
-      await expect(leader.prompt.getByRole('dialog')).toBeVisible()
+      expect(await follower).toMatchObject({ ok: false })
       const survivor = invoke({ operation: 'read', toolCallId: 'sharedSurvivor' })
       void survivor.catch(() => {})
-      await expect.poll(() => claimed.has('sharedSurvivor')).toBe(true)
-      await leader.prompt.getByRole('dialog').hover()
+      await expect.poll(joined).toBe(3)
       await invoke({ operation: 'cancel', toolCallId: 'sharedLeader' })
       expect(await leader.result).toMatchObject({ ok: false })
-      await expect(leader.prompt.getByRole('dialog')).toBeVisible()
-      await leader.prompt
-        .getByRole('button', { name: 'Allow folder', exact: true })
-        .click({ noWaitAfter: true })
+      // The leader's own prompt is still the one to answer: neither cancel closed it.
+      await answerShellDialog(leader.prompt, 'Allow folder')
       expect(await survivor).toMatchObject({ ok: true, data: { text: 'shared contents' } })
-    })
-    await test.step('expired requests cannot enable Full file access from a confirmation', async () => {
-      if (!app) throw new Error('Desktop app is not running')
-      calls.expiringFullAccess = {
-        toolName: 'read_local_file',
-        args: { path: join(outside, 'private.txt') },
-      }
-      const permission = await requestPermission({
-        operation: 'read',
-        toolCallId: 'expiringFullAccess',
-      })
-      const shown = app.waitForEvent('window')
-      await permission.prompt
-        .getByRole('button', { name: 'Full file access', exact: true })
-        .click({ noWaitAfter: true })
-      const confirmation = await shown
-      calls.expiringFullAccess = undefined
-      await confirmation
-        .getByRole('button', { name: 'Enable', exact: true })
-        .click({ noWaitAfter: true })
-      expect(await permission.result).toMatchObject({ ok: false })
-      expect(
-        await window.evaluate(async () =>
-          (
-            globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
-          ).simDesktop.settings.getPreferences()
-        )
-      ).toMatchObject({ fullFileAccess: false })
-    })
-    await test.step('Full file access is opt-in, survives restart, and stops granting access when disabled', async () => {
-      if (!app) throw new Error('Desktop app is not running')
-      const fullFolder = join(root, 'Full access')
-      mkdirSync(fullFolder)
-      writeFileSync(join(fullFolder, 'file.txt'), 'full access contents')
-      calls.fullAccess = {
-        toolName: 'read_local_file',
-        args: { path: join(fullFolder, 'file.txt') },
-      }
-      await expect(
-        window.getByRole('switch', { name: 'Full file access', exact: true })
-      ).not.toBeChecked()
-      const permission = await requestPermission({ operation: 'read', toolCallId: 'fullAccess' })
-      const confirmationShown = app.waitForEvent('window')
-      await permission.prompt
-        .getByRole('button', { name: 'Full file access', exact: true })
-        .click({ noWaitAfter: true })
-      const confirmation = await confirmationShown
-      await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused()
-      const returnedPrompt = app.waitForEvent('window')
-      await confirmation
-        .getByRole('button', { name: 'Cancel', exact: true })
-        .click({ noWaitAfter: true })
-      const folderPrompt = await returnedPrompt
-      expect(
-        await window.evaluate(async () =>
-          (
-            globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
-          ).simDesktop.settings.getPreferences()
-        )
-      ).toMatchObject({ fullFileAccess: false })
-      const acceptedConfirmation = app.waitForEvent('window')
-      await folderPrompt
-        .getByRole('button', { name: 'Full file access', exact: true })
-        .click({ noWaitAfter: true })
-      const allowAll = await acceptedConfirmation
-      await allowAll.screenshot({
-        path: test.info().outputPath('full-file-access-confirmation.png'),
-      })
-      await allowAll
-        .getByRole('button', { name: 'Enable', exact: true })
-        .click({ noWaitAfter: true })
-      expect(await permission.result).toMatchObject({
-        ok: true,
-        data: { text: 'full access contents' },
-      })
-      await expect(
-        window.getByRole('switch', { name: 'Full file access', exact: true })
-      ).toBeChecked()
-      expect(await invoke({ operation: 'read', toolCallId: 'fullAccess' })).toMatchObject({
-        ok: true,
-        data: { text: 'full access contents' },
-      })
-      calls.fullImport = {
-        toolName: 'import_local_files',
-        args: { path: fullFolder, targetWorkspaceId: 'target-workspace' },
-      }
-      const manifest = await invoke({ operation: 'manifest', toolCallId: 'fullImport' })
-      if (!manifest.ok || manifest.data.kind !== 'manifest')
-        throw new Error('Missing full-access manifest')
-      const imported = manifest.data.entries.find((entry) => entry.relativePath === 'file.txt')
-      if (!imported) throw new Error('Missing full-access file')
-      const chunk = await invoke({
-        operation: 'chunk',
-        toolCallId: 'fullImport',
-        relativePath: imported.relativePath,
-        revision: imported.revision,
-        offset: 0,
-      })
-      if (!chunk.ok || chunk.data.kind !== 'chunk') throw new Error('Missing full-access contents')
-      expect(Object.values(chunk.data.bytes)).toEqual([...Buffer.from('full access contents')])
-      await expect(
-        window.getByRole('switch', { name: 'Full file access', exact: true })
-      ).toBeChecked()
-      await expect(
-        window.getByRole('switch', { name: 'Full file access', exact: true })
-      ).toBeEnabled()
-      await window.screenshot({
-        path: test.info().outputPath('desktop-settings-full-access.png'),
-        animations: 'disabled',
-      })
-      await window.evaluate(() => document.documentElement.classList.add('dark'))
-      await window.screenshot({
-        path: test.info().outputPath('desktop-settings-full-access-dark.png'),
-        animations: 'disabled',
-      })
-      await window.evaluate(() => document.documentElement.classList.remove('dark'))
-      expect(await invoke({ operation: 'read', toolCallId: 'notAuthorized' })).toMatchObject({
-        ok: false,
-      })
-      await app?.close()
-      app = await launch()
-      window = await app.firstWindow()
-      await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toHaveText(
-        'Local files'
-      )
-      await expect
-        .poll(() =>
-          window.evaluate(async () =>
-            (
-              globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
-            ).simDesktop.settings.getPreferences()
-          )
-        )
-        .toMatchObject({ fullFileAccess: true })
-      expect(await invoke({ operation: 'read', toolCallId: 'fullAccess' })).toMatchObject({
-        ok: true,
-        data: { text: 'full access contents' },
-      })
-      await window.getByRole('switch', { name: 'Full file access', exact: true }).click()
-      await expect(
-        window.getByRole('switch', { name: 'Full file access', exact: true })
-      ).not.toBeChecked()
-      const revoked = await requestPermission({ operation: 'read', toolCallId: 'fullAccess' })
-      await revoked.prompt
-        .getByRole('button', { name: "Don't allow", exact: true })
-        .click({ noWaitAfter: true })
-      expect(await revoked.result).toMatchObject({ ok: false })
-    })
-    await test.step('a folder grant works in another chat but does not permit symlink escapes', async () => {
-      expect(await invoke({ operation: 'read', toolCallId: 'otherChat' })).toMatchObject({
-        ok: true,
-        data: { text: 'native file contents' },
-      })
-      writeFileSync(join(source, 'empty', 'new.txt'), 'new file in a subfolder')
-      calls.nested = {
-        toolName: 'read_local_file',
-        args: { path: join(source, 'empty', 'new.txt') },
-        chatId: 'another-chat',
-      }
-      expect(await invoke({ operation: 'read', toolCallId: 'nested' })).toMatchObject({
-        ok: true,
-        data: { text: 'new file in a subfolder' },
-      })
-      rmSync(join(source, 'empty', 'new.txt'))
-      symlinkSync(join(outside, 'private.txt'), join(source, 'linked.txt'))
-      calls.escape = { toolName: 'read_local_file', args: { path: join(source, 'linked.txt') } }
-      const escapedRead = await requestPermission({ operation: 'read', toolCallId: 'escape' })
-      await expect(escapedRead.prompt.getByRole('dialog')).toContainText(
-        JSON.stringify(realpathSync(outside))
-      )
-      await escapedRead.prompt
-        .getByRole('button', { name: "Don't allow", exact: true })
-        .click({ noWaitAfter: true })
-      expect(await escapedRead.result).toMatchObject({ ok: false })
-      rmSync(join(source, 'linked.txt'))
-    })
-    await test.step('cancelled calls and changed arguments cannot acquire a grant', async () => {
-      for (const changed of [false, true]) {
-        calls.stale = { toolName: 'read_local_file', args: { path: join(outside, 'private.txt') } }
-        const stale = await requestPermission({ operation: 'read', toolCallId: 'stale' })
-        if (changed) calls.stale.args.path = join(source, 'report.txt')
-        else calls.stale = undefined
-        await stale.prompt
-          .getByRole('button', { name: 'Allow folder', exact: true })
-          .click({ noWaitAfter: true })
-        expect(await stale.result).toMatchObject({ ok: false })
-      }
-    })
-    await test.step('native traversal rejects redirected ancestors and replaced grant identities', async () => {
-      const parent = join(realpathSync(source), 'native-parent')
-      mkdirSync(parent)
-      writeFileSync(join(parent, 'inside.txt'), 'inside')
-      const linked = join(realpathSync(source), 'native-link')
-      symlinkSync(outside, linked)
-      try {
-        const result = await app?.evaluate(
-          async ({ app }, paths) => {
-            const { createRequire } = process.getBuiltinModule('node:module')
-            const { stat } = process.getBuiltinModule('node:fs/promises')
-            const fs = process.getBuiltinModule('node:fs')
-            const native = createRequire(`${app.getAppPath()}/package.json`)(
-              './dist/native/directory.node'
-            ) as {
-              openApproved(
-                root: string,
-                relative: string,
-                dev: bigint,
-                ino: bigint,
-                directory: boolean
-              ): Promise<number>
-            }
-            const root = await stat(paths.source, { bigint: true })
-            const denied = async (path: string, ino = root.ino) => {
-              try {
-                const fd = await native.openApproved(paths.source, path, root.dev, ino, false)
-                fs.closeSync(fd)
-                return false
-              } catch {
-                return true
-              }
-            }
-            const valid = await native.openApproved(
-              paths.source,
-              'native-parent/inside.txt',
-              root.dev,
-              root.ino,
-              false
-            )
-            const text = fs.readFileSync(valid, 'utf8')
-            fs.closeSync(valid)
-            return {
-              text,
-              ancestor: await denied('native-link/private.txt'),
-              traversal: await denied('../Reports-other/private.txt'),
-              replaced: await denied('native-parent/inside.txt', root.ino + 1n),
-              overflow: await denied('native-parent/inside.txt', root.ino + (1n << 64n)),
-            }
-          },
-          { source: realpathSync(source) }
-        )
-        expect(result).toEqual({
-          text: 'inside',
-          ancestor: true,
-          traversal: true,
-          replaced: true,
-          overflow: true,
-        })
-      } finally {
-        rmSync(linked)
-        rmSync(parent, { recursive: true })
-      }
-    })
-    await test.step('a symlink replacement cannot redirect an inspected file', async () => {
-      const file = realpathSync(join(source, 'report.txt'))
-      const backup = join(source, 'original-report.txt')
-      const other = join(source, 'other.txt')
-      writeFileSync(other, 'different file contents')
-      await app?.evaluate(
-        (_electron, paths) => {
-          const fs = process.getBuiltinModule(
-            'node:fs/promises'
-          ) as typeof import('node:fs/promises')
-          const original = fs.stat
-          fs.stat = (async (...args: Parameters<typeof fs.stat>) => {
-            const result = await original(...args)
-            if (args[0] === paths.file) {
-              fs.stat = original
-              await fs.rename(paths.file, paths.backup)
-              await fs.symlink(paths.other, paths.file)
-            }
-            return result
-          }) as typeof fs.stat
-        },
-        { file, backup, other }
-      )
-      try {
-        expect(await invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({ ok: false })
-      } finally {
-        rmSync(file)
-        renameSync(backup, file)
-        rmSync(other)
-      }
-    })
-    await test.step('swapping an ancestor cannot redirect directory enumeration', async () => {
-      const parent = join(realpathSync(source), 'parent')
-      const child = join(parent, 'child')
-      const backup = join(realpathSync(source), 'parent-backup')
-      const otherParent = join(outside, 'parent')
-      mkdirSync(child, { recursive: true })
-      mkdirSync(join(otherParent, 'child'), { recursive: true })
-      writeFileSync(join(child, 'allowed.txt'), 'allowed')
-      writeFileSync(join(otherParent, 'child', 'private.txt'), 'outside')
-      calls.ancestorRace = { toolName: 'read_local_file', args: { path: child } }
-      await app?.evaluate(
-        (_electron, paths) => {
-          const fs = process.getBuiltinModule(
-            'node:fs/promises'
-          ) as typeof import('node:fs/promises')
-          const originalStat = fs.lstat
-          const originalRealpath = fs.realpath
-          let swapped = false
-          const restore = async () => {
-            fs.lstat = originalStat
-            fs.realpath = originalRealpath
-            if (swapped) {
-              await fs.rm(paths.parent)
-              await fs.rename(paths.backup, paths.parent)
-              swapped = false
-            }
-          }
-          ;(
-            globalThis as typeof globalThis & { restoreLocalFileRace?: () => Promise<void> }
-          ).restoreLocalFileRace = restore
-          fs.lstat = (async (...args: Parameters<typeof fs.lstat>) => {
-            const result = await originalStat(...args)
-            if (args[0] === paths.child) {
-              fs.lstat = originalStat
-              await fs.rename(paths.parent, paths.backup)
-              await fs.symlink(paths.otherParent, paths.parent)
-              swapped = true
-            }
-            return result
-          }) as typeof fs.lstat
-          fs.realpath = (async (...args: Parameters<typeof fs.realpath>) => {
-            if (swapped && args[0] === paths.child) await restore()
-            return originalRealpath(...args)
-          }) as typeof fs.realpath
-        },
-        { parent, child, backup, otherParent }
-      )
-      try {
-        expect(await invoke({ operation: 'read', toolCallId: 'ancestorRace' })).toMatchObject({
-          ok: true,
-          data: { entries: [{ name: 'allowed.txt', kind: 'file' }] },
-        })
-      } finally {
-        await app?.evaluate(async () => {
-          const runtime = globalThis as typeof globalThis & {
-            restoreLocalFileRace?: () => Promise<void>
-          }
-          await runtime.restoreLocalFileRace?.()
-          runtime.restoreLocalFileRace = undefined
-        })
-        rmSync(parent, { recursive: true, force: true })
-        rmSync(otherParent, { recursive: true, force: true })
-      }
-    })
-    await test.step('a replaced directory cannot return a listing for its old contents', async () => {
-      const directory = join(realpathSync(source), 'replace-during-read')
-      const backup = join(realpathSync(source), 'previous-directory')
-      mkdirSync(directory)
-      writeFileSync(join(directory, 'old.txt'), 'old contents')
-      calls.directoryReplaced = { toolName: 'read_local_file', args: { path: directory } }
-      await app?.evaluate(
-        (_electron, paths) => {
-          const fs = process.getBuiltinModule(
-            'node:fs/promises'
-          ) as typeof import('node:fs/promises')
-          const original = fs.lstat
-          fs.lstat = (async (...args: Parameters<typeof fs.lstat>) => {
-            if (args[0] === paths.directory) {
-              fs.lstat = original
-              await fs.rename(paths.directory, paths.backup)
-              await fs.mkdir(paths.directory)
-              await fs.writeFile(`${paths.directory}/new.txt`, 'new contents')
-            }
-            return original(...args)
-          }) as typeof fs.lstat
-        },
-        { directory, backup }
-      )
-      try {
-        expect(await invoke({ operation: 'read', toolCallId: 'directoryReplaced' })).toMatchObject({
-          ok: false,
-        })
-      } finally {
-        rmSync(directory, { recursive: true, force: true })
-        rmSync(backup, { recursive: true, force: true })
-      }
-    })
-    await test.step('cancelling a directory read prevents its contents from returning', async () => {
-      const path = realpathSync(join(source, 'empty'))
-      calls.directoryCancel = { toolName: 'read_local_file', args: { path } }
-      await app?.evaluate((_electron, path) => {
-        const fs = process.getBuiltinModule('node:fs/promises') as typeof import('node:fs/promises')
-        const original = fs.lstat
-        fs.lstat = (async (...args: Parameters<typeof fs.lstat>) => {
-          const handle = await original(...args)
-          if (args[0] === path) {
-            fs.lstat = original
-            await new Promise<void>((resolve) => {
-              ;(
-                globalThis as typeof globalThis & { releaseLocalFileRead?: () => void }
-              ).releaseLocalFileRead = resolve
-            })
-          }
-          return handle
-        }) as typeof fs.lstat
-      }, path)
-      const reading = invoke({ operation: 'read', toolCallId: 'directoryCancel' })
-      void reading.catch(() => {})
-      try {
-        await expect
-          .poll(() =>
-            app?.evaluate(
-              () =>
-                typeof (globalThis as typeof globalThis & { releaseLocalFileRead?: () => void })
-                  .releaseLocalFileRead === 'function'
-            )
-          )
-          .toBe(true)
-        await invoke({ operation: 'cancel', toolCallId: 'directoryCancel' })
-      } finally {
-        await app?.evaluate(() => {
-          const runtime = globalThis as typeof globalThis & { releaseLocalFileRead?: () => void }
-          runtime.releaseLocalFileRead?.()
-          runtime.releaseLocalFileRead = undefined
-        })
-      }
-      expect(await reading).toMatchObject({ ok: false })
-    })
-    await test.step('cancelling in the renderer closes consent without remembering access', async () => {
-      calls.cancelled = {
-        toolName: 'read_local_file',
-        args: { path: join(outside, 'private.txt') },
-      }
-      const cancelled = await requestPermission({ operation: 'read', toolCallId: 'cancelled' })
-      const closed = cancelled.prompt.waitForEvent('close', { timeout: 5000 })
-      await window.evaluate(async () => {
-        const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-        await api.localFiles?.({ operation: 'cancel', toolCallId: 'cancelled' })
-      })
-      await closed
-      expect(await cancelled.result).toMatchObject({ ok: false })
-      const again = await requestPermission({ operation: 'read', toolCallId: 'cancelled' })
-      await again.prompt
-        .getByRole('button', { name: "Don't allow", exact: true })
-        .click({ noWaitAfter: true })
-      expect(await again.result).toMatchObject({ ok: false })
-    })
-    await test.step('consent escapes direction controls in folder names', async () => {
-      const folder = join(root, 'Bidi\u061c\u200e\u200f')
-      mkdirSync(folder)
-      calls.bidi = { toolName: 'read_local_file', args: { path: folder } }
-      const bidi = await requestPermission({ operation: 'read', toolCallId: 'bidi' })
-      await expect(bidi.prompt.getByRole('dialog')).toContainText('Bidi\\u061c\\u200e\\u200f')
-      await bidi.prompt
-        .getByRole('button', { name: "Don't allow", exact: true })
-        .click({ noWaitAfter: true })
-      expect(await bidi.result).toMatchObject({ ok: false })
-    })
-    await test.step('an unanswered prompt does not block approved folders', async () => {
-      calls.blocker = { toolName: 'read_local_file', args: { path: join(outside, 'private.txt') } }
-      const blocker = await requestPermission({ operation: 'read', toolCallId: 'blocker' })
-      expect(await invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({ ok: true })
-      await blocker.prompt
-        .getByRole('button', { name: "Don't allow", exact: true })
-        .click({ noWaitAfter: true })
-      expect(await blocker.result).toMatchObject({ ok: false })
-    })
-    await test.step('cancelled calls cannot reuse an approved folder', async () => {
-      calls.expired = { toolName: 'read_local_file', args: { path: join(source, 'report.txt') } }
-      expireAfterAuthorization.add('expired')
-      expect(await invoke({ operation: 'read', toolCallId: 'expired' })).toMatchObject({
-        ok: false,
-      })
-    })
-    await test.step('replacing the proposed folder during consent does not expose its new target', async () => {
-      const proposed = join(root, 'Proposed')
-      mkdirSync(proposed)
-      calls.retargeted = { toolName: 'read_local_file', args: { path: proposed } }
-      const retargeted = await requestPermission({ operation: 'read', toolCallId: 'retargeted' })
-      renameSync(proposed, join(root, 'Original'))
-      mkdirSync(proposed)
-      writeFileSync(join(proposed, 'unapproved.txt'), 'replacement folder contents')
-      await retargeted.prompt
-        .getByRole('button', { name: 'Allow folder', exact: true })
-        .click({ noWaitAfter: true })
-      expect(await retargeted.result).toMatchObject({ ok: false })
-    })
-    const result = await invoke({ operation: 'manifest', toolCallId: 'import' })
-    if (!result.ok || result.data.kind !== 'manifest') throw new Error(JSON.stringify(result))
-    expect(result.data.targetWorkspaceId).toBe('target-workspace')
-    expect(result.data.entries.map((entry) => entry.relativePath)).toEqual([
+    } finally {
+      await restoreFsPatch(app)
+    }
+  })
+
+  await test.step('cancelling in the renderer closes consent without remembering access', async () => {
+    calls.cancelled = { toolName: 'read_local_file', args: { path: join(outside, 'private.txt') } }
+    const cancelled = await requestPermission({ operation: 'read', toolCallId: 'cancelled' })
+    const closed = cancelled.prompt.waitForEvent('close')
+    await invoke({ operation: 'cancel', toolCallId: 'cancelled' })
+    await closed
+    expect(await cancelled.result).toMatchObject({ ok: false })
+    const again = await requestPermission({ operation: 'read', toolCallId: 'cancelled' })
+    await answerShellDialog(again.prompt, "Don't allow")
+    expect(await again.result).toMatchObject({ ok: false })
+  })
+
+  await test.step('consent escapes direction controls in folder names', async () => {
+    const folder = join(root, 'Bidi؜‎‏')
+    mkdirSync(folder)
+    calls.bidi = { toolName: 'read_local_file', args: { path: folder } }
+    const bidi = await requestPermission({ operation: 'read', toolCallId: 'bidi' })
+    await expect(bidi.prompt.getByRole('dialog')).toContainText('Bidi\\u061c\\u200e\\u200f')
+    await answerShellDialog(bidi.prompt, "Don't allow")
+    expect(await bidi.result).toMatchObject({ ok: false })
+  })
+
+  await test.step('an unanswered prompt does not block approved folders', async () => {
+    calls.blocker = { toolName: 'read_local_file', args: { path: join(outside, 'private.txt') } }
+    const blocker = await requestPermission({ operation: 'read', toolCallId: 'blocker' })
+    expect(await invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({ ok: true })
+    await answerShellDialog(blocker.prompt, "Don't allow")
+    expect(await blocker.result).toMatchObject({ ok: false })
+  })
+
+  await test.step('a call that ended after authorization cannot use an approved folder', async () => {
+    calls.expired = { toolName: 'read_local_file', args: { path: join(source, 'report.txt') } }
+    expireAfterAuthorization.add('expired')
+    expect(await invoke({ operation: 'read', toolCallId: 'expired' })).toMatchObject({ ok: false })
+  })
+
+  await test.step('replacing the proposed folder during consent does not expose its new target', async () => {
+    const proposed = join(root, 'Proposed')
+    mkdirSync(proposed)
+    calls.retargeted = { toolName: 'read_local_file', args: { path: proposed } }
+    const retargeted = await requestPermission({ operation: 'read', toolCallId: 'retargeted' })
+    renameSync(proposed, join(root, 'Original'))
+    mkdirSync(proposed)
+    writeFileSync(join(proposed, 'unapproved.txt'), 'replacement folder contents')
+    await answerShellDialog(retargeted.prompt, 'Allow folder')
+    expect(await retargeted.result).toMatchObject({ ok: false })
+  })
+
+  await test.step('an approved folder imports once per call and to any destination without prompting', async () => {
+    const manifest = await invoke({ operation: 'manifest', toolCallId: 'import' })
+    if (!manifest.ok || manifest.data.kind !== 'manifest') throw new Error(JSON.stringify(manifest))
+    expect(manifest.data.targetWorkspaceId).toBe('target-workspace')
+    expect(manifest.data.entries.map((entry) => entry.relativePath)).toEqual([
       '',
       'empty',
       'image.png',
       'report.txt',
     ])
-    const file = result.data.entries.find((entry) => entry.relativePath === 'report.txt')
+    const file = manifest.data.entries.find((entry) => entry.relativePath === 'report.txt')
     if (!file) throw new Error('Missing import file')
-    const chunk = await invoke({
-      operation: 'chunk',
+    const chunkRequest = {
+      operation: 'chunk' as const,
       toolCallId: 'import',
       relativePath: file.relativePath,
       revision: file.revision,
       offset: 0,
-    })
+    }
+    const chunk = await invoke(chunkRequest)
     if (!chunk.ok || chunk.data.kind !== 'chunk') throw new Error(JSON.stringify(chunk))
     expect(Object.values(chunk.data.bytes)).toEqual([...Buffer.from('native file contents')])
     expect(chunk.data.eof).toBe(true)
+    // The bytes cross the bridge in a form the renderer can upload as a File.
     expect(
-      await window.evaluate(
-        async (input) => {
-          const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-          const response = await api.localFiles?.(input)
-          if (!response?.ok || response.data.kind !== 'chunk')
-            throw new Error('Missing native chunk')
-          const file = new File([new Uint8Array(response.data.bytes)], 'report.txt')
-          return file.text()
-        },
-        {
-          operation: 'chunk' as const,
-          toolCallId: 'import',
-          relativePath: file.relativePath,
-          revision: file.revision,
-          offset: 0,
-        }
-      )
+      await window.evaluate(async (input) => {
+        const response = await (globalThis as DesktopBridge).simDesktop.localFiles?.(input)
+        if (!response?.ok || response.data.kind !== 'chunk') throw new Error('Missing native chunk')
+        return new File([new Uint8Array(response.data.bytes)], 'report.txt').text()
+      }, chunkRequest)
     ).toBe('native file contents')
     expect(await invoke({ operation: 'manifest', toolCallId: 'import' })).toMatchObject({
       ok: false,
       code: 'ALREADY_STARTED',
     })
-    await test.step('an approved folder permits imports without repeated destination prompts', async () => {
-      calls.otherImport = {
-        toolName: 'import_local_files',
-        args: { path: source, targetWorkspaceId: 'other-workspace' },
-      }
-      expect(await invoke({ operation: 'manifest', toolCallId: 'otherImport' })).toMatchObject({
-        ok: true,
-      })
+    calls.otherImport = {
+      toolName: 'import_local_files',
+      args: { path: source, targetWorkspaceId: 'other-workspace' },
+    }
+    expect(await invoke({ operation: 'manifest', toolCallId: 'otherImport' })).toMatchObject({
+      ok: true,
     })
-    await test.step('folder permissions survive restarting the desktop app', async () => {
-      await app?.close()
-      app = await launch()
-      window = await app.firstWindow()
-      await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toHaveText(
-        'Local files'
-      )
-      expect(await invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({ ok: true })
-    })
-    await test.step('forgetting a folder revokes native reads and survives restart', async () => {
-      await window.getByRole('button', { name: 'Forget folders', exact: true }).click()
-      await expect(window.getByRole('button', { name: 'Forgotten', exact: true })).toBeVisible()
-      await app?.close()
-      app = await launch()
-      window = await app.firstWindow()
-      await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toHaveText(
-        'Local files'
-      )
-      const revoked = await requestPermission({ operation: 'read', toolCallId: 'text' })
-      await revoked.prompt
-        .getByRole('button', { name: 'Allow folder', exact: true })
-        .click({ noWaitAfter: true })
-      expect(await revoked.result).toMatchObject({ ok: true })
-    })
+  })
 
-    await test.step('a remembered grant does not follow a replaced folder after restart', async () => {
-      await app?.close()
-      renameSync(source, join(root, 'Original-reports'))
-      mkdirSync(source)
-      writeFileSync(join(source, 'report.txt'), 'replacement contents')
-      app = await launch()
-      window = await app.firstWindow()
-      await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toHaveText(
-        'Local files'
-      )
-      const replaced = await requestPermission({ operation: 'read', toolCallId: 'text' })
-      await replaced.prompt
-        .getByRole('button', { name: "Don't allow", exact: true })
-        .click({ noWaitAfter: true })
-      expect(await replaced.result).toMatchObject({ ok: false })
-      rmSync(source, { recursive: true })
-      renameSync(join(root, 'Original-reports'), source)
-      const restored = await requestPermission({ operation: 'read', toolCallId: 'text' })
-      await restored.prompt
-        .getByRole('button', { name: 'Allow folder', exact: true })
-        .click({ noWaitAfter: true })
-      expect(await restored.result).toMatchObject({ ok: true })
+  await test.step('File → Folder Access opens over a focused utility window', async () => {
+    const serverShown = app.waitForEvent('window', { timeout: 10_000 })
+    await app.evaluate(({ Menu }) => {
+      const item = Menu.getApplicationMenu()
+        ?.items.flatMap((entry) => entry.submenu?.items ?? [])
+        .find((entry) => entry.label === 'Server…')
+      if (!item) throw new Error('Server menu item missing')
+      item.click()
     })
-
-    await test.step('sign-out revokes remembered grants and Full file access before the next account session', async () => {
-      await window.getByRole('switch', { name: 'Full file access', exact: true }).click()
-      await expect(
-        window.getByRole('switch', { name: 'Full file access', exact: true })
-      ).toBeChecked()
-      await app?.evaluate(({ Menu }) => {
-        const item = Menu.getApplicationMenu()
-          ?.items.flatMap((entry) => entry.submenu?.items ?? [])
-          .find((entry) => entry.label === 'Sign Out')
-        if (!item) throw new Error('Sign Out menu item missing')
-        item.click()
-      })
-      await expect(window).toHaveURL(`http://127.0.0.1:${address.port}/login`)
-      signedIn = true
-      await window.goto(`http://127.0.0.1:${address.port}/`)
-      await expect
-        .poll(() =>
-          window.evaluate(async () => {
-            const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-            return (await api.localFilesystem?.({ operation: 'list_mounts' }))?.ok
-          })
-        )
-        .toBe(true)
-      await expect
-        .poll(() =>
-          window.evaluate(async () =>
-            (
-              globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
-            ).simDesktop.settings.getPreferences()
+    await expect(await serverShown).toHaveTitle('Sim - Server')
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().some(
+            (win) => win.webContents.getURL().endsWith('server.html') && win.isVisible()
           )
         )
-        .toMatchObject({ fullFileAccess: false })
-      const revoked = await requestPermission({ operation: 'read', toolCallId: 'text' })
-      await revoked.prompt
-        .getByRole('button', { name: "Don't allow", exact: true })
-        .click({ noWaitAfter: true })
-      expect(await revoked.result).toMatchObject({ ok: false })
-    })
-    await test.step('a failed settings write reports the error and leaves Full file access disabled', async () => {
-      const settingsPath = join(root, 'profile', 'settings.json')
-      const saved = JSON.parse(readFileSync(settingsPath, 'utf8'))
-      for (const previous of [false, true]) {
-        await app?.close()
-        rmSync(settingsPath, { recursive: true, force: true })
-        writeFileSync(settingsPath, JSON.stringify({ ...saved, fullFileAccess: previous }))
-        app = await launch()
-        window = await app.firstWindow()
-        const toggle = window.getByRole('switch', { name: 'Full file access', exact: true })
-        await expect(toggle).toBeChecked({ checked: previous })
-        renameSync(settingsPath, `${settingsPath}.backup`)
-        mkdirSync(settingsPath)
-        try {
-          await toggle.click()
-          await expect(
-            window.getByText(
-              'Could not save file access settings. Your previous setting may return after restarting Sim.',
-              { exact: true }
-            )
-          ).toBeVisible()
-          await expect(toggle).not.toBeChecked()
-          expect(
-            await window.evaluate(async () =>
-              (
-                globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
-              ).simDesktop.settings.getPreferences()
-            )
-          ).toMatchObject({ fullFileAccess: false })
-          expect(await invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({
-            ok: false,
-          })
-        } finally {
-          await app.close()
-          app = undefined
-          rmSync(settingsPath, { recursive: true, force: true })
-          renameSync(`${settingsPath}.backup`, settingsPath)
+      )
+      .toBe(true)
+    const accessMenu = await app.evaluate(({ BrowserWindow, Menu }) => {
+      const utility = BrowserWindow.getAllWindows().find((win) =>
+        win.webContents.getURL().endsWith('server.html')
+      )
+      if (!utility) throw new Error('Server window missing')
+      const item = Menu.getApplicationMenu()
+        ?.items.flatMap((entry) => entry.submenu?.items ?? [])
+        .find((entry) => entry.label === 'Folder Access…')
+      if (!item) throw new Error('Folder Access menu item missing')
+      const popup = Menu.prototype.popup
+      let shown: { anchoredToUtility: boolean; items: string[] } | undefined
+      Menu.prototype.popup = function (this: Electron.Menu, options) {
+        shown = {
+          anchoredToUtility: options?.window === utility,
+          items: this.items.map((entry) => entry.label),
         }
       }
+      try {
+        item.click(undefined, utility)
+      } finally {
+        Menu.prototype.popup = popup
+      }
+      utility.close()
+      return shown
     })
-  } finally {
-    await app?.close()
-    server?.close()
-    rmSync(root, { recursive: true, force: true })
+    expect(accessMenu?.anchoredToUtility).toBe(true)
+    expect(accessMenu?.items).toContain('Add Folder…')
+  })
+})
+
+test('Full file access is opt-in, survives restart, turns off cleanly, and fails closed when it cannot be saved', async ({
+  localFiles,
+}) => {
+  const { root, outside, calls } = localFiles
+  let session = await localFiles.open()
+  const fullFolder = join(root, 'Full access')
+  mkdirSync(fullFolder)
+  writeFileSync(join(fullFolder, 'file.txt'), 'full access contents')
+  calls.fullAccess = { toolName: 'read_local_file', args: { path: join(fullFolder, 'file.txt') } }
+
+  await test.step('a request that ended cannot enable Full file access from its confirmation', async () => {
+    calls.expiringFullAccess = {
+      toolName: 'read_local_file',
+      args: { path: join(outside, 'private.txt') },
+    }
+    const permission = await session.requestPermission({
+      operation: 'read',
+      toolCallId: 'expiringFullAccess',
+    })
+    const shown = session.app.waitForEvent('window')
+    await answerShellDialog(permission.prompt, 'Full file access')
+    const confirmation = await shown
+    calls.expiringFullAccess = undefined
+    await answerShellDialog(confirmation, 'Enable')
+    expect(await permission.result).toMatchObject({ ok: false })
+    expect(await session.preferences()).toMatchObject({ fullFileAccess: false })
+  })
+
+  await test.step('Cancel on the confirmation returns to the folder prompt, and Enable reaches every folder', async () => {
+    const { app, invoke, fullAccess } = session
+    await expect(fullAccess).not.toBeChecked()
+    const permission = await session.requestPermission({
+      operation: 'read',
+      toolCallId: 'fullAccess',
+    })
+    const confirmationShown = app.waitForEvent('window')
+    await answerShellDialog(permission.prompt, 'Full file access')
+    const confirmation = await confirmationShown
+    await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused()
+    const returnedPrompt = app.waitForEvent('window')
+    await answerShellDialog(confirmation, 'Cancel')
+    const folderPrompt = await returnedPrompt
+    expect(await session.preferences()).toMatchObject({ fullFileAccess: false })
+    const acceptedConfirmation = app.waitForEvent('window')
+    await answerShellDialog(folderPrompt, 'Full file access')
+    await answerShellDialog(await acceptedConfirmation, 'Enable')
+    expect(await permission.result).toMatchObject({
+      ok: true,
+      data: { text: 'full access contents' },
+    })
+    // The desktop pushes the change to open settings pages.
+    await expect(fullAccess).toBeChecked()
+    expect(await invoke({ operation: 'read', toolCallId: 'fullAccess' })).toMatchObject({
+      ok: true,
+      data: { text: 'full access contents' },
+    })
+    calls.fullImport = {
+      toolName: 'import_local_files',
+      args: { path: fullFolder, targetWorkspaceId: 'target-workspace' },
+    }
+    const manifest = await invoke({ operation: 'manifest', toolCallId: 'fullImport' })
+    if (!manifest.ok || manifest.data.kind !== 'manifest')
+      throw new Error('Missing full-access manifest')
+    const imported = manifest.data.entries.find((entry) => entry.relativePath === 'file.txt')
+    if (!imported) throw new Error('Missing full-access file')
+    const chunk = await invoke({
+      operation: 'chunk',
+      toolCallId: 'fullImport',
+      relativePath: imported.relativePath,
+      revision: imported.revision,
+      offset: 0,
+    })
+    if (!chunk.ok || chunk.data.kind !== 'chunk') throw new Error('Missing full-access contents')
+    expect(Object.values(chunk.data.bytes)).toEqual([...Buffer.from('full access contents')])
+    expect(await invoke({ operation: 'read', toolCallId: 'notAuthorized' })).toMatchObject({
+      ok: false,
+    })
+  })
+
+  await test.step('Full file access survives restart, and turning it off brings folder prompts back', async () => {
+    await localFiles.close(session)
+    session = await localFiles.open(session.desktop.userData)
+    expect(await session.preferences()).toMatchObject({ fullFileAccess: true })
+    expect(await session.invoke({ operation: 'read', toolCallId: 'fullAccess' })).toMatchObject({
+      ok: true,
+      data: { text: 'full access contents' },
+    })
+    await expect(session.fullAccess).toBeChecked()
+    await session.fullAccess.click()
+    await expect(session.fullAccess).not.toBeChecked()
+    const revoked = await session.requestPermission({ operation: 'read', toolCallId: 'fullAccess' })
+    await answerShellDialog(revoked.prompt, "Don't allow")
+    expect(await revoked.result).toMatchObject({ ok: false })
+  })
+
+  await test.step('a failed settings write leaves Full file access off and local files denied', async () => {
+    const userData = session.desktop.userData
+    const settingsPath = join(userData, 'settings.json')
+    const backupPath = `${settingsPath}.backup`
+    const saved = JSON.parse(readFileSync(settingsPath, 'utf8'))
+    for (const previous of [false, true]) {
+      await localFiles.close(session)
+      writeFileSync(settingsPath, JSON.stringify({ ...saved, fullFileAccess: previous }))
+      session = await localFiles.open(userData)
+      await expect(session.fullAccess).toBeChecked({ checked: previous })
+      // A directory where the settings file belongs makes the next write fail.
+      renameSync(settingsPath, backupPath)
+      mkdirSync(settingsPath)
+      try {
+        await session.fullAccess.click()
+        await expect(
+          session.window.getByText(
+            'Could not save file access settings. Your previous setting may return after restarting Sim.',
+            { exact: true }
+          )
+        ).toBeVisible()
+        await expect(session.fullAccess).not.toBeChecked()
+        expect(await session.preferences()).toMatchObject({ fullFileAccess: false })
+        expect(await session.invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({
+          ok: false,
+        })
+      } finally {
+        await localFiles.close(session)
+        rmSync(settingsPath, { recursive: true, force: true })
+        renameSync(backupPath, settingsPath)
+      }
+    }
+  })
+})
+
+test('native file access refuses paths swapped or replaced while it reads them', async ({
+  localFiles,
+}) => {
+  const { source, outside, calls } = localFiles
+  const { app, invoke, requestPermission } = await localFiles.open()
+  const granted = await requestPermission({ operation: 'read', toolCallId: 'directory' })
+  await answerShellDialog(granted.prompt, 'Allow folder')
+  expect(await granted.result).toMatchObject({ ok: true })
+
+  await test.step('native traversal rejects redirected ancestors and replaced grant identities', async () => {
+    const parent = join(realpathSync(source), 'native-parent')
+    mkdirSync(parent)
+    writeFileSync(join(parent, 'inside.txt'), 'inside')
+    symlinkSync(outside, join(realpathSync(source), 'native-link'))
+    const result = await app.evaluate(
+      async ({ app }, paths) => {
+        const { createRequire } = process.getBuiltinModule('node:module')
+        const { stat } = process.getBuiltinModule('node:fs/promises')
+        const fs = process.getBuiltinModule('node:fs')
+        const native = createRequire(`${app.getAppPath()}/package.json`)(
+          './dist/native/directory.node'
+        ) as {
+          openApproved(
+            root: string,
+            relative: string,
+            dev: bigint,
+            ino: bigint,
+            directory: boolean
+          ): Promise<number>
+        }
+        const root = await stat(paths.source, { bigint: true })
+        const denied = async (path: string, ino = root.ino) => {
+          try {
+            const fd = await native.openApproved(paths.source, path, root.dev, ino, false)
+            fs.closeSync(fd)
+            return false
+          } catch {
+            return true
+          }
+        }
+        const valid = await native.openApproved(
+          paths.source,
+          'native-parent/inside.txt',
+          root.dev,
+          root.ino,
+          false
+        )
+        const text = fs.readFileSync(valid, 'utf8')
+        fs.closeSync(valid)
+        return {
+          text,
+          ancestor: await denied('native-link/private.txt'),
+          traversal: await denied('../Reports-other/private.txt'),
+          replaced: await denied('native-parent/inside.txt', root.ino + 1n),
+          overflow: await denied('native-parent/inside.txt', root.ino + (1n << 64n)),
+        }
+      },
+      { source: realpathSync(source) }
+    )
+    expect(result).toEqual({
+      text: 'inside',
+      ancestor: true,
+      traversal: true,
+      replaced: true,
+      overflow: true,
+    })
+  })
+
+  await test.step('a symlink swapped in after inspection cannot redirect a file read', async () => {
+    const file = realpathSync(join(source, 'report.txt'))
+    const backup = join(source, 'original-report.txt')
+    const other = join(source, 'other.txt')
+    writeFileSync(other, 'different file contents')
+    await app.evaluate(
+      (_electron, paths) => {
+        const fs = process.getBuiltinModule('node:fs/promises') as typeof import('node:fs/promises')
+        const original = fs.stat
+        const fired: string[] = []
+        ;(globalThis as FsPatchRuntime).e2eFsPatch = {
+          fired,
+          restore: () => {
+            fs.stat = original
+          },
+        }
+        fs.stat = (async (...args: Parameters<typeof fs.stat>) => {
+          const result = await original(...args)
+          if (args[0] === paths.file) {
+            fs.stat = original
+            await fs.rename(paths.file, paths.backup)
+            await fs.symlink(paths.other, paths.file)
+            fired.push('swapped')
+          }
+          return result
+        }) as typeof fs.stat
+      },
+      { file, backup, other }
+    )
+    let fired: string[] = []
+    try {
+      expect(await invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({ ok: false })
+    } finally {
+      fired = await restoreFsPatch(app)
+      if (fired.includes('swapped')) {
+        rmSync(file)
+        renameSync(backup, file)
+      }
+      rmSync(other)
+    }
+    expect(fired).toEqual(['swapped'])
+  })
+
+  await test.step('swapping an ancestor cannot redirect directory enumeration', async () => {
+    const parent = join(realpathSync(source), 'parent')
+    const child = join(parent, 'child')
+    const backup = join(realpathSync(source), 'parent-backup')
+    const otherParent = join(outside, 'parent')
+    mkdirSync(child, { recursive: true })
+    mkdirSync(join(otherParent, 'child'), { recursive: true })
+    writeFileSync(join(child, 'allowed.txt'), 'allowed')
+    writeFileSync(join(otherParent, 'child', 'private.txt'), 'outside')
+    calls.ancestorRace = { toolName: 'read_local_file', args: { path: child } }
+    await app.evaluate(
+      (_electron, paths) => {
+        const fs = process.getBuiltinModule('node:fs/promises') as typeof import('node:fs/promises')
+        const originalLstat = fs.lstat
+        const originalRealpath = fs.realpath
+        const fired: string[] = []
+        let swapped = false
+        const unswap = async () => {
+          if (!swapped) return
+          swapped = false
+          await fs.rm(paths.parent)
+          await fs.rename(paths.backup, paths.parent)
+        }
+        ;(globalThis as FsPatchRuntime).e2eFsPatch = {
+          fired,
+          restore: async () => {
+            fs.lstat = originalLstat
+            fs.realpath = originalRealpath
+            await unswap()
+          },
+        }
+        fs.lstat = (async (...args: Parameters<typeof fs.lstat>) => {
+          const result = await originalLstat(...args)
+          if (args[0] === paths.child) {
+            fs.lstat = originalLstat
+            await fs.rename(paths.parent, paths.backup)
+            await fs.symlink(paths.otherParent, paths.parent)
+            swapped = true
+            fired.push('swapped')
+          }
+          return result
+        }) as typeof fs.lstat
+        fs.realpath = (async (...args: Parameters<typeof fs.realpath>) => {
+          if (args[0] === paths.child) await unswap()
+          return originalRealpath(...args)
+        }) as typeof fs.realpath
+      },
+      { parent, child, backup, otherParent }
+    )
+    let fired: string[] = []
+    try {
+      expect(await invoke({ operation: 'read', toolCallId: 'ancestorRace' })).toMatchObject({
+        ok: true,
+        data: { entries: [{ name: 'allowed.txt', kind: 'file' }] },
+      })
+    } finally {
+      fired = await restoreFsPatch(app)
+      rmSync(parent, { recursive: true, force: true })
+      rmSync(otherParent, { recursive: true, force: true })
+    }
+    expect(fired).toEqual(['swapped'])
+  })
+
+  await test.step('a replaced directory cannot return a listing for its old contents', async () => {
+    const directory = join(realpathSync(source), 'replace-during-read')
+    const backup = join(realpathSync(source), 'previous-directory')
+    mkdirSync(directory)
+    writeFileSync(join(directory, 'old.txt'), 'old contents')
+    calls.directoryReplaced = { toolName: 'read_local_file', args: { path: directory } }
+    await app.evaluate(
+      (_electron, paths) => {
+        const fs = process.getBuiltinModule('node:fs/promises') as typeof import('node:fs/promises')
+        const original = fs.lstat
+        const fired: string[] = []
+        ;(globalThis as FsPatchRuntime).e2eFsPatch = {
+          fired,
+          restore: () => {
+            fs.lstat = original
+          },
+        }
+        fs.lstat = (async (...args: Parameters<typeof fs.lstat>) => {
+          if (args[0] === paths.directory) {
+            fs.lstat = original
+            await fs.rename(paths.directory, paths.backup)
+            await fs.mkdir(paths.directory)
+            await fs.writeFile(`${paths.directory}/new.txt`, 'new contents')
+            fired.push('replaced')
+          }
+          return original(...args)
+        }) as typeof fs.lstat
+      },
+      { directory, backup }
+    )
+    let fired: string[] = []
+    try {
+      expect(await invoke({ operation: 'read', toolCallId: 'directoryReplaced' })).toMatchObject({
+        ok: false,
+      })
+    } finally {
+      fired = await restoreFsPatch(app)
+      rmSync(directory, { recursive: true, force: true })
+      rmSync(backup, { recursive: true, force: true })
+    }
+    expect(fired).toEqual(['replaced'])
+  })
+
+  await test.step('cancelling a directory read prevents its contents from returning', async () => {
+    const path = realpathSync(join(source, 'empty'))
+    calls.directoryCancel = { toolName: 'read_local_file', args: { path } }
+    await app.evaluate((_electron, path) => {
+      const fs = process.getBuiltinModule('node:fs/promises') as typeof import('node:fs/promises')
+      const original = fs.lstat
+      const fired: string[] = []
+      let release = () => {}
+      const held = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      ;(globalThis as FsPatchRuntime).e2eFsPatch = {
+        fired,
+        restore: () => {
+          fs.lstat = original
+          release()
+        },
+      }
+      fs.lstat = (async (...args: Parameters<typeof fs.lstat>) => {
+        const result = await original(...args)
+        if (args[0] === path) {
+          fs.lstat = original
+          fired.push('held')
+          await held
+        }
+        return result
+      }) as typeof fs.lstat
+    }, path)
+    const reading = invoke({ operation: 'read', toolCallId: 'directoryCancel' })
+    void reading.catch(() => {})
+    try {
+      await expect
+        .poll(() =>
+          app.evaluate(() => (globalThis as FsPatchRuntime).e2eFsPatch?.fired.includes('held'))
+        )
+        .toBe(true)
+      await invoke({ operation: 'cancel', toolCallId: 'directoryCancel' })
+    } finally {
+      await restoreFsPatch(app)
+    }
+    expect(await reading).toMatchObject({ ok: false })
+  })
+})
+
+test('remembered folder grants survive restart until forgotten, replaced, or signed out', async ({
+  localFiles,
+}) => {
+  const { root, source } = localFiles
+  let session = await localFiles.open()
+  const restart = async () => {
+    await localFiles.close(session)
+    session = await localFiles.open(session.desktop.userData)
   }
+  const answerTextRead = async (button: 'Allow folder' | "Don't allow") => {
+    const permission = await session.requestPermission({ operation: 'read', toolCallId: 'text' })
+    await answerShellDialog(permission.prompt, button)
+    return permission.result
+  }
+  expect(await answerTextRead('Allow folder')).toMatchObject({ ok: true })
+
+  await test.step('a folder grant survives restarting the app', async () => {
+    await restart()
+    expect(await session.invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({
+      ok: true,
+    })
+  })
+
+  await test.step('forgetting a folder revokes native reads and survives restart', async () => {
+    await session.window.getByRole('button', { name: 'Forget folders', exact: true }).click()
+    await expect(
+      session.window.getByRole('button', { name: 'Forgotten', exact: true })
+    ).toBeVisible()
+    await restart()
+    expect(await answerTextRead('Allow folder')).toMatchObject({ ok: true })
+  })
+
+  await test.step('a remembered grant does not follow a replaced folder after restart', async () => {
+    await localFiles.close(session)
+    renameSync(source, join(root, 'Original-reports'))
+    mkdirSync(source)
+    writeFileSync(join(source, 'report.txt'), 'replacement contents')
+    session = await localFiles.open(session.desktop.userData)
+    expect(await answerTextRead("Don't allow")).toMatchObject({ ok: false })
+    rmSync(source, { recursive: true })
+    renameSync(join(root, 'Original-reports'), source)
+    expect(await answerTextRead('Allow folder')).toMatchObject({ ok: true })
+  })
+
+  await test.step('sign-out revokes remembered grants and Full file access before the next account session', async () => {
+    const { app, window, fullAccess } = session
+    await fullAccess.click()
+    await expect(fullAccess).toBeChecked()
+    await app.evaluate(({ Menu }) => {
+      const item = Menu.getApplicationMenu()
+        ?.items.flatMap((entry) => entry.submenu?.items ?? [])
+        .find((entry) => entry.label === 'Sign Out')
+      if (!item) throw new Error('Sign Out menu item missing')
+      item.click()
+    })
+    await expect(window).toHaveURL(`${localFiles.origin}/login`)
+    localFiles.signIn()
+    await window.goto(`${localFiles.origin}/`)
+    await expect
+      .poll(() =>
+        window.evaluate(
+          async () =>
+            (
+              await (globalThis as DesktopBridge).simDesktop.localFilesystem?.({
+                operation: 'list_mounts',
+              })
+            )?.ok
+        )
+      )
+      .toBe(true)
+    await expect.poll(() => session.preferences()).toMatchObject({ fullFileAccess: false })
+    expect(await answerTextRead("Don't allow")).toMatchObject({ ok: false })
+  })
 })

@@ -16,6 +16,7 @@ export const launchDarklyGetFlagStatusTool: ToolConfig<
   description:
     'Get the status of a feature flag across environments (active, inactive, launched, etc.).',
   version: '1.0.0',
+  effect: 'read',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

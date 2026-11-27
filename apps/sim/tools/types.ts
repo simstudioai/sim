@@ -226,9 +226,25 @@ export interface ToolParameterItemSchema {
   readonly anyOf?: readonly ToolParameterItemSchema[]
 }
 
+/**
+ * What running a tool does outside Sim. `read` means the call changes nothing outside Sim: it
+ * creates, updates, deletes, sends, posts, triggers, enqueues, consumes, and marks read nothing,
+ * starts no asynchronous provider job or query execution (one with its own id that can keep
+ * running, even briefly; a synchronous read-only query is fine), leaves no run, conversation,
+ * history item, or other resource in an account, reveals no
+ * contact data for credits, and delivers nothing elsewhere. Usage billing for the call itself does
+ * not count. `write` is anything else, including an effect that depends on the params.
+ *
+ * Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic
+ * lookups and verifications that only spend lookup credits are `read`.
+ *
+ * Public catalog metadata, audited by `check:tool-effects`. Full rules: the `add-tools` skill →
+ * Declaring the effect.
+ */
+export type ToolEffect = 'read' | 'write'
+
 /** Serializable policy and review contract for an operation available to Assistant. */
 export interface AssistantOperationMetadata {
-  effect: 'read' | 'write'
   version: number
   reviewFields?: readonly {
     name: string
@@ -245,6 +261,7 @@ export interface ToolConfig<P = any, R = any> {
   name: string
   description: string
   version: string
+  effect: ToolEffect
 
   // Parameter schema - what this tool accepts
   params: Record<
@@ -262,6 +279,26 @@ export interface ToolConfig<P = any, R = any> {
   >
   // Output schema - what this tool produces
   outputs?: Record<string, ToolOutputProperty>
+  /**
+   * Pure: the outputs a dry run's unsent write derives from its request alone, never a guess at
+   * what the provider or stored state would add. `params` have every secret masked, and the result
+   * is redacted like `sideEffects.stubbed[].request`. It is laid over the sample of {@link outputs}
+   * by their declared schema, one rule at every level: field by field where an output declares
+   * `properties` (a field it does not declare is dropped), item by item where it declares array
+   * `items`, and anywhere else the value replaces the sample whole, so a hook returns an undeclared
+   * shape (a `json` row) complete, with placeholders for what the request cannot know. Whatever it
+   * leaves out keeps the sample. An id the provider would assign is `dryRunId` (`@/tools/dry-run`),
+   * and a value the request builder normalises (parsed JSON, rows built from objects) comes from a
+   * named helper the builder and the hook share, never a second copy of the builder's logic.
+   */
+  dryRunOutput?: (params: P) => Record<string, unknown>
+  /**
+   * Pure and total (never throws): whether this call of a `write` tool only reads (an HTTP
+   * request whose method is GET, HEAD or OPTIONS with no method-override header), so a dry run
+   * sends it like a `read` tool instead of stubbing it. Consulted only by a run with a side-effect
+   * policy; {@link effect} stays the catalog's conservative label for the tool as a whole.
+   */
+  readsWhen?: (params: P) => boolean
 
   // OAuth configuration for this tool (if it requires authentication)
   oauth?: OAuthConfig

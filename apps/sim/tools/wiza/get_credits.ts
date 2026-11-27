@@ -7,6 +7,7 @@ export const wizaGetCreditsTool: ToolConfig<WizaGetCreditsParams, WizaGetCredits
   name: 'Wiza Get Credits',
   description: 'Retrieve the remaining credits on your Wiza account',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.WIZA_ERRORS,
 
   params: {

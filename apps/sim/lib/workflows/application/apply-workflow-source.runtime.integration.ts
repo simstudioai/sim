@@ -3,7 +3,8 @@
  * PostgreSQL, while workflow source is applied to the draft. The apply renames the paused block;
  * the run then resumes from its execution snapshot. Source apply writes the draft only, so the
  * snapshot and the deployed version must come through it byte-identical, and the renamed block
- * must keep its id so the pause point still names a block the draft holds.
+ * must keep its id so the pause point still names a block the draft holds. The resumed run then
+ * pauses at a second block under the run it resumed, which the resume names in `paused.runId`.
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
@@ -50,6 +51,7 @@ const workspaceId = generateId()
 const workflowId = generateId()
 const startId = generateId()
 const approvalId = generateId()
+const signoffId = generateId()
 const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
 const ownerKey = createPersonalApiKeyPrincipal({ userId: ownerId, keyId: generateId() })
 
@@ -168,8 +170,24 @@ beforeAll(async () => {
           },
         },
       }),
+      [signoffId]: createBlock({
+        id: signoffId,
+        type: 'human_in_the_loop',
+        name: 'Signoff',
+        position: { x: 600, y: 0 },
+        subBlocks: {
+          inputFormat: {
+            id: 'inputFormat',
+            type: 'input-format',
+            value: [{ id: 'signed', name: 'signed', type: 'boolean', required: true }],
+          },
+        },
+      }),
     },
-    edges: [{ id: generateId(), source: startId, target: approvalId }],
+    edges: [
+      { id: generateId(), source: startId, target: approvalId },
+      { id: generateId(), source: approvalId, target: signoffId },
+    ],
     loops: {},
     parallels: {},
   })
@@ -266,7 +284,40 @@ check(
       },
     })
 
-    expect(resumed).toMatchObject({ kind: 'sync', success: true })
-    expect(resumed).not.toMatchObject({ status: 'failed' })
+    expect(resumed).toMatchObject({ kind: 'sync', success: true, status: 'paused' })
+    if (resumed.kind !== 'sync' || !resumed.paused)
+      throw new Error('Expected the run to pause again')
+    // The resume attempt runs under its own id, but the pause it reaches is recorded under the run
+    // it resumed, and that is the run the next resume names.
+    expect(resumed.executionId).not.toBe(runId)
+    expect(resumed.paused.runId).toBe(runId)
+    const [waiting] = resumed.paused.points.filter((point) => point.resumeStatus === 'paused')
+    if (!waiting) throw new Error('Expected a waiting pause point')
+    expect(waiting.blockId).toBe(signoffId)
+    await vi.waitFor(
+      async () => {
+        const row = await pausedRow(runId)
+        const points = Object.values(
+          (row?.pausePoints ?? {}) as Record<string, { contextId: string }>
+        )
+        if (!points.some((point) => point.contextId === waiting.contextId)) {
+          throw new Error('Second pause not yet published')
+        }
+      },
+      { timeout: 20_000, interval: 250 }
+    )
+
+    const signed = await resumeWorkflowRun.execute({
+      principal: ownerKey,
+      input: {
+        workflowId,
+        runId: resumed.paused.runId,
+        contextId: waiting.contextId,
+        resumeInput: { signed: true },
+        surface: 'v2',
+      },
+    })
+
+    expect(signed).toMatchObject({ kind: 'sync', success: true, status: 'completed', paused: null })
   }
 )

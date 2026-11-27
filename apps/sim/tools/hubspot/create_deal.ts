@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotCreateDealParams, HubSpotCreateDealResponse } from '@/tools/hubspot/types'
 import { DEAL_OBJECT_OUTPUT } from '@/tools/hubspot/types'
+import { parseHubSpotProperties, placeholderCrmRecord } from '@/tools/hubspot/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotCreateDeal')
@@ -12,6 +13,7 @@ export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotC
     description:
       'Create a new deal in HubSpot with the given properties (e.g., dealname, amount, dealstage)',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,
@@ -54,16 +56,7 @@ export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotC
         }
       },
       body: (params) => {
-        let properties = params.properties
-        if (typeof properties === 'string') {
-          try {
-            properties = JSON.parse(properties)
-          } catch {
-            throw new Error(
-              'Invalid JSON format for properties. Please provide a valid JSON object.'
-            )
-          }
-        }
+        const properties = parseHubSpotProperties(params.properties)
         const body: Record<string, unknown> = { properties }
         let associations = params.associations
         if (typeof associations === 'string') {
@@ -81,6 +74,8 @@ export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotC
         return body
       },
     },
+
+    dryRunOutput: (params) => placeholderCrmRecord('deal', params.properties),
 
     transformResponse: async (response: Response) => {
       const data = await response.json()

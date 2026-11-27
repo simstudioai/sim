@@ -30,6 +30,7 @@ export const helpScoutListConversationsTool: ToolConfig<
   description:
     'List and search Help Scout conversations by inbox, folder, status, tag, assignee, or search query. Returns 25 conversations per page.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

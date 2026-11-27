@@ -188,6 +188,10 @@ app:
     ANTHROPIC_API_KEY_2: ""                               # Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3: ""                               # Additional Anthropic API key for load balancing
     OLLAMA_URL: ""                                        # Ollama local LLM server URL
+    VLLM_BASE_URL: ""                                     # vLLM or LM Studio OpenAI-compatible URL (a trailing /v1 is optional)
+    VLLM_API_KEY: ""                                      # Optional bearer token for the vLLM endpoint
+    LITELLM_BASE_URL: ""                                  # LiteLLM proxy base URL (OpenAI-compatible)
+    LITELLM_API_KEY: ""                                   # Optional bearer token for the LiteLLM proxy
     PII_URL: ""                                           # Presidio PII service URL; auto-computed when pii.enabled, override here otherwise
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
 
@@ -230,11 +234,9 @@ app:
 
     # Invitation Control
     DISABLE_INVITATIONS: ""                              # Set to "true" to disable workspace invitations globally
-    NEXT_PUBLIC_DISABLE_INVITATIONS: ""                  # Set to "true" to hide invitation UI elements
 
     # Public API Access Control
     DISABLE_PUBLIC_API: ""                               # Set to "true" to disable public API toggle globally
-    NEXT_PUBLIC_DISABLE_PUBLIC_API: ""                   # Set to "true" to hide public API toggle in UI
 
     # SSO Configuration (Enterprise Single Sign-On)
     # Set to "true" AFTER running the SSO registration script

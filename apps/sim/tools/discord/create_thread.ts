@@ -11,6 +11,7 @@ export const discordCreateThreadTool: ToolConfig<
   name: 'Discord Create Thread',
   description: 'Create a thread in a Discord channel',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

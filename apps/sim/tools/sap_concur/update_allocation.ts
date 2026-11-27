@@ -12,6 +12,7 @@ export const updateAllocationTool: InternalToolConfig<UpdateAllocationParams, Sa
   description:
     'Update an allocation (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/allocations/{allocationId}).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

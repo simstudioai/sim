@@ -26,6 +26,7 @@ export const stripeConfirmPaymentIntentTool: ToolConfig<
   description:
     'Confirm a Payment Intent and inspect its resulting status. Confirmation can require further action or asynchronous processing before payment succeeds.',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

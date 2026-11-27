@@ -3,7 +3,12 @@ import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
-import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
+import {
+  isMachineFormat,
+  type ResolvedProfile,
+  type StoredCredential,
+  type StoredOAuthCredential,
+} from '../config/index'
 import { AUTH_REQUIRED_CODE, AUTH_REQUIRED_EXIT_CODE, RATE_LIMITED_EXIT_CODE } from '../exit-codes'
 import { identityHeaders } from '../telemetry/client-info'
 import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
@@ -458,30 +463,14 @@ function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
   return ms
 }
 
-/**
- * Aborts when either signal does.
- *
- * `AbortSignal.any` arrived in Node 20.3 and this package supports Node 20, so
- * on the earliest 20.x releases calling it would throw a bare `TypeError`
- * before the request was ever made — turning a supported runtime into a crash.
- */
+/** Aborts when either signal does; a missing one never does. */
 export function combineSignals(
   caller: AbortSignal | undefined,
   timeout: AbortSignal | undefined
 ): AbortSignal | undefined {
   if (!caller) return timeout
   if (!timeout) return caller
-  if (typeof AbortSignal.any === 'function') return AbortSignal.any([caller, timeout])
-
-  const controller = new AbortController()
-  for (const signal of [caller, timeout]) {
-    if (signal.aborted) {
-      controller.abort(signal.reason)
-      break
-    }
-    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
-  }
-  return controller.signal
+  return AbortSignal.any([caller, timeout])
 }
 
 /** Whether to trace requests to stderr. */
@@ -802,10 +791,16 @@ export class SimClient {
       )
       const backoffMs = backoffWithJitter(rateLimitResends + 1, null, RATE_LIMIT_BACKOFF)
       const waitMs = Math.max(retryAfterMs ?? 0, backoffMs)
-      // On a terminal, clear a `fetched N…` paging line first, so the notice starts its own line.
-      writeStderr(
-        `${hasProgressTerminal() ? '\r\u001b[K' : ''}${styles().dim(`Rate limited (HTTP 429); retrying in ${Math.ceil(waitMs / 1000)}s (retry ${rateLimitResends + 1} of ${RATE_LIMIT_RETRIES}).`)}\n`
-      )
+      // Explains a wait of up to minutes, at a terminal or in a CI log of human output. Not in a
+      // JSON or YAML run off a terminal: there it would land inside a `--output json 2>&1`
+      // capture of a request that then succeeds, and one whose retries run out is its error.
+      // On a terminal, a `fetched N…` paging line is cleared first.
+      const terminal = hasProgressTerminal()
+      if (terminal || !isMachineFormat(this.profile.output)) {
+        writeStderr(
+          `${terminal ? '\r\u001b[K' : ''}${styles().dim(`Rate limited (HTTP 429); retrying in ${Math.ceil(waitMs / 1000)}s (retry ${rateLimitResends + 1} of ${RATE_LIMIT_RETRIES}).`)}\n`
+        )
+      }
       await interruptibleSleep(waitMs, caller)
       if (caller?.aborted) throw new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED)
       return this.send(path, options, retriedAfterRefresh, rateLimitResends + 1)

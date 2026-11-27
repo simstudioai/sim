@@ -18,6 +18,7 @@ export const azureDataExplorerListDatabasesTool: InternalToolConfig<
   description:
     'List the databases on an Azure Data Explorer cluster that the service principal can access.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

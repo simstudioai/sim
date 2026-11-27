@@ -1,6 +1,10 @@
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
-import { isEmailSignupAllowed, isSelfServeRegistrationClosed } from '@/lib/core/config/env-flags'
+import {
+  isEmailSignupAllowed,
+  isSelfServeRegistrationClosed,
+  isSsoEnabled,
+} from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
@@ -45,6 +49,7 @@ export default async function SignupPage({
       microsoftAvailable={microsoftAvailable}
       emailSignupEnabled={isEmailSignupAllowed}
       emailVerificationEnabled={isEmailVerificationEffectivelyEnabled()}
+      ssoEnabled={isSsoEnabled}
     />
   )
 }

@@ -12,6 +12,7 @@ export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentRes
   description:
     'Get the content of a file from a GitHub repository. Supports files up to 1MB. Content is returned decoded and human-readable.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -174,6 +175,7 @@ export const getFileContentV2Tool: ToolConfig<GetFileContentParams, any> = {
   name: getFileContentTool.name,
   description: getFileContentTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getFileContentTool.params,
   request: getFileContentTool.request,

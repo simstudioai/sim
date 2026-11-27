@@ -42,11 +42,13 @@ import { operationsReferenceSimSandbox } from '@/lib/workflows/editing/sandbox-p
 import {
   type EditWorkflowOperation,
   isDeferredSkippedItem,
+  type RemovedEdge,
   type SkippedItem,
   type SkippedItemType,
   type ValidationError,
 } from '@/lib/workflows/editing/types'
 import { preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
+import { quotedBlockLabel } from '@/lib/workflows/labels'
 import { assertNoWithheldBlockType } from '@/lib/workflows/persistence/block-access-guard'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import {
@@ -175,6 +177,29 @@ function applyBlockEnabledChanges(
   return { blocks: current, applied }
 }
 
+/**
+ * One warning naming every stored edge the batch removed, by block name (the final name, or the
+ * stored one for a deleted block): the caller never sent these edges, so their ids mean nothing
+ * to it. How to wire across a loop's or parallel's boundary is added only when an edge crossed one.
+ */
+function describeRemovedEdges(
+  removedEdges: readonly RemovedEdge[],
+  nameOf: (blockId: string) => string | undefined
+): string[] {
+  if (removedEdges.length === 0) return []
+  const label = (blockId: string) => quotedBlockLabel(blockId, nameOf(blockId))
+  const edges = removedEdges.map(
+    (edge) =>
+      `${label(edge.source)} -> ${label(edge.target)} (${edge.sourceHandle}): ${edge.reason}`
+  )
+  const boundaryAdvice = removedEdges.some((edge) => edge.kind === 'scope')
+    ? " An edge cannot cross a loop's or parallel's boundary: wire into its body from loop-start-source (parallel-start-source) and onward from loop-end-source (parallel-end-source)."
+    : ''
+  return [
+    `Removed ${removedEdges.length} existing edge(s) this batch left invalid: ${edges.join('; ')}.${boundaryAdvice}`,
+  ]
+}
+
 interface BaseGraph {
   graph: Record<string, unknown>
   /** Set when the base was read from storage, so the write can prove it is still current. */
@@ -255,6 +280,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         validationErrors,
         skippedItems,
         declinedOperationCount,
+        removedEdges,
         mintedBlockIds,
       } = await withBlockVisibility(blockVisibility, async () =>
         applyOperationsToWorkflowState(
@@ -341,6 +367,11 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
        * the findings exist; the findings themselves stay only in `lint`.
        */
       const lintWarnings = hasWorkflowLintIssues(lint) ? [summarizeWorkflowLintIssues(lint)] : []
+      const storedBlocks = asGraph(baseGraph).blocks
+      const removedEdgeWarnings = describeRemovedEdges(
+        removedEdges,
+        (blockId) => graph.blocks[blockId]?.name ?? storedBlocks?.[blockId]?.name
+      )
 
       /**
        * A dry run still runs the whole engine — operations are applied, refusals
@@ -396,6 +427,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
           warnings: [
             ...validation.warnings,
             ...prepared.warnings,
+            ...removedEdgeWarnings,
             ...(Object.keys(mintedBlockIds).length > 0 ? [DRY_RUN_PREVIEW_BLOCK_IDS_WARNING] : []),
             ...lintWarnings,
           ],
@@ -455,7 +487,12 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         inputValidationErrors: validationErrors,
         mintedBlockIds,
         lint,
-        warnings: [...validation.warnings, ...persisted.warnings, ...lintWarnings],
+        warnings: [
+          ...validation.warnings,
+          ...persisted.warnings,
+          ...removedEdgeWarnings,
+          ...lintWarnings,
+        ],
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
         dryRun: false,
       }

@@ -59,6 +59,7 @@ import {
   normalizeAutomaticResumeWaitingReason,
   resolveAutomaticResumeAdmissionFailure,
 } from '@/lib/workflows/executor/resume-policy'
+import { pausedRunIdOf } from '@/lib/workflows/executor/run-pause'
 import {
   forwardAgentStreamToExecutionEvents,
   shouldForwardAnswerTextFromSink,
@@ -84,6 +85,7 @@ import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import { stripLoopDigest } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedConnection } from '@/serializer/types'
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
 /**
  * All paused-execution / resume-queue / execution-log persistence in this
@@ -800,18 +802,26 @@ export class PauseResumeManager {
     const { executionId, workflowId, contextId, resumeInput, userId, allowedPauseKinds } = args
 
     return await execDb.transaction(async (tx) => {
-      const pausedExecution = await tx
-        .select()
+      const paused = await tx
+        .select({ execution: pausedExecutions, trigger: workflowExecutionLogs.trigger })
         .from(pausedExecutions)
+        .leftJoin(
+          workflowExecutionLogs,
+          and(
+            eq(workflowExecutionLogs.executionId, pausedExecutions.executionId),
+            eq(workflowExecutionLogs.workflowId, pausedExecutions.workflowId)
+          )
+        )
         .where(
           and(
             eq(pausedExecutions.executionId, executionId),
             eq(pausedExecutions.workflowId, workflowId)
           )
         )
-        .for('update')
+        .for('update', { of: pausedExecutions })
         .limit(1)
         .then((rows) => rows[0])
+      const pausedExecution = paused?.execution
 
       if (!pausedExecution) {
         throw new ResumeAdmissionError('Paused execution not found or already resumed', 404, false)
@@ -819,6 +829,18 @@ export class PauseResumeManager {
 
       if (!isResumablePausedStatus(pausedExecution.status)) {
         throw new ResumeAdmissionError('Paused execution is not resumable', 409, false)
+      }
+
+      /**
+       * A test run (a dry run or a workflow test) answered its writes with placeholders, and a
+       * resumed run carries no side-effect policy, so resuming it would send writes built on them.
+       */
+      if (paused.trigger === TEST_TRIGGER) {
+        throw new ResumeAdmissionError(
+          'A test run (a dry run or a workflow test) is never resumed: its outputs hold placeholders for the writes it did not send',
+          409,
+          false
+        )
       }
 
       const pausePoints = pausedExecution.pausePoints as Record<string, any>
@@ -997,7 +1019,7 @@ export class PauseResumeManager {
          * reason, then throw so the attempt settles as failed below. The thrown
          * message stays stable; the underlying error rides on `cause`.
          */
-        const effectiveExecutionId = result.metadata?.executionId ?? resumeExecutionId
+        const effectiveExecutionId = pausedRunIdOf(result, resumeExecutionId)
         const failPause = async (reason: string, cause?: unknown): Promise<never> => {
           logger.error(
             reason,

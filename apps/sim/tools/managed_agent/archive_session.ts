@@ -27,6 +27,7 @@ export const managedAgentArchiveSessionTool: InternalToolConfig<
   name: 'Managed Agent Archive Session',
   description: 'Archive a Managed Agent session, preserving its history. Not reversible.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

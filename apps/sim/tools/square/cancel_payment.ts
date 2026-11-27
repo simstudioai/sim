@@ -14,6 +14,7 @@ export const squareCancelPaymentTool: ToolConfig<CancelPaymentParams, PaymentRes
   name: 'Square Cancel Payment',
   description: 'Cancel (void) an authorized payment that has not been captured',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

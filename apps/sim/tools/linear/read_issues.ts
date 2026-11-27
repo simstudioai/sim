@@ -8,6 +8,7 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
   name: 'Linear Issue Reader',
   description: 'Fetch and filter issues from Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

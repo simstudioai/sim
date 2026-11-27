@@ -12,6 +12,7 @@ export const devinAppendSessionTagsTool: ToolConfig<
   name: 'Devin Append Session Tags',
   description: 'Add tags to a Devin session without removing existing tags (max 50 tags total).',
   version: '1.0.0',
+  effect: 'write',
   oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {

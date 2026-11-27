@@ -16,6 +16,8 @@ export type EmailSubjectType =
   | 'permission-access-request-decided'
   | 'enterprise-subscription'
   | 'usage-threshold'
+  | 'trial-usage-threshold'
+  | 'trial-credits-exhausted'
   | 'free-tier-upgrade'
   | 'payment-failed'
   | 'credit-purchase'
@@ -61,6 +63,10 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `Your Enterprise Plan is now active on Sim`
     case 'usage-threshold':
       return `You're nearing your monthly budget on Sim`
+    case 'trial-usage-threshold':
+      return `You're at 80% of your trial credits on Sim`
+    case 'trial-credits-exhausted':
+      return `You've used your trial credits on Sim`
     case 'free-tier-upgrade':
       return `You're at 80% of your free credits on Sim`
     case 'payment-failed':
@@ -96,8 +102,19 @@ export function getLimitEmailSubject(reason: UpgradeReason, kind: 'warning' | 'r
 }
 
 /** The plan's display name is resolved at send time; it carries tier qualifiers. */
-export function getPlanWelcomeSubject(planDisplayName: string): string {
-  return `Your ${planDisplayName} plan is now active on Sim`
+export function getPlanWelcomeSubject(planDisplayName: string, isTrial = false): string {
+  return isTrial
+    ? `Your ${planDisplayName} free trial has started on Sim`
+    : `Your ${planDisplayName} plan is now active on Sim`
+}
+
+/** Names the date so the reminder reads as a deadline in the inbox. */
+export function getTrialEndingSubject(planDisplayName: string, endsOn: string): string {
+  return `Your ${planDisplayName} free trial ends ${endsOn}`
+}
+
+export function getPlanEndedSubject(planDisplayName: string): string {
+  return `Your ${planDisplayName} plan has ended on Sim`
 }
 
 /** Echoes the sender's own subject line so the reply threads correctly. */

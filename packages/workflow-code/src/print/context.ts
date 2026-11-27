@@ -7,11 +7,12 @@
 import type { BlockCatalog } from '../catalog/types'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import type { RefTypeScope } from '../json-fields'
+import type { ChildResultFields, RefTypeScope } from '../json-fields'
 import { isCodeFilePath } from '../limits'
 import type { SourceHints } from '../lock'
 import type { BlockKey, CanonicalBlock, CanonicalEdge, CanonicalWorkflow } from '../model'
 import { getOwn } from '../records'
+import { childResultScope } from '../responds'
 import { CommentPlacer } from './comments'
 import { RefPrinter, type RefScope } from './refs'
 import { breakParentCycles, subflowScope, visibility } from './scope'
@@ -28,6 +29,13 @@ export interface PrintInput {
   catalog: BlockCatalog
   hints?: SourceHints
   options: PrintOptions
+  /**
+   * By child workflow key, the fields of the data that child responds with: what the compile the
+   * printed source goes back through types `<call.result.data.<field>>` by
+   * (`CompileInput.childResults`), so a stored reference prints in the form that compile stores
+   * again.
+   */
+  childResults?: ReadonlyMap<string, ChildResultFields>
 }
 
 /** One print's shared state; see the module comment. */
@@ -69,7 +77,7 @@ export function foldCodePath(path: string): string {
   return path.normalize('NFC').toLowerCase()
 }
 
-/** The context for printing `input`, with its parent tree built; `layout` fills the rest. */
+/** The context for printing `input`, with its parent tree built; `orderDeclarations` (print/scope.ts) fills the rest. */
 export function createPrintContext(input: PrintInput): PrintContext {
   const workflow = input.workflow
   const catalog = input.catalog
@@ -120,6 +128,7 @@ export function createPrintContext(input: PrintInput): PrintContext {
       catalog,
       block: (key) => blocks.get(key),
       variable: (key) => getOwn(workflow.variables, key),
+      childResult: childResultScope((key) => blocks.get(key), input.childResults),
     },
   }
   for (const key of blocks.keys()) {

@@ -12,6 +12,7 @@ export const spotifyGetCurrentUserTool: ToolConfig<
   name: 'Spotify Get Current User',
   description: "Get the current user's Spotify profile information.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

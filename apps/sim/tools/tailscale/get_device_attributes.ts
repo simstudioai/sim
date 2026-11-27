@@ -15,6 +15,7 @@ export const tailscaleGetDeviceAttributesTool: ToolConfig<
   name: 'Tailscale Get Device Attributes',
   description: 'Get device posture attributes and their expiry times',
   version: '1.0.0',
+  effect: 'read',
   oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

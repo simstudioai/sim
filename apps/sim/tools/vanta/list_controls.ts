@@ -14,6 +14,7 @@ export const vantaListControlsTool: InternalToolConfig<
   name: 'Vanta List Controls',
   description: 'List the security controls in a Vanta account, optionally filtered by framework',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

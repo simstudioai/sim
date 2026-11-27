@@ -3,13 +3,13 @@
  * declaration files are compiled or read statically, never executed.
  */
 
-/** Thrown by every runtime export: workflow files are compiled, never executed. */
+/** Thrown by every runtime export: Sim source files are read statically, never executed. */
 export class SimSdkNotExecutable extends Error {
   readonly export: string
 
   constructor(exportName: string) {
     super(
-      `@sim/workflow-sdk: \`${exportName}\` does not run. Workflow files are compiled by Sim, never executed; check them with \`sim workflows source apply --dry-run\` or a type-check.`
+      `@sim/workflow-sdk: \`${exportName}\` does not run. Sim source files are read statically, never executed; check them with \`sim workflows source check\` or \`sim workspaces source check\`.`
     )
     this.name = 'SimSdkNotExecutable'
     this.export = exportName

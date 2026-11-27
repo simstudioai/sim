@@ -26,6 +26,7 @@ export const codaListPermissionsTool: ToolConfig<
   name: 'Coda List Permissions',
   description: 'List who a Coda doc is shared with and their access levels',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

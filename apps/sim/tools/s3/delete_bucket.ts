@@ -6,6 +6,7 @@ export const s3DeleteBucketTool: InternalToolConfig = {
   name: 'S3 Delete Bucket',
   description: 'Delete an empty AWS S3 bucket',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

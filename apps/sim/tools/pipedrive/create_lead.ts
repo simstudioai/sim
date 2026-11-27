@@ -16,6 +16,7 @@ export const pipedriveCreateLeadTool: ToolConfig<
   name: 'Create Lead in Pipedrive',
   description: 'Create a new lead in Pipedrive',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

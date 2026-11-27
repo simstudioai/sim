@@ -10,6 +10,7 @@ export const gitlabCreateIssueTool: ToolConfig<GitLabCreateIssueParams, GitLabCr
     name: 'GitLab Create Issue',
     description: 'Create a new issue in a GitLab project',
     version: '1.0.0',
+    effect: 'write',
     oauth: GITLAB_CREDENTIAL_OAUTH,
 
     params: {

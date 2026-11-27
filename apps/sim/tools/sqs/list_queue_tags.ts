@@ -7,6 +7,7 @@ export const listQueueTagsTool: InternalToolConfig<SqsListQueueTagsParams, SqsQu
   name: 'SQS List Queue Tags',
   description: 'List the cost-allocation tags attached to an Amazon SQS queue',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

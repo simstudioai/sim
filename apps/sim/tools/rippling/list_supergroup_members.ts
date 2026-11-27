@@ -10,6 +10,7 @@ export const ripplingListSupergroupMembersTool: ToolConfig<RipplingListSupergrou
   name: 'Rippling List Supergroup Members',
   description: 'List members of a supergroup',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

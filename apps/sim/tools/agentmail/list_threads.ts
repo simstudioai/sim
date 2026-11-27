@@ -8,6 +8,7 @@ export const agentmailListThreadsTool: ToolConfig<ListThreadsParams, ListThreads
   name: 'List Threads',
   description: 'List email threads in AgentMail',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

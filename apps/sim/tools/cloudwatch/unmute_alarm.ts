@@ -13,6 +13,7 @@ export const unmuteAlarmTool: InternalToolConfig<
   name: 'CloudWatch Unmute Alarm',
   description: 'Delete a CloudWatch alarm mute rule, restoring alarm notifications',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

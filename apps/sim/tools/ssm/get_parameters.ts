@@ -10,6 +10,7 @@ export const getParametersTool: InternalToolConfig<
   name: 'SSM Get Parameters',
   description: 'Read up to ten parameters from AWS Systems Manager Parameter Store by name',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

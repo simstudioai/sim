@@ -23,6 +23,7 @@ export const checkrSetReportTagsTool: ToolConfig<
   name: 'Checkr Set Report Tags',
   description: 'Replace all tags on a report with the given list. Pass [] to remove every tag.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

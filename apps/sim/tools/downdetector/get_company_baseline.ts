@@ -19,6 +19,7 @@ export const getCompanyBaselineTool: ToolConfig<
   description:
     'Get the current baseline report value for a Downdetector company. This is the expected average number of reports for the current period, used to judge whether current reports are abnormal.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     companyId: {

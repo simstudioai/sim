@@ -19,13 +19,17 @@ import {
   isCustomBlocksEnabled,
   isDataDrainsEnabled,
   isDataRetentionEnabled,
+  isE2bEnabled,
   isForkingEnabled,
   isHosted,
   isInboxEnabled,
+  isInvitationsDisabled,
   isOrganizationsEnabled,
+  isPublicApiDisabled,
   isSandboxesEnabled,
   isScimEnabled,
   isSessionPoliciesEnabled,
+  isSlackExtendedScopesEnabled,
   isSsoEnabled,
   isUsageMonitoringEnabled,
 } from '@/lib/core/config/env-flags'
@@ -108,6 +112,10 @@ export function resolveDeploymentShape(): DeploymentShape {
     azureConfigured: isAzureConfigured,
     cohereConfigured: isCohereConfigured,
     registrationMode: getRegistrationMode(),
+    e2bEnabled: isE2bEnabled,
+    slackExtendedScopes: isSlackExtendedScopesEnabled,
+    invitationsDisabled: isInvitationsDisabled,
+    publicApiDisabled: isPublicApiDisabled,
     features: {
       accessControl: isAccessControlEnabled,
       auditLogs: isAuditLogsEnabled,
@@ -129,15 +137,9 @@ export function resolveDeploymentShape(): DeploymentShape {
 
 function isSameDeploymentShape(seeded: DeploymentShape | null, next: DeploymentShape): boolean {
   if (seeded === null) return false
-  if (
-    seeded.hosted !== next.hosted ||
-    seeded.billingEnabled !== next.billingEnabled ||
-    seeded.chatEnabled !== next.chatEnabled ||
-    seeded.azureConfigured !== next.azureConfigured ||
-    seeded.cohereConfigured !== next.cohereConfigured ||
-    seeded.registrationMode !== next.registrationMode
-  ) {
-    return false
+  const keys = new Set([...Object.keys(seeded), ...Object.keys(next)]) as Set<keyof DeploymentShape>
+  for (const key of keys) {
+    if (key !== 'features' && seeded[key] !== next[key]) return false
   }
   const featureKeys = Object.keys(next.features) as (keyof DeploymentFeatures)[]
   return featureKeys.every((key) => seeded.features[key] === next.features[key])

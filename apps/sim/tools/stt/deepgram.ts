@@ -7,6 +7,7 @@ export const deepgramSttTool: InternalToolConfig<SttParams, SttResponse> = {
   name: 'Deepgram STT',
   description: 'Transcribe audio to text using Deepgram',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     provider: {

@@ -12,6 +12,7 @@ export const agiloftRemoveAttachmentTool: InternalToolConfig<
   name: 'Agiloft Remove Attachment',
   description: 'Remove an attached file from a field in an Agiloft record.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     instanceUrl: {

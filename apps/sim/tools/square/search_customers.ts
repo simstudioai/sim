@@ -14,6 +14,7 @@ export const squareSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
   name: 'Square Search Customers',
   description: 'Search customer profiles using filters such as email, phone, or creation date',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

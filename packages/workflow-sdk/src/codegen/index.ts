@@ -16,17 +16,17 @@ export {
   SDK_INDEX_FILE,
   SDK_MODELS_FILE,
 } from './layout'
-export { SDK_MAJOR } from './major'
-export { SPECIAL_BUILDER_KEYS } from './names'
 export {
   type BuilderLookup,
   type BuilderReference,
   builderSnippet,
+  compactBuilder,
   describeBuilder,
   lookupBuilder,
   renderBuilderReference,
+  renderCompactBuilder,
 } from './reference'
-export { SOURCE_COMPILER_OPTIONS, typecheckCommand } from './tsconfig'
+export { SOURCE_COMPILER_OPTIONS, SOURCE_TYPESCRIPT_VERSION } from './tsconfig'
 export {
   type GenerateWorkspaceTypesFn,
   generateWorkspaceTypes,

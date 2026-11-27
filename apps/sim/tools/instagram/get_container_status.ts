@@ -19,6 +19,7 @@ export const instagramGetContainerStatusTool: ToolConfig<
   name: 'Instagram Get Container Status',
   description: 'Check the publishing status of a media container',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -435,7 +435,7 @@ export type ApplyWorkflowOperationsParams = {
 }
 
 export type ApplyWorkflowOperationsQuery = {
-  dryRun?: boolean
+  dry?: boolean
 }
 
 type ApplyWorkflowOperationsBodyRef0 =
@@ -707,7 +707,7 @@ type ApplyWorkflowOperationsResponseRef3 = {
   mintedBlockIds: Record<string, string>
   previewBlockIds?: Record<string, string>
   lint: ApplyWorkflowOperationsResponseRef2
-  dryRun: boolean
+  dry: boolean
 }
 
 export type ApplyWorkflowOperationsResponse = {
@@ -720,7 +720,7 @@ export type ApplyWorkflowSourceParams = {
 }
 
 export type ApplyWorkflowSourceQuery = {
-  dryRun?: boolean
+  dry?: boolean
   allowDelete?: boolean
 }
 
@@ -760,7 +760,7 @@ export type ApplyWorkflowSourceBody = {
     [key: string]: unknown
   }
   base: {
-    version?: 1
+    version: 1
     workflowId: string
     workspaceId: string
     fingerprint: string
@@ -778,7 +778,7 @@ export type ApplyWorkflowSourceResponse = {
   data: {
     workflowId: string
     workspaceId: string
-    dryRun: boolean
+    dry: boolean
     applied: boolean
     diff: {
       noop: boolean
@@ -825,7 +825,6 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_LIMIT_EXCEEDED'
@@ -899,6 +898,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
         | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_CODE_FILE_REF_QUOTED'
         | 'W_UNRESOLVED_REF'
         | 'W_FORWARD_REF_LITERALIZED'
         | 'W_COMMENT_MOVED'
@@ -982,6 +982,8 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -1040,6 +1042,7 @@ export type ApplyWorkflowSourceResponse = {
     }
     mintedIds: Record<string, string>
     notes: Array<string>
+    deployedVersion: number | null
     needsRedeployment: boolean
   }
 }
@@ -1088,7 +1091,7 @@ export type ApplyWorkspaceSourceParams = {
 }
 
 export type ApplyWorkspaceSourceQuery = {
-  dryRun?: boolean
+  dry?: boolean
 }
 
 export type ApplyWorkspaceSourceBody = {
@@ -1117,7 +1120,7 @@ export type ApplyWorkspaceSourceBody = {
           string,
           {
             id: string
-            rev: number | string
+            rev: string
             sha256: string
           }
         >
@@ -1168,7 +1171,7 @@ export type ApplyWorkspaceSourceBody = {
 export type ApplyWorkspaceSourceResponse = {
   data: {
     workspaceId: string
-    dryRun: boolean
+    dry: boolean
     plan: Array<{
       kind:
         | 'secret'
@@ -1331,7 +1334,6 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_INVALID_CHARACTER'
@@ -1403,6 +1405,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
         | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_CODE_FILE_REF_QUOTED'
         | 'W_UNRESOLVED_REF'
         | 'W_FORWARD_REF_LITERALIZED'
         | 'W_COMMENT_MOVED'
@@ -1484,6 +1487,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       message: string
     }
     needBlobs: Array<string>
@@ -1508,7 +1513,7 @@ export type ApplyWorkspaceSourceResponse = {
             string,
             {
               id: string
-              rev: number | string
+              rev: string
               sha256: string
             }
           >
@@ -1627,7 +1632,6 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_INVALID_CHARACTER'
@@ -1699,6 +1703,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
         | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_CODE_FILE_REF_QUOTED'
         | 'W_UNRESOLVED_REF'
         | 'W_FORWARD_REF_LITERALIZED'
         | 'W_COMMENT_MOVED'
@@ -1780,6 +1785,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -5232,7 +5239,7 @@ export type CreateWorkflowFromSourceParams = {
 }
 
 export type CreateWorkflowFromSourceQuery = {
-  dryRun?: boolean
+  dry?: boolean
   allowDelete?: boolean
 }
 
@@ -5254,7 +5261,7 @@ export type CreateWorkflowFromSourceResponse = {
   data: {
     workflowId: string
     workspaceId: string
-    dryRun: boolean
+    dry: boolean
     applied: boolean
     diff: {
       noop: boolean
@@ -5301,7 +5308,6 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_LIMIT_EXCEEDED'
@@ -5375,6 +5381,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
         | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_CODE_FILE_REF_QUOTED'
         | 'W_UNRESOLVED_REF'
         | 'W_FORWARD_REF_LITERALIZED'
         | 'W_COMMENT_MOVED'
@@ -5458,6 +5465,8 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -5516,6 +5525,7 @@ export type CreateWorkflowFromSourceResponse = {
     }
     mintedIds: Record<string, string>
     notes: Array<string>
+    deployedVersion: number | null
     needsRedeployment: boolean
   }
 }
@@ -7105,12 +7115,12 @@ export type ExecuteWorkflowBody = {
         version?: number
       }
     | {
-        source: 'manual'
+        source: 'draft'
         entry?:
           | {
               type: 'trigger'
               blockId?: string
-              useMockPayload?: boolean
+              sample?: boolean
             }
           | {
               type: 'block'
@@ -7118,6 +7128,13 @@ export type ExecuteWorkflowBody = {
               sourceRunId: string
             }
         stopAfterBlockId?: string
+        dry?: boolean
+        allow?: Array<string>
+        mocks?: Record<string, Record<string, unknown>>
+        mocksFrom?: {
+          runId: string
+          blocks: Array<string>
+        }
       }
   async?: boolean
   executionTimeoutSeconds?: number
@@ -7148,9 +7165,69 @@ type ExecuteWorkflowResponseRef0 = {
   blockId?: string
   blockName?: string
   blockType?: string
+  rerunFromBlockId?: string
 }
 
 type ExecuteWorkflowResponseRef1 = {
+  stubbed: Array<{
+    workflowId: string
+    blockId: string | null
+    block: string | null
+    tool: string | null
+    request: Record<string, unknown> | null
+    returned: Record<string, unknown>
+    mcp?: {
+      server: string
+      tool: string
+    }
+    reason?: 'placeholder' | 'mcp-read-only'
+  }>
+  allowed: Array<{
+    workflowId: string
+    blockId: string | null
+    block: string | null
+    tool: string | null
+    mcp?: {
+      server: string
+      tool: string
+    }
+  }>
+  unchecked: Array<{
+    workflowId: string
+    blockId: string | null
+    block: string | null
+    reason: string
+  }>
+  omitted: {
+    stubbed: number
+    allowed: number
+    unchecked: number
+  }
+  unreached?: Array<{
+    workflowId: string
+    blockId: string
+    block: string
+    kind: 'allow' | 'mock'
+  }>
+  mockFields?: Array<{
+    workflowId: string
+    blockId: string
+    block: string
+    undeclared?: Array<string>
+    dropped?: Array<string>
+  }>
+}
+
+type ExecuteWorkflowResponseRef2 = {
+  allow: Array<string>
+  mocks: Array<string>
+  mocksFrom?: {
+    runId: string
+    blocks: Array<string>
+  }
+}
+
+type ExecuteWorkflowResponseRef3 = {
   runId: string
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
@@ -7161,9 +7238,19 @@ type ExecuteWorkflowResponseRef1 = {
   endedAt?: string
   durationMs?: number
   executionTimeoutSeconds: number | null
+  paused: {
+    runId: string
+    points: Array<{
+      contextId: string
+      kind: 'human' | 'time'
+      status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+    }>
+  } | null
+  sideEffects?: ExecuteWorkflowResponseRef1
+  overrides?: ExecuteWorkflowResponseRef2
 }
 
-type ExecuteWorkflowResponseRef2 = {
+type ExecuteWorkflowResponseRef4 = {
   runId: string
   statusUrl: string
   executionTimeoutSeconds: number | null
@@ -7171,10 +7258,10 @@ type ExecuteWorkflowResponseRef2 = {
 
 export type ExecuteWorkflowResponse =
   | {
-      data: ExecuteWorkflowResponseRef1
+      data: ExecuteWorkflowResponseRef3
     }
   | {
-      data: ExecuteWorkflowResponseRef2
+      data: ExecuteWorkflowResponseRef4
     }
 
 /** `GET /api/v2/knowledge/[knowledgeBaseId]/export` */
@@ -7516,6 +7603,7 @@ type GetBlockResponseRef4 = {
   name: string
   description: string
   version?: string
+  effect: 'read' | 'write'
   hostedApiKey: 'always' | 'conditional' | 'none'
   oauth?: {
     required: boolean
@@ -7557,6 +7645,7 @@ type GetBlockResponseRef6 = {
   docsLink?: string
   tags: Array<string>
   bestPractices?: string
+  effect?: 'read' | 'write'
   inputSchema: Array<GetBlockResponseRef0>
   operationInputSchema: Record<string, Array<GetBlockResponseRef0>>
   inputDefinitions: Record<
@@ -7572,6 +7661,7 @@ type GetBlockResponseRef6 = {
     {
       toolId?: string
       toolName?: string
+      effect?: 'read' | 'write'
       description?: string
       inputs: Record<string, GetBlockResponseRef2>
       outputs: Record<string, GetBlockResponseRef3>
@@ -7586,6 +7676,12 @@ type GetBlockResponseRef6 = {
       {
         type: string
         description?: string
+        properties?: Record<string, unknown>
+        items?: {
+          type: string
+          description?: string
+          properties?: Record<string, unknown>
+        }
       }
     >
     configFields: Record<
@@ -7618,6 +7714,12 @@ type GetBlockResponseRef6 = {
     {
       type: string
       description?: string
+      properties?: Record<string, unknown>
+      items?: {
+        type: string
+        description?: string
+        properties?: Record<string, unknown>
+      }
     }
   >
 }
@@ -8042,6 +8144,7 @@ type GetLogResponseRef1 = {
   errorType?: string
   errorMessage?: string
   blockId?: string
+  childDeploymentVersionId?: string
   input?: unknown
   output?: unknown
   tokens?:
@@ -8084,6 +8187,13 @@ type GetLogResponseRef2 = {
   startedAt: string
   endedAt: string | null
   totalDurationMs: number | null
+  failure: {
+    blockId: string
+    blockName: string
+    blockType: string
+    error: string | null
+    errorMessage: string | null
+  } | null
   files: Array<GetLogResponseRef0> | null
   executedByEmail: string | null
   workflow: {
@@ -9211,6 +9321,7 @@ export type GetSourceCatalogResponse = {
             description?: string
             condition?: unknown
             hiddenFromDisplay?: boolean
+            mayBeText?: true
             properties?: Record<string, unknown>
             sharedProperties?: number
             items?: unknown
@@ -9224,10 +9335,13 @@ export type GetSourceCatalogResponse = {
             nullable?: Array<string>
           }
         >
+        effect?: 'read' | 'write'
+        operationEffects?: Record<string, 'read' | 'write'>
         dynamicOutputs?: {
           source: 'responseFormat' | 'inputFormat' | 'humanForm' | 'tableRows'
           param: string
         }
+        errorOutputs?: Array<string>
         graph: {
           canBeTarget: boolean
           errorPort: boolean
@@ -9238,16 +9352,6 @@ export type GetSourceCatalogResponse = {
             kind: 'condition' | 'router'
           }
         }
-        legacyIds?: Array<{
-          from: string
-          to: string | null
-          whenOperation?: Array<string>
-          conditional?: true
-        }>
-        legacyCanonicalIds?: Array<{
-          from: string
-          to: string
-        }>
         paramAliases?: {
           action?: Record<string, string>
           trigger?: Record<string, string>
@@ -9440,6 +9544,7 @@ export type GetSourceCatalogResponse = {
             description?: string
             condition?: unknown
             hiddenFromDisplay?: boolean
+            mayBeText?: true
             properties?: Record<string, unknown>
             sharedProperties?: number
             items?: unknown
@@ -9623,6 +9728,7 @@ export type GetSourceCatalogResponse = {
           description?: string
           condition?: unknown
           hiddenFromDisplay?: boolean
+          mayBeText?: true
           properties?: Record<string, unknown>
           sharedProperties?: number
           items?: unknown
@@ -10034,6 +10140,7 @@ type GetToolResponseRef2 = {
   name: string
   description: string
   version?: string
+  effect: 'read' | 'write'
   hostedApiKey: 'always' | 'conditional' | 'none'
   oauth?: {
     required: boolean
@@ -10304,6 +10411,7 @@ type GetWorkflowRunResponseRef2 = {
   blockId?: string
   blockName?: string
   blockType?: string
+  rerunFromBlockId?: string
 }
 
 type GetWorkflowRunResponseRef3 = {
@@ -10316,6 +10424,15 @@ type GetWorkflowRunResponseRef3 = {
 }
 
 type GetWorkflowRunResponseRef4 = {
+  allow: Array<string>
+  mocks: Array<string>
+  mocksFrom?: {
+    runId: string
+    blocks: Array<string>
+  }
+}
+
+type GetWorkflowRunResponseRef5 = {
   runId: string
   workflowId: string
   status:
@@ -10341,6 +10458,7 @@ type GetWorkflowRunResponseRef4 = {
     automaticResumeWaitingReason: string | null
     pausePointCount: number
     resumedCount: number
+    runId: string
     points: Array<GetWorkflowRunResponseRef0>
   } | null
   cost: {
@@ -10350,10 +10468,11 @@ type GetWorkflowRunResponseRef4 = {
   output: unknown | null
   blockOutputs: Record<string, unknown> | null
   files: Array<GetWorkflowRunResponseRef3> | null
+  overrides: GetWorkflowRunResponseRef4 | null
 }
 
 export type GetWorkflowRunResponse = {
-  data: GetWorkflowRunResponseRef4
+  data: GetWorkflowRunResponseRef5
 }
 
 /** `GET /api/v2/workflows/[workflowId]/source` */
@@ -10419,7 +10538,6 @@ export type GetWorkflowSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_LIMIT_EXCEEDED'
@@ -10493,6 +10611,7 @@ export type GetWorkflowSourceResponse = {
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
         | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_CODE_FILE_REF_QUOTED'
         | 'W_UNRESOLVED_REF'
         | 'W_FORWARD_REF_LITERALIZED'
         | 'W_COMMENT_MOVED'
@@ -10576,6 +10695,8 @@ export type GetWorkflowSourceResponse = {
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -10984,7 +11105,7 @@ export type GetWorkspaceSourceResponse = {
             string,
             {
               id: string
-              rev: number | string
+              rev: string
               sha256: string
             }
           >
@@ -11118,7 +11239,6 @@ export type GetWorkspaceSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_INVALID_CHARACTER'
@@ -11190,6 +11310,7 @@ export type GetWorkspaceSourceResponse = {
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
         | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_CODE_FILE_REF_QUOTED'
         | 'W_UNRESOLVED_REF'
         | 'W_FORWARD_REF_LITERALIZED'
         | 'W_COMMENT_MOVED'
@@ -11271,6 +11392,8 @@ export type GetWorkspaceSourceResponse = {
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -12307,6 +12430,7 @@ type ListLogsResponseRef2 = {
   errorType?: string
   errorMessage?: string
   blockId?: string
+  childDeploymentVersionId?: string
   input?: unknown
   output?: unknown
   tokens?:
@@ -13799,6 +13923,7 @@ type ListToolsResponseRef0 = {
   name: string
   description: string
   version?: string
+  effect: 'read' | 'write'
   hostedApiKey: 'always' | 'conditional' | 'none'
   oauth?: {
     required: boolean
@@ -14388,7 +14513,7 @@ export type PlanWorkflowSourceBody = {
     [key: string]: unknown
   }
   base: {
-    version?: 1
+    version: 1
     workflowId: string
     workspaceId: string
     fingerprint: string
@@ -14401,7 +14526,7 @@ export type PlanWorkflowSourceResponse = {
   data: {
     workflowId: string
     workspaceId: string
-    dryRun: boolean
+    dry: boolean
     applied: boolean
     diff: {
       noop: boolean
@@ -14448,7 +14573,6 @@ export type PlanWorkflowSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_LIMIT_EXCEEDED'
@@ -14522,6 +14646,7 @@ export type PlanWorkflowSourceResponse = {
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
         | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_CODE_FILE_REF_QUOTED'
         | 'W_UNRESOLVED_REF'
         | 'W_FORWARD_REF_LITERALIZED'
         | 'W_COMMENT_MOVED'
@@ -14605,6 +14730,8 @@ export type PlanWorkflowSourceResponse = {
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -14663,6 +14790,7 @@ export type PlanWorkflowSourceResponse = {
     }
     mintedIds: Record<string, string>
     notes: Array<string>
+    deployedVersion: number | null
     needsRedeployment: boolean
   }
 }
@@ -14700,7 +14828,7 @@ export type PlanWorkspaceSourceBody = {
           string,
           {
             id: string
-            rev: number | string
+            rev: string
             sha256: string
           }
         >
@@ -14746,7 +14874,7 @@ export type PlanWorkspaceSourceBody = {
 export type PlanWorkspaceSourceResponse = {
   data: {
     workspaceId: string
-    dryRun: boolean
+    dry: boolean
     plan: Array<{
       kind:
         | 'secret'
@@ -14909,7 +15037,6 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_INVALID_CHARACTER'
@@ -14981,6 +15108,7 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
         | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_CODE_FILE_REF_QUOTED'
         | 'W_UNRESOLVED_REF'
         | 'W_FORWARD_REF_LITERALIZED'
         | 'W_COMMENT_MOVED'
@@ -15062,6 +15190,8 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       message: string
     }
     needBlobs: Array<string>
@@ -15086,7 +15216,7 @@ export type PlanWorkspaceSourceResponse = {
             string,
             {
               id: string
-              rev: number | string
+              rev: string
               sha256: string
             }
           >
@@ -15205,7 +15335,6 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_INVALID_CHARACTER'
@@ -15277,6 +15406,7 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
         | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_CODE_FILE_REF_QUOTED'
         | 'W_UNRESOLVED_REF'
         | 'W_FORWARD_REF_LITERALIZED'
         | 'W_COMMENT_MOVED'
@@ -15358,6 +15488,8 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -17135,7 +17267,7 @@ export type ReplaceWorkflowStateParams = {
 }
 
 export type ReplaceWorkflowStateQuery = {
-  dryRun?: boolean
+  dry?: boolean
 }
 
 type ReplaceWorkflowStateBodyRef0 = {
@@ -17318,7 +17450,7 @@ type ReplaceWorkflowStateResponseRef1 = {
   warnings: Array<string>
   needsRedeployment: boolean
   lint: ReplaceWorkflowStateResponseRef0
-  dryRun: boolean
+  dry: boolean
 }
 
 export type ReplaceWorkflowStateResponse = {
@@ -17766,33 +17898,39 @@ export type ResumeWorkflowBody = {
 }
 
 type ResumeWorkflowResponseRef0 = {
-  message: string
-  code:
-    | 'TIMEOUT'
-    | 'CANCELLED'
-    | 'USAGE_LIMIT_EXCEEDED'
-    | 'INVALID_INPUT'
-    | 'BLOCK_EXECUTION_FAILED'
-    | 'CHILD_WORKFLOW_FAILED'
-    | 'EXECUTION_FAILED'
-  blockId?: string
-  blockName?: string
-  blockType?: string
-}
-
-type ResumeWorkflowResponseRef1 = {
   runId: string
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
   blockOutputs: Record<string, unknown> | null
-  error: ResumeWorkflowResponseRef0 | null
+  error: {
+    message: string
+    code:
+      | 'TIMEOUT'
+      | 'CANCELLED'
+      | 'USAGE_LIMIT_EXCEEDED'
+      | 'INVALID_INPUT'
+      | 'BLOCK_EXECUTION_FAILED'
+      | 'CHILD_WORKFLOW_FAILED'
+      | 'EXECUTION_FAILED'
+    blockId?: string
+    blockName?: string
+    blockType?: string
+  } | null
   startedAt?: string
   endedAt?: string
   durationMs?: number
+  paused: {
+    runId: string
+    points: Array<{
+      contextId: string
+      kind: 'human' | 'time'
+      status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+    }>
+  } | null
 }
 
-type ResumeWorkflowResponseRef2 = {
+type ResumeWorkflowResponseRef1 = {
   runId: string
   statusUrl: string
   queuePosition?: number
@@ -17800,10 +17938,10 @@ type ResumeWorkflowResponseRef2 = {
 
 export type ResumeWorkflowResponse =
   | {
-      data: ResumeWorkflowResponseRef1
+      data: ResumeWorkflowResponseRef0
     }
   | {
-      data: ResumeWorkflowResponseRef2
+      data: ResumeWorkflowResponseRef1
     }
 
 /** `POST /api/v2/files/[fileId]/versions/[version]/revert` */
@@ -20603,7 +20741,12 @@ export const V2_OPERATIONS = {
     summary: 'Add column',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
-      column: { kind: 'object', required: true, describe: 'Column definition to add.' },
+      column: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Column definition to add: {"name":"status","type":"string"}. Column fields: id - Optional client-provided column identifier; name (required) - Column name; type (required) - Column data type; required - Whether inserts must supply a value for this column; unique - Whether values in the column must be unique; options - Select options for select-type columns, as [{"id":"open","name":"Open"}]; multiple - Whether a select column accepts multiple values; currencyCode - ISO 4217 code for currency columns; position - Zero-based insertion position for the column. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
+      },
     },
   },
   addWorkflowGroup: {
@@ -20667,7 +20810,7 @@ export const V2_OPERATIONS = {
     summary: 'Apply workflow operations',
     workspaceKeyUnsupported: true,
     query: {
-      dryRun: {
+      dry: {
         kind: 'boolean',
         describe:
           'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.',
@@ -20704,10 +20847,10 @@ export const V2_OPERATIONS = {
     summary: 'Apply workflow source',
     workspaceKeyUnsupported: true,
     query: {
-      dryRun: {
+      dry: {
         kind: 'boolean',
         describe:
-          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.',
+          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.',
       },
       allowDelete: {
         kind: 'boolean',
@@ -20760,7 +20903,7 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Apply workspace source',
     query: {
-      dryRun: {
+      dry: {
         kind: 'boolean',
         describe:
           'Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.',
@@ -22182,7 +22325,12 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', required: true, describe: 'Table name.' },
       description: { kind: 'string', describe: 'Optional table description.' },
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
-      schema: { kind: 'object', required: true, describe: 'Initial table column definitions.' },
+      schema: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Initial table column definitions: {"columns":[{"name":"email","type":"string","required":true,"unique":true}]}. Column fields: id - Optional client-provided column identifier; name (required) - Column name; type (required) - Column data type; required - Whether inserts must supply a value for this column; unique - Whether values in the column must be unique; options - Select options for select-type columns, as [{"id":"open","name":"Open"}]; multiple - Whether a select column accepts multiple values; currencyCode - ISO 4217 code for currency columns. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
+      },
       folderPath: { kind: 'string', describe: 'Folder in which to create the table.' },
     },
   },
@@ -22381,10 +22529,10 @@ export const V2_OPERATIONS = {
     summary: 'Create workflow from source',
     workspaceKeyUnsupported: true,
     query: {
-      dryRun: {
+      dry: {
         kind: 'boolean',
         describe:
-          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.',
+          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.',
       },
       allowDelete: {
         kind: 'boolean',
@@ -23364,7 +23512,7 @@ export const V2_OPERATIONS = {
       run: {
         kind: 'unknown',
         describe:
-          'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
+          'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version, and `source: "draft"` the saved draft. A draft run requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
       },
       async: {
         kind: 'boolean',
@@ -28479,7 +28627,7 @@ export const V2_OPERATIONS = {
     summary: 'Replace workflow state',
     workspaceKeyUnsupported: true,
     query: {
-      dryRun: {
+      dry: {
         kind: 'boolean',
         describe:
           'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.',

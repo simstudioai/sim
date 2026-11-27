@@ -23,6 +23,7 @@ export const updateLeadListTool: ToolConfig<UpdateLeadListParams, SmartleadLeadL
   name: 'Smartlead Update Lead List',
   description: 'Renames a Smartlead lead list.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

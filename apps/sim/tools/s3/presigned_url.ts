@@ -6,6 +6,7 @@ export const s3PresignedUrlTool: InternalToolConfig = {
   name: 'S3 Presigned URL',
   description: 'Generate a time-limited presigned URL to download or upload an S3 object',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

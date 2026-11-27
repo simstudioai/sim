@@ -7,6 +7,7 @@ export const getAccountTool: InternalToolConfig<SESGetAccountParams, SESGetAccou
   name: 'SES Get Account',
   description: 'Get SES account sending quota and status information',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

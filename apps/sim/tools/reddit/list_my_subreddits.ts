@@ -42,6 +42,7 @@ export const listMySubredditsTool: ToolConfig<
   name: 'List My Subreddits',
   description: 'List the subreddits the authenticated user is subscribed to',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

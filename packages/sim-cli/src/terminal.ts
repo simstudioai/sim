@@ -2,8 +2,9 @@ import type { Command } from 'commander'
 import { dump } from 'js-yaml'
 import { styles } from '#sim-cli/output/presentation'
 import { CliUpdateError } from '#sim-cli/update/install'
-import { ProfileConfigError } from './config/index'
-import { profileFrom } from './context'
+import { enclosingWorkspace } from './commands/protocol/source-dir'
+import { isMachineFormat, ProfileConfigError } from './config/index'
+import { profileFrom, setWorkingDirectoryWorkspace } from './context'
 import { CliExit } from './embed-context'
 import {
   formatApiErrorDetails,
@@ -43,7 +44,7 @@ function explainFailure(error: unknown, program: Command): number | null {
     } catch {
       /** Preserve the original error when configuration is invalid. */
     }
-    if (output === 'json' || output === 'yaml') {
+    if (isMachineFormat(output)) {
       const payload = {
         error: {
           code: error.code ?? 'CLI_ERROR',
@@ -78,6 +79,12 @@ export async function runTerminalCli(suppliedProgram?: Command): Promise<void> {
   const telemetry = suppliedProgram ? undefined : createCommandTelemetry()
   const program = suppliedProgram ?? buildProgram()
   telemetry?.observe(program)
+  // The working directory's workspace is read here, once, with the readers source commands use,
+  // because it is a terminal's alone: an embedded run has no working directory of its own.
+  program.hook('preAction', async () => {
+    const named = await enclosingWorkspace(process.cwd())
+    if (named) setWorkingDirectoryWorkspace(program, named)
+  })
   try {
     await program.parseAsync(process.argv)
   } catch (error) {

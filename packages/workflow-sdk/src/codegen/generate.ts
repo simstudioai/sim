@@ -17,12 +17,13 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
-import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
-import { builderOutputSchemas, printKey, quoteString } from '@sim/workflow-code'
+import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from '@sim/workflow-code'
+import { builderProducedOutputs, printKey, quoteString } from '@sim/workflow-code'
 import { type EditorDefault, subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
 import {
   builderPins,
   hasDefaultValue,
+  isModelField,
   isWrittenInSource,
   onSurface,
   paramAliases,
@@ -118,6 +119,27 @@ const CORE_TYPE_NAMES = [
 ] as const
 
 const HEADER_PREFIX = '// @sim-sdk'
+
+/**
+ * What a builder does at run time that its params cannot show, said in its doc comment and in
+ * `sim workflows source params`. `table.upsertRow`: `upsertRow` in
+ * `apps/sim/lib/table/rows/service.ts` writes the stored row's whole `data`, where the update
+ * builders merge cells (`jsonbMergePatch`). `table.queryRows`: `rowQueryBodySchema` in
+ * `apps/sim/lib/api/contracts/tables.ts` bounds `limit` below only, and `queryRows` in the same
+ * service cuts a page at `TABLE_LIMITS.MAX_QUERY_RESULT_BYTES`, setting `nextCursor` while more
+ * rows match.
+ */
+const BUILDER_NOTES: Readonly<Record<string, string>> = {
+  'table.queryRows':
+    '`limit` has no maximum and no default: omitted, every matching row comes back in one page, and the query fails past 5 MiB of rows. With a `limit`, a page can also end early at the byte budget, so page by passing `nextCursor` back as `cursor` until it is `null`; never stop on a short page.',
+  'table.upsertRow':
+    'Replaces the matched row: a column missing from `data` is cleared, not kept. To change some columns of existing rows, use `table.updateRowsByFilter` (or `table.updateRowById` for one row), which merge `data` into the stored row.',
+}
+
+/** The note on builder `key`, when it has one. */
+export function builderNote(key: string): string | undefined {
+  return Object.hasOwn(BUILDER_NOTES, key) ? BUILDER_NOTES[key] : undefined
+}
 
 function header(sdkMajor: number): string {
   return `${HEADER_PREFIX} ${sdkMajor} · generated from the block catalog; do not edit`
@@ -238,31 +260,6 @@ export interface BuilderTypes {
   paramsName: string
   /** The params as facts. */
   facts: ParamFacts
-}
-
-/**
- * The outputs of an operation builder whose tool the catalog records (`operationOutputs`): only
- * those the tool returns, and which of them may be `null`.
- */
-function operationOutputs(
-  block: CatalogBlock,
-  entry: BuilderEntry,
-  outputs: Record<string, CatalogOutput>
-): { outputs: Record<string, CatalogOutput>; nullable: ReadonlySet<string> } {
-  const operation = entry.builder.operation
-  const byOperation = block.operationOutputs
-  const returned =
-    operation !== undefined &&
-    !entry.builder.triggerMode &&
-    outputs === block.outputs &&
-    byOperation &&
-    Object.hasOwn(byOperation, operation)
-      ? byOperation[operation]
-      : undefined
-  if (!returned) return { outputs, nullable: new Set() }
-  const picked: Record<string, CatalogOutput> = {}
-  for (const name of returned.names) if (Object.hasOwn(outputs, name)) picked[name] = outputs[name]
-  return { outputs: picked, nullable: new Set(returned.nullable ?? []) }
 }
 
 /** The label of `operation` in the block's operation dropdown, if it has one. */
@@ -461,11 +458,7 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
       `sdk codegen: builder \`${entry.key}\` names unknown block type \`${entry.builder.type}\``
     )
   }
-  const { outputs, nullable } = operationOutputs(
-    block,
-    entry,
-    builderOutputSchemas(catalog, block, entry.builder)
-  )
+  const { outputs, nullable } = builderProducedOutputs(catalog, block, entry.builder)
   const spec = block.dynamicOutputs ?? null
   const plan =
     spec && !entry.special ? dynamicOutputPlan(spec, outputs, entry.builder.operation) : null
@@ -476,7 +469,20 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
   const genericArgs = plan ? `<${plan.typeParameter.name}>` : ''
   const outputGeneric = plan && Object.keys(plan.outputOverrides).length > 0
   const members = builderOutputs(outputs, context, plan?.outputOverrides ?? {}, nullable)
-  const paramsDeclaration = `export type ${paramsName}${generic} = ${renderParamsType(params, gate, candidates, context.pinned)}`
+  const coreParams = entry.special?.coreParams ?? []
+  const paramsDoc =
+    coreParams.length > 0
+      ? jsdoc(
+          [
+            `\`${entry.key}()\` also takes ${coreParams.map((name) => `\`${name}\``).join(', ')}, typed on its declaration in core.d.ts.`,
+          ],
+          ''
+        )
+      : []
+  const paramsDeclaration = [
+    ...paramsDoc,
+    `export type ${paramsName}${generic} = ${renderParamsType(params, gate, candidates, context.pinned)}`,
+  ].join('\n')
   const output: BuilderOutput = {
     name: outputName,
     typeParameters: outputGeneric ? generic : '',
@@ -488,6 +494,7 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
   const outputType = plan?.outputExtension
     ? `Omit<${outputRef}, keyof ${plan.outputExtension}> & ${plan.outputExtension}`
     : outputRef
+  const errorOutputs = block.errorOutputs?.length ? union(block.errorOutputs.map(literal)) : ''
   const method = entry.path[entry.path.length - 1]
   const label = entry.builder.operation ? operationLabel(block, entry.builder.operation) : undefined
   const jsdocSummary = [
@@ -497,11 +504,12 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
   ]
     .filter(Boolean)
     .join(' ')
+  const note = builderNote(entry.key)
   const signature = entry.special
     ? []
     : [
-        ...jsdoc([jsdocSummary], ''),
-        `export function ${method}${typeParameterList(plan, true)}(name: string, params: ${paramsName}${genericArgs}, meta?: BlockMeta): Block<${outputType}>`,
+        ...jsdoc(note ? [jsdocSummary, note] : [jsdocSummary], ''),
+        `export function ${method}${typeParameterList(plan, true)}(name: string, params: ${paramsName}${genericArgs}, meta?: BlockMeta): Block<${outputType}${errorOutputs ? `, ${errorOutputs}` : ''}>`,
       ]
   const tool =
     !entry.special && hasToolForm(entry.key, entry.builder, block)
@@ -511,7 +519,7 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
         ]
       : null
   const special = entry.special
-    ? `${entry.key}: { params: ${paramsName}; output: ${outputName} }`
+    ? `${entry.key}: { params: ${paramsName}; output: ${outputName}${errorOutputs ? `; errorOutputs: ${errorOutputs}` : ''} }`
     : null
   return {
     params: paramsDeclaration,
@@ -700,7 +708,7 @@ function modelIds(catalog: BlockCatalog): string[] {
   const ids = new Set<string>()
   for (const type of catalogBlockTypes(catalog)) {
     for (const subBlock of catalogBlock(catalog, type)?.subBlocks ?? []) {
-      if (subBlock.id !== 'model' || subBlock.type !== 'combobox') continue
+      if (!isModelField(subBlock)) continue
       if (!Array.isArray(subBlock.options)) continue
       for (const option of subBlock.options) ids.add(option.id)
     }

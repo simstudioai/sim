@@ -32,6 +32,7 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
   name: 'Ashby List Openings',
   description: 'Lists all openings in Ashby with pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

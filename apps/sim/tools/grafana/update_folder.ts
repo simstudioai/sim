@@ -7,6 +7,7 @@ export const updateFolderTool: InternalToolConfig<GrafanaUpdateFolderParams, Too
   name: 'Grafana Update Folder',
   description: 'Update (rename) a folder. Fetches the current folder and merges your changes.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

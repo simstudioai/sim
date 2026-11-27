@@ -19,6 +19,7 @@ export const planeDeleteWebhookTool: ToolConfig<
   name: 'Plane Delete a webhook',
   description: 'Delete a webhook in Plane. Requires API v2.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

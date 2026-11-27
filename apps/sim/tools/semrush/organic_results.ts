@@ -21,6 +21,7 @@ export const semrushOrganicResultsTool: ToolConfig<
   name: 'Semrush Organic Results',
   description: 'List the domains and URLs ranking in Google organic search results for a keyword.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

@@ -20,6 +20,7 @@ export const dataverseExecuteActionTool: ToolConfig<
   description:
     'Execute a bound or unbound Dataverse action. Actions perform operations with side effects (e.g., Merge, GrantAccess, SendEmail, QualifyLead). For bound actions, provide the entity set name and record ID.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

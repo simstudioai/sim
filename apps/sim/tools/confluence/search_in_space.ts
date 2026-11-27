@@ -40,6 +40,7 @@ export const confluenceSearchInSpaceTool: InternalToolConfig<
   description:
     'Search for content within a specific Confluence space. Optionally filter by text query and content type.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

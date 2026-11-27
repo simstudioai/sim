@@ -14,6 +14,7 @@ export const mondaySearchItemsTool: ToolConfig<MondaySearchItemsParams, MondaySe
     name: 'Monday Search Items',
     description: 'Search for items on a Monday.com board by column values',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

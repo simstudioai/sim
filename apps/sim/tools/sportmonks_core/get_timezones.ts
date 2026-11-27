@@ -23,6 +23,7 @@ export const sportmonksCoreGetTimezonesTool: ToolConfig<
   name: 'Get Timezones',
   description: 'Retrieve all supported time zones (IANA names) from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

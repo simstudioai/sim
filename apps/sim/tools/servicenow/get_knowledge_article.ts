@@ -25,6 +25,7 @@ export const getKnowledgeArticleTool: ToolConfig<
   description:
     'Retrieve the full content of a ServiceNow knowledge article by sys_id or KB number through the Knowledge Management API.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

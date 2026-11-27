@@ -9,6 +9,7 @@ export const shopifyGetCustomerTool: ToolConfig<ShopifyGetCustomerParams, Shopif
     name: 'Shopify Get Customer',
     description: 'Get a single customer by ID from your Shopify store',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

@@ -16,6 +16,7 @@ export const manageengineSdpCreateSolutionTool: ToolConfig<SdpSolutionWriteParam
   description:
     'Add an article to the ManageEngine ServiceDesk Plus Cloud knowledge base under an existing topic.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

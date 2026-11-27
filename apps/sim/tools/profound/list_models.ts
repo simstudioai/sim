@@ -10,6 +10,7 @@ export const profoundListModelsTool: ToolConfig<
   name: 'Profound List Models',
   description: 'List all AI models/platforms tracked in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

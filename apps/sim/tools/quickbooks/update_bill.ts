@@ -19,6 +19,7 @@ export const quickbooksUpdateBillTool: InternalToolConfig<
   name: 'QuickBooks Update Bill',
   description: 'Read, merge, and full-update bill header fields using its current sync token',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

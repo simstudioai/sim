@@ -9,6 +9,7 @@ export const asanaListWorkspacesTool: InternalToolConfig<
   name: 'Asana List Workspaces',
   description: 'List all Asana workspaces and organizations the authenticated user belongs to',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

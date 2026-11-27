@@ -14,6 +14,7 @@ export const deleteFunctionUrlConfigTool: InternalToolConfig<
   name: 'Lambda Delete Function URL',
   description: 'Delete the URL configuration of a function',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

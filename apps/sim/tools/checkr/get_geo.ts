@@ -19,6 +19,7 @@ export const checkrGetGeoTool: ToolConfig<CheckrGeoIdParams, CheckrGeoResponse> 
   name: 'Checkr Get Geo',
   description: 'Retrieve a geo by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

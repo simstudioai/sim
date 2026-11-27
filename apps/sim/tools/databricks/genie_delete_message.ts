@@ -19,6 +19,7 @@ export const genieDeleteMessageTool: ToolConfig<
   name: 'Databricks Genie Delete Message',
   description: 'Delete a message from a Genie conversation.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: GENIE_MESSAGE_PARAMS,

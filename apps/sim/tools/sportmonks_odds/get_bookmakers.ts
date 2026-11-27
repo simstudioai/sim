@@ -34,6 +34,7 @@ export const sportmonksOddsGetBookmakersTool: ToolConfig<
   name: 'Get Bookmakers',
   description: 'Retrieve all bookmakers from the Sportmonks Odds API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

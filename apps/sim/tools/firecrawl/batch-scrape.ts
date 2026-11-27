@@ -57,6 +57,7 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
     description:
       'Scrape multiple URLs in a single batch job and retrieve structured content from each page.',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       urls: {

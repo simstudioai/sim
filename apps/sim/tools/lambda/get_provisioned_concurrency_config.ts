@@ -13,6 +13,7 @@ export const getProvisionedConcurrencyConfigTool: InternalToolConfig<
   name: 'Lambda Get Provisioned Concurrency',
   description: 'Get the provisioned concurrency configuration of a function version or alias',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

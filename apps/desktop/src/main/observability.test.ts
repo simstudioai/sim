@@ -94,4 +94,70 @@ describe('installMainProcessFailureObservers', () => {
     await vi.waitFor(() => expect(app.relaunch).toHaveBeenCalledOnce())
     expect(app.exit).toHaveBeenCalledWith(1)
   })
+
+  function emitAppEvent(event: string) {
+    const handler = vi.mocked(app.on).mock.calls.find(([name]) => name === event)?.[1]
+    if (!handler) throw new Error(`No ${event} listener`)
+    ;(handler as () => void)()
+  }
+
+  async function settlePrompt() {
+    for (let turn = 0; turn < 5; turn++) await Promise.resolve()
+  }
+
+  it('exits without prompting when the failure arrives once the quit is committed', () => {
+    const events = { filePath: '/tmp/events.log', record: vi.fn() }
+    const { handlers, source } = createProcessSource()
+    installMainProcessFailureObservers({ events, getWindow: () => null, processSource: source })
+
+    emitAppEvent('before-quit')
+    emitAppEvent('will-quit')
+    handlers.get('uncaughtException')?.(new Error('during shutdown') as never)
+
+    expect(events.record).toHaveBeenCalledWith('main_uncaught_exception', { valueType: 'Error' })
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
+    expect(app.relaunch).not.toHaveBeenCalled()
+    expect(app.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('still offers recovery after a quit request another listener cancelled', () => {
+    vi.mocked(dialog.showMessageBox).mockImplementationOnce(() => new Promise(() => {}))
+    const events = { filePath: '/tmp/events.log', record: vi.fn() }
+    const { handlers, source } = createProcessSource()
+    installMainProcessFailureObservers({ events, getWindow: () => null, processSource: source })
+
+    emitAppEvent('before-quit')
+    handlers.get('uncaughtException')?.(new Error('after a cancelled quit') as never)
+
+    expect(dialog.showMessageBox).toHaveBeenCalledOnce()
+    const [options] = vi.mocked(dialog.showMessageBox).mock.calls[0] as unknown as [
+      { signal?: AbortSignal },
+    ]
+    expect(options.signal?.aborted).toBe(false)
+    expect(app.exit).not.toHaveBeenCalled()
+  })
+
+  it('answers an open recovery prompt as Quit when a quit is requested', async () => {
+    vi.mocked(dialog.showMessageBox).mockImplementationOnce(
+      (options: { cancelId?: number; signal?: AbortSignal }) =>
+        new Promise((resolve) => {
+          options.signal?.addEventListener('abort', () =>
+            resolve({ response: options.cancelId ?? 0, checkboxChecked: false })
+          )
+        })
+    )
+    const events = { filePath: '/tmp/events.log', record: vi.fn() }
+    const { handlers, source } = createProcessSource()
+    installMainProcessFailureObservers({ events, getWindow: () => null, processSource: source })
+
+    handlers.get('uncaughtException')?.(new Error('while running') as never)
+    expect(dialog.showMessageBox).toHaveBeenCalledOnce()
+    expect(app.exit).not.toHaveBeenCalled()
+
+    emitAppEvent('before-quit')
+    await settlePrompt()
+
+    expect(app.exit).toHaveBeenCalledWith(1)
+    expect(app.relaunch).not.toHaveBeenCalled()
+  })
 })

@@ -21,6 +21,7 @@ export const stripeUpdatePriceTool: ToolConfig<
   name: 'Stripe Update Price',
   description: 'Update an existing price',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

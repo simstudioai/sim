@@ -22,6 +22,7 @@ export const checkrListUsersTool: ToolConfig<CheckrListUsersParams, CheckrListUs
   name: 'Checkr List Users',
   description: 'List the users on the Checkr account and their roles.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

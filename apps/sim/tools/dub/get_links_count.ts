@@ -8,6 +8,7 @@ export const getLinksCountTool: ToolConfig<DubGetLinksCountParams, DubGetLinksCo
   description:
     'Retrieve the number of short links for the authenticated workspace, optionally filtered and grouped by domain, tag, user, or folder.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {

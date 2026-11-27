@@ -69,6 +69,15 @@ export function readProjectedEnterpriseFeatures(
 }
 
 /**
+ * A top-level boolean of the projected shape, or `null` when there is no projection
+ * or it does not carry that field as a boolean.
+ */
+export function readProjectedBoolean(key: string): boolean | null {
+  const value = readDeploymentProjection()?.[key]
+  return typeof value === 'boolean' ? value : null
+}
+
+/**
  * The projected registration mode, or `null` when there is no projection or it
  * does not carry a recognized mode.
  */

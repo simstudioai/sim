@@ -13,6 +13,7 @@ export const getDeploymentTool: InternalToolConfig<
   name: 'AppConfig Get Deployment',
   description: 'Get details about a specific AWS AppConfig deployment',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -10,6 +10,7 @@ export const linearDeleteProjectTool: ToolConfig<
   name: 'Linear Delete Project',
   description: 'Delete a project in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

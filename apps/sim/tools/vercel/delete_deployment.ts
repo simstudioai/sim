@@ -14,6 +14,7 @@ export const vercelDeleteDeploymentTool: ToolConfig<
   name: 'Vercel Delete Deployment',
   description: 'Delete a Vercel deployment',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

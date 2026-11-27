@@ -8,6 +8,7 @@ export const addAssigneesTool: ToolConfig<AddAssigneesParams, IssueResponse> = {
   name: 'GitHub Add Assignees',
   description: 'Add assignees to an issue in a GitHub repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -115,6 +116,7 @@ export const addAssigneesV2Tool: ToolConfig<AddAssigneesParams, any> = {
   name: addAssigneesTool.name,
   description: addAssigneesTool.description,
   version: '2.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: addAssigneesTool.params,
   request: addAssigneesTool.request,

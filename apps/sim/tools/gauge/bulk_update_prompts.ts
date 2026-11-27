@@ -21,6 +21,7 @@ export const gaugeBulkUpdatePromptsTool: ToolConfig<
   name: 'Gauge Bulk Update Prompts',
   description: 'Change the topic or tracking type of up to 500 tracked prompts.',
   version: '1.0.0',
+  effect: 'write',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

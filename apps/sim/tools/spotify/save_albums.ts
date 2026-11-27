@@ -16,6 +16,7 @@ export const spotifySaveAlbumsTool: ToolConfig<SpotifySaveAlbumsParams, SpotifyS
     name: 'Spotify Save Albums',
     description: "Save albums to the user's library.",
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

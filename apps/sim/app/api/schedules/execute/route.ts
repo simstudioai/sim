@@ -1,11 +1,4 @@
-import {
-  asyncJobs,
-  db,
-  workflow,
-  workflowDeploymentVersion,
-  workflowExecutionLogs,
-  workflowSchedule,
-} from '@sim/db'
+import { asyncJobs, db, workflowExecutionLogs, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
@@ -14,7 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { randomInt } from '@sim/utils/random'
 import { Cron } from 'croner'
-import { and, asc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { ExecuteSchedulesResponse } from '@/lib/api/contracts/schedules'
 import { verifyCronAuth } from '@/lib/auth/internal'
@@ -55,6 +48,10 @@ import {
   buildCarrierReconciledMetadata,
   carrierNotReconciledSql,
 } from '@/lib/workflows/schedules/carrier-metadata'
+import {
+  type ClaimedWorkflowSchedule,
+  claimDueWorkflowSchedules,
+} from '@/lib/workflows/schedules/claim'
 import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
 import {
   SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
@@ -85,33 +82,12 @@ const WORKFLOW_CHUNK_SIZE = 100
  */
 const STALE_SCHEDULE_RECOVERY_NOTIFY_LIMIT = 25
 const MAX_TICK_DURATION_MS = 3 * 60 * 1000
-const STALE_SCHEDULE_CLAIM_MS = getExecutionReservationTtlMs()
+/** Lease for a schedule carrier that records neither its max duration nor its execution timeout. */
+const FALLBACK_SCHEDULE_EXECUTION_LEASE_MS = getExecutionReservationTtlMs()
 const STALE_SCHEDULE_RECOVERY_BATCH_SIZE = 100
 const DATABASE_SCHEDULE_START_TURN_WAIT_MS = 1_000
 type DatabaseScheduleStartResult = 'started' | 'capacity_full' | 'not_pending'
 let databaseScheduleStartTurn: Promise<void> | null = null
-
-const dueFilter = (queuedAt: Date) =>
-  and(
-    isNull(workflowSchedule.archivedAt),
-    lte(workflowSchedule.nextRunAt, queuedAt),
-    sql`${workflowSchedule.status} NOT IN ('disabled', 'completed')`,
-    or(
-      isNull(workflowSchedule.lastQueuedAt),
-      lt(workflowSchedule.lastQueuedAt, workflowSchedule.nextRunAt),
-      lt(workflowSchedule.lastQueuedAt, new Date(queuedAt.getTime() - STALE_SCHEDULE_CLAIM_MS))
-    )
-  )
-
-const activeWorkflowDeploymentFilter = () =>
-  sql`${workflowSchedule.deploymentVersionId} = (select ${workflowDeploymentVersion.id} from ${workflowDeploymentVersion} where ${workflowDeploymentVersion.workflowId} = ${workflowSchedule.workflowId} and ${workflowDeploymentVersion.isActive} = true)`
-
-const workflowScheduleFilter = (queuedAt: Date) =>
-  and(
-    dueFilter(queuedAt),
-    sql`(${workflowSchedule.sourceType} = 'workflow' OR ${workflowSchedule.sourceType} IS NULL)`,
-    activeWorkflowDeploymentFilter()
-  )
 
 async function runWithDatabaseScheduleStartTurn(
   operation: () => Promise<DatabaseScheduleStartResult>
@@ -160,63 +136,9 @@ function getNextRunFromCronExpression(
   return cron.nextRun()
 }
 
-async function claimWorkflowSchedules(queuedAt: Date, limit: number) {
-  if (limit <= 0) return []
-
-  return db.transaction(async (tx) => {
-    const rows = await tx
-      .select({
-        id: workflowSchedule.id,
-        workspaceId: workflow.workspaceId,
-      })
-      .from(workflowSchedule)
-      .innerJoin(workflow, eq(workflowSchedule.workflowId, workflow.id))
-      .where(workflowScheduleFilter(queuedAt))
-      .for('update', { skipLocked: true })
-      .limit(limit)
-
-    if (rows.length === 0) return []
-    const workspaceIdsByScheduleId = new Map(rows.map((row) => [row.id, row.workspaceId]))
-
-    const claimedRows = await tx
-      .update(workflowSchedule)
-      .set({ lastQueuedAt: queuedAt, updatedAt: queuedAt })
-      .where(
-        and(
-          workflowScheduleFilter(queuedAt),
-          inArray(
-            workflowSchedule.id,
-            rows.map((row) => row.id)
-          )
-        )
-      )
-      .returning({
-        id: workflowSchedule.id,
-        workflowId: workflowSchedule.workflowId,
-        blockId: workflowSchedule.blockId,
-        cronExpression: workflowSchedule.cronExpression,
-        lastRanAt: workflowSchedule.lastRanAt,
-        failedCount: workflowSchedule.failedCount,
-        infraRetryCount: workflowSchedule.infraRetryCount,
-        nextRunAt: workflowSchedule.nextRunAt,
-        lastQueuedAt: workflowSchedule.lastQueuedAt,
-        timezone: workflowSchedule.timezone,
-        deploymentVersionId: workflowSchedule.deploymentVersionId,
-        deploymentOperationId: workflowSchedule.deploymentOperationId,
-        sourceType: workflowSchedule.sourceType,
-      })
-
-    return claimedRows.map((row) => ({
-      ...row,
-      workspaceId: workspaceIdsByScheduleId.get(row.id) ?? null,
-    }))
-  })
-}
-
-type ClaimedSchedule = Awaited<ReturnType<typeof claimWorkflowSchedules>>[number]
 type JobQueue = Awaited<ReturnType<typeof getJobQueue>>
 type DatabaseScheduleExecutionTarget = Pick<
-  ClaimedSchedule,
+  ClaimedWorkflowSchedule,
   'id' | 'workflowId' | 'cronExpression' | 'timezone'
 >
 type ScheduleRecoveryMetadata = Pick<
@@ -402,7 +324,7 @@ function getScheduleExecutionLeaseMs(
     return payload.executionTimeoutMs + RESERVATION_TTL_BUFFER_MS
   }
 
-  return STALE_SCHEDULE_CLAIM_MS
+  return FALLBACK_SCHEDULE_EXECUTION_LEASE_MS
 }
 
 function isStaleScheduleClaim(
@@ -456,7 +378,7 @@ function unreconciledTerminalScheduleExecutionJobsFilter() {
 }
 
 function staleScheduleExecutionJobsFilter(now: Date) {
-  const legacyMaxDurationSeconds = STALE_SCHEDULE_CLAIM_MS / 1000
+  const legacyMaxDurationSeconds = FALLBACK_SCHEDULE_EXECUTION_LEASE_MS / 1000
   const cleanupGraceSeconds = RESERVATION_TTL_BUFFER_MS / 1000
   return and(
     activeScheduleExecutionJobsFilter(),
@@ -801,7 +723,7 @@ async function reconcileExistingScheduleJob(params: {
 }
 
 async function deferClaimedScheduleAfterQueueFailure(
-  schedule: ClaimedSchedule,
+  schedule: ClaimedWorkflowSchedule,
   requestId: string,
   expectedLastQueuedAt: Date,
   error: unknown,
@@ -853,7 +775,7 @@ async function deferClaimedScheduleAfterQueueFailure(
 }
 
 async function handleClaimedScheduleSetupFailure(
-  schedule: ClaimedSchedule,
+  schedule: ClaimedWorkflowSchedule,
   requestId: string,
   expectedLastQueuedAt: Date,
   error: unknown,
@@ -1350,7 +1272,7 @@ async function resumePendingDatabaseScheduleJobs(
 }
 
 async function processScheduleItem(
-  schedule: ClaimedSchedule,
+  schedule: ClaimedWorkflowSchedule,
   queuedAt: Date,
   requestId: string,
   jobQueue: JobQueue,
@@ -1608,8 +1530,8 @@ async function processScheduleItem(
       /**
        * The queue may have accepted the job before the response was lost, and
        * the job id is deterministic, so retrying could double-dispatch the
-       * occurrence. Leave the claim in place and let the next tick reconcile
-       * against whatever carrier actually exists.
+       * occurrence. Keep the claim: once it outlasts the claim recheck window, a
+       * tick re-claims the schedule and reconciles against whatever carrier exists.
        */
       if (acceptance !== 'rejected') return
       await handleClaimedScheduleSetupFailure(
@@ -1784,7 +1706,7 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
 
     const dueSchedules = schedulesExhausted
       ? []
-      : await claimWorkflowSchedules(queuedAt, workflowClaimLimit)
+      : await claimDueWorkflowSchedules(queuedAt, workflowClaimLimit)
 
     remainingWorkflowBudget -= dueSchedules.length
     if (dueSchedules.length < workflowClaimLimit || remainingWorkflowBudget <= 0) {

@@ -48,6 +48,7 @@ export const terminateRunTool: ToolConfig<DagsterTerminateRunParams, DagsterTerm
     name: 'Dagster Terminate Run',
     description: 'Terminate an in-progress Dagster run.',
     version: '1.0.0',
+    effect: 'write',
 
     params: {
       host: {

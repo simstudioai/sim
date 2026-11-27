@@ -13,6 +13,7 @@ export const listAnnotationsTool: ToolConfig<
   name: 'Grafana List Annotations',
   description: 'Query annotations by time range, dashboard, or tags',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

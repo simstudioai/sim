@@ -19,6 +19,7 @@ export const flowCreateEntityTool: ToolConfig<FlowCreateEntityParams, FlowCreate
   description:
     'Create an entity in a category on the selected branch. Branch protection and the connected user permissions remain enforced.',
   version: '1.0.0',
+  effect: 'write',
   oauth: FLOW_OAUTH,
   params: {
     ...FLOW_AUTH_PARAMS,

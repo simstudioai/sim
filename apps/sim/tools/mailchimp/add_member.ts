@@ -36,6 +36,7 @@ export const mailchimpAddMemberTool: ToolConfig<
   name: 'Add Member to Mailchimp Audience',
   description: 'Add a new member to a Mailchimp audience',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

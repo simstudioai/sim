@@ -11,6 +11,7 @@ export const listFunctionsTool: InternalToolConfig<
   name: 'Lambda List Functions',
   description: 'List Lambda functions with the version-specific configuration of each',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

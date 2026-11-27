@@ -62,7 +62,7 @@ Data lives inside Sim rather than in a separate service you have to wire up. Nat
 
 Real-time multiplayer lets more than one person edit the same workflow at once, the way you'd edit a shared document. If your Relay setup was maintained by a small team, you keep that collaborative build model instead of dropping back to one editor at a time.
 
-For larger deployments, Sim offers SSO and SAML, bring-your-own-key so you use your own model provider credentials and billing, SOC 2 Type II compliance, and an Admin API for provisioning and governance. That path exists if you need to justify the tool to a security team or manage many users, and it's the same product, not a separate enterprise fork.
+For larger deployments, Sim offers SSO and SAML, bring-your-own-key so you use your own model provider credentials and billing, a SOC 2 Type II report covering the Security criterion, and an Admin API for provisioning and governance. That path exists if you need to justify the tool to a security team or manage many users, and it's the same product, not a separate enterprise fork.
 
 Here is the honest tradeoff. Sim's library of pre-built, third-party integrations is smaller than what n8n or Zapier ship today. If your Relay workflows lean on a long tail of niche SaaS connectors, you'll hit some that Sim doesn't have out of the box yet, and you'll cover the gap with a generic HTTP or API block instead of a one-click node. For workflows built on common services and AI steps, you won't notice. For a handful of obscure apps, you will, and it's worth checking your connector list before you commit.
 

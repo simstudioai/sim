@@ -6,6 +6,7 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
   name: 'Airtable Update Record',
   description: 'Update an existing record in an Airtable table by ID',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -64,6 +65,12 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
       ...(params.typecast != null ? { typecast: params.typecast } : {}),
     }),
   },
+
+  /** A dry run's placeholder holds the record the call names, with the fields it writes. */
+  dryRunOutput: (params) => ({
+    record: { id: params.recordId.trim(), fields: params.fields },
+    metadata: { recordCount: 1 },
+  }),
 
   transformResponse: async (response) => {
     const data = await response.json()

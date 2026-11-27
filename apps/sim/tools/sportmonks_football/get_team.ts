@@ -28,6 +28,7 @@ export const sportmonksGetTeamTool: ToolConfig<SportmonksGetTeamParams, Sportmon
     name: 'Get Team by ID',
     description: 'Retrieve a single football team by its ID from Sportmonks',
     version: '1.0.0',
+    effect: 'read',
     oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
     params: {

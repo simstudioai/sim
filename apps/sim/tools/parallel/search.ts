@@ -54,6 +54,7 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
   name: 'Parallel AI Search',
   description: 'Search the web with Parallel AI and return matching pages with content excerpts.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: 'PARALLEL_API_KEY',

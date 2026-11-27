@@ -199,7 +199,7 @@ Plain JavaScript without imports runs in isolated-vm within Node child workers i
 
 | Variable | Description |
 |----------|-------------|
-| `WORKFLOW_CODE` | Set to `true` to enable [workflows as code](/workflows/code) and [workspace as code](/workflows/workspace-code): the read-only **Code** tab in the workflow builder, and the source API and MCP operations that the `sim workflows source` and `sim workspaces source` CLI commands call. Off when unset; while off, those operations answer `403` |
+| `WORKFLOW_CODE` | Set to `true` to enable [workflows as code](/workflows/code) and [workspace as code](/workflows/code/workspace): the read-only **Code** tab in the workflow builder, and the source API and MCP operations that the `sim workflows source` and `sim workspaces source` CLI commands call. Off when unset; while off, those operations answer `403` |
 
 ## Chat and PII [#chat--pii]
 
@@ -268,7 +268,7 @@ Most `/api` routes also pass through Next.js Proxy, which buffers only the first
 
 ## Limits
 
-With `BILLING_ENABLED` disabled, hosted-plan execution rates/timeouts and table/storage quotas are not enforced unless you set their free-tier variables. Independent protocol, body-size, concurrency, and security rate limits still apply. Billing-enabled deployments enforce their plan limits. Keep `BILLING_ENABLED` and `NEXT_PUBLIC_BILLING_ENABLED` consistent so enforcement and the UI agree.
+With `BILLING_ENABLED` disabled, hosted-plan execution rates/timeouts and table/storage quotas are not enforced unless you set their free-tier variables. Independent protocol, body-size, concurrency, and security rate limits still apply. Billing-enabled deployments enforce their plan limits.
 
 Retention cleanup is separately opt-in through `DATA_RETENTION_ENABLED` or the enterprise suite. A configured retention policy still applies without billing; see [Data retention](/platform/enterprise/data-retention).
 

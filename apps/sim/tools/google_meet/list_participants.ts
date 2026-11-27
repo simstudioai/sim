@@ -16,6 +16,7 @@ export const listParticipantsTool: ToolConfig<
   name: 'Google Meet List Participants',
   description: 'List participants of a conference record',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

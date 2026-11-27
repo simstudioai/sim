@@ -14,6 +14,7 @@ export const gaugeListBrandsTool: ToolConfig<GaugeListBrandsParams, GaugeListBra
   description:
     "Your owned brands and the category's tracked competitors. Together these are the share-of-voice denominator.",
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

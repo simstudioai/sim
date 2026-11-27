@@ -277,11 +277,9 @@ const EFFECT_ROUTES: EffectRoute[] = [
   after(workflows.v2DeleteWorkflowContract, ({ data }) => [
     { op: 'remove', resource: { type: 'workflow', id: data.id } },
   ]),
-  after(workflows.v2ReplaceWorkflowStateContract, ({ data }) =>
-    upsert('workflow', data, data.dryRun)
-  ),
+  after(workflows.v2ReplaceWorkflowStateContract, ({ data }) => upsert('workflow', data, data.dry)),
   after(workflows.v2ApplyWorkflowOperationsContract, ({ data }) =>
-    upsert('workflow', data, data.dryRun)
+    upsert('workflow', data, data.dry)
   ),
   after(workflows.v2ApplyWorkflowVariablesContract, ({ data }) =>
     upsert('workflow', data, !data.changed)

@@ -10,6 +10,7 @@ export const upstashRedisLPushTool: ToolConfig<UpstashRedisLPushParams, UpstashR
     description:
       'Prepend a value to the beginning of a list in Upstash Redis. Creates the list if it does not exist.',
     version: '1.0.0',
+    effect: 'write',
     oauth: UPSTASH_CREDENTIAL_OAUTH,
 
     params: {

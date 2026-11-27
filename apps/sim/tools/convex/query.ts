@@ -13,6 +13,7 @@ export const queryTool: ToolConfig<ConvexFunctionCallParams, ConvexFunctionCallR
   name: 'Convex Run Query',
   description: 'Run a Convex query function and return its result',
   version: '1.0.0',
+  effect: 'read',
   oauth: CONVEX_CREDENTIAL_OAUTH,
 
   params: {

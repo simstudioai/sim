@@ -9,6 +9,7 @@ export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordP
     name: 'Discord Pin Message',
     description: 'Pin a message in a Discord channel',
     version: '1.0.0',
+    effect: 'write',
     oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {

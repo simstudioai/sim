@@ -14,6 +14,7 @@ export const getCreditsTool: ToolConfig<DatagmaGetCreditsParams, DatagmaGetCredi
   name: 'Datagma Get Credits',
   description: 'Check remaining credit balance on a Datagma account. Free — no credits consumed.',
   version: '1.0.0',
+  effect: 'read',
 
   // No hosting config — credit-balance lookup is free and should always use BYOK
   params: {

@@ -14,6 +14,7 @@ export const describeTrailsTool: InternalToolConfig<
   description:
     'Retrieve the full configuration of one or more CloudTrail trails in the current Region',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

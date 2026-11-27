@@ -30,6 +30,7 @@ export const zendeskGetTicketTool: ToolConfig<ZendeskGetTicketParams, ZendeskGet
   name: 'Get Single Ticket from Zendesk',
   description: 'Get a single ticket by ID from Zendesk',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

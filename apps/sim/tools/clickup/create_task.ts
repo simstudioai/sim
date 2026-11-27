@@ -6,6 +6,7 @@ import {
   mapClickUpTask,
 } from '@/tools/clickup/shared'
 import type { ClickUpCreateTaskParams, ClickUpTaskResponse } from '@/tools/clickup/types'
+import { dryRunId } from '@/tools/dry-run'
 import type { ToolConfig } from '@/tools/types'
 
 export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpTaskResponse> = {
@@ -13,6 +14,7 @@ export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpT
   name: 'ClickUp Create Task',
   description: 'Create a new task in a ClickUp list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -163,6 +165,20 @@ export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpT
       return body
     },
   },
+
+  /**
+   * A dry run's placeholder holds the task the call creates, named as it asks, with the
+   * plain description it sends (ClickUp derives one from markdown) and the parent it names; its id
+   * is a placeholder.
+   */
+  dryRunOutput: (params) => ({
+    task: {
+      id: dryRunId('task'),
+      name: params.name,
+      ...(params.description && !params.markdownContent ? { description: params.description } : {}),
+      ...(params.parent ? { parent: params.parent } : {}),
+    },
+  }),
 
   transformResponse: async (response) => {
     const data = await response.json().catch(() => null)

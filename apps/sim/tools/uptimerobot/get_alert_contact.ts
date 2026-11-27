@@ -18,6 +18,7 @@ export const uptimeRobotGetAlertContactTool: ToolConfig<
   name: 'UptimeRobot Get Alert Contact',
   description: 'Get the details of a single UptimeRobot alert contact by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

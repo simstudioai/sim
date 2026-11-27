@@ -14,7 +14,6 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useSession } from '@/lib/auth/client'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { buildInviteFailureMessage } from '@/lib/invitations/error-messages'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -167,11 +166,11 @@ export function InviteModal({
   const usedSeats = organizationBillingData?.data?.usedSeats ?? 0
   const availableSeats = Math.max(0, totalSeats - usedSeats)
   /**
-   * Only Enterprise plans have a fixed seat cap that gates invites. Team seats
-   * are provisioned when an invitee accepts, and externals never take one.
+   * Only a fixed seat cap gates invites. Team seats are provisioned when an invitee accepts, a
+   * self-serve Enterprise contract trues up seats past its baseline, and externals never take one.
    */
-  const isEnterpriseOrg = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
-  const hasSeatData = canViewOrganizationBilling && isEnterpriseOrg && totalSeats > 0
+  const hasFixedSeatCap = organizationBillingData?.data?.seatCapKind === 'fixed'
+  const hasSeatData = canViewOrganizationBilling && hasFixedSeatCap && totalSeats > 0
   /**
    * Advisory only. The server decides per email and does not charge a seat for
    * everyone: an existing organization member is granted access directly, and an
@@ -184,6 +183,22 @@ export function InviteModal({
   const seatLimitReason = mayExceedSeatCapacity
     ? `Only ${availableSeats} seat${availableSeats === 1 ? '' : 's'} available — invites beyond that may fail. External collaborators and existing members do not use seats.`
     : null
+  /**
+   * Tells the inviter what accepting costs, since the seat is charged then rather than now. An
+   * organization invite needs the seat model, which only billing admins can read; a personal
+   * workspace's invitee always joins as a new seat.
+   */
+  const seatCapKind = isOrganizationInvite
+    ? organizationBillingData?.data?.seatCapKind
+    : 'on-demand'
+  const seatChargeHint =
+    billingEnabled && canInvite && membership !== 'external'
+      ? seatCapKind === 'baseline'
+        ? 'New members past your contracted seats are billed at the next seat true-up.'
+        : seatCapKind === 'on-demand'
+          ? "Each new member who accepts adds a paid seat, prorated for this period. Existing members don't add one."
+          : null
+      : null
 
   const validateEmail = useCallback(
     (email: string): string | null => {
@@ -271,7 +286,7 @@ export function InviteModal({
           value={emails}
           onChange={handleEmailsChange}
           validate={validateEmail}
-          hint={inviteDisabledReason ?? seatLimitReason}
+          hint={inviteDisabledReason ?? seatLimitReason ?? seatChargeHint}
           placeholder={
             canInvite
               ? 'Enter emails'

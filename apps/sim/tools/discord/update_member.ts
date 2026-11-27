@@ -11,6 +11,7 @@ export const discordUpdateMemberTool: ToolConfig<
   name: 'Discord Update Member',
   description: 'Update a member in a Discord server (e.g., change nickname)',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

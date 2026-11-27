@@ -8,6 +8,7 @@ export const boxCopyFileTool: ToolConfig<BoxCopyFileParams, BoxUploadFileRespons
   name: 'Box Copy File',
   description: 'Copy a file to another folder in Box',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

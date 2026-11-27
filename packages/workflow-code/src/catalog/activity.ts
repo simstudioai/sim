@@ -10,8 +10,9 @@ import {
   LEGACY_AGENT_FIELDS,
   SYSTEM_SUBBLOCK_IDS,
 } from '@sim/workflow-types/blocks'
+import type { RefSegment } from '../code-files/ref-path'
 import type { CanonicalBlock, SubBlockId } from '../model'
-import { setOwn } from '../records'
+import { getOwn, setOwn } from '../records'
 import {
   type CanonicalIndex,
   type CanonicalModeOverrides,
@@ -113,12 +114,41 @@ export function blockOutputSchemas(
 }
 
 /**
+ * Whether `name` is an output a block writes only when it fails into an error edge: `error` on
+ * every block (`BlockExecutor`'s `errorOutput`), or one of the `errorOutputs` its catalog entry
+ * declares (a Function's `errorMessage`). Each is text, read exactly where `error` is.
+ */
+function isErrorOutputName(block: CatalogBlock, name: string): boolean {
+  return name === 'error' || (block.errorOutputs?.includes(name) ?? false)
+}
+
+/**
+ * The failure output a path names (`x.error`, or a Function's `x.errorMessage`;
+ * `isErrorOutputName`): what a failed block outputs when an error edge (`x.onError(y)`) leaves it,
+ * which the executor returns as the block's output instead of failing the run
+ * (`BlockExecutor`'s `errorOutput`). Any other block fails the run, so nothing reads it. A block
+ * with no error port (a Start trigger) has none, so on it the path is an ordinary output.
+ */
+export function errorOutputOf(
+  block: CatalogBlock | undefined,
+  segments: readonly RefSegment[]
+): string | null {
+  const [first] = segments
+  return block?.graph.errorPort === true &&
+    segments.length === 1 &&
+    first?.kind === 'name' &&
+    isErrorOutputName(block, first.name)
+    ? first.name
+    : null
+}
+
+/**
  * The outputs a block declared through `builder` exposes ({@link blockOutputSchemas}) when its
  * source sets no trigger of its own: a trigger-mode builder runs as the trigger it pins, else as
  * its block's first. Compile checks output paths and SDK codegen types a builder's outputs by
  * this one call, so a path compile accepts is one the SDK types.
  */
-export function builderOutputSchemas(
+function builderOutputSchemas(
   catalog: BlockCatalog,
   block: CatalogBlock,
   builder: CatalogBuilder | undefined
@@ -127,6 +157,38 @@ export function builderOutputSchemas(
     triggerMode: builder?.triggerMode === true,
     values: builder?.fixed ?? {},
   })
+}
+
+/**
+ * The outputs a block declared through `builder` produces: {@link builderOutputSchemas}, narrowed
+ * to the names its operation's tool returns when the catalog records them (`operationOutputs`),
+ * so `table.queryRows` has `rows` and never the `row` of the insert operations, with the names
+ * among them that may be `null`. Compile and SDK codegen both read outputs here. An operation the
+ * catalog records nothing for, a block with no `operationOutputs`, and a trigger keep every
+ * output: an output's `condition` is not read, since block conditions can disagree with the tools
+ * behind them.
+ */
+export function builderProducedOutputs(
+  catalog: BlockCatalog,
+  block: CatalogBlock,
+  builder: CatalogBuilder | undefined
+): { outputs: Record<string, CatalogOutput>; nullable: ReadonlySet<string> } {
+  const outputs = builderOutputSchemas(catalog, block, builder)
+  const operation = builder?.operation
+  const returned =
+    operation !== undefined && !builder?.triggerMode && outputs === block.outputs
+      ? getOwn(block.operationOutputs ?? {}, operation)
+      : undefined
+  if (!returned) return { outputs, nullable: new Set() }
+  return {
+    outputs: Object.fromEntries(
+      returned.names.flatMap((name) => {
+        const output = getOwn(outputs, name)
+        return output ? [[name, output] as const] : []
+      })
+    ),
+    nullable: new Set(returned.nullable ?? []),
+  }
 }
 
 /**

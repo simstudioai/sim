@@ -25,6 +25,7 @@ export const rerouteLineTool: ToolConfig<RerouteLineParams, RerouteLineResponse>
   description:
     'Reroute a connector line so it efficiently connects its endpoint shapes — useful after moving the shapes the line connects.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

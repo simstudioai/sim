@@ -28,6 +28,7 @@ export const affinityCreateNoteTool: ToolConfig<
   description:
     'Write a note — attached to companies, persons, and opportunities, anchored to a meeting, call, or chat message, or posted as a reply to an existing note.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

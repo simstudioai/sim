@@ -8,6 +8,7 @@ export const rampGetBalanceTool: ToolConfig<RampGetBalanceParams, RampGetBalance
   name: 'Ramp Get Balance',
   description: 'Fetch the company balance information in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

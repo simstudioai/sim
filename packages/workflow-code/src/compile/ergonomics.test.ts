@@ -150,6 +150,36 @@ describe('stored()', () => {
     expect(secrets(envPrint.diagnostics)).toEqual([])
   })
 
+  it('leaves stored() unread offline on a block the lock binds, a tool param included', () => {
+    const lock = {
+      version: 1 as const,
+      blocks: {
+        m: { id: 'id-m', parent: null, ident: 'm', order: 0 },
+        a: { id: 'id-a', parent: null, ident: 'a', order: 1 },
+      },
+      variables: {},
+    }
+    const offline = (body: string) =>
+      compileWorkflow({
+        entry: { path: 'workflow.ts', text: source(body) },
+        files: new Map(),
+        catalog: TEST_CATALOG,
+        sdkMajor: 1,
+        knownKeys: new Set(Object.keys(lock.blocks)),
+        storedUnread: lock,
+      })
+    const block = offline("  mail.send('M', { apiKey: stored(), to: 'x@y.z' })")
+    expect(codes(block)).toEqual([])
+    expect(block.workflow?.blocks.m?.params.apiKey).toBeUndefined()
+    const tool = offline(
+      "  agent('A', { model: 'm', tools: [mail.tool.send({ credential: credential('ops'), apiKey: stored() })] })"
+    )
+    expect(codes(tool)).toEqual([])
+    const unbound = offline("  mail.send('Other', { apiKey: stored() })")
+    expect(unbound.workflow).toBeNull()
+    expect(codes(unbound)).toContain('E_STORED_VALUE_MISSING')
+  })
+
   it('refuses stored() inside a value', () => {
     expect(codes(run(source("  mail.send('M', { to: [stored()] })"), storedWorkflow))).toContain(
       'E_UNSUPPORTED_SYNTAX'
@@ -412,10 +442,10 @@ describe('a raw edge into a container child', () => {
 })
 
 describe('header, names and hand-written references', () => {
-  it('refuses a header major below the oldest the server reads', () => {
-    expect(codes(run(source("  api('A', { url: 'x' })", '// @sim-sdk 0')))).toEqual([
-      'E_SDK_MAJOR_OLD',
-    ])
+  it('refuses a header major other than the one the server reads', () => {
+    for (const header of ['// @sim-sdk 0', '// @sim-sdk 2']) {
+      expect(codes(run(source("  api('A', { url: 'x' })", header)))).toEqual(['E_SDK_MAJOR'])
+    }
   })
 
   it('warns on an invisible bidi or zero-width character in a block name, and prints it escaped', () => {

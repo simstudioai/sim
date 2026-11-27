@@ -29,6 +29,7 @@ export const instagramGetConversationMessagesTool: ToolConfig<
   description:
     'List cursor-paginated message references; full details are available only for the 20 most recent messages',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

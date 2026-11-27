@@ -3,7 +3,7 @@ import { member, organization, usageLog, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gte, lt, sql } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
-import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
 import { resolveSubscriptionUsagePeriodOrDefault } from '@/lib/billing/core/reporting-period'
 import {
@@ -11,12 +11,18 @@ import {
   getBillingPeriodUsageCostByUser,
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
+import { formatCredits } from '@/lib/billing/credits/conversion'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
-import { getPlanWeeklyRefreshDollars, isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
+import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import {
   getEffectiveSeats,
   getFreeTierLimit,
+  getOrgIncludedUsageDollars,
+  getSubscriptionWeeklyRefreshDollars,
   hasUsableSubscriptionStatus,
+  isEnterpriseSelfServe,
+  isHardCappedEnterprise,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { countPendingSeatInvitations } from '@/lib/billing/validation/seat-management'
@@ -298,7 +304,7 @@ export async function getOrganizationBillingData(
       : 0
 
     if (isPaid(subscription.plan) && subscription.periodStart) {
-      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+      const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(subscription)
       if (weeklyRefreshDollars > 0) {
         const refreshConsumed = await computeWeeklyRefreshConsumed(
           {
@@ -314,8 +320,6 @@ export async function getOrganizationBillingData(
       }
     }
 
-    const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan)
-
     // Stripe subscription quantity; `||` not `??` because 0 seats is
     // never valid for a paid sub — fall through to 1.
     const licensedSeats = subscription.seats || 1
@@ -328,10 +332,12 @@ export async function getOrganizationBillingData(
 
     if (isEnterprise(subscription.plan)) {
       const configuredLimit = toNumber(toDecimal(organizationData.orgUsageLimit))
-      minimumBillingAmount = configuredLimit
+      minimumBillingAmount = isHardCappedEnterprise(subscription)
+        ? configuredLimit
+        : getOrgIncludedUsageDollars(subscription)
       totalUsageLimit = configuredLimit
     } else {
-      minimumBillingAmount = licensedSeats * pricePerSeat
+      minimumBillingAmount = getOrgIncludedUsageDollars(subscription)
 
       const configuredLimit = organizationData.orgUsageLimit
         ? toNumber(toDecimal(organizationData.orgUsageLimit))
@@ -392,6 +398,56 @@ export async function getOrganizationBillingData(
 }
 
 /**
+ * Sets a self-serve Enterprise customer's own usage limit. It may not fall below what the
+ * contract already covers (its allowance plus prepaid credit); usage past the allowance is billed
+ * as overage. The choice is stored apart from the enforced limit so the contract webhook keeps it.
+ */
+async function updateSelfServeEnterpriseUsageLimit(
+  organizationId: string,
+  newLimit: number
+): Promise<{ success: boolean; error?: string }> {
+  return db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, organizationId)
+    // The contract webhook takes the same lock, so these terms are the ones it last applied.
+    const subscription = await getOrganizationSubscription(organizationId, {
+      executor: tx,
+      onError: 'throw',
+    })
+    if (!subscription || !isEnterpriseSelfServe(subscription)) {
+      return {
+        success: false,
+        error: 'Enterprise plans have fixed usage limits that cannot be changed',
+      }
+    }
+    const includedUsage = getOrgIncludedUsageDollars(subscription)
+    const [row] = await tx
+      .select({ creditBalance: organization.creditBalance })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .for('update')
+      .limit(1)
+    const minimumLimit = toNumber(toDecimal(includedUsage).plus(toDecimal(row?.creditBalance)))
+    if (newLimit < minimumLimit) {
+      return {
+        success: false,
+        error: `Usage limit cannot be less than ${formatCredits(minimumLimit)} credits, your contract's included usage plus prepaid credit`,
+      }
+    }
+    const limit = roundCurrency(newLimit).toFixed(2)
+    await tx
+      .update(organization)
+      .set({ orgUsageLimit: limit, selfServeUsageLimit: limit, updatedAt: new Date() })
+      .where(eq(organization.id, organizationId))
+    logger.info('Self-serve Enterprise usage limit updated', {
+      organizationId,
+      newLimit,
+      minimumLimit,
+    })
+    return { success: true }
+  })
+}
+
+/**
  * Update organization usage limit (cap)
  */
 export async function updateOrganizationUsageLimit(
@@ -424,10 +480,13 @@ export async function updateOrganizationUsageLimit(
     }
 
     if (isEnterprise(subscription.plan)) {
-      return {
-        success: false,
-        error: 'Enterprise plans have fixed usage limits that cannot be changed',
+      if (isHardCappedEnterprise(subscription)) {
+        return {
+          success: false,
+          error: 'Enterprise plans have fixed usage limits that cannot be changed',
+        }
       }
+      return await updateSelfServeEnterpriseUsageLimit(organizationId, newLimit)
     }
 
     if (!isPaid(subscription.plan)) {
@@ -437,14 +496,12 @@ export async function updateOrganizationUsageLimit(
       }
     }
 
-    const { basePrice } = getPlanPricing(subscription.plan)
-    const seatCount = subscription.seats || 1
-    const minimumLimit = seatCount * basePrice
+    const minimumLimit = getOrgIncludedUsageDollars(subscription)
 
     if (newLimit < minimumLimit) {
       return {
         success: false,
-        error: `Usage limit cannot be less than minimum billing amount of $${roundCurrency(minimumLimit).toFixed(2)}`,
+        error: `Usage limit cannot be less than your plan's ${formatCredits(minimumLimit)} included credits`,
       }
     }
 

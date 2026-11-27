@@ -31,6 +31,7 @@ export const railwayGetDeploymentTool: ToolConfig<
   name: 'Railway Get Deployment',
   description: 'Get details for a single Railway deployment',
   version: '1.0.0',
+  effect: 'read',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

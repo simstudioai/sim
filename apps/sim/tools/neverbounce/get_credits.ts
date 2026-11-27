@@ -12,6 +12,7 @@ export const getCreditsTool: ToolConfig<
   name: 'NeverBounce Get Credits',
   description: 'Retrieve the remaining paid and free verification credits for the account.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

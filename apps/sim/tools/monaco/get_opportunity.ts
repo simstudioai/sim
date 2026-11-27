@@ -19,6 +19,7 @@ export const monacoGetOpportunityTool: ToolConfig<
   description:
     'Get one Monaco opportunity by ID, including its AI-generated summary, identified risks, stage, pipeline, and custom fields.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -12,6 +12,7 @@ export const hubspotCreateNoteTool: ToolConfig<HubSpotCreateNoteParams, HubSpotC
     description:
       'Log a note in HubSpot and optionally associate it with contacts, companies, or deals. Requires hs_timestamp and hs_note_body properties',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

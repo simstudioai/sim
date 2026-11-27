@@ -16,6 +16,7 @@ export const referringDomainsTool: ToolConfig<
   description:
     'Get a list of domains that link to a target domain or URL. Returns unique referring domains with their domain rating, backlink counts, and discovery dates.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {

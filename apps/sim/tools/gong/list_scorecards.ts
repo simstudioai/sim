@@ -9,6 +9,7 @@ export const listScorecardsTool: ToolConfig<GongListScorecardsParams, GongListSc
     name: 'Gong List Scorecards',
     description: 'Retrieve scorecard definitions from Gong settings.',
     version: '1.0.0',
+    effect: 'read',
     oauth: GONG_CREDENTIAL_OAUTH,
 
     params: {

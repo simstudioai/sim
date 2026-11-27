@@ -17,6 +17,7 @@ export const semrushKeywordOverviewAllTool: ToolConfig<
   description:
     'Get search volume, CPC, and competition for a keyword across every regional Semrush database.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

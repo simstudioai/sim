@@ -10,6 +10,7 @@ export const profoundCitationsReportTool: ToolConfig<
   name: 'Profound Citations Report',
   description: 'Query citations report for a category in Profound',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

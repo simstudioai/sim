@@ -14,6 +14,7 @@ export const vercelVerifyProjectDomainTool: ToolConfig<
   name: 'Vercel Verify Project Domain',
   description: 'Verify a Vercel project domain by checking its verification challenge',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

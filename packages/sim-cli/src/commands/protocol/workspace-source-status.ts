@@ -25,6 +25,7 @@ import {
   sourceStatus,
 } from '@sim/workspace-code/status'
 import type { Command } from 'commander'
+import type { NextStep } from '#sim-cli/output/next-step'
 import { profileFrom } from '../../context'
 import { setSoftExitCode } from '../../embed-context'
 import { SOURCE_STALE_EXIT_CODE } from '../../exit-codes'
@@ -34,6 +35,7 @@ import type {
   PlanWorkspaceSourceResponse,
 } from '../../generated/v2-api'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
+import { simInvocation } from '../../runtime/run-next'
 import { SourceDirError } from './local-errors'
 import {
   absoluteDirOption,
@@ -55,22 +57,20 @@ import {
   type FileDiff,
   givenFilterPath,
   loginCommand,
-  type NextStep,
   nextStep,
   pathFilter,
   planFindings,
   printDiffReport,
   printStatusReport,
-  readPlan,
   type ServerCheck,
-  STATUS_EXIT_CODES_HELP,
   type StatusReport,
   statusExitCode,
+  statusHelp,
   textDiff,
   unreachableReason,
 } from './source-status'
 import { withSourceExitCode } from './source-tree'
-import type { Diagnostic } from './source-ui'
+import { type Diagnostic, shellWord, summaryFileOption } from './source-ui'
 import {
   assertWorkspaceDir,
   ONLY_KINDS_HELP,
@@ -158,10 +158,10 @@ function localPaths(local: LocalWorkspace): string[] {
 
 /**
  * The workspace a status or diff asks about: the one the directory was read from (a `--workspace`
- * naming another is refused), else the profile's.
+ * or `SIM_WORKSPACE` naming another is refused), else the resolved one.
  */
 function targetWorkspace(
-  connection: Connection<'planWorkspaceSource' | 'applyWorkspaceSource' | 'getWorkspaceSource'>,
+  connection: Connection<'planWorkspaceSource' | 'getWorkspaceSource'>,
   dir: string,
   readFrom: string | null
 ): string {
@@ -171,8 +171,8 @@ function targetWorkspace(
       dir,
       readFrom,
       profile,
-      (from, named) =>
-        `Run it without --workspace to compare with ${from}, or get ${named} into another directory.`
+      (from, named, setting) =>
+        `Run it without ${setting} to compare with ${from}, or get ${named} into another directory.`
     ) ?? undefined
   )
 }
@@ -200,7 +200,7 @@ interface WorkspacePlanSummary {
   /** Resources changed on both sides: while any stands, an apply is refused as stale. */
   conflicts: number
   /**
-   * The errors and warnings its dry run reports (`apply --dry-run`, with `--allow-delete` when
+   * The errors and warnings its dry run reports (`apply --dry`, with `--allow-delete` when
    * `next` names it), the server changes the status lists by resource included: a conflict is an
    * error there (`E_APPLY_STALE`), a resource added on the server a warning (`W_UNDECLARED`).
    */
@@ -319,14 +319,15 @@ function unmanagedNext(
   status: SourceStatus,
   managed: readonly WorkspaceKind[],
   dir: string,
-  workspaceScope: string
+  workspaceScope: string,
+  prefix: string
 ): NextStep | null {
   if (status.conflicts.length > 0 || status.local.length === 0) return null
   if (status.local.some((entry) => managed.includes(entry.kind))) return null
   const folders = [...new Set(status.local.map((entry) => KIND_DIRS[entry.kind]))]
   const named = folders.join(', ')
   return {
-    command: `${PREFIX} get --dir ${dir} --only ${folders.join(',')} --force${workspaceScope}`,
+    command: `${prefix} get --dir ${shellWord(dir)} --only ${folders.join(',')} --force${workspaceScope}`,
     reason: `${named} ${folders.length === 1 ? 'is' : 'are'} gone, so this directory no longer manages ${folders.length === 1 ? 'that kind' : 'those kinds'} and an apply leaves their resources alone: this get writes ${folders.length === 1 ? 'it' : 'them'} back. To delete the resources instead, recreate ${folders.length === 1 ? 'it' : 'them'} without them (an emptied folder keeps a .gitkeep) and apply with --allow-delete.`,
   }
 }
@@ -336,6 +337,7 @@ interface StatusOptions {
   only?: string
   offline?: boolean
   json?: boolean
+  summaryFile?: string
 }
 
 /**
@@ -344,11 +346,9 @@ interface StatusOptions {
  * the server since: drift, and conflicts where both sides changed. Ends with the next command.
  */
 export function attachWorkspaceSourceStatus(source: Command): void {
-  const [command, connect] = apiCommand(source, 'status', [
-    'planWorkspaceSource',
-    'applyWorkspaceSource',
-  ])
+  const [command, connect] = apiCommand(source, 'status', ['planWorkspaceSource'])
   absoluteDirOption(command)
+  summaryFileOption(command)
   command
     .option('--dir <dir>', 'Workspace source directory written by `workspaces source get`', '.')
     .option('--only <kinds>', `Report only these kinds (${ONLY_KINDS_HELP})`)
@@ -356,8 +356,9 @@ export function attachWorkspaceSourceStatus(source: Command): void {
     .option('--json', 'Print the machine-readable status (same as --output json)')
     .allowExcessArguments(false)
     .description('Show what changed locally and on the server since the directory was read')
-    .addHelpText('after', `${STATUS_EXIT_CODES_HELP}\n${SOURCE_DIR_BUSY_HELP}`)
+    .addHelpText('after', statusHelp('workspaces source status'))
     .action(async (options: StatusOptions, invoked: Command) => {
+      const nextPrefix = `${simInvocation(invoked)} workspaces source`
       const only = parseKinds(options.only)
       const output = options.json ? 'json' : profileFrom(invoked).output
       // A status or diff only reads, but holds the directory's lock so it never reports a
@@ -399,20 +400,9 @@ export function attachWorkspaceSourceStatus(source: Command): void {
               options: { allowDelete: true, ...(only ? { only } : {}) },
             }
             try {
-              const response = await readPlan(
-                () =>
-                  connection.client.request<PlanWorkspaceSourceResponse>('planWorkspaceSource', {
-                    params: { workspaceId: target },
-                    body,
-                    retryRateLimited: true,
-                  }),
-                () =>
-                  connection.client.request<PlanWorkspaceSourceResponse>('applyWorkspaceSource', {
-                    params: { workspaceId: target },
-                    query: { dryRun: true },
-                    body: { ...body, provenance: { client: 'cli' } },
-                    retryRateLimited: true,
-                  })
+              const response = await connection.client.request<PlanWorkspaceSourceResponse>(
+                'planWorkspaceSource',
+                { params: { workspaceId: target }, body, retryRateLimited: true }
               )
               data = response.data
               byBase = workflowsSentByBase(local, target)
@@ -435,10 +425,10 @@ export function attachWorkspaceSourceStatus(source: Command): void {
                 )
               : []
           )
-          const dryRun = data ? dryRunFindings(data, byBase) : []
+          const dry = data ? dryRunFindings(data, byBase) : []
           // The server changes are listed by resource, so only the rest are printed as findings.
-          const planned = dryRun.filter((finding) => !isServerChangeFinding(finding.code))
-          const plan = data ? planSummary(dryRun, applyPlan, status.conflicts.length) : null
+          const planned = dry.filter((finding) => !isServerChangeFinding(finding.code))
+          const plan = data ? planSummary(dry, applyPlan, status.conflicts.length) : null
           const report: StatusReport<WorkspacePlanSummary> & { workspaceId: string | null } = {
             workspaceId,
             dir: options.dir,
@@ -450,15 +440,22 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             next:
               (login
                 ? null
-                : unmanagedNext(status, local.submission.kinds, options.dir, workspaceScope)) ??
+                : unmanagedNext(
+                    status,
+                    local.submission.kinds,
+                    options.dir,
+                    workspaceScope,
+                    nextPrefix
+                  )) ??
               nextStep(status, {
-                prefix: PREFIX,
+                prefix: nextPrefix,
                 dir: options.dir,
                 getArgs: '',
                 server,
                 errors: plan?.errors ?? 0,
                 deletes: destructiveChanges(applyPlan) > 0,
                 scope: `${onlyScope}${workspaceScope}`,
+                summaryFile: options.summaryFile,
                 login,
               }),
           }
@@ -467,7 +464,8 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             `Workspace ${workspaceId ?? '(no base)'} in ${options.dir}`,
             report,
             planLine,
-            planned
+            planned,
+            options.summaryFile
           )
           setSoftExitCode(statusExitCode(status.state, login))
         },

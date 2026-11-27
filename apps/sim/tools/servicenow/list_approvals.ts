@@ -27,6 +27,7 @@ export const listApprovalsTool: ToolConfig<
   name: 'List ServiceNow Approvals',
   description: `List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the "requested" state, which is what a user's pending approvals look like.`,
   version: '1.0.0',
+  effect: 'read',
   oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {

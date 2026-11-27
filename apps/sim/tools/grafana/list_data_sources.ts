@@ -13,6 +13,7 @@ export const listDataSourcesTool: ToolConfig<
   name: 'Grafana List Data Sources',
   description: 'List all data sources configured in Grafana',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

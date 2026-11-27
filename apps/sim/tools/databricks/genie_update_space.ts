@@ -23,6 +23,7 @@ export const genieUpdateSpaceTool: ToolConfig<
   name: 'Databricks Update Genie Space',
   description: 'Update a Genie space, optionally protecting the change with its current ETag.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

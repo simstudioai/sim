@@ -7,11 +7,11 @@
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { compareStrings } from '@sim/utils/string'
-import type { WorkflowInput } from '@sim/workflow-code'
+import type { ChildResultFields, WorkflowInput } from '@sim/workflow-code'
 import { SOURCE_CODE_DIR, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
+import { SDK_MAJOR } from '@sim/workflow-code/sdk'
 import {
   SOURCE_COMPILER_OPTIONS,
-  typecheckCommand,
   WORKSPACE_COOKBOOK,
   WORKSPACE_SDK_DTS,
 } from '@sim/workflow-sdk/codegen'
@@ -72,6 +72,7 @@ import {
   SOURCE_STAGING_PREFIX,
   SOURCE_STORED_EDGES_FILE,
   type StatDigest,
+  unchangedTexts,
   type Written,
 } from './source-dir'
 import { sourceExitCodesTable } from './source-exit-codes'
@@ -123,32 +124,47 @@ const WORKSPACE_EXAMPLES_DIR = '.sim/examples/workspace'
 const WORKSPACE_ADVANCED_FILE = '.sim/GUIDE-advanced.md'
 
 /**
- * The reference below the primer in `.sim/AGENTS.md`: the layout, the edit loop in detail, what
- * to know and every exit code.
+ * The reference below the primer in `.sim/AGENTS.md`: the examples, the flags and the layout. The
+ * rest is in {@link ADVANCED_GUIDE}, which agents read only when a step needs it.
  */
 const AGENTS_GUIDE = `# Reference
 
-The primer above is enough to edit; read a section here when a step needs it. Deletes in depth, Git and CI, and promoting to another workspace: \`${WORKSPACE_ADVANCED_FILE}\`.
+The primer above is enough to edit. \`${WORKSPACE_ADVANCED_FILE}\` has the rest: how an apply orders resources and holds back secrets, the edit loop step by step, what to know, every exit code, deletes in depth, Git and CI, and promoting to another workspace.
 
 \`${WORKSPACE_EXAMPLES_DIR}/\` holds one correct example of each kind and a workflow using them, and \`.sim/examples/*.ts\` one workflow example of each common block (agent with structured output, condition, HTTP request, child workflow, Slack, loop, …): copy from them. Look up any other builder with \`sim workflows source params <builder>\`.
+
+## Flags
+
+- \`check\`: \`--strict\` fails on the warnings that name a real problem in every block, not only in a block you added; \`--no-types\` skips the type-check.
+- \`apply\`: \`--yes\` writes (without it and a terminal, it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}); \`--dry\` only plans; \`--allow-delete\`; \`--to <workspaceId>\` promotes.
+- \`get\`: \`--force\` replaces edits no apply has saved.
 
 ## Layout
 
 A resource's key is its file or folder name (in \`${KIND_DIRS.secret}\` and \`${KIND_DIRS.credential}\`, the entry's name), and a workflow names it by that key.
 
-${APPLY_ORDER.map((kind) => `- ${WORKSPACE_KIND_SPECS[kind].guide}`).join('\n')}
+Every \`.ts\` file below, a deployment included, starts with the line \`// @sim-sdk ${SDK_MAJOR}\` (without it: \`E_DECL_HEADER\`); a one-line form here shows only the call.
 
-One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held at the last get and the ones this directory declares, with each workflow's inputs: \`sim workspaces source check\` (or \`sim workflows source check\` in a workflow folder) regenerates it from the files, so run it before \`tsc\` after adding a resource or a workflow input. The dry run is the authority.
+${APPLY_ORDER.map((kind) => `- ${WORKSPACE_KIND_SPECS[kind].guide}`).join('\n')}
+`
+
+/** The workspace guide's deep dives, which `.sim/AGENTS.md` points to in one line. */
+const ADVANCED_GUIDE = `# Sim workspace source: advanced
+
+## How an apply orders resources
+
+One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held at the last get and the ones this directory declares, with each workflow's inputs: \`sim workspaces source check\` (or \`sim workflows source check\` in a workflow folder) regenerates it from the files before it type-checks them. The dry run is the authority.
 
 Secrets never appear in source: a workflow reads an environment variable as \`env.NAME\` and tool code as \`$env.NAME\`, both by name, and a saved credential is \`credential('<key>')\`. Declare the ones workflows use in \`${KIND_DIRS.secret}\` and \`${KIND_DIRS.credential}\`: a workflow using a declared secret the workspace has no value for, or a declared credential key nothing binds to, is held back, with the command that fixes it, while the rest of the apply is written (exit ${SOURCE_HELD_EXIT_CODE}; exit 1 when nothing else was). The same directory applied to another workspace binds each credential key to that workspace's own credential.
 
 ## Edit loop in detail
 
+Batch it: write every file first, then run steps 2 and 4 (with a test run of each workflow you changed) as one chained command, \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes --run <key>='{…}'\`, and fix what it reports in the next step. Each non-zero exit stops the chain. Step 3 (with its \`apply --dry\`, which only plans) is for a person, CI, or a change you want reviewed first.
+
 1. Edit the files.
-2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key (skills included) or table column, a child workflow's inputs, and an env name \`${KIND_DIRS.secret}\` lacks (a warning); and checks each \`${KIND_DIRS.table}/<key>.rows.jsonl\` line against its table as the apply would. It fails (exit 1) on errors and on ${STRICT_FINDINGS_CLAUSE} in a block you added (\`--strict\`: in every block), regenerates \`.sim/sdk/workspace.d.ts\` and adds the blocks the workflows now use to \`tsconfig.json\`. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
-3. Run \`${typecheckCommand()}\` after every edit, before any dry run or apply, and fix what it reports: it takes about a second and catches what step 2 and the dry run do not (such as a reference to a start input the trigger does not declare). It type-checks the files with the TypeScript release the declarations are built for. \`tsconfig.json\` includes only the blocks the workflows used at the last check or get, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). \`sim workflows source params <builder>\` prints one builder's params and outputs; do not read the declarations whole. The dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
-4. \`sim workspaces source status --dir .\` before applying: your changes by resource (\`sim workspaces source diff --dir .\` shows the edits), what changed on the server since the get (a workflow edited in the editor included), the conflicts, and the command to run next. Exit 0 nothing changed, ${SOURCE_LOCAL_CHANGES_EXIT_CODE} only your edits, ${SOURCE_DRIFT_EXIT_CODE} the server changed since (\`--offline\`: skip the server). Then \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
-5. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored; it prints the plan it applied (without \`--yes\` and a terminal it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}, writing nothing).
+2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key (skills included) or table column, a child workflow's inputs, and an env name \`${KIND_DIRS.secret}\` lacks (a warning); and checks each \`${KIND_DIRS.table}/<key>.rows.jsonl\` line against its table as the apply would. It fails (exit 1) on errors and on ${STRICT_FINDINGS_CLAUSE} in a block you added (\`--strict\`: in every block), regenerates \`.sim/sdk/workspace.d.ts\` from the files (so a resource or workflow input added since the get is typed) and adds the blocks the workflows now use to \`tsconfig.json\`, then type-checks every file with it, using the TypeScript release the declarations are built for (installed once into the CLI's cache, on the first check; \`E_TYPE\` findings): that catches what the compile and the dry run do not, such as a reference to a start input the trigger does not declare. Offline before that install, it warns \`W_TYPES_UNCHECKED\` and passes on the compile alone; \`--no-types\` skips it. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
+3. \`sim workspaces source status --dir .\` before applying: your changes by resource (\`sim workspaces source diff --dir .\` shows the edits), what changed on the server since the get (a workflow edited in the editor included), the conflicts, and the command to run next. Exit 0 nothing changed, ${SOURCE_LOCAL_CHANGES_EXIT_CODE} only your edits, ${SOURCE_DRIFT_EXIT_CODE} the server changed since (\`--offline\`: skip the server). Then \`sim workspaces source apply --dir . --dry\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
+4. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored; it prints the plan it applied (without \`--yes\` and a terminal it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}, writing nothing). \`--run <key>='{…}'\` (one per workflow, \`<key>\` its \`${KIND_DIRS.workflow}/<key>/\` folder; the input is JSON or \`@file\`, as \`sim workflows run --dry --input\` takes it) then dry-runs that workflow's saved draft as that command does: \`runs\` in the result holds each run's status, output and side effects, and a run that does not complete exits 1, names its failing block's file:line and leaves the applied drafts in place. With \`--run\`, \`${KIND_DIRS.deployment}/\` is applied after the runs, and only when every one completed, so a deployment with \`live: 'draft'\` publishes only a tested draft; without \`--run\` it is applied with everything else.
 
 ## Good to know
 
@@ -166,10 +182,6 @@ ${sourceExitCodesTable('sim workspaces source')}
 Exit ${SOURCE_STALE_EXIT_CODE} right after an apply that ended without an answer (a timeout, a dropped connection) means that apply or someone else changed the workspace: get into a fresh directory and compare, and only when it holds your edits run \`sim workspaces source get --dir . --force\`. A get that exits ${RATE_LIMITED_EXIT_CODE} keeps the binary files it downloaded and fetches only the rest.
 
 Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
-`
-
-/** The workspace guide's deep dives, which `.sim/AGENTS.md` points to in one line. */
-const ADVANCED_GUIDE = `# Sim workspace source: advanced
 
 ## Deletes
 
@@ -185,21 +197,21 @@ const ADVANCED_GUIDE = `# Sim workspace source: advanced
 ## Git and CI
 
 - Commit the whole directory, \`.sim/\` included: \`${WORKSPACE_BASE_FILE}\`, each workflow's \`.sim/\` and \`.sim/written.json\` are what a later apply compares with, from any clone. \`.sim/cache/\` holds this machine's file stats and ignores itself. The generated \`.gitignore\` leaves out only what a command keeps while it runs (\`.sim/downloads/\`, \`.sim/command.lock/\`, \`.sim-staging-*\`) and \`${TSCONFIG_FULL_FILE}\`, which names the CLI's cache on this machine (\`check\` writes it again), and \`.gitattributes\` keeps workspace files and documents byte for byte.
-- A fresh clone runs \`check\` (it downloads the block catalog once when none is cached), \`apply --dry-run\` and \`apply --yes\` with only the committed files. A workspace API key may apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings; workflows, skills, secrets and deployments need a member's personal API key (deployments an admin's).
-- Plan on every pull request (\`apply --dry-run\`), apply on merge, and commit the files the apply rewrote. Two branches that each applied: merge them, then run the dry run. No changes means the merged files match the workspace. Exit ${SOURCE_STALE_EXIT_CODE} means a resource changed since the base this branch holds: \`sim workspaces source get --dir <fresh dir>\`, carry the edit over, and apply from there.
-- \`sim workspaces source get --dir .\` refreshes the workspace \`${WORKSPACE_BASE_FILE}\` names, whatever the profile's default; a \`--workspace\` naming another is refused.
+- A fresh clone runs \`check\` (it downloads the block catalog once when none is cached), \`apply --dry\` and \`apply --yes\` with only the committed files. A workspace API key may apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings; workflows, skills, secrets and deployments need a member's personal API key (deployments an admin's).
+- Plan on every pull request (\`apply --dry\`), apply on merge, and commit the files the apply rewrote. Two branches that each applied: merge them, then run the dry run. No changes means the merged files match the workspace. Exit ${SOURCE_STALE_EXIT_CODE} means a resource changed since the base this branch holds: \`sim workspaces source get --dir <fresh dir>\`, carry the edit over, and apply from there.
+- \`sim workspaces source get --dir .\` refreshes the workspace \`${WORKSPACE_BASE_FILE}\` names, whatever the profile's default; a \`--workspace\` or \`SIM_WORKSPACE\` naming another is refused.
 - One command at a time per directory: a second \`get\`, \`apply\` or \`check\` on the same directory exits ${SOURCE_BUSY_EXIT_CODE} while the first runs.
 
 ## Promote to another workspace
 
-\`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`: applies this directory to another workspace (dev to prod). Each resource binds by key to the target's own: one the target holds under the same key is updated in place (a workflow keeps its id and block ids, so its webhook URLs), a key it lacks is created (or adopts a resource of the same name). Each promote records what it left in the target in \`.sim/targets/<workspaceId>.json\` (commit it), and the next promote compares with that: a resource changed in the target since is kept when this directory left it alone, and refused as stale (exit ${SOURCE_STALE_EXIT_CODE}) when this directory changed it too. A resource with no record (the first promote, or one created in the target since) is updated to match this directory; delete the record to take the target as it stands again. Secrets and credentials bind by name and key to the target's own; no value is copied. The target's resources this directory never declared (and no promote left there) are kept with a warning, even with \`--allow-delete\`; deleting them too takes \`--delete-target-only\` beside \`--allow-delete\`. A resource this directory deleted since the last promote is deleted in the target only with \`--allow-delete\`. Before the first promote, set the target's secrets (\`sim secrets set NAME --scope workspace -w <workspaceId>\`) and connect its credentials, or the workflows using them are held back. This directory stays bound to the workspace it was read from. Without \`--to\`, \`check\`, \`status\`, \`diff\` and \`apply\` act on the workspace this directory was read from, whatever the profile's default; a \`--workspace\` naming another is refused (\`SOURCE_OTHER_WORKSPACE\`).
+\`sim workspaces source apply --dir . --to <workspaceId> --dry\`, then \`--yes\`: applies this directory to another workspace (dev to prod). Each resource binds by key to the target's own: one the target holds under the same key is updated in place (a workflow keeps its id and block ids, so its webhook URLs), a key it lacks is created (or adopts a resource of the same name). Each promote records what it left in the target in \`.sim/targets/<workspaceId>.json\` (commit it), and the next promote compares with that: a resource changed in the target since is kept when this directory left it alone, and refused as stale (exit ${SOURCE_STALE_EXIT_CODE}) when this directory changed it too. A resource with no record (the first promote, or one created in the target since) is updated to match this directory, so deleting the record makes the next promote overwrite every change made in the target since (no stale refusal). Secrets and credentials bind by name and key to the target's own; no value is copied. The target's resources this directory never declared (and no promote left there) are kept with a warning, even with \`--allow-delete\`; deleting them too takes \`--delete-target-only\` beside \`--allow-delete\`. A resource this directory deleted since the last promote is deleted in the target only with \`--allow-delete\`. Before the first promote, set the target's secrets (\`sim secrets set NAME --scope workspace -w <workspaceId>\`) and connect its credentials, or the workflows using them are held back. This directory stays bound to the workspace it was read from. Without \`--to\`, \`check\`, \`status\`, \`diff\` and \`apply\` act on the workspace this directory was read from, whatever the profile's default; a \`--workspace\` or \`SIM_WORKSPACE\` naming another is refused (\`SOURCE_OTHER_WORKSPACE\`). Any other command run in this directory or a folder of it (\`sim tables …\`, \`sim files …\`) acts on that workspace too, unless \`--workspace\` or \`SIM_WORKSPACE\` names another.
 `
 
 /** The workspace directory's tree beside the printed source. */
 export const WORKSPACE_TREE: SourceTreeProfile = {
   kind: 'workspace',
-  agents: AGENTS_GUIDE,
-  guides: [[WORKSPACE_ADVANCED_FILE, ADVANCED_GUIDE]],
+  agents: () => AGENTS_GUIDE,
+  guides: () => [[WORKSPACE_ADVANCED_FILE, ADVANCED_GUIDE]],
   tsconfig: workspaceTsconfig,
   // Workspace files and knowledge base documents are bytes, kept as they are (`-text`, after the
   // LF lines it overrides): a commit that rewrote their line endings would change their hashes.
@@ -248,11 +260,40 @@ export function localDeclarations(files: Readonly<Record<string, string>>): Loca
 }
 
 /**
+ * What the workspace directory `root` declared as the last get or apply wrote it: the paths that
+ * write recorded (`written`), each folder kind's keys from them. A file `workspace.d.ts` reads
+ * its types from (a root file, a table's declaration) counts only while its text is unchanged
+ * since: an edited one's earlier text is gone, so it declares nothing, and a table it declared
+ * types from the kept manifest instead.
+ */
+export async function writtenLocalDeclarations(
+  root: string,
+  written: Written
+): Promise<LocalDeclarations> {
+  const files: Record<string, string> = {}
+  for (const path of Object.keys(written.digests)) {
+    if (kindOfPath(path) !== null) files[path] = ''
+  }
+  const rootFiles = new Set<string>(APPLY_ORDER.filter(isFileKind).map((kind) => KIND_DIRS[kind]))
+  const typedFrom = Object.keys(files).filter(
+    (path) =>
+      rootFiles.has(path) || (kindOfPath(path) === 'table' && path.endsWith(DECLARATION_EXTENSION))
+  )
+  const unchanged = await unchangedTexts(root, typedFrom, written.digests)
+  for (const path of typedFrom) {
+    const text = unchanged.get(path)
+    if (text === undefined) delete files[path]
+    else if (rootFiles.has(path)) files[path] = text
+  }
+  return localDeclarations(files)
+}
+
+/**
  * The keys `files` (path → text) declare for `kind`: a root file's entries, or the resources its
  * folder's paths group into. `null` for a root file that is absent or does not read, whose keys
  * are unknown.
  */
-function declaredKeys(
+export function declaredKeys(
   kind: WorkspaceKind,
   files: Readonly<Record<string, string>>
 ): string[] | null {
@@ -322,6 +363,11 @@ export interface WorkspaceDeclarations {
    * `result` is that block's output; set by a check, which compiles them.
    */
   respondingWorkflows?: ReadonlySet<string>
+  /**
+   * By key, the typed top-level fields of the data each of those workflows responds with
+   * (`childResultFields`), which type a call's `<call.result.data.<field>>`; set by a check.
+   */
+  childResults?: ReadonlyMap<string, ChildResultFields>
 }
 
 /**

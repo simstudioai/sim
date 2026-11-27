@@ -10,6 +10,7 @@ export const deleteTemplateTool: InternalToolConfig<
   name: 'SES Delete Template',
   description: 'Delete an existing SES email template',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

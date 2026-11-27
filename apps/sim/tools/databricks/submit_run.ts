@@ -18,6 +18,7 @@ export const submitRunTool: ToolConfig<DatabricksSubmitRunParams, DatabricksSubm
   name: 'Databricks Submit Run',
   description: 'Submit a one-time task run without creating a saved job.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

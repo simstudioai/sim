@@ -14,6 +14,7 @@ export const listEventSourceMappingsTool: InternalToolConfig<
   name: 'Lambda List Event Source Mappings',
   description: 'List event source mappings, optionally filtered by function or event source',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

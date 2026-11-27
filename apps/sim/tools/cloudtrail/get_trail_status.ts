@@ -14,6 +14,7 @@ export const getTrailStatusTool: InternalToolConfig<
   description:
     'Check whether a CloudTrail trail is logging and surface its most recent delivery errors',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

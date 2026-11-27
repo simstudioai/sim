@@ -35,6 +35,7 @@ export const zendeskUpdateUsersBulkTool: ToolConfig<
   name: 'Bulk Update Users in Zendesk',
   description: 'Update multiple users in Zendesk using bulk update',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

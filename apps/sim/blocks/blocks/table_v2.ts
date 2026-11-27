@@ -16,8 +16,11 @@ import {
   failToolCallOnError,
   mapperOperation,
   resolveTableColumnSelection,
+  TABLE_IGNORED_COLUMNS_OUTPUT,
   TABLE_OUTPUT_COLUMNS_INPUT,
   TABLE_OUTPUT_COLUMNS_SUBBLOCK,
+  TABLE_ROW_OUTPUT,
+  TABLE_ROWS_OUTPUT,
   toolCallArg,
 } from '@/blocks/utils'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
@@ -412,7 +415,7 @@ Return ONLY the data JSON:`,
       type: 'short-input',
       canonicalParamId: 'conflictColumn',
       mode: 'advanced',
-      placeholder: 'Enter the column id',
+      placeholder: 'Enter the column name',
       dependsOn: ['tableId'],
       condition: { field: 'operation', value: 'upsert_row' },
     },
@@ -604,30 +607,19 @@ Return ONLY the JSON object:`,
     conflictColumn: {
       type: 'string',
       description:
-        'Unique column to match on for upsert (required if the table has multiple unique columns)',
+        'Unique column (name or id) to match on for upsert (required if the table has multiple unique columns)',
     },
   },
 
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },
-    row: {
-      type: 'json',
-      description: 'Single row data',
-      condition: {
-        field: 'operation',
-        value: ['get_row', 'insert_row', 'upsert_row', 'update_row'],
-      },
-    },
+    row: TABLE_ROW_OUTPUT,
     operation: {
       type: 'string',
       description: 'Operation performed (insert or update)',
       condition: { field: 'operation', value: 'upsert_row' },
     },
-    rows: {
-      type: 'array',
-      description: 'Array of rows',
-      condition: { field: 'operation', value: ['query_rows', 'batch_insert_rows'] },
-    },
+    rows: TABLE_ROWS_OUTPUT,
     rowCount: {
       type: 'number',
       description: 'Rows returned (query) or total rows in the table (get schema)',
@@ -688,6 +680,7 @@ Return ONLY the JSON object:`,
       description: "Max rows per table for the workspace's plan",
       condition: { field: 'operation', value: 'get_schema' },
     },
+    ignoredColumns: TABLE_IGNORED_COLUMNS_OUTPUT,
     message: { type: 'string', description: 'Operation status message' },
   },
   triggers: {

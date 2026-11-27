@@ -13,6 +13,7 @@ export const searchPostCommentsByUrlTool: ToolConfig<
   name: 'Enrich Search Post Comments by URL',
   description: 'Get comments on a LinkedIn post by its URL.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

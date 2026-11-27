@@ -12,6 +12,7 @@ export const docusignVoidEnvelopeTool: InternalToolConfig<
   name: 'Void DocuSign Envelope',
   description: 'Void (cancel) a sent DocuSign envelope that has not yet been completed',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

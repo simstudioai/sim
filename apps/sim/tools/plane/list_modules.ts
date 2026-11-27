@@ -23,6 +23,7 @@ export const planeListModulesTool: ToolConfig<PlaneListModulesParams, PlaneListM
   name: 'Plane List modules',
   description: 'List modules in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

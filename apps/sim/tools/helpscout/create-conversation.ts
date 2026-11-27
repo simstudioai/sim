@@ -40,6 +40,7 @@ export const helpScoutCreateConversationTool: ToolConfig<
   description:
     'Create a Help Scout conversation in an inbox with a first customer message, reply, or note. A new customer is created when the email is not already known.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

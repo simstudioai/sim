@@ -17,6 +17,7 @@ export const manageengineSdpAddProblemNoteTool: ToolConfig<SdpAddProblemNotePara
   name: 'ManageEngine SDP Add Problem Note',
   description: 'Add a note to a ManageEngine ServiceDesk Plus Cloud problem.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

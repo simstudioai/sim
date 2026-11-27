@@ -9,6 +9,7 @@ export const ripplingGetCustomSettingTool: ToolConfig<RipplingGetCustomSettingPa
   name: 'Rippling Get Custom Setting',
   description: 'Get a specific custom setting',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

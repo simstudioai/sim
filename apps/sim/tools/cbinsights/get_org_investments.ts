@@ -17,6 +17,7 @@ export const cbinsightsGetOrgInvestmentsTool: InternalToolConfig<
   description:
     'Retrieve the rounds in which one organization invested in another, with AI-generated insights extracting the key themes of each deal.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

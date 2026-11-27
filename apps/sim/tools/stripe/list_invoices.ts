@@ -8,6 +8,7 @@ export const stripeListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
   name: 'Stripe List Invoices',
   description: 'List all invoices',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

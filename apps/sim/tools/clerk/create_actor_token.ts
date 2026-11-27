@@ -19,6 +19,7 @@ export const clerkCreateActorTokenTool: ToolConfig<
   description:
     'Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for support tooling',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

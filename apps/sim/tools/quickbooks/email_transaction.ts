@@ -23,6 +23,7 @@ export const quickbooksEmailTransactionTool: ToolConfig<
   description:
     'Send a supported QuickBooks transaction by email. This causes an external email and Intuit limits sandbox email delivery.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

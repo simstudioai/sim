@@ -14,6 +14,7 @@ export const rootlyListEnvironmentsTool: ToolConfig<
   name: 'Rootly List Environments',
   description: 'List environments configured in Rootly.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

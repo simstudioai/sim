@@ -12,6 +12,7 @@ export const spotifyRemoveTracksFromPlaylistTool: ToolConfig<
   name: 'Spotify Remove Tracks from Playlist',
   description: 'Remove one or more tracks from a Spotify playlist.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -937,6 +937,11 @@ export class LoggingSession {
     return this.deletedScope
   }
 
+  /** The trigger the run is logged under. */
+  getTriggerType(): ExecutionTrigger['type'] {
+    return this.triggerType
+  }
+
   private async releaseAdmissionSlot(): Promise<void> {
     try {
       await releaseExecutionSlot(this.reservationId)

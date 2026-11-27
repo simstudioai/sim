@@ -13,6 +13,7 @@ export const createEnvironmentTool: InternalToolConfig<
   name: 'AppConfig Create Environment',
   description: 'Create an environment for an AWS AppConfig application',
   version: '1.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

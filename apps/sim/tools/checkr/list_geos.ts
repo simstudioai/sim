@@ -23,6 +23,7 @@ export const checkrListGeosTool: ToolConfig<CheckrListGeosParams, CheckrListGeos
   description:
     'List geos (work locations used for compliance), optionally filtered by name or state.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

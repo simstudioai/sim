@@ -14,6 +14,7 @@ export const listVersionsByFunctionTool: InternalToolConfig<
   name: 'Lambda List Function Versions',
   description: 'List the published versions of a Lambda function, plus $LATEST',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

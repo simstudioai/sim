@@ -10,6 +10,7 @@ export const attioCreateTaskTool: ToolConfig<AttioCreateTaskParams, AttioCreateT
   name: 'Attio Create Task',
   description: 'Create a task in Attio',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

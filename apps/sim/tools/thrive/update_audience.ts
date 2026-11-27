@@ -10,6 +10,7 @@ export const updateAudienceTool: ToolConfig<ThriveUpdateAudienceParams, ThriveAu
   name: 'Thrive Update Audience',
   description: 'Update an audience in Thrive, optionally moving it to a new parent.',
   version: '1.0.0',
+  effect: 'write',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

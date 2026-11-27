@@ -19,6 +19,7 @@ export const azureDataExplorerShowIngestionFailuresTool: InternalToolConfig<
   description:
     'List ingestion failures recorded for a database, with the failing table, error code, root cause detail, and whether the failure is permanent or transient. Failures are retained for 14 days.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

@@ -27,6 +27,7 @@ export const introspectSchemaTool: ToolConfig<
 > = {
   id: 'snowflake_introspect_schema',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Introspect Schema',
   description: 'Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.',

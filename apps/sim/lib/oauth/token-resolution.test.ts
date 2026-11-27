@@ -260,6 +260,7 @@ describe('resolveCredentialAccessToken', () => {
     resolveManagedPrincipal.mockResolvedValue(EXECUTOR_PRINCIPAL)
     mockGetToolMetadata.mockReturnValue({
       id: 'gmail_send',
+      effect: 'write',
       params: {},
       oauth: { required: true, provider: 'google', requiredScopes: ['scope-a'] },
     })
@@ -325,7 +326,12 @@ describe('resolveCredentialAccessToken', () => {
 
   it('rejects tools without managed OAuth support', async () => {
     mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
-    mockGetToolMetadata.mockReturnValue({ id: 'http_request', params: {}, oauth: undefined })
+    mockGetToolMetadata.mockReturnValue({
+      id: 'http_request',
+      effect: 'write',
+      params: {},
+      oauth: undefined,
+    })
 
     const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
@@ -351,6 +357,7 @@ describe('resolveCredentialAccessToken', () => {
     })
     mockGetToolMetadata.mockReturnValueOnce({
       id: 'slack_add_bookmark',
+      effect: 'write',
       params: {},
       oauth: {
         required: true,
@@ -382,6 +389,7 @@ describe('resolveCredentialAccessToken', () => {
     mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
     mockGetToolMetadata.mockReturnValue({
       id: 'fixture-tool',
+      effect: 'write',
       params: {},
       oauth: { required: true, provider: 'oracle-fusion' },
     })
@@ -496,6 +504,7 @@ describe('ordinary tool credential binding', () => {
     mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'oauth-token' })
     mockGetToolMetadata.mockReturnValue({
       id: 'fixture-tool',
+      effect: 'write',
       params: {},
       oauth: { required: true, provider: 'oracle-fusion', credentialKind: 'service-account' },
     })
@@ -534,6 +543,7 @@ describe('ordinary tool credential binding', () => {
     beforeEach(() => {
       mockGetToolMetadata.mockReturnValue({
         id: 'dynamodb_get',
+        effect: 'write',
         params: {},
         oauth: { required: false, provider: 'aws', credentialKind: 'service-account' },
       })
@@ -605,6 +615,7 @@ describe('ordinary tool credential binding', () => {
   it('releases the application key a Datadog key pair resolves beside its API key', async () => {
     mockGetToolMetadata.mockReturnValue({
       id: 'fixture-tool',
+      effect: 'write',
       params: {},
       oauth: { required: false, provider: 'datadog', credentialKind: 'service-account' },
     })
@@ -652,6 +663,7 @@ describe('ordinary tool credential binding', () => {
     async (provider, providerId) => {
       mockGetToolMetadata.mockReturnValue({
         id: 'fixture-tool',
+        effect: 'write',
         params: {},
         oauth: { required: true, provider },
       })
@@ -679,6 +691,7 @@ describe('ordinary tool credential binding', () => {
     async (provider, providerId, allowed) => {
       mockGetToolMetadata.mockReturnValue({
         id: 'fixture-tool',
+        effect: 'write',
         params: {},
         oauth: { required: true, provider },
       })
@@ -723,6 +736,7 @@ describe('Microsoft app credential binding', () => {
   function toolFor(provider: OAuthService) {
     mockGetToolMetadata.mockReturnValue({
       id: `${provider}-tool`,
+      effect: 'write',
       params: {},
       oauth: { required: true, provider },
     })
@@ -802,6 +816,7 @@ describe('keyless Google Cloud credential refusals', () => {
     })
     mockGetToolMetadata.mockReturnValue({
       id: 'google-drive-tool',
+      effect: 'write',
       params: {},
       oauth: { required: true, provider: 'google-drive' },
     })
@@ -857,6 +872,7 @@ describe('Microsoft app credential cloud refusals', () => {
     })
     mockGetToolMetadata.mockReturnValue({
       id: 'powerbi-tool',
+      effect: 'write',
       params: {},
       oauth: { required: true, provider: 'microsoft-powerbi' },
     })

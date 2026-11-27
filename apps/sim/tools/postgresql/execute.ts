@@ -7,6 +7,7 @@ export const executeTool: InternalToolConfig<PostgresExecuteParams, PostgresExec
   name: 'PostgreSQL Execute',
   description: 'Execute raw SQL query on PostgreSQL database',
   version: '1.0',
+  effect: 'write',
   oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {

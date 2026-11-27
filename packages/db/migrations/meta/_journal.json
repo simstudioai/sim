@@ -3284,6 +3284,48 @@
       "when": 1795263216402,
       "tag": "0469_staged_blob_consumed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 470,
+      "version": "7",
+      "when": 1795345308196,
+      "tag": "0470_contract_whitelabel_and_rate_limit_bucket",
+      "breakpoints": true
+    },
+    {
+      "idx": 471,
+      "version": "7",
+      "when": 1795435350407,
+      "tag": "0471_pro_trial_card",
+      "breakpoints": true
+    },
+    {
+      "idx": 472,
+      "version": "7",
+      "when": 1795516972777,
+      "tag": "0472_trial_card_user_id_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 473,
+      "version": "7",
+      "when": 1795546763493,
+      "tag": "0473_enterprise_self_serve",
+      "breakpoints": true
+    },
+    {
+      "idx": 474,
+      "version": "7",
+      "when": 1795562373761,
+      "tag": "0474_annual_seat_allowance",
+      "breakpoints": true
+    },
+    {
+      "idx": 475,
+      "version": "7",
+      "when": 1795720476745,
+      "tag": "0475_search_mcp_people_tool",
+      "breakpoints": true
     }
   ]
 }

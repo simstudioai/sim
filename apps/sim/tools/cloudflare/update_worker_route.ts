@@ -23,6 +23,7 @@ export const updateWorkerRouteTool: ToolConfig<
   description:
     'Replaces the URL pattern or Worker associated with a Worker route. Replaces the configuration; resend all values to retain.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {

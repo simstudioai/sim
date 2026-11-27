@@ -10,6 +10,7 @@ export const getEnrolmentTool: ToolConfig<ThriveGetEnrolmentParams, ThriveEnrolm
   name: 'Thrive Get Enrolment',
   description: 'Get a single enrolment for a compliance assignment in Thrive.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const unassignFlowProspectsTool: ToolConfig<
   description:
     'Remove a prospect from Gong Engage flows. Omit the flow ID to remove the prospect from all flows they are assigned to.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

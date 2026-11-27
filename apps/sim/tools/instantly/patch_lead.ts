@@ -17,6 +17,7 @@ export const patchLeadTool: ToolConfig<InstantlyPatchLeadParams, InstantlyLeadRe
   name: 'Instantly Patch Lead',
   description: 'Updates fields on an existing Instantly V2 lead.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

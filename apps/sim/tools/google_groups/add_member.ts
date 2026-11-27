@@ -7,6 +7,7 @@ export const addMemberTool: ToolConfig<GoogleGroupsAddMemberParams, GoogleGroups
   name: 'Google Groups Add Member',
   description: 'Add a new member to a Google Group',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -12,6 +12,7 @@ export const getSalesOrderTool: InternalToolConfig<GetSalesOrderParams, SapS4Han
   description:
     'Retrieve a single sales order by SalesOrder key from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

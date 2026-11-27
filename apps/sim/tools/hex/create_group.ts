@@ -8,6 +8,7 @@ export const createGroupTool: ToolConfig<HexCreateGroupParams, HexCreateGroupRes
   name: 'Hex Create Group',
   description: 'Create a new group in the Hex workspace, optionally with initial members.',
   version: '1.0.0',
+  effect: 'write',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

@@ -23,6 +23,7 @@ export const queryCpdRequirementsTool: ToolConfig<
   name: 'Thrive Query CPD Requirements',
   description: 'Query CPD requirement summaries in Thrive and return results with pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

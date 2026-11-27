@@ -9,6 +9,7 @@ import {
   resolveCanonicalMode,
 } from '@sim/workflow-code/catalog/canonical-index'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
+import { isOllamaAvailable } from '@/lib/core/utils/urls'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
@@ -40,15 +41,17 @@ import {
 import { validateToolBindingAuthoring } from '@/lib/workflows/tool-input/authoring'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getModelOptions } from '@/blocks/utils'
+import { MODEL_OPTION_SOURCES } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import {
+  findProviderFromModel,
   getHostedModels,
   isAutoModel,
   isCustomModelId,
   isEvaluationModel,
   isKnownModelId,
+  OLLAMA_MODEL_NAME,
   suggestModelIdsForUnknownModel,
 } from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
@@ -557,7 +560,7 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
   if (isEvaluationModel(model)) {
     return `${where}: ${model} is an evaluation model and cannot serve as a chat fallback`
   }
-  if (!isKnownModelId(model) && !isCustomModelId(model)) {
+  if (!isRunnableModelId(model)) {
     const suggestions = suggestModelIdsForUnknownModel(model)
     const suggestionText =
       suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
@@ -580,6 +583,23 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
     }
   }
   return null
+}
+
+/**
+ * Whether Sim can run `model`: a catalogued or namespaced id, or a local Ollama name. An id no
+ * provider claims runs on Ollama (`getProviderFromModel`'s default), so wherever an Ollama server
+ * is reachable an Ollama-shaped name may be a locally installed model. The server cannot list
+ * what is installed, so a mistyped name of that shape fails at execution instead. sim-auto is
+ * never one: it never reaches a provider as itself.
+ */
+function isRunnableModelId(model: string): boolean {
+  if (isKnownModelId(model) || isCustomModelId(model)) return true
+  return (
+    !isAutoModel(model) &&
+    OLLAMA_MODEL_NAME.test(model) &&
+    findProviderFromModel(model) === null &&
+    isOllamaAvailable()
+  )
 }
 
 /** A file object as the file-upload editor stores it: at least its name and serve path. */
@@ -986,22 +1006,21 @@ export function validateValueForSubBlockType(
     case 'short-input':
     case 'long-input':
     case 'combobox': {
-      const usesProviderCatalog =
-        fieldName === 'model' && subBlockConfig.options === getModelOptions
+      const modelSource =
+        fieldName === 'model' ? MODEL_OPTION_SOURCES.get(subBlockConfig.options) : undefined
 
-      if (usesProviderCatalog) {
+      if (modelSource) {
         const stringValue = typeof value === 'string' ? value : String(value)
         const trimmed = stringValue.trim()
-        // sim-auto is a valid model value on hosted Sim only (mirrors the
-        // options array the agent reads: it is absent from self-hosted
-        // snapshots, so writes of it there are rejected as unknown).
-        if (trimmed !== '' && isAutoModel(trimmed) && isHostedDeployment) {
-          return { valid: true, value: trimmed.toLowerCase() }
+        // A reference or {{ENV_VAR}} names its model only at execution time.
+        if (containsReference(trimmed)) {
+          return { valid: true, value: trimmed }
         }
-        if (trimmed !== '' && !isKnownModelId(trimmed) && !isCustomModelId(trimmed)) {
-          const suggestions = suggestModelIdsForUnknownModel(trimmed)
-          const suggestionText =
-            suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
+        // sim-auto is valid only where the source offers Auto, which it does on hosted Sim only.
+        if (isAutoModel(trimmed)) {
+          if (modelSource.auto && isHostedDeployment) {
+            return { valid: true, value: trimmed.toLowerCase() }
+          }
           return {
             valid: false,
             error: {
@@ -1009,7 +1028,31 @@ export function validateValueForSubBlockType(
               blockType,
               field: fieldName,
               value,
-              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models, use a supported provider namespace, e.g. "azure/my-deployment", "azure-anthropic/my-deployment", "bedrock/my-inference-profile", "vertex/my-model", "ollama/llama3.1:8b", or "openrouter/provider/model".${suggestionText}`,
+              error: `Block "${blockType}" does not offer Auto ("sim-auto")${modelSource.auto ? ' on a self-hosted deployment' : ''}; set model to a concrete model id from components/blocks/${blockType}.json (the model.options array).`,
+            },
+          }
+        }
+        if (trimmed !== '' && !isRunnableModelId(trimmed)) {
+          const suggestions = suggestModelIdsForUnknownModel(trimmed)
+          const suggestionText =
+            suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
+          const namespaceExamples = [
+            'azure/my-deployment',
+            'azure-anthropic/my-deployment',
+            'bedrock/my-inference-profile',
+            'vertex/my-model',
+            ...(isOllamaAvailable() ? ['ollama/llama3.1:8b'] : []),
+          ]
+            .map((example) => `"${example}"`)
+            .join(', ')
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models, use a supported provider namespace, e.g. ${namespaceExamples}, or "openrouter/provider/model".${suggestionText}`,
             },
           }
         }

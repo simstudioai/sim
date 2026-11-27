@@ -17,6 +17,7 @@ export const getTravelProfileTool: InternalToolConfig<GetTravelProfileParams, Sa
   description:
     'Get a travel profile (GET /api/travelprofile/v2.0/profile). Returns the calling user by default; pass userid_type and userid_value to impersonate.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

@@ -16,6 +16,7 @@ export const codaDeleteDocTool: ToolConfig<CodaDocParams, CodaDocIdResponse> = {
   name: 'Coda Delete Doc',
   description: 'Delete a Coda doc',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

@@ -50,6 +50,7 @@ export const listSessionRecordingsTool: ToolConfig<
   description:
     'List session recordings in a PostHog project. Session recordings capture user interactions with your application.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

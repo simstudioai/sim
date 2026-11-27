@@ -56,6 +56,7 @@ function blockDetail(): V2BlockDetail {
     },
     tools: ['slack_send', 'slack_canvas'].map((id) => ({
       id,
+      effect: 'write',
       name: id,
       description: '',
       hostedApiKey: 'none',

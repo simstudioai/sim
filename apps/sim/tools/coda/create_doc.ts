@@ -20,6 +20,7 @@ export const codaCreateDocTool: ToolConfig<CodaCreateDocParams, CodaCreateDocRes
   description:
     'Create a Coda doc, optionally copying an existing doc and setting up its first page with Markdown, HTML, an embed, or a sync page. Requires Doc Maker access in the workspace.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

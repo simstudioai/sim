@@ -64,6 +64,7 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
   name: 'Search Zendesk',
   description: 'Unified search across tickets, users, and organizations in Zendesk',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

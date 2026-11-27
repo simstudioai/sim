@@ -21,6 +21,7 @@ export const updateLeadInterestStatusTool: ToolConfig<
   name: 'Instantly Update Lead Interest Status',
   description: 'Submits an Instantly V2 background job to update a lead interest status.',
   version: '1.0.0',
+  effect: 'write',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

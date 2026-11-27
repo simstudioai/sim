@@ -13,6 +13,7 @@ export const incidentUpdatesListTool: ToolConfig<
   name: 'List Incident Updates',
   description: 'List all updates for a specific incident in incident.io',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

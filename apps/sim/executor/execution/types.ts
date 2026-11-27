@@ -87,6 +87,8 @@ export interface ExecutionMetadata {
   allowLargeValueWorkflowScope?: boolean
   callChain?: string[]
   correlation?: AsyncExecutionCorrelation
+  /** A dry run's overrides, recorded on its log so a rerun can name them again. */
+  overrides?: RunOverrides
   executionMode?: 'sync' | 'stream' | 'async'
   /**
    * Deployed-chat thinking policy half of the SSE dual gate. Persisted so HITL
@@ -318,6 +320,161 @@ export interface ExecutionTestHooks {
   recordSpy(call: { blockId: string; input: unknown; output: unknown }): void
 }
 
+/**
+ * A dry run's overrides as a rerun names them again, never a mock's output: each entry a block
+ * selector, `<blockId>` for a block of the workflow it started and `<workflowId>.<blockId>` for one
+ * of a workflow it called.
+ */
+export interface RunOverrides {
+  /** Blocks whose writes it sent (`run.allow`). */
+  allow: string[]
+  /** Blocks answered with outputs the caller passed (`run.mocks`). */
+  mocks: string[]
+  /** Blocks of the workflow it started answered with their outputs in another run. */
+  mocksFrom?: { runId: string; blocks: string[] }
+}
+
+/** Where a call that may change state outside the run was made: a block of one executing workflow. */
+export interface SideEffectSite {
+  workflowId: string
+  /** The workflow block id, never a parallel-branch clone id; null when the caller named none. */
+  blockId: string | null
+  blockName: string | null
+  blockType: string | null
+}
+
+/** A block of one executing workflow, which the block executor always knows. */
+export interface SideEffectBlockSite extends SideEffectSite {
+  blockId: string
+  blockName: string
+  blockType: string
+}
+
+/** The MCP server and tool an MCP block's operation names. */
+export interface McpCallTarget {
+  server: string
+  tool: string
+}
+
+/** A tool call made at a block of one executing workflow. */
+export interface ToolCallSite extends SideEffectSite {
+  toolId: string
+  /** The MCP server and tool, for the MCP block's `mcp_run_operation`; null for any other tool. */
+  mcp: McpCallTarget | null
+}
+
+/**
+ * Why a dry run held back a call that is not a plain write: `placeholder`, a read whose request
+ * holds a placeholder an answer returned ({@link SideEffectPolicy.sendsPlaceholder}); `mcp-read-only`,
+ * an MCP call whose server declares the tool read-only and not destructive, a claim Sim cannot verify.
+ */
+export type StubReason = 'placeholder' | 'mcp-read-only'
+
+/** A tool call the run answers instead of sending, with the request it would have sent. */
+export interface StubbedToolCall extends ToolCallSite {
+  /** Why a call that is not a plain write was held back; unset for a plain write. */
+  reason?: StubReason
+  /**
+   * JSON Schemas of outputs the call learned beside the tool's declared ones, sampled into its
+   * placeholder too: an MCP tool's discovered `outputSchema`, as `structuredContent`.
+   */
+  discoveredOutputs?: Record<string, unknown>
+  /** The request with credentials, secrets and PII redacted; null when that cannot be vouched for. */
+  request: Record<string, unknown> | null
+  /**
+   * The tool's `dryRunOutput` of the masked params, redacted with `request`; null when the tool
+   * declares none or it cannot be built or vouched for, leaving the placeholder the sample alone.
+   */
+  echoed: Record<string, unknown> | null
+}
+
+/** A block the run answers instead of running its handler. */
+export interface AnsweredBlockCall extends SideEffectBlockSite {
+  /**
+   * The inputs its log shows, redacted like a stubbed write's request (null when that cannot be
+   * vouched for); built only when the block is recorded as stubbed rather than mocked.
+   */
+  input: () => Promise<Record<string, unknown> | null>
+}
+
+/** A network request code made in the isolate, decided before its host sends it. */
+interface CodeNetworkRequest {
+  /** The method as `fetch` sends it (`normalizeFetchMethod`); GET when the code named none. */
+  method: string
+  /** The names of the headers it carries, never their values. */
+  headerNames: string[]
+  /**
+   * The URL, header values and body it sends, unredacted: only searched for the run's placeholders
+   * (a read that would send one is stubbed), never recorded.
+   */
+  url: string
+  headerValues: string[]
+  body: string | undefined
+  /**
+   * What the request would send (method, capped origin and path with query parameter names, header
+   * names, a capped body; never a header value), redacted like a stubbed write's request; null
+   * when that cannot be vouched for. Built only when the request is recorded as stubbed.
+   */
+  describe: () => Promise<Record<string, unknown> | null>
+}
+
+/** How a run treats the network of one run of code, from {@link SideEffectPolicy.codeNetwork}. */
+export interface CodeNetworkPolicy {
+  /**
+   * Told before the code runs in a remote sandbox (shell, Python, JavaScript with imports, a
+   * selected sandbox or file system), whose network the run cannot see. Code that runs in the
+   * isolate instead has each network request decided by {@link onRequest}.
+   */
+  ranInRemoteSandbox(): void
+  /** Whether the request is sent, or answered with an empty stubbed response instead. */
+  onRequest(request: CodeNetworkRequest): Promise<'send' | 'stub'>
+}
+
+/**
+ * How a run treats work that may change state outside it: a dry run, or a workflow test's
+ * unmocked writes. Unlike {@link ExecutionTestHooks}, every child execution inherits it, including
+ * a workflow an Agent calls as a tool, so a child's writes follow the run that started it. Tool
+ * calls meet it in `tools/side-effects.ts`; the block executor consults it before each block's
+ * handler. Its presence alone also means the run keeps nothing beyond its log: an Agent writes no
+ * memory, and files uploaded to a provider's Files API are deleted once the call settles. Where
+ * only the log is at hand, the `test` trigger says the same.
+ */
+export interface SideEffectPolicy {
+  /**
+   * Whether this write tool call is sent or answered with {@link stubCall}. Records an allowed
+   * block's sent write.
+   */
+  decideWrite(call: ToolCallSite): 'send' | 'stub'
+  /**
+   * The network policy of code about to run at `site`: code run through `function_execute` (a
+   * Function block's, a Condition's expressions, or code an Agent's model wrote), or a While or Do
+   * While loop's condition.
+   */
+  codeNetwork(site: SideEffectSite): CodeNetworkPolicy
+  /** Records a call that was not sent and returns the placeholder output answering it. */
+  stubCall(call: StubbedToolCall): Record<string, unknown>
+  /**
+   * Whether the list {@link stubCall} records into is full, so a call's request would only be
+   * counted: building it is wasted work.
+   */
+  stubbedFull(): boolean
+  /**
+   * Whether `sent`, what a read would send, holds a value one of the run's placeholders returned
+   * (a placeholder row's id): such a read depends on a write that was never sent, so it is answered
+   * with {@link stubCall} instead.
+   */
+  sendsPlaceholder(sent: unknown): boolean
+  /** Whether this block is answered with {@link answerBlock} instead of running its handler. */
+  answersBlock(block: SideEffectBlockSite): boolean
+  /**
+   * Whether the run has answered this block, or a call it made, with a placeholder (its mock is
+   * not one), or its `output` carries one it was handed, so the output may hold made-up values.
+   */
+  answeredWithPlaceholder(block: SideEffectBlockSite, output: unknown): boolean
+  /** The output answering a block that does not run: its mock, or a recorded placeholder. */
+  answerBlock(call: AnsweredBlockCall): Promise<NormalizedBlockOutput>
+}
+
 export interface ContextExtensions {
   workspaceId?: string
   executionId?: string
@@ -418,6 +575,7 @@ export interface ContextExtensions {
   stopAfterBlockId?: string
 
   testHooks?: ExecutionTestHooks
+  sideEffects?: SideEffectPolicy
 
   /**
    * Ordered list of workflow IDs in the current call chain, used for cycle detection.
@@ -468,7 +626,8 @@ export interface BlockStateWriter {
     blockId: string,
     output: NormalizedBlockOutput,
     executionTime?: number,
-    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
+    answeredWithPlaceholder?: boolean
   ): void
   setBlockState(blockId: string, state: BlockState): void
   deleteBlockState(blockId: string): void

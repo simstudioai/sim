@@ -1,11 +1,9 @@
 import { db } from '@sim/db'
 import { organization, subscription, userStats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
-import {
-  getHighestPriorityPersonalSubscription,
-  resolveBillingInterval,
-} from '@/lib/billing/core/subscription'
+import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { ensureUserStatsExists } from '@/lib/billing/core/usage'
 import {
   COPILOT_USAGE_SOURCES,
@@ -24,15 +22,17 @@ import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getFreeTierAllowance,
   getFreeTierLimit,
+  getOrgIncludedUsageDollars,
+  getPerUserMinimumLimit,
   getPlanPricing,
+  getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
+  isHardCappedEnterprise,
+  type OrgAllowanceInput,
+  resolveBillingInterval,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
-
-export { getPlanPricing }
-
-import { createLogger } from '@sim/logger'
 
 const logger = createLogger('Billing')
 
@@ -124,12 +124,13 @@ export async function isSubscriptionOrgScoped(sub: { referenceId: string }): Pro
  * All callers route through this to keep the overage math in one place.
  */
 export async function computeOrgOverageAmount(params: {
-  plan: string | null
-  seats: number | null
+  subscription: OrgAllowanceInput & { plan: string | null; seats: number | null }
   periodStart: Date | null
   periodEnd: Date | null
   organizationId: string
   pooledLedgerUsage: number
+  /** The period's included usage when it differs from the subscription's current one. */
+  includedUsage?: number
 }): Promise<{
   effectiveUsage: number
   baseSubscriptionAmount: number
@@ -139,20 +140,21 @@ export async function computeOrgOverageAmount(params: {
   const totalUsage = params.pooledLedgerUsage
 
   let weeklyRefreshDeduction = 0
-  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(params.plan)
+  const { plan, seats } = params.subscription
+  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(plan)
   if (weeklyRefreshDollars > 0 && params.periodStart) {
     weeklyRefreshDeduction = await computeWeeklyRefreshConsumed({
       billingEntity: { type: 'organization', id: params.organizationId },
       periodStart: params.periodStart,
       periodEnd: params.periodEnd ?? null,
       weeklyRefreshDollars,
-      seats: params.seats || 1,
+      seats: seats || 1,
     })
   }
 
   const effectiveUsage = Math.max(0, totalUsage - weeklyRefreshDeduction)
-  const { basePrice } = getPlanPricing(params.plan ?? '')
-  const baseSubscriptionAmount = (params.seats || 1) * basePrice
+  const baseSubscriptionAmount =
+    params.includedUsage ?? getOrgIncludedUsageDollars(params.subscription)
   const totalOverage = Math.max(0, effectiveUsage - baseSubscriptionAmount)
 
   return { effectiveUsage, baseSubscriptionAmount, weeklyRefreshDeduction, totalOverage }
@@ -167,17 +169,24 @@ export async function calculateSubscriptionOverage(sub: {
   plan: string | null
   referenceId: string
   seats?: number | null
+  metadata?: unknown
+  billingInterval?: string | null
   periodStart?: Date | null
   periodEnd?: Date | null
+  trialEnd?: Date | null
+  allowancePeriodStart?: Date | null
+  allowanceSeatMonths?: number | string | null
 }): Promise<number> {
-  // Enterprise plans have no overages
-  if (isEnterprise(sub.plan)) {
+  if (isHardCappedEnterprise(sub)) {
     logger.info('Enterprise plan has no overages', {
       subscriptionId: sub.id,
       plan: sub.plan,
     })
     return 0
   }
+
+  // A trial period owes nothing: its usage is capped at the trial allowance.
+  if (sub.trialEnd && sub.periodEnd && sub.periodEnd.getTime() <= sub.trialEnd.getTime()) return 0
 
   let totalOverageDecimal = new Decimal(0)
 
@@ -193,8 +202,7 @@ export async function calculateSubscriptionOverage(sub: {
         : 0
 
     const { totalOverage, effectiveUsage, baseSubscriptionAmount } = await computeOrgOverageAmount({
-      plan: sub.plan,
-      seats: sub.seats ?? null,
+      subscription: { ...sub, seats: sub.seats ?? null },
       periodStart: sub.periodStart ?? null,
       periodEnd: sub.periodEnd ?? null,
       organizationId: sub.referenceId,
@@ -239,7 +247,7 @@ export async function calculateSubscriptionOverage(sub: {
       }
     }
 
-    const { basePrice } = getPlanPricing(sub.plan || 'free')
+    const { basePrice } = getPlanPricing(sub)
     totalOverageDecimal = Decimal.max(
       0,
       toDecimal(ledgerUsage).minus(toDecimal(weeklyRefreshDeduction)).minus(basePrice)
@@ -311,7 +319,7 @@ export async function getPersonalBillingSummary(userId: string, executor: DbClie
       hasPaidSubscriptionStatus(personalSubscription.status) &&
       personalSubscription.periodStart
     ) {
-      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(plan)
+      const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(personalSubscription)
       if (weeklyRefreshDollars > 0) {
         refreshDeduction = await computeWeeklyRefreshConsumed(
           {
@@ -351,6 +359,7 @@ export async function getPersonalBillingSummary(userId: string, executor: DbClie
       isExceeded,
       daysRemaining,
       creditBalance: toNumber(toDecimal(stats.creditBalance)),
+      includedUsage: getPerUserMinimumLimit(personalSubscription, stats.freeTierEligible),
       billingInterval: resolveBillingInterval(personalSubscription),
       isPaid: hasPaidEntitlement && isPaid(plan),
       isPro: hasPaidEntitlement && isPro(plan),
@@ -408,6 +417,7 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
     isExceeded: false,
     daysRemaining: 0,
     creditBalance: 0,
+    includedUsage: 0,
     billingInterval: 'month' as const,
     // Subscription details
     isPaid: false,

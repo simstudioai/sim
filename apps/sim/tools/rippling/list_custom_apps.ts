@@ -8,6 +8,7 @@ export const ripplingListCustomAppsTool: ToolConfig<RipplingListCustomAppsParams
   name: 'Rippling List CustomApps',
   description: 'List all custom apps',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

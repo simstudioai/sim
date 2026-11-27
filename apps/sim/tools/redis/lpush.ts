@@ -6,6 +6,7 @@ export const redisLPushTool: InternalToolConfig<RedisLPushParams, RedisLPushResp
   name: 'Redis LPUSH',
   description: 'Prepend a value to a list stored at a key in Redis.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

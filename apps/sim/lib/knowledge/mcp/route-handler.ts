@@ -1,4 +1,6 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { organizationKnowledgeMcpContract } from '@/lib/api/contracts/knowledge/mcp'
 import { parseRequest } from '@/lib/api/server'
@@ -16,9 +18,24 @@ import { withSearchMcpAuthChallenge } from '@/lib/knowledge/mcp/oauth-metadata'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
 import { repairToolCallMessage, toolCallInputIssues } from '@/lib/knowledge/mcp/tool-arguments'
 import { getSearchMcpUrl } from '@/lib/knowledge/mcp/urls'
+import { canLookUpPeople } from '@/lib/people/directory-lookup'
 import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
 
 const logger = createLogger('KnowledgeMcp')
+
+/**
+ * Whether this message needs search_people registered. A call to it is authorized by its own use
+ * cases, so only a tools/list asks whether the caller may browse People, and other messages skip it.
+ */
+async function offersSearchPeople(
+  message: Record<string, unknown>,
+  principal: Principal,
+  organizationId: string
+) {
+  if (message.method === 'tools/call')
+    return isRecordLike(message.params) && message.params.name === 'search_people'
+  return message.method === 'tools/list' && canLookUpPeople(principal, organizationId)
+}
 
 function mcpAuth(resource: string) {
   return mcpCredentialAuth({ resource, allowUnboundApiTokens: true })
@@ -62,6 +79,7 @@ export function createKnowledgeMcpHandlers() {
           request,
           auth: admission.auth,
           ...parsed.data.params,
+          searchPeople: await offersSearchPeople(message, admission.auth.principal, organizationId),
         })
         return await serveStatelessMcp(server, request, message)
       } catch (error) {

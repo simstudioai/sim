@@ -17,6 +17,7 @@ export const readPlanTool: ToolConfig<
   name: 'Read Microsoft Planner Plan',
   description: 'Get details of a specific Microsoft Planner plan',
   version: '1.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

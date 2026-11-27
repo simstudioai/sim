@@ -11,6 +11,7 @@ export const createUserTool: InternalToolConfig<CreateUserParams, SapConcurRespo
   name: 'SAP Concur Create User',
   description: 'Create a new user identity (POST /profile/identity/v4.1/Users).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

@@ -11,6 +11,7 @@ export const discordUnbanMemberTool: ToolConfig<
   name: 'Discord Unban Member',
   description: 'Unban a member from a Discord server',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

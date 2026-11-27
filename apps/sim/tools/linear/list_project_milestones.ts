@@ -14,6 +14,7 @@ export const linearListProjectMilestonesTool: ToolConfig<
   name: 'Linear List Project Milestones',
   description: 'List all milestones for a project in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

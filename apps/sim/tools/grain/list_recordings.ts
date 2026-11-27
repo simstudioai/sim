@@ -10,6 +10,7 @@ export const grainListRecordingsTool: ToolConfig<
   name: 'Grain List Recordings',
   description: 'List recordings from Grain with optional filters and pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAIN_CREDENTIAL_OAUTH,
 
   params: {

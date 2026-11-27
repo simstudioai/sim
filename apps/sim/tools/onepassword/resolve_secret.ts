@@ -13,6 +13,7 @@ export const resolveSecretTool: InternalToolConfig<
   description:
     'Resolve a secret reference (op://vault/item/field) to its value. Service Account mode only.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     connectionMode: {

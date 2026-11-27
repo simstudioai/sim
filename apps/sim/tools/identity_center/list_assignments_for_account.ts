@@ -14,6 +14,7 @@ export const listAssignmentsForAccountTool: InternalToolConfig<
   description:
     'List every principal assigned a specific permission set on a specific AWS account. Use for per-account access reviews.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

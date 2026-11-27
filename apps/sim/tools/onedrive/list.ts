@@ -18,6 +18,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
   name: 'List OneDrive Files',
   description: 'List files and folders in OneDrive',
   version: '1.0',
+  effect: 'read',
 
   oauth: {
     required: true,

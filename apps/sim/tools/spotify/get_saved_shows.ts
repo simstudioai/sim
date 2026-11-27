@@ -32,6 +32,7 @@ export const spotifyGetSavedShowsTool: ToolConfig<
   name: 'Spotify Get Saved Shows',
   description: "Get the user's saved podcast shows.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

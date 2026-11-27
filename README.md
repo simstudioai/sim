@@ -50,7 +50,7 @@ macOS 12+, Apple Silicon and Intel. See the [desktop docs](https://docs.sim.ai/d
 
 ## Security and governance
 
-- SOC 2 Type II, ISO 27001, and GDPR: reports and policies are in the [Trust Center](https://trust.sim.ai/)
+- SOC 2 Type II (Security criterion), GDPR, and ISO 27001 certification in progress: reports and policies are in the [Trust Center](https://trust.sim.ai/)
 - [Single sign-on](https://docs.sim.ai/platform/enterprise/sso) with SAML 2.0 or OIDC, including Microsoft Entra ID, Okta, and Google Workspace
 - [SCIM directory provisioning](https://docs.sim.ai/platform/enterprise/scim) from Microsoft Entra ID or Okta
 - [Audit logs](https://docs.sim.ai/platform/enterprise/audit-logs) and [permission groups](https://docs.sim.ai/platform/enterprise/access-control) that restrict models, blocks, and tools by workspace and member
@@ -137,7 +137,7 @@ npx sim-setup reset                    # archive .env and wipe managed data
 
 The setup package detects how you're running and acts accordingly. Use `--dir <path>` to create or manage a deployment somewhere other than `./sim`.
 
-Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [self-hosting docs](https://docs.sim.ai/self-hosting/docker) for details.
+Sim also supports local models via [Ollama](https://ollama.ai), [vLLM](https://docs.vllm.ai/), and [LiteLLM](https://docs.litellm.ai/). See the [self-hosting docs](https://docs.sim.ai/self-hosting/docker) for details.
 
 ## Chat API Keys
 

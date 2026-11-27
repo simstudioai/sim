@@ -17,6 +17,7 @@ export const getTaskDetailsTool: ToolConfig<
   name: 'Get Microsoft Planner Task Details',
   description: 'Get detailed information about a task including checklist and references',
   version: '1.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

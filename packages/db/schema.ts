@@ -1834,6 +1834,16 @@ export const subscription = pgTable(
      * the marker is settled, and a later charge into one is refused.
      */
     lastClosedPeriodStart: timestamp('last_closed_period_start'),
+    /**
+     * Seat-months of usage an annual Team plan's current period includes. A seat added partway
+     * through the year includes only the months left, matching Stripe's prorated charge, so a late
+     * seat cannot buy a full year of credits. Valid only while `allowancePeriodStart` equals
+     * `periodStart`; otherwise the period includes `seats × 12`. The hourly billing reconcile keeps
+     * it in step with `seats` (`allowanceSeats` is the count it last accounted for).
+     */
+    allowancePeriodStart: timestamp('allowance_period_start'),
+    allowanceSeats: integer('allowance_seats'),
+    allowanceSeatMonths: decimal('allowance_seat_months'),
   },
   (table) => ({
     referenceStatusIdx: index('subscription_reference_status_idx').on(
@@ -1842,9 +1852,9 @@ export const subscription = pgTable(
     ),
     /**
      * Partial index for the cycle-close sweep's keyset iteration: exactly the
-     * entitled subscriptions whose close marker lags the current period. The
+     * settled subscriptions whose close marker lags the current period. The
      * predicate must mirror the sweep query in `lib/billing/cycle-close.ts`
-     * (status list = ENTITLED_SUBSCRIPTION_STATUSES, hardcoded here because
+     * (status list = SETTLED_SUBSCRIPTION_STATUSES, hardcoded here because
      * packages cannot import from apps); a drifted predicate degrades to a
      * seq scan, never a wrong result. The index stays tiny — closes remove
      * rows from it — so the candidate scan is O(lagging), not O(fleet).
@@ -1861,16 +1871,62 @@ export const subscription = pgTable(
   })
 )
 
-// contract-pending(after the release that stops using it is deployed): drop rate_limit_bucket — Redis is required and the Postgres token bucket and provider-capacity store were removed, so no deployed release reads or writes it.
-export const rateLimitBucket = pgTable('rate_limit_bucket', {
-  key: text('key').primaryKey(),
-  tokens: decimal('tokens').notNull(),
-  lastRefillAt: timestamp('last_refill_at').notNull(),
-  blockedUntil: timestamp('blocked_until'),
-  /** Bounded adaptive provider budgets and expiring request leases; ordinary buckets leave it null. */
-  capacityState: jsonb('capacity_state'),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+/**
+ * One seat true-up window of a self-serve Enterprise contract: a quarter of an annual term, or a
+ * monthly term. The seat sweep raises `peakExtraSeats` to the most members past the contract it
+ * sees while the window is open, priced at the rate in force when the window opened, then bills
+ * them once the window closes and stamps `billedAt`, so each window is invoiced at most once.
+ */
+export const enterpriseSeatTrueUp = pgTable(
+  'enterprise_seat_true_up',
+  {
+    id: text('id').primaryKey(),
+    subscriptionId: text('subscription_id')
+      .notNull()
+      .references(() => subscription.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    windowStart: timestamp('window_start').notNull(),
+    windowEnd: timestamp('window_end').notNull(),
+    peakExtraSeats: integer('peak_extra_seats').notNull(),
+    /** The contract's rate per seat per month when the window opened. */
+    seatPriceCents: integer('seat_price_cents').notNull(),
+    /** What the closed window was invoiced; null while it is open. */
+    amountCents: integer('amount_cents'),
+    billedAt: timestamp('billed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    subscriptionWindowUnique: uniqueIndex('enterprise_seat_true_up_subscription_window_unique').on(
+      table.subscriptionId,
+      table.windowStart
+    ),
+    organizationIdx: index('enterprise_seat_true_up_organization_id_idx').on(table.organizationId),
+    unbilledIdx: index('enterprise_seat_true_up_unbilled_idx')
+      .on(table.windowEnd)
+      .where(sql`billed_at IS NULL`),
+  })
+)
+
+/**
+ * Cards that have started a Pro free trial, keyed by Stripe's card fingerprint, so a card gets one
+ * trial across every account. A row outlives its account (`user_id` is nulled), so deleting the
+ * account and signing up again cannot reuse the card.
+ */
+export const trialCard = pgTable(
+  'trial_card',
+  {
+    fingerprint: text('fingerprint').primaryKey(),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    stripeSubscriptionId: text('stripe_subscription_id').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('trial_card_user_id_idx').on(table.userId),
+  })
+)
 
 export const chat = pgTable(
   'chat',
@@ -2027,7 +2083,6 @@ export interface SessionPolicySettings {
   idleTimeoutHours?: number | null
 }
 
-// contract-pending(after the release that stops declaring it is deployed): drop organization.whitelabel_settings — whitelabeling was removed and no code reads or writes it after this release; earlier releases still select it explicitly, so dropping it now would break them mid-rollout
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -2052,6 +2107,12 @@ export const organization = pgTable('organization', {
   requireSso: boolean('require_sso').notNull().default(false),
   dataRetentionSettings: json('data_retention_settings').$type<DataRetentionSettings>(),
   orgUsageLimit: decimal('org_usage_limit'),
+  /**
+   * The usage limit an owner or admin chose on a self-serve Enterprise contract, in dollars. Kept
+   * apart from `orgUsageLimit`, which the contract webhook rederives on every reconcile, so the
+   * customer's choice survives allowance changes; null when the contract is not self-serve.
+   */
+  selfServeUsageLimit: decimal('self_serve_usage_limit'),
   /**
    * Storage upload/delete hot-path tracker for org-scoped plans.
    *
@@ -6488,7 +6549,9 @@ export const organizationSearchMcpInvocation = pgTable(
     /** Snapshots survive OAuth client deletion; names are client-declared, not verified branding. */
     oauthClientId: text('oauth_client_id'),
     clientName: text('client_name'),
-    toolName: text('tool_name').$type<'search' | 'read_document' | 'chat'>().notNull(),
+    toolName: text('tool_name')
+      .$type<'search' | 'read_document' | 'chat' | 'search_people'>()
+      .notNull(),
     outcome: text('outcome').$type<'success' | 'error' | 'cancelled' | 'rate_limited'>().notNull(),
     durationMs: integer('duration_ms').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -6511,7 +6574,7 @@ export const organizationSearchMcpInvocation = pgTable(
     userIdIdx: index('organization_search_mcp_invocation_user_idx').on(table.userId),
     toolNameCheck: check(
       'organization_search_mcp_invocation_tool_check',
-      sql`${table.toolName} IN ('search', 'read_document', 'chat')`
+      sql`${table.toolName} IN ('search', 'read_document', 'chat', 'search_people')`
     ),
     outcomeCheck: check(
       'organization_search_mcp_invocation_outcome_check',
@@ -8282,7 +8345,8 @@ export const userTableRows = pgTable(
      *
      * Stored with `COLLATE "C"` (migration 0228) so Postgres compares it bytewise,
      * matching the fractional-indexing library's ASCII ordering. drizzle can't
-     * express column collation, so the collation lives only in the migration.
+     * express column collation, so push-managed databases get it from
+     * `scripts/apply-dev-table-triggers.ts`.
      */
     orderKey: text('order_key'),
     secretProvenanceVersion: integer('secret_provenance_version'),

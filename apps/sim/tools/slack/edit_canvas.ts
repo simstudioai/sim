@@ -9,6 +9,7 @@ export const slackEditCanvasTool: ToolConfig<SlackEditCanvasParams, SlackEditCan
   name: 'Slack Edit Canvas',
   description: 'Edit an existing Slack canvas by inserting, replacing, or deleting content',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

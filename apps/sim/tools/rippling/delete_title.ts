@@ -8,6 +8,7 @@ export const ripplingDeleteTitleTool: ToolConfig<RipplingDeleteTitleParams> = {
   name: 'Rippling Delete Title',
   description: 'Delete a title',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

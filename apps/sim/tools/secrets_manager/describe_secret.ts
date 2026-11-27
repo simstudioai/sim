@@ -14,6 +14,7 @@ export const describeSecretTool: InternalToolConfig<
   description:
     'Retrieve full metadata for a secret in AWS Secrets Manager, including rotation configuration and replication status, without exposing the secret value',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

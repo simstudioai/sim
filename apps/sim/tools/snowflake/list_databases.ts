@@ -19,6 +19,7 @@ export const listDatabasesTool: ToolConfig<
 > = {
   id: 'snowflake_list_databases',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Databases',
   description: 'List the databases the credential can access.',

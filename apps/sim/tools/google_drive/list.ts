@@ -7,6 +7,7 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
   name: 'List Google Drive Files',
   description: 'List files and folders in Google Drive with complete metadata',
   version: '1.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -9,6 +9,7 @@ export const agiloftAttachFileTool: InternalToolConfig<
   name: 'Agiloft Attach File',
   description: 'Attach a file to a field in an Agiloft record.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     instanceUrl: {

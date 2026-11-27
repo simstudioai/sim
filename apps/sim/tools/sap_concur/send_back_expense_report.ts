@@ -15,6 +15,7 @@ export const sendBackExpenseReportTool: InternalToolConfig<
   description:
     'Send back an expense report to the employee (PATCH /expensereports/v4/reports/{reportId}/sendBack). Required body field: comment.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

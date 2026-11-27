@@ -21,6 +21,7 @@ export const codaGetTableTool: ToolConfig<CodaGetTableParams, CodaTableResponse>
   description:
     'Get details about a table or view in a Coda doc, including its row count, sorts, layout, and filter',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

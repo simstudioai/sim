@@ -8,6 +8,7 @@ export const updateProductTool: InternalToolConfig<UpdateProductParams, SapS4Han
   description:
     'Update fields on an A_Product entity in SAP S/4HANA Cloud (API_PRODUCT_SRV). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Flat scalar header fields only — deep/multi-entity updates across navigation properties are not supported by API_PRODUCT_SRV MERGE/PUT (see SAP KBA 2833338); update child entities (plant, valuation, sales data, etc.) via their own endpoints. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     subdomain: {
       type: 'string',

@@ -12,6 +12,7 @@ export const googleMapsElevationTool: ToolConfig<
   name: 'Google Maps Elevation',
   description: 'Get elevation data for a location',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

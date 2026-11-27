@@ -9,6 +9,7 @@ export const ripplingListCustomFieldsTool: ToolConfig<RipplingListCustomFieldsPa
   name: 'Rippling List Custom Fields',
   description: 'List all custom fields',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -3,21 +3,20 @@ import { toRecord } from '@sim/utils/object'
 import { KIND_DIRS, WORKSPACE_ANSWER_BOUND } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
-import { profileFrom } from '../../context'
+import { actingProfileFrom } from '../../context'
+import { AUTH_REQUIRED_EXIT_CODE } from '../../exit-codes'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
 import { CliUsageError, SourceDirError } from './local-errors'
 import {
   type CheckFinding,
   checkWorkflowDir,
   readCheckDeclarations,
-  refreshWorkspaceTsconfigs,
   reportCheck,
-  requireCachedCatalog,
-  STRICT_HELP,
   type StrictOptions,
   strictFlags,
+  strictHelp,
   strictMode,
-  withWorkflowInputs,
+  typeCheckWorkspace,
   workspaceWorkflowKeys,
 } from './source-check'
 import {
@@ -28,7 +27,8 @@ import {
   withSourceDirLock,
 } from './source-dir'
 import { credentialRefused, unreachableReason } from './source-status'
-import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
+import { cachedCatalog, loadCatalog } from './source-tree'
+import { TYPES_HELP, type TypesOptions, typesFlag } from './source-types'
 import { verboseFlag } from './source-ui'
 import { assertWorkspaceDir } from './workspace-source-dir'
 
@@ -36,7 +36,7 @@ const CHECK_HELP = `
 Compiles every workflows/<key>/workflow.ts (and the function files each names) with the compiler
 the server runs, against the workspace's block catalog the last get cached (in a fresh clone with
 no cache, such as CI, it downloads the catalog once with the profile's credentials). No other
-request is made. It checks, against what the directory declares:
+request is made to Sim. It checks, against what the directory declares:
   - env names (secrets.ts), with a did-you-mean
   - credential keys (credentials.ts)
   - the keys of tables, knowledge bases, skills, custom tools, MCP servers and workflows, with a
@@ -50,26 +50,23 @@ request is made. It checks, against what the directory declares:
   - block names whose words mix Latin with Cyrillic, Greek, Armenian or Cherokee letters
 The dry run still checks what only the server knows (stored values, MCP tool names, model ids,
 deployments, credential bindings), so run it before applying. A check also regenerates
-.sim/sdk/workspace.d.ts from the declarations (so tsc types a key added since the get, and each
+.sim/sdk/workspace.d.ts from the declarations (so a key added since the get is typed, and each
 workflow's inputs) and adds the blocks the workflows now use to the CLI's tsconfig.json.
+${TYPES_HELP}
 
-${STRICT_HELP}`
+${strictHelp(`no cached catalog that could not be downloaded (a check downloads it once when none is cached, with the profile's credentials; ${AUTH_REQUIRED_EXIT_CODE} when there is no login to download it with)`)}`
 
 /**
  * The workspace's catalog for a check with none cached (a fresh clone in CI), downloaded and
- * cached with the profile's credentials; without credentials, the refusal that names the get.
+ * cached with the profile's credentials. No login, or a refused credential, is refused as such
+ * (`AUTH_REQUIRED`, exit 13, naming `sim login`).
  */
 async function fetchedCatalog(
   connect: () => Connection<'getSourceCatalog'>,
   workspaceId: string,
   dir: string
 ) {
-  let connection: Connection<'getSourceCatalog'>
-  try {
-    connection = connect()
-  } catch {
-    return requireCachedCatalog(workspaceId, `\`sim workspaces source get --dir ${dir}\``)
-  }
+  const connection = connect()
   try {
     return await loadCatalog(connection.client, { workspaceId, blockTypes: [] })
   } catch (error) {
@@ -93,29 +90,35 @@ export function attachWorkspaceSourceCheck(source: Command): void {
   const [command, connect] = apiCommand(source, 'check', ['getSourceCatalog'])
   absoluteDirOption(command)
   verboseFlag(
-    strictFlags(
-      command.option(
-        '--dir <dir>',
-        `Workspace source directory: the kind folders and ${WORKSPACE_BASE_FILE}`,
-        '.'
+    typesFlag(
+      strictFlags(
+        command.option(
+          '--dir <dir>',
+          `Workspace source directory: the kind folders and ${WORKSPACE_BASE_FILE}`,
+          '.'
+        )
       )
     )
   )
     .allowExcessArguments(false)
     .description(
-      'Compile every workflow of a workspace source directory locally, without the server'
+      'Compile and type-check every workflow of a workspace source directory locally, without the server'
     )
     .addHelpText('after', `${CHECK_HELP}\n${SOURCE_DIR_BUSY_HELP}`)
     .action(
-      async (options: { dir: string; verbose?: boolean } & StrictOptions, command: Command) => {
-        const profile = profileFrom(command)
+      async (
+        options: { dir: string; verbose?: boolean } & StrictOptions & TypesOptions,
+        command: Command
+      ) => {
+        const profile = actingProfileFrom(command)
         const base = toRecord(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
         await assertWorkspaceDir(options.dir)
         const workspaceId = directoryWorkspace(
           options.dir,
           typeof base.workspaceId === 'string' ? base.workspaceId : null,
           profile,
-          (from) => `Run it without --workspace to check it against the catalog of ${from}.`
+          (from, _named, setting) =>
+            `Run it without ${setting} to check it against the catalog of ${from}.`
         )
         if (!workspaceId) {
           throw new CliUsageError(
@@ -136,6 +139,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
               {
                 declarations,
                 strict: strictMode(options),
+                key,
                 prefix: `${KIND_DIRS.workflow}/${key}/`,
               }
             )
@@ -162,11 +166,10 @@ export function attachWorkspaceSourceCheck(source: Command): void {
               column,
             })
           }
-          await refreshWorkspaceTypes(
-            options.dir,
-            withWorkflowInputs(declarations.local, declarations.workflowInputs)
-          )
-          await refreshWorkspaceTsconfigs(options.dir, workspaceId)
+          const types = await typeCheckWorkspace(options.dir, workspaceId, declarations, {
+            enabled: options.types !== false,
+            compiled: findings,
+          })
           reportCheck(
             profile.output,
             findings,
@@ -176,6 +179,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
               bound: WORKSPACE_ANSWER_BOUND,
               unlisted,
               dir: options.dir,
+              types,
             }
           )
         })

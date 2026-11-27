@@ -64,6 +64,7 @@ export const intercomDetachContactFromCompanyV2Tool: ToolConfig<
   name: 'Detach Contact from Company in Intercom',
   description: 'Remove a contact from a company in Intercom',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

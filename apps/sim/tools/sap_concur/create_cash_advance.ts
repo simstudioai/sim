@@ -8,6 +8,7 @@ export const createCashAdvanceTool: InternalToolConfig<CreateCashAdvanceParams, 
     name: 'SAP Concur Create Cash Advance',
     description: 'Create a cash advance (POST /cashadvance/v4.1/cashadvances).',
     version: '1.0.0',
+    effect: 'write',
     params: {
       datacenter: {
         type: 'string',

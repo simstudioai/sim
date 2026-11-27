@@ -19,6 +19,7 @@ export const linqCreateWebhookSubscriptionTool: ToolConfig<
   name: 'Create Webhook Subscription',
   description: 'Subscribe an HTTPS endpoint to Linq webhook events',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const windchillGetPrimaryContentTool: ToolConfig<WindchillParams, Windchi
   name: 'Windchill Get Primary Content',
   description: 'Get primary-content metadata for a document',
   version: '1.0.0',
+  effect: 'read',
   params: {
     baseUrl: {
       type: 'string',

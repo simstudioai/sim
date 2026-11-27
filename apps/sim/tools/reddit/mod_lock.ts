@@ -18,6 +18,7 @@ export const lockTool: ToolConfig<RedditLockParams, RedditLockResponse> = {
   name: 'Lock Reddit Post/Comment (Mod)',
   description: 'Lock a Reddit post or comment to prevent further replies (moderator action)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -101,6 +102,7 @@ export const unlockTool: ToolConfig<RedditLockParams, RedditLockResponse> = {
   name: 'Unlock Reddit Post/Comment (Mod)',
   description: 'Unlock a Reddit post or comment to allow replies again (moderator action)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

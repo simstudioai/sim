@@ -12,6 +12,7 @@ export const attioUpdateObjectTool: ToolConfig<AttioUpdateObjectParams, AttioUpd
     name: 'Attio Update Object',
     description: 'Update a custom object in Attio',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

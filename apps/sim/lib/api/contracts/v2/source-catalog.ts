@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { v2ToolEffectSchema } from '@/lib/api/contracts/v2/catalog'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -242,6 +243,10 @@ const catalogOutputSchema = z
       .optional()
       .describe('When the output is present: `{ field, value, not?, and? }`.'),
     hiddenFromDisplay: z.boolean().optional().describe('Hidden from the output picker.'),
+    mayBeText: z
+      .literal(true)
+      .optional()
+      .describe('A `json` or `any` output whose value can still be text at run time.'),
     properties: z
       .record(z.string(), z.unknown().describe('A nested output, of this same shape.'))
       .optional()
@@ -339,6 +344,15 @@ const catalogBlockSchema = z
       )
       .optional()
       .describe('Per operation id: the outputs its tool returns, where they differ.'),
+    effect: v2ToolEffectSchema
+      .optional()
+      .describe(
+        '`read` when every tool the block can run changes nothing outside Sim, else `write`. Absent for a block with no `tools.access`.'
+      ),
+    operationEffects: z
+      .record(z.string(), v2ToolEffectSchema)
+      .optional()
+      .describe("Per operation id: its tool's effect, where it differs from `effect`."),
     dynamicOutputs: z
       .object({
         source: z
@@ -348,6 +362,12 @@ const catalogBlockSchema = z
       })
       .optional()
       .describe('Present when outputs derive from a param at run time.'),
+    errorOutputs: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'Text outputs the block writes only when it fails into an error edge, beside `error`.'
+      ),
     graph: z
       .object({
         canBeTarget: z.boolean().describe('Whether an edge may connect into the block.'),
@@ -366,33 +386,6 @@ const catalogBlockSchema = z
           .describe('The field lifted into named branches.'),
       })
       .describe('Edge rules for the block.'),
-    legacyIds: z
-      .array(
-        z
-          .object({
-            from: z.string().describe('Legacy field id.'),
-            to: z.string().nullable().describe('Current field id, or null when removed.'),
-            whenOperation: z
-              .array(z.string())
-              .optional()
-              .describe('Operations the rename applies to.'),
-            conditional: z.literal(true).optional().describe('Applies only to some values.'),
-          })
-          .describe('One field id rename.')
-      )
-      .optional()
-      .describe('Field id renames applied on load.'),
-    legacyCanonicalIds: z
-      .array(
-        z
-          .object({
-            from: z.string().describe('Legacy pair id.'),
-            to: z.string().describe('Current pair id.'),
-          })
-          .describe('One pair id rename.')
-      )
-      .optional()
-      .describe('Basic/advanced pair id renames applied on load.'),
     paramAliases: z
       .object({
         action: z.record(z.string(), z.string()).optional().describe('Action-surface aliases.'),

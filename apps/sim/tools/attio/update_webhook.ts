@@ -14,6 +14,7 @@ export const attioUpdateWebhookTool: ToolConfig<
   name: 'Attio Update Webhook',
   description: 'Update a webhook in Attio (target URL and/or subscriptions)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

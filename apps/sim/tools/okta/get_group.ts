@@ -13,6 +13,7 @@ export const oktaGetGroupTool: ToolConfig<OktaGetGroupParams, OktaGetGroupRespon
   name: 'Get Group from Okta',
   description: 'Get a specific group by ID from your Okta organization',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

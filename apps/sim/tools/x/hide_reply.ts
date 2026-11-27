@@ -9,6 +9,7 @@ export const xHideReplyTool: ToolConfig<XHideReplyParams, XHideReplyResponse> = 
   name: 'X Hide Reply',
   description: 'Hide or unhide a reply to a tweet authored by the authenticated user',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

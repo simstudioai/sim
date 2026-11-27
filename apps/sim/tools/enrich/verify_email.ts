@@ -8,6 +8,7 @@ export const verifyEmailTool: ToolConfig<EnrichVerifyEmailParams, EnrichVerifyEm
   description:
     'Verify an email address for deliverability, including catch-all detection and provider identification.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

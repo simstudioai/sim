@@ -43,6 +43,7 @@ export const stopSensorTool: ToolConfig<DagsterStopSensorParams, DagsterSensorMu
   name: 'Dagster Stop Sensor',
   description: 'Disable (stop) a running sensor in Dagster.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

@@ -14,6 +14,7 @@ export const getSubredditInfoTool: ToolConfig<
   name: 'Get Subreddit Info',
   description: 'Get metadata and information about a subreddit',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

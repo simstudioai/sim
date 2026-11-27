@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotCreateTicketParams, HubSpotCreateTicketResponse } from '@/tools/hubspot/types'
 import { TICKET_OBJECT_OUTPUT } from '@/tools/hubspot/types'
+import { parseHubSpotProperties, placeholderCrmRecord } from '@/tools/hubspot/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotCreateTicket')
@@ -13,6 +14,7 @@ export const hubspotCreateTicketTool: ToolConfig<
   name: 'Create Ticket in HubSpot',
   description: 'Create a new ticket in HubSpot. Requires subject and hs_pipeline_stage properties',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -55,14 +57,7 @@ export const hubspotCreateTicketTool: ToolConfig<
       }
     },
     body: (params) => {
-      let properties = params.properties
-      if (typeof properties === 'string') {
-        try {
-          properties = JSON.parse(properties)
-        } catch {
-          throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
-        }
-      }
+      const properties = parseHubSpotProperties(params.properties)
       const body: Record<string, unknown> = { properties }
       let associations = params.associations
       if (typeof associations === 'string') {
@@ -80,6 +75,8 @@ export const hubspotCreateTicketTool: ToolConfig<
       return body
     },
   },
+
+  dryRunOutput: (params) => placeholderCrmRecord('ticket', params.properties),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()

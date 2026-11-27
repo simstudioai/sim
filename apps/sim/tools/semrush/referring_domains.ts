@@ -30,6 +30,7 @@ export const semrushReferringDomainsTool: ToolConfig<
   description:
     'List the domains linking to a target, with Authority Score, backlink count, and country.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

@@ -35,6 +35,7 @@ export const createLineTool: ToolConfig<CreateLineParams, CreateLineResponse> = 
   name: 'Create Line in Google Slides',
   description: 'Create a line or connector on a slide.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

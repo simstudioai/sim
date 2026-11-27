@@ -21,6 +21,7 @@ export const affinityListEntityNotesTool: ToolConfig<
   description:
     'List the notes relevant to one company, person, or opportunity — directly attached notes plus notes reaching it through its people and meetings.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

@@ -9,6 +9,7 @@ export const pitchbookFundPerformanceTool: ToolConfig<PitchbookProfileParams, Pi
   description:
     'Retrieve the most recent reported returns for a fund: IRR, DPI, RVPI, TVPI, NAV, and benchmark quartile',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

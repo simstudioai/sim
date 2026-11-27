@@ -2,17 +2,21 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { z } from 'zod'
 import { WORKER_STREAM_IDLE_TIMEOUT_MS } from '@/lib/mothership/constants'
-import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
-import { type StreamReplayEnd, StreamReplayRequest } from '@/lib/mothership/generated/protocol'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1ReplayEndKind,
+  MothershipStreamV1ReplayEndPayloadSchema,
+  type MothershipStreamV1ReplayEndReason,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { StreamReplayRequest } from '@/lib/mothership/generated/protocol'
 import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import {
   isTerminalStreamStatus,
   type PersistedStreamEventEnvelope,
-  parsePersistedStreamEventEnvelope,
 } from '@/lib/mothership/request/session/contract'
+import { parseIngestedStreamEventEnvelope } from '@/lib/mothership/request/session/contract-shadow'
 import { toReplayEnvelope } from '@/lib/mothership/request/session/types'
 import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { FatalSseEventError, processSSEStream } from '@/lib/mothership/request/worker/parser'
@@ -29,7 +33,7 @@ const REPLAY_HOLD_POLL_MS = 1_000
 const PARKED_RUN_STATUS = 'paused_waiting_for_tool'
 
 /** How a worker replay leg ended: at the run's terminal, short of it, or cut off. */
-export type RunReplayEnd = 'complete' | StreamReplayEnd['reason'] | 'closed'
+export type RunReplayEnd = 'complete' | MothershipStreamV1ReplayEndReason | 'closed'
 
 /** The worker could not serve the replay; the reader should retry later. */
 export class RunReplayUnavailableError extends Error {
@@ -93,35 +97,21 @@ export async function openRunReplay(params: {
   return response.body
 }
 
-/** Every reason the worker may end a replay with; a reason added to the contract fails here. */
-const REPLAY_END_REASONS = {
-  parked: true,
-  cap: true,
-  stalled: true,
-} as const satisfies Record<StreamReplayEnd['reason'], true>
-
-const StreamReplayEndSchema = z.object({
-  kind: z.literal('replay_end'),
-  reason: z
-    .string()
-    .refine((reason): reason is StreamReplayEnd['reason'] =>
-      Object.hasOwn(REPLAY_END_REASONS, reason)
-    ),
-  textLength: z.number().int().nonnegative(),
-}) satisfies z.ZodType<StreamReplayEnd>
-
 /**
- * The end a `replay_end` frame reports: its reason, `closed` for a reason this build
- * does not know, or `null` for any other frame. It is worker-to-Sim control, never a
- * stream event, whatever reason it carries.
+ * The end a `replay_end` frame reports: its reason, `closed` for a frame this build cannot
+ * parse (an unknown reason, a missing length), or `null` for any other frame. It is
+ * worker-to-Sim control, never a stream event, whatever reason it carries.
  */
 function replayEnd(value: unknown): RunReplayEnd | null {
   if (!isRecordLike(value) || value.type !== MothershipStreamV1EventType.run) return null
   const payload = toRecord(value.payload)
-  if (payload.kind !== 'replay_end') return null
-  const parsed = StreamReplayEndSchema.safeParse(payload)
+  if (payload.kind !== MothershipStreamV1ReplayEndKind) return null
+  const parsed = MothershipStreamV1ReplayEndPayloadSchema.safeParse(payload)
   if (parsed.success) return parsed.data.reason
-  logger.warn('Run replay ended with an unknown reason', { reason: payload.reason })
+  logger.warn('Run replay ended with a malformed replay-end frame', {
+    reason: payload.reason,
+    issues: parsed.error.issues.map((issue) => issue.path.join('.') || '(root)'),
+  })
   return 'closed'
 }
 
@@ -145,7 +135,7 @@ async function readRunReplay(
         end = control
         return true
       }
-      const parsed = parsePersistedStreamEventEnvelope(raw)
+      const parsed = parseIngestedStreamEventEnvelope(raw)
       if (!parsed.ok) throw new FatalSseEventError(`Invalid run replay event: ${parsed.message}`)
       if (!onEvent(parsed.event)) return true
       if (parsed.event.type === MothershipStreamV1EventType.complete) {

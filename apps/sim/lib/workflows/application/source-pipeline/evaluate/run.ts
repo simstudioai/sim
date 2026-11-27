@@ -16,7 +16,7 @@ import type {
  * in the submitted text, or the plan the write stores.
  */
 export async function evaluateSource(input: SourceEvaluationInput): Promise<SourceEvaluation> {
-  const submission = compileSubmission(input)
+  const submission = await compileSubmission(input)
   if ('refused' in submission) return { refused: submission.refused }
   const resolved = await resolveSubmission(input, submission)
   if ('refused' in resolved) return resolved

@@ -16,6 +16,7 @@ export const updateSettingsTool: ToolConfig<JotformUpdateSettingsParams, Jotform
   description:
     'Update account settings such as name, email, website, company, industry, or time zone. Only the supplied fields change.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

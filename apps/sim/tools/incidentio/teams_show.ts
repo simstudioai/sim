@@ -11,6 +11,7 @@ export const teamsShowTool: ToolConfig<IncidentioTeamsShowParams, IncidentioTeam
   name: 'Show Team',
   description: 'Get a single team by ID from incident.io, along with its members',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

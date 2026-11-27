@@ -25,6 +25,7 @@ export const createTableTool: ToolConfig<
   name: 'Create Microsoft Excel Table',
   description: 'Create a new table over a range of cells in a Microsoft Excel workbook',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

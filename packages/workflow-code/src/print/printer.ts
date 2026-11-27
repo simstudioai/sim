@@ -23,7 +23,7 @@ import { printedConfig } from '../forms/subflow'
 import { SOURCE_ENTRY_FILE } from '../limits'
 import type { SourceHintBlock, SourceHints } from '../lock'
 import type { AnchorKey, BlockKey, CanonicalBlock, Json } from '../model'
-import { getOwn, setOwn } from '../records'
+import { getOwn, pushTo, setOwn } from '../records'
 import { type BlockMetaKey, GENERIC_BUILDER, SDK_MODULE, type TemplateTag } from '../sdk'
 import { type AttachedComments, anchors, withComments } from './comments'
 import type { PrintContext } from './context'
@@ -250,19 +250,31 @@ function containerCall(ctx: PrintContext, block: CanonicalBlock): Expr {
   return ctx.values.call(callee, args)
 }
 
-/** Declarations then wiring for one scope (the workflow body or a container callback). */
+/**
+ * The statements of one scope (the workflow body or a container callback): each block declaration
+ * followed by the wiring statements whose last-declared block it is, so a block's incoming edges
+ * sit right under it and its outgoing ones under each target, wherever the scope is long.
+ */
 function scopeStatements(ctx: PrintContext, scope: BlockKey | null): StatementList {
   const members = ctx.scopeMembers.get(scope) ?? []
   const calls = members.map((key) => {
     const block = ctx.blocks.get(key)
-    return block ? { key, call: blockCall(ctx, block) } : null
+    return block ? blockCall(ctx, block) : null
   })
+  const slotOf = new Map(members.map((key, index) => [key, index]))
   const wiring = wiringStatements(ctx, scope)
-  const wiringDocs: Doc[] = []
+    .map((statement) => ({
+      statement,
+      slot: Math.max(
+        ...[statement.source, ...statement.targets].map((key) => slotOf.get(key) ?? -1)
+      ),
+    }))
+    .sort((a, b) => a.slot - b.slot)
+  const wiringAt = new Map<number, Doc[]>()
   // An expression statement over the call; a declaration adds its declarator too.
   let depth = 0
   const seenAnchors = new Set<AnchorKey>()
-  wiring.forEach((statement, index) => {
+  wiring.forEach(({ statement, slot }, index) => {
     const attached: AttachedComments = seenAnchors.has(statement.anchor)
       ? { leading: [], trailing: [] }
       : ctx.comments.take(statement.anchor)
@@ -272,32 +284,28 @@ function scopeStatements(ctx: PrintContext, scope: BlockKey | null): StatementLi
       attached.leading.unshift(...wiringComments.leading)
       attached.trailing.push(...wiringComments.trailing)
     }
-    wiringDocs.push(withComments(statement.expr.doc, attached))
+    pushTo(wiringAt, slot, withComments(statement.expr.doc, attached))
     depth = Math.max(depth, 1 + statement.expr.depth)
   })
-  const declarations: Doc[] = []
-  for (const entry of calls) {
-    if (!entry) continue
-    const { key, call } = entry
-    const own = ctx.comments.take(anchors.block(key))
-    const moved = ctx.comments.takeOrphans(key)
-    const attached: AttachedComments = {
-      leading: [...own.leading, ...moved.leading],
-      trailing: [...own.trailing, ...moved.trailing],
+  const docs: Doc[] = [...(wiringAt.get(-1) ?? [])]
+  members.forEach((key, slot) => {
+    const call = calls[slot]
+    if (call) {
+      const own = ctx.comments.take(anchors.block(key))
+      const moved = ctx.comments.takeOrphans(key)
+      const attached: AttachedComments = {
+        leading: [...own.leading, ...moved.leading],
+        trailing: [...own.trailing, ...moved.trailing],
+      }
+      docs.push(withComments(['const ', ctx.idents.get(key) ?? key, ' = ', call.doc], attached))
+      depth = Math.max(depth, 2 + call.depth)
     }
-    declarations.push(
-      withComments(['const ', ctx.idents.get(key) ?? key, ' = ', call.doc], attached)
-    )
-    depth = Math.max(depth, 2 + call.depth)
-  }
+    docs.push(...(wiringAt.get(slot) ?? []))
+  })
   if (scope === null && wiring.length === 0) {
     const dangling = ctx.comments.take(anchors.wiring)
-    for (const comment of [...dangling.leading, ...dangling.trailing]) wiringDocs.push(comment)
+    for (const comment of [...dangling.leading, ...dangling.trailing]) docs.push(comment)
   }
-  const docs =
-    declarations.length > 0 && wiringDocs.length > 0
-      ? [...declarations, '', ...wiringDocs]
-      : [...declarations, ...wiringDocs]
   return { docs, depth }
 }
 

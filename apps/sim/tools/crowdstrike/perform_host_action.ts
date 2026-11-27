@@ -17,6 +17,7 @@ export const crowdstrikePerformHostActionTool: InternalToolConfig<
   description:
     'Act on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain, lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. contain network-isolates the host so it can only reach the Falcon cloud; hide_host removes the host record from the console. Both are immediately disruptive. Up to 100 host IDs per call. Requires the "Hosts: Write" API scope.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

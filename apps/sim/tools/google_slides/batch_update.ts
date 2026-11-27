@@ -26,6 +26,7 @@ export const batchUpdateTool: ToolConfig<BatchUpdateParams, BatchUpdateResponse>
   description:
     'Run a raw Slides API batchUpdate with a list of Request objects. Use this when the higher-level tools do not cover an operation, or to bundle multiple operations into a single atomic batch (all-or-nothing).',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

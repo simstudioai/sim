@@ -6,6 +6,7 @@ export const slackRemoveBookmarkTool = createSlackWebApiTool({
   id: 'slack_remove_bookmark',
   name: 'Slack Remove Bookmark',
   description: 'Remove a bookmark from a Slack channel.',
+  effect: 'write',
   endpoint: 'bookmarks.remove',
   method: 'POST',
   oauth: {

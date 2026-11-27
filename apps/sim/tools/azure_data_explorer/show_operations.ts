@@ -19,6 +19,7 @@ export const azureDataExplorerShowOperationsTool: InternalToolConfig<
   description:
     'Check the state of administrative operations on a cluster, such as an async ingestion. Given an operation ID it returns that operation latest update; with no ID it returns the operations from the last two weeks.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

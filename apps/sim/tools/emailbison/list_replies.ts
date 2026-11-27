@@ -22,6 +22,7 @@ export const listRepliesTool: ToolConfig<
   description:
     'Retrieves Email Bison replies with optional status, folder, campaign, sender, lead, and tag filters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

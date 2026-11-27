@@ -15,6 +15,7 @@ export const getConferenceRecordTool: ToolConfig<
   name: 'Google Meet Get Conference Record',
   description: 'Get details of a specific conference record',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

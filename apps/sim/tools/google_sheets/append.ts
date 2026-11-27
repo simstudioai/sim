@@ -6,8 +6,10 @@ import type {
 } from '@/tools/google_sheets/types'
 import {
   appendResponseRenderParams,
+  appendSheetRows,
   mapValueRange,
   RESPONSE_RENDER_PARAMS,
+  sheetWritePlaceholder,
   UPDATED_DATA_OUTPUT,
 } from '@/tools/google_sheets/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -18,6 +20,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
   name: 'Append to Google Sheets',
   description: 'Append data to the end of a Google Sheets spreadsheet',
   version: '1.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -99,93 +102,14 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      let processedValues: any = params.values || []
-
-      // Handle case where values might be a string (potentially JSON string)
-      if (typeof processedValues === 'string') {
-        try {
-          // Try to parse it as JSON
-          processedValues = JSON.parse(processedValues)
-        } catch (_error) {
-          // If the input contains literal newlines causing JSON parse to fail,
-          // try a more robust approach
-          try {
-            // Replace literal newlines with escaped newlines for JSON parsing
-            const sanitizedInput = (processedValues as string)
-              .replace(/\n/g, '\\n')
-              .replace(/\r/g, '\\r')
-              .replace(/\t/g, '\\t')
-
-            // Try to parse again with sanitized input
-            processedValues = JSON.parse(sanitizedInput)
-          } catch (_secondError) {
-            // If all parsing attempts fail, wrap as a single cell value
-            processedValues = [[processedValues]]
-          }
-        }
-      }
-
-      // New logic to handle array of objects
-      if (
-        Array.isArray(processedValues) &&
-        processedValues.length > 0 &&
-        typeof processedValues[0] === 'object' &&
-        !Array.isArray(processedValues[0])
-      ) {
-        // It's an array of objects
-
-        // First, extract all unique keys from all objects to create headers
-        const allKeys = new Set<string>()
-        processedValues.forEach((obj: any) => {
-          if (obj && typeof obj === 'object') {
-            Object.keys(obj).forEach((key) => allKeys.add(key))
-          }
-        })
-        const headers = Array.from(allKeys)
-
-        // Then create rows with object values in the order of headers
-        const rows = processedValues.map((obj: any) => {
-          if (!obj || typeof obj !== 'object') {
-            // Handle non-object items by creating an array with empty values
-            return Array(headers.length).fill('')
-          }
-          return headers.map((key) => {
-            const value = obj[key]
-            // Handle nested objects/arrays by converting to JSON string
-            if (value !== null && typeof value === 'object') {
-              return JSON.stringify(value)
-            }
-            return value === undefined ? '' : value
-          })
-        })
-
-        // Add headers as the first row, then add data rows
-        processedValues = [headers, ...rows]
-      }
-      // Continue with existing logic for other array types
-      else if (!Array.isArray(processedValues)) {
-        processedValues = [[String(processedValues)]]
-      } else if (!processedValues.every((item: any) => Array.isArray(item))) {
-        // If it's an array but not all elements are arrays, wrap each element
-        processedValues = (processedValues as any[]).map((row: any) =>
-          Array.isArray(row) ? row : [String(row)]
-        )
-      }
-
-      const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
-        values: processedValues,
-      }
-
-      // Only include range if it's provided
-      if (params.range) {
-        body.range = params.range
-      }
-
-      return body
-    },
+    body: (params) => ({
+      majorDimension: params.majorDimension || 'ROWS',
+      values: appendSheetRows(params.values),
+      ...(params.range ? { range: params.range } : {}),
+    }),
   },
+
+  dryRunOutput: (params) => sheetWritePlaceholder(params, appendSheetRows(params.values)),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
@@ -241,6 +165,7 @@ export const appendV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Ap
   name: 'Append to Google Sheets V2',
   description: 'Append data to the end of a specific sheet in a Google Sheets spreadsheet',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -324,69 +249,13 @@ export const appendV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Ap
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      let processedValues: any = params.values || []
-
-      if (typeof processedValues === 'string') {
-        try {
-          processedValues = JSON.parse(processedValues)
-        } catch (_error) {
-          try {
-            const sanitizedInput = (processedValues as string)
-              .replace(/\n/g, '\\n')
-              .replace(/\r/g, '\\r')
-              .replace(/\t/g, '\\t')
-            processedValues = JSON.parse(sanitizedInput)
-          } catch (_secondError) {
-            processedValues = [[processedValues]]
-          }
-        }
-      }
-
-      if (
-        Array.isArray(processedValues) &&
-        processedValues.length > 0 &&
-        typeof processedValues[0] === 'object' &&
-        !Array.isArray(processedValues[0])
-      ) {
-        const allKeys = new Set<string>()
-        processedValues.forEach((obj: any) => {
-          if (obj && typeof obj === 'object') {
-            Object.keys(obj).forEach((key) => allKeys.add(key))
-          }
-        })
-        const headers = Array.from(allKeys)
-
-        const rows = processedValues.map((obj: any) => {
-          if (!obj || typeof obj !== 'object') {
-            return Array(headers.length).fill('')
-          }
-          return headers.map((key) => {
-            const value = obj[key]
-            if (value !== null && typeof value === 'object') {
-              return JSON.stringify(value)
-            }
-            return value === undefined ? '' : value
-          })
-        })
-
-        processedValues = [headers, ...rows]
-      } else if (!Array.isArray(processedValues)) {
-        processedValues = [[String(processedValues)]]
-      } else if (!processedValues.every((item: any) => Array.isArray(item))) {
-        processedValues = (processedValues as any[]).map((row: any) =>
-          Array.isArray(row) ? row : [String(row)]
-        )
-      }
-
-      const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
-        values: processedValues,
-      }
-
-      return body
-    },
+    body: (params) => ({
+      majorDimension: params.majorDimension || 'ROWS',
+      values: appendSheetRows(params.values),
+    }),
   },
+
+  dryRunOutput: (params) => sheetWritePlaceholder(params, appendSheetRows(params.values)),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()

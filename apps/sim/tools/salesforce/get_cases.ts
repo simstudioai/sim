@@ -11,6 +11,7 @@ export const salesforceGetCasesTool: ToolConfig<
   name: 'Get Cases from Salesforce',
   description: 'Get case(s) from Salesforce',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

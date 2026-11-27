@@ -35,6 +35,7 @@ export const kalshiGetPositionsTool: ToolConfig<
   name: 'Get Positions from Kalshi',
   description: 'Retrieve your open positions from Kalshi',
   version: '1.0.0',
+  effect: 'read',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
@@ -178,6 +179,7 @@ export const kalshiGetPositionsV2Tool: ToolConfig<
   name: 'Get Positions from Kalshi V2',
   description: 'Retrieve your open positions from Kalshi',
   version: '2.0.0',
+  effect: 'read',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {

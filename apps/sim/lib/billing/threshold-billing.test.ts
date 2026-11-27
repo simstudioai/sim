@@ -309,7 +309,8 @@ describe('checkAndBillOverageThreshold', () => {
     },
     {
       name: 'plan ineligible',
-      prepare: () => mockIsFree.mockReturnValue(true),
+      prepare: () =>
+        mockGetHighestPrioritySubscription.mockResolvedValue({ ...userSubscription, plan: 'free' }),
     },
     {
       name: 'below threshold',
@@ -331,6 +332,23 @@ describe('checkAndBillOverageThreshold', () => {
     ).resolves.toBeUndefined()
   })
 
+  it('never bills a trial, which is capped at its allowance', async () => {
+    queuePersonalReads()
+    mockGetHighestPrioritySubscription.mockResolvedValue({
+      ...userSubscription,
+      status: 'trialing',
+    })
+    mockCalculateSubscriptionOverage.mockResolvedValue(250)
+
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, {
+        onError: 'throw',
+        expectedBillingPeriod,
+      })
+    ).resolves.toEqual({ status: 'no-op', reason: 'plan-ineligible' })
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
   it('returns a distinct modern no-op when overage is below threshold', async () => {
     queuePersonalReads()
     mockCalculateSubscriptionOverage.mockResolvedValue(99)
@@ -343,8 +361,17 @@ describe('checkAndBillOverageThreshold', () => {
     ).resolves.toEqual({ status: 'no-op', reason: 'below-threshold' })
   })
 
-  it('does not compare an Enterprise reporting window to Stripe before the ineligible no-op', async () => {
-    mockIsEnterprise.mockReturnValue(true)
+  it('does not compare a hard-capped Enterprise reporting window to Stripe before the ineligible no-op', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({
+      ...userSubscription,
+      plan: 'enterprise',
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: '5',
+        invoiceAmountCents: '100000',
+      },
+    })
 
     await expect(
       checkAndBillOverageThreshold('user-1', undefined, {
@@ -498,8 +525,7 @@ describe('checkAndBillOverageThreshold', () => {
     await checkAndBillOverageThreshold('user-1')
 
     expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith({
-      plan: 'team',
-      seats: 2,
+      subscription: expect.objectContaining({ plan: 'team', seats: 2, metadata: undefined }),
       periodStart: new Date('2026-05-01T00:00:00.000Z'),
       periodEnd: new Date('2026-06-01T00:00:00.000Z'),
       organizationId: userSubscription.referenceId,

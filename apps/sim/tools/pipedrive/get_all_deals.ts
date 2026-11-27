@@ -20,6 +20,7 @@ export const pipedriveGetAllDealsTool: ToolConfig<
   name: 'Get All Deals from Pipedrive',
   description: 'Retrieve all deals from Pipedrive with optional filters',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

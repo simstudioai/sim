@@ -12,6 +12,7 @@ export const googleMapsPlacesNearbyTool: ToolConfig<
   name: 'Google Maps Places Nearby Search',
   description: 'Search for places of a given type within a radius of a location',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

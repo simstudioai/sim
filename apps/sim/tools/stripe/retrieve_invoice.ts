@@ -9,6 +9,7 @@ export const stripeRetrieveInvoiceTool: ToolConfig<RetrieveInvoiceParams, Invoic
   name: 'Stripe Retrieve Invoice',
   description: 'Retrieve an existing invoice by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

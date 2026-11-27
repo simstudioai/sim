@@ -18,6 +18,7 @@ export const pitchbookCompanySearchTool: ToolConfig<
   description:
     'Search PitchBook for companies by name, location, industry, funding, deal activity, and more',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

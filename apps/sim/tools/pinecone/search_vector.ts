@@ -6,6 +6,7 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
   name: 'Pinecone Search Vector',
   description: 'Search for similar vectors in a Pinecone index',
   version: '1.0',
+  effect: 'read',
 
   params: {
     indexHost: {

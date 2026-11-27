@@ -20,6 +20,7 @@ export const triggerDevUpdateScheduleTool: ToolConfig<
   description:
     'Update an imperative Trigger.dev schedule by its ID, replacing its task, cron expression, timezone, and external ID.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

@@ -8,6 +8,7 @@ export const logsQueryRunsTool: InternalToolConfig<LogsQueryRunsParams, LogsQuer
   description:
     'Query workflow run logs in the current workspace with the full Logs-page filter set. Returns matching run IDs.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     workflowIds: {

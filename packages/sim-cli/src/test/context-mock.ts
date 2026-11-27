@@ -16,10 +16,13 @@ export const contextMockState: {
   workspaceSource: 'config',
 }
 
-/** The resolved profile `clientFrom` and `profileFrom` return, built from {@link contextMockState}. */
+/**
+ * The resolved profile `clientFrom`, `profileFrom` and `actingProfileFrom` return, built from
+ * {@link contextMockState}.
+ */
 export function mockedProfile() {
   return {
-    workspaceId: contextMockState.workspaceId,
+    workspaceId: contextMockState.workspaceId as string | null,
     output: contextMockState.output,
     name: 'default',
     authProfile: 'default',
@@ -63,5 +66,6 @@ export const contextMockFns = {
 export const contextMock = {
   globalsOf: contextMockFns.mockGlobalsOf,
   profileFrom: contextMockFns.mockProfileFrom,
+  actingProfileFrom: contextMockFns.mockProfileFrom,
   clientFrom: contextMockFns.mockClientFrom,
 }

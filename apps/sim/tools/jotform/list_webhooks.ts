@@ -15,6 +15,7 @@ export const listWebhooksTool: ToolConfig<JotformListWebhooksParams, JotformWebh
   description:
     'List the webhooks registered on a form. The returned IDs are what the Delete Webhook operation takes.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

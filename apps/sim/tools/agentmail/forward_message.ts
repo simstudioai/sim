@@ -8,6 +8,7 @@ export const agentmailForwardMessageTool: ToolConfig<ForwardMessageParams, Forwa
   name: 'Forward Message',
   description: 'Forward an email message to new recipients in AgentMail',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

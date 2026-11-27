@@ -15,6 +15,7 @@ export const quartrGetCompanyTool: ToolConfig<QuartrGetCompanyParams, QuartrGetC
   name: 'Quartr Get Company',
   description: 'Retrieve a single company from Quartr by its company ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

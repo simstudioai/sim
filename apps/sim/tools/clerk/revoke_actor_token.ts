@@ -19,6 +19,7 @@ export const clerkRevokeActorTokenTool: ToolConfig<
   name: 'Revoke Actor Token in Clerk',
   description: 'Revoke an actor token before it is used or expires',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

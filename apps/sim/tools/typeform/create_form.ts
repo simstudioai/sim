@@ -7,6 +7,7 @@ export const createFormTool: ToolConfig<TypeformCreateFormParams, TypeformCreate
   name: 'Typeform Create Form',
   description: 'Create a new form with fields and settings',
   version: '1.0.0',
+  effect: 'write',
   oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {

@@ -7,6 +7,7 @@ import {
 } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { v2RunOverridesSchema } from '@/lib/api/contracts/v2/workflows'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
@@ -25,10 +26,13 @@ import {
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
 } from '@/lib/workflows/executor/execution-job-ids'
 import { normalizePausePoints } from '@/lib/workflows/executor/execution-state'
+import { runFailureMessage } from '@/lib/workflows/executor/failure-message'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { namePausePoints, pauseBaseBlockId } from '@/lib/workflows/executor/pause-block-names'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
+import type { RunOverrides } from '@/executor/execution/types'
 import type { PauseInputField, PausePoint, ResumeStatus } from '@/executor/types'
+import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
 /**
  * Reads a single execution's status resource — the log row, the paused-state
@@ -42,10 +46,9 @@ import type { PauseInputField, PausePoint, ResumeStatus } from '@/executor/types
 type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 interface ExecutionDataShape {
-  finalOutput?: { error?: string } & Record<string, unknown>
-  error?: { message?: string } | string
-  completionFailure?: string
+  finalOutput?: unknown
   traceSpans?: unknown
+  trigger?: { data?: { overrides?: unknown; placeholdersRecorded?: unknown } }
 }
 
 function resolvePath(value: unknown, path: string[]): unknown {
@@ -86,18 +89,6 @@ function pickEarliestPausePoint(points: PausePoint[]): PausePoint | null {
 /** A point no resume can act on any more: it resumed, or its resumed execution failed. */
 function isSettledPausePoint(point: PausePoint): boolean {
   return point.resumeStatus === 'resumed' || point.resumeStatus === 'failed'
-}
-
-function extractError(executionData: unknown): string | null {
-  if (!executionData || typeof executionData !== 'object') return null
-  const data = executionData as ExecutionDataShape
-  if (typeof data.error === 'string') return data.error
-  if (data.error && typeof data.error === 'object' && typeof data.error.message === 'string') {
-    return data.error.message
-  }
-  if (typeof data.finalOutput?.error === 'string') return data.finalOutput.error
-  if (typeof data.completionFailure === 'string') return data.completionFailure
-  return null
 }
 
 function extractJobFinalOutput(output: unknown): unknown | null {
@@ -278,6 +269,24 @@ export interface ProjectedWorkflowExecutionStatus {
    * permission-group-enforced: logs.trace_spans
    */
   failedBlock: FailedTraceBlock | null
+  /**
+   * A dry run's overrides, whatever its status, when the read loads execution data
+   * (a failed run, or one read with its output or selected block outputs); null otherwise, for any
+   * other run, or when the viewer's group withholds execution data. The v2 run read returns only
+   * a failed run's, and a `run.mocksFrom` read always selects block outputs.
+   *
+   * permission-group-enforced: logs.trace_spans
+   */
+  overrides: RunOverrides | null
+  /**
+   * The blocks named by `selectedOutputs` that a dry run answered, or a call of which it answered,
+   * with a placeholder, so their outputs may hold made-up values; empty for any other run. Null
+   * when unknown: a test run logged before its block states marked them, or a viewer whose group
+   * withholds execution data.
+   *
+   * permission-group-enforced: logs.trace_spans
+   */
+  placeholderBlockIds: string[] | null
 }
 
 /**
@@ -310,6 +319,8 @@ export async function getProjectedWorkflowExecutionStatus(
     stateExecutionId: resolved.stateExecutionId,
     pausePoints: resolved.pausePoints,
     failedBlock: projection.hideTraceSpans ? null : resolved.failedBlock,
+    overrides: projection.hideTraceSpans ? null : resolved.overrides,
+    placeholderBlockIds: projection.hideTraceSpans ? null : resolved.placeholderBlockIds,
   }
 }
 
@@ -374,6 +385,13 @@ interface ResolvedExecutionStatus {
   pausePoints: unknown
   /** The failing block the recorded trace names, when the answered `error` is the run's own. */
   failedBlock: FailedTraceBlock | null
+  /** A dry run's overrides, as its log's trigger recorded them, when execution data was read. */
+  overrides: RunOverrides | null
+  /**
+   * The selected blocks a dry run answered, or a call of which it answered, with a placeholder;
+   * null for a test run logged before its block states marked them.
+   */
+  placeholderBlockIds: string[] | null
 }
 
 async function readWorkflowExecutionStatus(
@@ -463,6 +481,8 @@ async function readWorkflowExecutionStatus(
         stateExecutionId: executionId,
         pausePoints: null,
         failedBlock: null,
+        overrides: null,
+        placeholderBlockIds: [],
       }
     }
   }
@@ -485,7 +505,14 @@ async function readWorkflowExecutionStatus(
       finalOutput: null,
       blockOutputs: null,
     }
-    return { status, stateExecutionId: executionId, pausePoints: null, failedBlock: null }
+    return {
+      status,
+      stateExecutionId: executionId,
+      pausePoints: null,
+      failedBlock: null,
+      overrides: null,
+      placeholderBlockIds: [],
+    }
   }
 
   if (!logRow) {
@@ -502,6 +529,8 @@ async function readWorkflowExecutionStatus(
       pausePoints: run.pausePoints,
       failedBlock:
         status.status === 'failed' && run.status.status === 'failed' ? run.failedBlock : null,
+      overrides: null,
+      placeholderBlockIds: [],
     }
   }
 
@@ -586,6 +615,8 @@ async function readWorkflowExecutionStatus(
       stateExecutionId: executionId,
       pausePoints: paused ? pausedRow?.pausePoints : null,
       failedBlock: null,
+      overrides: null,
+      placeholderBlockIds: [],
     }
   }
 
@@ -603,7 +634,7 @@ async function readWorkflowExecutionStatus(
   )
   const executionData = materialized.executionData as ExecutionDataShape
 
-  const error = status === 'failed' ? extractError(executionData) : null
+  const error = status === 'failed' ? (runFailureMessage(executionData) ?? null) : null
 
   const finalOutput =
     includeOutput && status === 'completed' && executionData
@@ -620,7 +651,22 @@ async function readWorkflowExecutionStatus(
     stateExecutionId: executionId,
     pausePoints: paused ? pausedRow?.pausePoints : null,
     failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans, error) : null,
+    overrides: logRow.trigger === TEST_TRIGGER ? readOverrides(executionData) : null,
+    placeholderBlockIds:
+      logRow.trigger !== TEST_TRIGGER || executionData?.trigger?.data?.placeholdersRecorded === true
+        ? [...materialized.placeholderBlockIds]
+        : null,
   }
+}
+
+/**
+ * A dry run's overrides from its log's trigger, recovered with the rest of the execution data
+ * however it was stored; null for a test run that recorded none (a workflow test) or a record
+ * not in that shape.
+ */
+function readOverrides(executionData: ExecutionDataShape | null): RunOverrides | null {
+  const parsed = v2RunOverridesSchema.safeParse(executionData?.trigger?.data?.overrides)
+  return parsed.success ? parsed.data : null
 }
 
 /**

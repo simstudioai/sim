@@ -10,6 +10,7 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
   description:
     'Update a Sentry issue by changing its status, assignment, bookmark state, or other properties. Returns the updated issue details.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {

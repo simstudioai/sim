@@ -9,6 +9,7 @@ export const pitchbookDealBioTool: ToolConfig<PitchbookProfileParams, PitchbookR
   description:
     'Retrieve the summary of a deal: company, date, size, status, type, and which detail datasets are available for it',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -22,6 +22,7 @@ export const stripeFinalizeInvoiceTool: ToolConfig<
   name: 'Stripe Finalize Invoice',
   description: 'Finalize a draft invoice',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

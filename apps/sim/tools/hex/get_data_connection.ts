@@ -13,6 +13,7 @@ export const getDataConnectionTool: ToolConfig<
   description:
     'Retrieve details for a specific data connection including type, description, and configuration flags.',
   version: '1.0.0',
+  effect: 'read',
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {

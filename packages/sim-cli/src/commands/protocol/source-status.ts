@@ -10,7 +10,9 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { stripTrailingSlashes } from '@sim/utils/string'
 import type { FileChange, SourceStatus } from '@sim/workspace-code/status'
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from 'diff'
-import type { OutputFormat } from '../../config/index'
+import { publishSummary } from '#sim-cli/output/github-actions'
+import type { NextStep } from '#sim-cli/output/next-step'
+import { isMachineFormat, type OutputFormat } from '../../config/index'
 import {
   AUTH_REQUIRED_CODE,
   AUTH_REQUIRED_EXIT_CODE,
@@ -24,7 +26,17 @@ import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
 import { CliUsageError, LocalRefusal } from './local-errors'
-import { type Diagnostic, findingsOutput } from './source-ui'
+import { sourceExitCodesHelp } from './source-exit-codes'
+import {
+  codeSpan,
+  type Diagnostic,
+  errorBullets,
+  findingsOutput,
+  markdownCell,
+  shellWord,
+  summaryFileFlag,
+  summaryMarker,
+} from './source-ui'
 
 /** One change of a workspace apply's plan. */
 type WorkspacePlanChange = ApplyWorkspaceSourceResponse['data']['plan'][number]
@@ -45,12 +57,6 @@ export function planFindings(diagnostics: readonly Diagnostic[]): Diagnostic[] {
   )
 }
 
-/** The next command a status recommends, and why. */
-export interface NextStep {
-  command: string
-  reason: string
-}
-
 /** What `status --output json` prints; `plan` is the command's own dry-run summary. */
 export interface StatusReport<Plan> extends SourceStatus {
   dir: string
@@ -63,20 +69,16 @@ export interface StatusReport<Plan> extends SourceStatus {
   next: NextStep | null
 }
 
-/** What a status prints and its exit codes, documented in the commands' help. */
-export const STATUS_EXIT_CODES_HELP = `
-With --json, \`plan\` is what applying would do as \`apply --dry-run --allow-delete\` reports it
+/** The `--help` of `command` (a status) after its options: its `--json` output and exit codes. */
+export function statusHelp(
+  command: 'workflows source status' | 'workspaces source status'
+): string {
+  return `
+With --json, \`plan\` is what applying would do as \`apply --dry --allow-delete\` reports it
 (its errors and warnings counted the same, a conflict as an error), and \`next\` the command to
 run (with --allow-delete only when the plan deletes something).
-
-Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was
-read); ${SOURCE_LOCAL_CHANGES_EXIT_CODE} local changes only (applying writes them); ${SOURCE_DRIFT_EXIT_CODE} the server changed since the
-directory was read: drift (a resource edited, added or deleted there that the directory leaves
-alone) or a conflict (also changed here, so applying it is refused as stale), with or without
-local changes; ${SOURCE_TOO_LARGE_EXIT_CODE} the source is too large for the server to read in one dry run; 1 the command
-failed; ${AUTH_REQUIRED_EXIT_CODE} not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the
-local changes only, then run \`sim login\`. A server that cannot be reached is not a failure: the
-status shows the local changes only and says so (exit 0 or ${SOURCE_LOCAL_CHANGES_EXIT_CODE}).`
+${sourceExitCodesHelp(command)}`
+}
 
 /** What `diff` compares, and its exit codes. */
 export const DIFF_HELP = `
@@ -139,6 +141,61 @@ const SERVER_WORDS = {
 } as const
 
 /**
+ * A status as the Markdown a step summary or `--summary-file` holds: the local changes, what
+ * changed on the server (the drift a scheduled job opens an issue for), the plan's one line and
+ * the next command; the plan's error findings follow it, as an apply's summary lists them.
+ */
+function statusMarkdown<Plan>(
+  heading: string,
+  report: StatusReport<Plan>,
+  planLine: (plan: Plan) => string,
+  findings: readonly Diagnostic[]
+): string {
+  const lines = [`### Sim status: ${markdownCell(heading)}`, '']
+  if (report.local.length === 0) lines.push('No local changes.')
+  else {
+    lines.push('**Local changes**', '')
+    for (const entry of report.local) {
+      lines.push(`- ${entry.change} ${entry.kind} ${markdownCell(entry.key)}`)
+    }
+  }
+  if (report.unnamed?.length) {
+    lines.push(
+      '',
+      `Not named by any codeFile(), so applying never sends ${report.unnamed.length === 1 ? 'it' : 'them'}: ${report.unnamed.map(markdownCell).join(', ')}`
+    )
+  }
+  lines.push('')
+  if (report.server === 'checked') {
+    if (report.drift.length === 0 && report.conflicts.length === 0 && !report.note) {
+      lines.push('The server changed nothing this directory read.')
+    }
+    if (report.note) lines.push(`The server check was incomplete: ${markdownCell(report.note)}`, '')
+    if (report.drift.length > 0) {
+      lines.push('**Changed on the server since the directory was read**', '')
+      for (const entry of report.drift) {
+        lines.push(`- ${entry.kind} ${markdownCell(entry.key)}: ${SERVER_WORDS[entry.server]}`)
+      }
+    }
+    if (report.conflicts.length > 0) {
+      lines.push('**Conflicts (changed on both sides; applying them is refused)**', '')
+      for (const entry of report.conflicts) {
+        lines.push(
+          `- ${entry.kind} ${markdownCell(entry.key)}: ${SERVER_WORDS[entry.server]}, ${entry.change} here`
+        )
+      }
+    }
+  } else {
+    lines.push(`Server not checked${report.note ? `: ${markdownCell(report.note)}` : '.'}`)
+  }
+  if (report.plan) lines.push('', markdownCell(planLine(report.plan)))
+  const errors = findings.filter((finding) => finding.severity === 'error')
+  if (errors.length > 0) lines.push('', '**Errors**', '', ...errorBullets(errors))
+  if (report.next) lines.push('', `Next: ${codeSpan(report.next.command)}`)
+  return lines.join('\n')
+}
+
+/**
  * Prints a status: the machine shape for `json` and `yaml`, with the plan's `findings` (from
  * {@link planFindings}) under `diagnostics`, else the findings on stderr as an apply prints them
  * and one screen naming each local change, each drifted and conflicting resource, the dry run's
@@ -149,8 +206,13 @@ export function printStatusReport<Plan>(
   heading: string,
   report: StatusReport<Plan>,
   planLine: (plan: Plan) => string,
-  findings: readonly Diagnostic[]
+  findings: readonly Diagnostic[],
+  summaryFile?: string
 ): void {
+  publishSummary(() => statusMarkdown(heading, report, planLine, findings), {
+    file: summaryFile,
+    marker: summaryMarker(report.dir),
+  })
   const shown = findingsOutput(format, false, report.dir)
   shown.print(findings)
   if (shown.machine) {
@@ -291,7 +353,7 @@ function colorLine(line: string): string {
  * unavailable.
  */
 export function printDiffReport(format: OutputFormat, report: DiffReport): void {
-  if (format === 'json' || format === 'yaml') {
+  if (isMachineFormat(format)) {
     printDocument(format, report)
     return
   }
@@ -408,7 +470,10 @@ export function pathFilter(
 
 /** What the next command depends on beyond the status itself. */
 interface NextStepInput {
-  /** `sim workspaces source` or `sim workflows source`. */
+  /**
+   * `sim workspaces source` or `sim workflows source`, with the server options the caller typed
+   * (`simInvocation`).
+   */
   prefix: string
   dir: string
   /** What `get` takes before `--dir` (a workflow id), with its trailing space. */
@@ -426,6 +491,8 @@ interface NextStepInput {
    * scope the status was asked for (`--only`, `--workspace`), so the command acts on what it showed.
    */
   scope: string
+  /** `--summary-file`, carried onto the commands that write a summary (the dry run and apply). */
+  summaryFile?: string
   /**
    * The login command when the server was not checked because the profile has no login: nothing
    * else can be decided until it runs.
@@ -439,7 +506,8 @@ interface NextStepInput {
  * checked or the changes have errors, else apply. `null` when there is nothing to do.
  */
 export function nextStep(status: SourceStatus, input: NextStepInput): NextStep | null {
-  const { prefix, dir } = input
+  const { prefix } = input
+  const dir = shellWord(input.dir)
   if (input.login) {
     return {
       command: input.login,
@@ -463,36 +531,22 @@ export function nextStep(status: SourceStatus, input: NextStepInput): NextStep |
   }
   if (input.server !== 'checked') {
     return {
-      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}`,
+      command: `${prefix} apply --dir ${dir} --dry${input.scope}${summaryFileFlag(input.summaryFile)}`,
       reason: 'The dry run checks the changes against the server.',
     }
   }
   if (input.errors > 0) {
     return {
-      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}`,
+      command: `${prefix} apply --dir ${dir} --dry${input.scope}${summaryFileFlag(input.summaryFile)}`,
       reason: `It prints the ${input.errors} error(s) to fix before applying.`,
     }
   }
   return {
-    command: `${prefix} apply --dir ${dir} --yes${input.deletes ? ' --allow-delete' : ''}${input.scope}`,
+    command: `${prefix} apply --dir ${dir} --yes${input.deletes ? ' --allow-delete' : ''}${input.scope}${summaryFileFlag(input.summaryFile)}`,
     reason:
       status.drift.length > 0
         ? `Applies your changes; then \`${prefix} get ${input.getArgs}--dir ${dir}\` picks up the server's.`
         : 'Applies your changes.',
-  }
-}
-
-/**
- * A status's plan: the plan read, or, from a server that predates it (its route answers `404`),
- * the apply dry run it replaced, which spends the source-write budget. A `404` the dry run also
- * answers is the resource's own, and is thrown.
- */
-export async function readPlan<T>(plan: () => Promise<T>, dryRun: () => Promise<T>): Promise<T> {
-  try {
-    return await plan()
-  } catch (error) {
-    if (!(error instanceof SimApiError) || error.status !== 404) throw error
-    return dryRun()
   }
 }
 

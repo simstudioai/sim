@@ -30,7 +30,7 @@ import {
   writeEnvValues,
 } from './env-files'
 import { httpHealth, pgProbe, redisPing } from './probes'
-import { FLAG_TWINS, INERT_BROWSER_FLAGS, LOGIN_PROVIDERS } from './twins'
+import { INERT_BROWSER_FLAGS, LOGIN_PROVIDERS } from './twins'
 
 /**
  * Whether `key` is written with an unescaped `$`, a reference Next, Bun, and
@@ -412,24 +412,6 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       fix: getSetupCommand(STORAGE_CAPABILITY.id),
     })
   }
-  for (const { server, client } of FLAG_TWINS) {
-    const serverValue = sim.vars.get(server)
-    const clientValue = sim.vars.get(client)
-    const bothUnset = serverValue === undefined && clientValue === undefined
-    if (bothUnset || isTruthy(serverValue) === isTruthy(clientValue)) continue
-    const setSide = serverValue !== undefined ? server : client
-    const missingSide = serverValue !== undefined ? client : server
-    const value = serverValue ?? clientValue ?? ''
-    findings.push({
-      group: 'coherence',
-      status: 'fail',
-      message: `${setSide} is set but its twin ${missingSide} disagrees — server and browser will render different features`,
-      fix: `doctor --fix sets ${missingSide}=${value}`,
-      // Write to the layout's primary env (root on a compose install), not always sim.
-      autofix: () => writeEnvValues(sim.target, { [missingSide]: value }),
-    })
-  }
-
   findings.push(...checkRegistrationMode(sim))
 
   for (const { server, client } of INERT_BROWSER_FLAGS) {
@@ -496,7 +478,6 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     flag: string
     needs: string[]
     label: string
-    disableFields?: string[]
   }> = [
     {
       flag: 'BILLING_ENABLED',
@@ -507,7 +488,6 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       flag: 'SLACK_EXTENDED_SCOPES',
       needs: ['SLACK_SIGNING_SECRET'],
       label: 'native Slack triggers',
-      disableFields: ['SLACK_EXTENDED_SCOPES', 'NEXT_PUBLIC_SLACK_EXTENDED_SCOPES'],
     },
     { flag: 'SSO_ENABLED', needs: ['SSO_ISSUER'], label: 'SSO' },
   ]
@@ -519,7 +499,7 @@ function checkCoherence(ctx: CheckContext): Finding[] {
         group: 'coherence',
         status: 'fail',
         message: `${rule.flag} is on but ${missing.join(', ')} is not set — ${rule.label} will fail at runtime`,
-        fix: `set ${missing.join(', ')} or remove ${(rule.disableFields ?? [rule.flag]).join(' and ')}`,
+        fix: `set ${missing.join(', ')} or remove ${rule.flag}`,
       })
     }
   }

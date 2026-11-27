@@ -12,6 +12,7 @@ export const googleMapsPlaceDetailsTool: ToolConfig<
   name: 'Google Maps Place Details',
   description: 'Get detailed information about a specific place',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

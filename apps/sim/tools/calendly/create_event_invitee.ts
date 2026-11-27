@@ -15,6 +15,7 @@ export const createEventInviteeTool: ToolConfig<
   description:
     'Book a meeting by creating an invitee on an event type at a chosen time. Requires a paid Calendly plan',
   version: '1.0.0',
+  effect: 'write',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

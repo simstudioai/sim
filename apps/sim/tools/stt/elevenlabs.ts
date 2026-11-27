@@ -6,6 +6,7 @@ export const elevenLabsSttTool: InternalToolConfig<SttParams, SttResponse> = {
   name: 'ElevenLabs STT',
   description: 'Transcribe audio to text using ElevenLabs',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     provider: {

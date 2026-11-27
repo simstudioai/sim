@@ -17,6 +17,7 @@ export const gitlabDeleteUserIdentityTool: ToolConfig<
   description:
     "Delete a user's authentication identity (e.g. SAML or LDAP). Requires an administrator token with admin_mode on the instance.",
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

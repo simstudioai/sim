@@ -242,24 +242,6 @@ function inspectSandbox(values: EnvCapabilityValues): SandboxCapabilityStatus {
       : inspection.providerId
 
   if (!inspection.error) {
-    const coherenceProblems: string[] = []
-    if (
-      isTruthyEnvCapabilityValue(values, 'E2B_ENABLED') !==
-      isTruthyEnvCapabilityValue(values, 'NEXT_PUBLIC_E2B_ENABLED')
-    ) {
-      coherenceProblems.push('E2B_ENABLED and NEXT_PUBLIC_E2B_ENABLED disagree')
-    }
-    if (coherenceProblems.length > 0) {
-      return {
-        ...featureMetadata('sandbox'),
-        state: 'partial',
-        providerId,
-        issue: {
-          state: 'partial',
-          message: `${coherenceProblems.join('; ')}. Server and browser configuration must match.`,
-        },
-      }
-    }
     return {
       ...featureMetadata('sandbox'),
       state: providerId === 'disabled' ? 'default' : 'configured',

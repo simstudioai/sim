@@ -16,7 +16,10 @@ export {
   absoluteDirOption,
   assertSourceDirKind,
   directoryWorkspace,
+  enclosingWorkspace,
+  type NamedWorkspace,
   readStarterWorkspace,
+  recordedWorkspace,
   workspaceFolderOf,
 } from './dir-kind'
 export {
@@ -58,8 +61,11 @@ export {
   readFolderWritten,
   readWritten,
   recordedStats,
+  SOURCE_CACHE_DIR,
+  SOURCE_CACHE_IGNORE,
   type StatDigest,
   sameFileStat,
+  unchangedTexts,
   type Written,
   writtenFiles,
   writtenRecord,

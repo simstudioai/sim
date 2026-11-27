@@ -20,6 +20,7 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
   name: 'Tinybird Query',
   description: 'Execute SQL queries against Tinybird Pipes and Data Sources using the Query API.',
   version: '1.0.0',
+  effect: 'read',
   oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 

@@ -20,6 +20,7 @@ export const getTranscriptTool: ToolConfig<
   name: 'Circleback Get Transcript',
   description: 'Gets the full transcript for a Circleback meeting.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {

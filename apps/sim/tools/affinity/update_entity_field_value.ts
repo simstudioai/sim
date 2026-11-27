@@ -26,6 +26,7 @@ export const affinityUpdateEntityFieldValueTool: ToolConfig<
   description:
     'Write one non-list field value on a company or person. The value type must match how the field is defined.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

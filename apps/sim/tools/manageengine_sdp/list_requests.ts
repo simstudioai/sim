@@ -17,6 +17,7 @@ export const manageengineSdpListRequestsTool: ToolConfig<SdpListParams, SdpRespo
   description:
     'List ManageEngine ServiceDesk Plus Cloud requests, with optional search criteria, sorting and paging.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

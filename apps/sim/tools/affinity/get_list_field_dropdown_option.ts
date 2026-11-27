@@ -22,6 +22,7 @@ export const affinityGetListFieldDropdownOptionTool: ToolConfig<
   name: 'Affinity Get List Field Dropdown Option',
   description: 'Read one dropdown option on a list field.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

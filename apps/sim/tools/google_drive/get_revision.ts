@@ -22,6 +22,7 @@ export const getRevisionTool: ToolConfig<
   name: 'Get Google Drive Revision',
   description: 'Get metadata for a specific revision of a file in Google Drive',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

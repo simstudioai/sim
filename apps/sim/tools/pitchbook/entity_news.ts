@@ -11,6 +11,7 @@ export const pitchbookEntityNewsTool: ToolConfig<
   name: 'PitchBook Entity News',
   description: 'Retrieve recent news articles PitchBook has associated with an entity',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

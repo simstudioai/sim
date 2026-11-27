@@ -23,6 +23,7 @@ export const quartrListReportsTool: ToolConfig<
   description:
     'List filings and reports (10-K, 10-Q, earnings releases, etc.) from Quartr, filterable by company, event, document type, document group, and date range.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

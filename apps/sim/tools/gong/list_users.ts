@@ -8,6 +8,7 @@ export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersRespons
   name: 'Gong List Users',
   description: 'List all users in your Gong account.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

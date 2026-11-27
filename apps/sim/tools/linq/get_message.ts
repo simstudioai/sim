@@ -9,6 +9,7 @@ export const linqGetMessageTool: ToolConfig<LinqGetMessageParams, LinqMessageRes
   name: 'Get Message',
   description: 'Retrieve a single message by ID, including parts, reactions, and delivery status',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

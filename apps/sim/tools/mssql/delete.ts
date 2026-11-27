@@ -7,6 +7,7 @@ export const deleteTool: InternalToolConfig<MSSQLDeleteParams, MSSQLDeleteRespon
   name: 'Microsoft SQL Server Delete',
   description: 'Delete rows from a Microsoft SQL Server table',
   version: '1.0',
+  effect: 'write',
   oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {

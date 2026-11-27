@@ -14,6 +14,7 @@ export const linearCreateCustomerTierTool: ToolConfig<
   name: 'Linear Create Customer Tier',
   description: 'Create a new customer tier in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

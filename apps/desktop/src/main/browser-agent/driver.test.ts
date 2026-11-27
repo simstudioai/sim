@@ -154,6 +154,35 @@ describe('executeTool', () => {
     expect(result.error).toContain('the user started working in this page')
   })
 
+  it('sends no input once the action budget is spent, even before the watchdog timer fires', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    const watchdogMs = driver.browserToolWatchdogMs('browser_press_key', { key: 'Enter' })
+    if (watchdogMs === null) throw new Error('browser_press_key must have a watchdog')
+    vi.useFakeTimers()
+    try {
+      // The clock passes the deadline while the action reads the page, with no timer run yet.
+      const probe = vi.mocked(contents.executeJavaScript).getMockImplementation()
+      vi.mocked(contents.executeJavaScript).mockImplementation(async (...args) => {
+        vi.setSystemTime(Date.now() + watchdogMs + 1)
+        return probe ? probe(...args) : undefined
+      })
+      vi.mocked(contents.debugger.sendCommand).mockClear()
+
+      const pending = driver.executeTool('chat-test', 'browser_press_key', { key: 'Enter' })
+      await vi.advanceTimersByTimeAsync(watchdogMs)
+      const result = await pending
+
+      expect(result.ok).toBe(false)
+      expect(contents.debugger.sendCommand).not.toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.anything()
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('never makes a background read wait for the user', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     typeInAgentPage(session.requireTab().view.webContents)
@@ -1019,6 +1048,143 @@ describe('executeTool', () => {
       expect(contents.executeJavaScript).not.toHaveBeenCalled()
     }
   )
+
+  describe('a tab still loading its first page', () => {
+    const openLoadingTab = async () => {
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
+      const contents = session.requireTab().view.webContents
+      vi.mocked(contents.getURL).mockReturnValue('')
+      vi.mocked(contents.isLoading).mockReturnValue(true)
+      const listeners = (event: string) =>
+        vi
+          .mocked(contents.on)
+          .mock.calls.filter(([name]) => String(name) === event)
+          .map(([, listener]) => listener as (...args: unknown[]) => void)
+      const registered = listeners('did-stop-loading').length
+      const waiting = () =>
+        vi.waitFor(() => expect(listeners('did-stop-loading').length).toBeGreaterThan(registered))
+      return { contents, listeners, registered, waiting }
+    }
+
+    it('snapshots the page once it commits instead of calling the tab blank', async () => {
+      const { contents, listeners, registered, waiting } = await openLoadingTab()
+      vi.mocked(contents.executeJavaScript).mockResolvedValue({
+        url: 'http://127.0.0.1/popup',
+        title: 'popup',
+        outline: '- link "Open popup" [ref=0]',
+        truncated: false,
+        refIds: [0],
+        refLineIndexes: { 0: 0 },
+        nextElementId: 1,
+      })
+
+      const snapshot = driver.executeTool('chat-test', 'browser_snapshot', {})
+      await waiting()
+      expect(contents.executeJavaScript).not.toHaveBeenCalled()
+
+      vi.mocked(contents.getURL).mockReturnValue('http://127.0.0.1/popup')
+      vi.mocked(contents.isLoading).mockReturnValue(false)
+      for (const onNavigate of listeners('did-navigate')) onNavigate({}, 'http://127.0.0.1/popup')
+      for (const onLoaded of listeners('did-stop-loading').slice(registered)) onLoaded()
+
+      await expect(snapshot).resolves.toMatchObject({
+        ok: true,
+        result: { outline: expect.stringContaining('Open popup') },
+      })
+    })
+
+    it('never acts on the page when the action is cancelled during the wait', async () => {
+      const { contents, listeners, registered, waiting } = await openLoadingTab()
+
+      const scroll = driver.executeTool(
+        'chat-test',
+        'browser_scroll',
+        { direction: 'down' },
+        'scroll-into-loading-popup'
+      )
+      await waiting()
+      expect(driver.cancelTool('chat-test', 'scroll-into-loading-popup')).toBe(true)
+      await expect(scroll).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+
+      // The page commits after the cancel; a wait that ignored the cancel would act on it now.
+      vi.mocked(contents.getURL).mockReturnValue('http://127.0.0.1/popup')
+      vi.mocked(contents.isLoading).mockReturnValue(false)
+      for (const onLoaded of listeners('did-stop-loading').slice(registered)) onLoaded()
+      await driver.executeTool('chat-test', 'browser_list_tabs', {})
+      expect(contents.executeJavaScript).not.toHaveBeenCalled()
+      expect(contents.debugger.sendCommand).not.toHaveBeenCalledWith(
+        'Input.dispatchMouseEvent',
+        expect.anything()
+      )
+    })
+
+    it('refuses a page that outlasts the bounded wait, and never acts on it once it loads', async () => {
+      const { contents, listeners, registered } = await openLoadingTab()
+      const watchdogMs = driver.browserToolWatchdogMs('browser_scroll', { direction: 'down' })
+      const navigationTimeoutMs = 25_000
+      const waitMs =
+        watchdogMs === null
+          ? navigationTimeoutMs
+          : Math.min(navigationTimeoutMs, Math.floor(watchdogMs / 2))
+      vi.useFakeTimers()
+      try {
+        let outcome: unknown
+        void driver
+          .executeTool('chat-test', 'browser_scroll', { direction: 'down' }, 'scroll-slow-popup')
+          .then((result) => {
+            outcome = result
+          })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(listeners('did-stop-loading').length).toBeGreaterThan(registered)
+
+        await vi.advanceTimersByTimeAsync(waitMs + 1)
+        expect(outcome).toEqual({
+          ok: false,
+          error:
+            'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.',
+        })
+
+        vi.mocked(contents.getURL).mockReturnValue('http://127.0.0.1/popup')
+        vi.mocked(contents.isLoading).mockReturnValue(false)
+        for (const onLoaded of listeners('did-stop-loading').slice(registered)) onLoaded()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(contents.executeJavaScript).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('charges the first-page wait to the watchdog so the call ends within its budget', async () => {
+      const { contents, listeners, registered } = await openLoadingTab()
+      const watchdogMs = driver.browserToolWatchdogMs('browser_snapshot', {})
+      if (watchdogMs === null) throw new Error('browser_snapshot must have a watchdog')
+      const loadAfterMs = Math.floor(watchdogMs / 2) - 1
+      vi.mocked(contents.executeJavaScript).mockReturnValue(new Promise(() => {}))
+      vi.useFakeTimers()
+      try {
+        let outcome: unknown
+        void driver.executeTool('chat-test', 'browser_snapshot', {}).then((result) => {
+          outcome = result
+        })
+        await vi.advanceTimersByTimeAsync(loadAfterMs)
+        vi.mocked(contents.getURL).mockReturnValue('http://127.0.0.1/popup')
+        vi.mocked(contents.isLoading).mockReturnValue(false)
+        for (const onLoaded of listeners('did-stop-loading').slice(registered)) onLoaded()
+
+        // The page hangs once loaded; the call must still end at the watchdog measured from the start.
+        await vi.advanceTimersByTimeAsync(watchdogMs - loadAfterMs + 1)
+        expect(outcome).toMatchObject({
+          ok: false,
+          error: expect.stringContaining('did not finish this action in time'),
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
 
   it('leaves no watchdog timer pending once a tool finishes', async () => {
     vi.useFakeTimers()

@@ -107,6 +107,7 @@ function projectToolResult(
 
 function buildSimToolSpec(
   ctx: ExecutionContext,
+  blockId: string,
   inputTools: ToolInput[],
   provider: ProviderToolConfig,
   toolIndex: number,
@@ -211,6 +212,7 @@ function buildSimToolSpec(
             // Trusted execution context is written last so model arguments cannot override it.
             _context: {
               workflowId: ctx.workflowId,
+              blockId,
               workspaceId: ctx.workspaceId,
               executionId: ctx.executionId,
               userId: ctx.userId,
@@ -267,6 +269,8 @@ function buildSimToolSpec(
  */
 export async function buildSimToolSpecs(
   ctx: ExecutionContext,
+  /** The Pi block, the block its tool calls act for. */
+  blockId: string,
   inputTools: unknown,
   sandboxCost?: SandboxCostSink
 ): Promise<PiToolSpec[]> {
@@ -312,6 +316,6 @@ export async function buildSimToolSpecs(
   await annotateDuplicateToolBindings(ctx, providers)
   assignProviderToolIdentities(providers)
   return configuredTools.map(({ provider, toolIndex }) =>
-    buildSimToolSpec(ctx, inputTools, provider, toolIndex, sandboxCost)
+    buildSimToolSpec(ctx, blockId, inputTools, provider, toolIndex, sandboxCost)
   )
 }

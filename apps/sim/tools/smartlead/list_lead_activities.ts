@@ -31,6 +31,7 @@ export const listLeadActivitiesTool: ToolConfig<
   description:
     'Retrieves recent lead activity across all Smartlead campaigns — opens, clicks, replies, and status changes. Smartlead exposes no campaign filter on this endpoint.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

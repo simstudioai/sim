@@ -19,6 +19,7 @@ export const modRemoveTool: ToolConfig<RedditModRemoveParams, RedditModRemoveRes
   name: 'Remove Reddit Post/Comment (Mod)',
   description: 'Remove a Reddit post or comment as a moderator, optionally marking it as spam',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

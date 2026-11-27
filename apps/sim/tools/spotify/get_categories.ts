@@ -12,6 +12,7 @@ export const spotifyGetCategoriesTool: ToolConfig<
   name: 'Spotify Get Categories',
   description: 'Get a list of browse categories used to tag items in Spotify.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -18,6 +18,7 @@ export const oracleFusionFinancialsCreateReceivablesReceiptTool: InternalToolCon
   name: 'Oracle Fusion Financials Create Receivables Receipt',
   description: 'Create Oracle Fusion receivables receipt.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     amount: {

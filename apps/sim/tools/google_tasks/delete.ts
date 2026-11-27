@@ -7,6 +7,7 @@ export const deleteTool: ToolConfig<GoogleTasksDeleteParams, GoogleTasksDeleteRe
   name: 'Google Tasks Delete Task',
   description: 'Delete a task from a Google Tasks list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

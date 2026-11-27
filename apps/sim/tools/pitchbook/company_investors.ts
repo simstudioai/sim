@@ -10,6 +10,7 @@ export const pitchbookCompanyInvestorsTool: ToolConfig<PitchbookProfileParams, P
     description:
       'Retrieve every investor in a company, current and former, with the type of investor and when they invested',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

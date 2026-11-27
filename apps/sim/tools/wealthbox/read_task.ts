@@ -7,6 +7,7 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
   name: 'Read Wealthbox Task',
   description: 'Read content from a Wealthbox task',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

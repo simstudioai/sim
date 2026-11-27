@@ -21,6 +21,7 @@ export const codaListFoldersTool: ToolConfig<CodaListFoldersParams, CodaListFold
   name: 'Coda List Folders',
   description: 'List the Coda folders the user can access, optionally within one workspace',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

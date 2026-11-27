@@ -10,6 +10,7 @@ export const getAudienceTool: ToolConfig<ThriveGetAudienceParams, ThriveAudience
   name: 'Thrive Get Audience',
   description: 'Get a single audience or structure in Thrive by id or reference.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

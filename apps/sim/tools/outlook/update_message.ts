@@ -43,6 +43,7 @@ export const outlookUpdateMessageTool: ToolConfig<
   name: 'Outlook Update Message',
   description: 'Set the categories, follow-up flag, and importance on an Outlook message',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

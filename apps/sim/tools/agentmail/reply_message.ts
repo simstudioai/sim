@@ -8,6 +8,7 @@ export const agentmailReplyMessageTool: ToolConfig<ReplyMessageParams, ReplyMess
   name: 'Reply to Message',
   description: 'Reply to an existing email message in AgentMail',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

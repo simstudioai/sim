@@ -8,6 +8,7 @@ export const addNoteTool: ToolConfig<PagerDutyAddNoteParams, PagerDutyAddNoteRes
   name: 'PagerDuty Add Note',
   description: 'Add a note to an existing PagerDuty incident.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

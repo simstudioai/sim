@@ -26,6 +26,7 @@ export const listServicePrincipalsTool: ToolConfig<
   description:
     'List the enterprise applications and service principals in the tenant, including the app roles each one exposes',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

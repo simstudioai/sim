@@ -30,6 +30,7 @@ export const sportmonksGetLiveStandingsByLeagueTool: ToolConfig<
   name: 'Get Live Standings by League',
   description: 'Retrieve the live standing table for a league ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

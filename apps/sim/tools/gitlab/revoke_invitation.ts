@@ -16,6 +16,7 @@ export const gitlabRevokeInvitationTool: ToolConfig<
   name: 'GitLab Revoke Invitation',
   description: 'Revoke a pending email invitation to a GitLab project or group',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

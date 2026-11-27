@@ -25,6 +25,7 @@ export const railwayCreateProjectTool: ToolConfig<
   name: 'Railway Create Project',
   description: 'Create a Railway project',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

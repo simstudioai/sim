@@ -10,6 +10,7 @@ export const linqMarkChatReadTool: ToolConfig<LinqChatActionParams, LinqSuccessR
   description:
     'Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on group chats)',
   version: '1.0.0',
+  effect: 'write',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

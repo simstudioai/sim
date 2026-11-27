@@ -6,6 +6,7 @@ export const s3CreateBucketTool: InternalToolConfig = {
   name: 'S3 Create Bucket',
   description: 'Create a new AWS S3 bucket in the specified region',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

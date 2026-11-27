@@ -13,6 +13,7 @@ export const gaugeCreateTopicTool: ToolConfig<GaugeCreateTopicParams, GaugeCreat
   name: 'Gauge Create Topic',
   description: 'Create a topic to organize tracked prompts.',
   version: '1.0.0',
+  effect: 'write',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

@@ -7,8 +7,8 @@ export const outlookDraftTool: InternalToolConfig<OutlookDraftParams, OutlookDra
   name: 'Outlook Draft',
   description: 'Draft emails using Outlook',
   version: '1.0.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'to', label: 'To', target: true },

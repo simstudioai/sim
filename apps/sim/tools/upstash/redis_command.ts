@@ -11,6 +11,7 @@ export const upstashRedisCommandTool: ToolConfig<
   description:
     'Execute an arbitrary Redis command against Upstash Redis. Pass the full command as a JSON array (e.g., ["HSET", "myhash", "field1", "value1"]).',
   version: '1.0.0',
+  effect: 'write',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

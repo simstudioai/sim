@@ -26,6 +26,7 @@ export const planeListWorkItemsTool: ToolConfig<
   name: 'Plane List work items',
   description: 'List work items in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

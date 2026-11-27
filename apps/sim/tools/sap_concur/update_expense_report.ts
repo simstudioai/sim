@@ -15,6 +15,7 @@ export const updateExpenseReportTool: InternalToolConfig<
   description:
     'Update an unsubmitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId} — supported contexts: TRAVELER, PROXY). The body must always include `reportSource` (EA, MOB, OTHER, SE, TR, or UI).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

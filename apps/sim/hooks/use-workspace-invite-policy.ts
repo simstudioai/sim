@@ -21,7 +21,7 @@ export interface UseWorkspaceInvitePolicyReturn {
  * teammate-management action must read it.
  *
  * Two independent sources say no, and both have to be consulted: the deployment
- * or permission-group switch (`NEXT_PUBLIC_DISABLE_INVITATIONS`, a permission
+ * or permission-group switch (`DISABLE_INVITATIONS`, a permission
  * group's `disableInvitations`), which is silent about why, and the workspace's
  * own plan policy, which supplies {@link UseWorkspaceInvitePolicyReturn.inviteDisabledReason}.
  * Reading only one of them is what lets an entry point offer an invite the server

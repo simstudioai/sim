@@ -31,6 +31,7 @@ export const confluenceCreateCommentTool: InternalToolConfig<
   name: 'Confluence Create Comment',
   description: 'Add a comment to a Confluence page.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

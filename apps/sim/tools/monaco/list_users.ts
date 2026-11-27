@@ -15,6 +15,7 @@ export const monacoListUsersTool: ToolConfig<MonacoListUsersParams, MonacoListUs
   description:
     "List the users in the Monaco organization, optionally filtered by name or email. Each user's role says whether they are a workspace ADMIN.",
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

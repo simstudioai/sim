@@ -55,6 +55,7 @@ export const getRunLogsTool: ToolConfig<DagsterGetRunLogsParams, DagsterGetRunLo
   name: 'Dagster Get Run Logs',
   description: 'Fetch execution event logs for a Dagster run.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

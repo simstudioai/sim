@@ -1,7 +1,7 @@
 import { isLoopbackHostname } from '@sim/security/hostnames'
 import { SIM_SITE_URL } from '@sim/utils/site'
 import { env, getEnv } from '@/lib/core/config/env'
-import { isProd } from '@/lib/core/config/env-flags'
+import { getBlacklistedProvidersFromEnv, isHosted, isProd } from '@/lib/core/config/env-flags'
 
 /** Canonical base URL for the public-facing marketing site. No trailing slash. */
 export const SITE_URL = SIM_SITE_URL
@@ -295,10 +295,19 @@ export function getOllamaUrl(): string {
 }
 
 /**
- * Whether OLLAMA_URL names a server, as opposed to {@link getOllamaUrl} falling
- * back to the loopback default. Callers use this to tell "someone pointed us at
- * an Ollama" apart from "nobody configured one".
+ * Whether this deployment has an Ollama server to talk to. Self-hosted deployments run
+ * alongside their own Ollama, so the loopback default {@link getOllamaUrl} falls back to is a
+ * working configuration that needs no env var. Hosted Sim runs none, so there the address
+ * must be stated or there is nothing to reach.
+ *
+ * The chat and embedding model lists, the embedding client and the access-request catalog
+ * all answer through this, so a picker never lists models its client then refuses.
  */
-export function isOllamaUrlConfigured(): boolean {
-  return Boolean(env.OLLAMA_URL)
+export function isOllamaReachable(): boolean {
+  return !isHosted || Boolean(env.OLLAMA_URL)
+}
+
+/** Whether Ollama can serve a model here: {@link isOllamaReachable}, and not blacklisted. */
+export function isOllamaAvailable(): boolean {
+  return !getBlacklistedProvidersFromEnv().includes('ollama') && isOllamaReachable()
 }

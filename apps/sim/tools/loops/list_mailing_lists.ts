@@ -14,6 +14,7 @@ export const loopsListMailingListsTool: ToolConfig<
   description:
     'Retrieve all mailing lists from your Loops account. Returns each list with its ID, name, description, and public/private status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {

@@ -8,6 +8,7 @@ export const stripeListEventsTool: ToolConfig<ListEventsParams, EventListRespons
   name: 'Stripe List Events',
   description: 'List all Events',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

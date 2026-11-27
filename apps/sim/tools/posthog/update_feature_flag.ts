@@ -42,6 +42,7 @@ export const updateFeatureFlagTool: ToolConfig<
   name: 'PostHog Update Feature Flag',
   description: 'Update an existing feature flag in PostHog',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'posthog-errors',
 
   params: {

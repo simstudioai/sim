@@ -7,6 +7,7 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
   name: 'Reply to Reddit Post/Comment',
   description: 'Add a comment reply to a Reddit post or comment',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

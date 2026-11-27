@@ -24,6 +24,7 @@ export const quickbooksUpdateInvoiceTool: ToolConfig<
   name: 'QuickBooks Update Invoice',
   description: 'Sparse-update an invoice using its current sync token',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

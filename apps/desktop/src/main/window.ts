@@ -19,6 +19,29 @@ const MIN_HEIGHT = 600
 const WINDOW_TITLE = 'Sim'
 const BOUNDS_SAVE_DELAY_MS = 400
 const ROUTE_SAVE_DELAY_MS = 500
+/** The events Electron's own per-window `visibilityChanged` listener subscribes to. */
+const VISIBILITY_EVENTS = ['show', 'hide', 'minimize', 'maximize', 'restore'] as const
+
+/**
+ * Makes Electron's own per-window visibility listener skip a destroyed window.
+ * macOS can deliver a window's `show` (an occlusion change) after the window
+ * has been destroyed, as when the app quits just as its first window appears;
+ * that listener then reads `isVisible()` from the dead window and throws
+ * "Object has been destroyed" as an uncaught main-process exception during
+ * shutdown. Call it from `browser-window-created`, which Electron emits right
+ * after subscribing that listener, so it is the only one on these events.
+ */
+export function guardVisibilityListenersAfterDestroy(win: BrowserWindow): void {
+  const emitter: NodeJS.EventEmitter = win
+  for (const event of VISIBILITY_EVENTS) {
+    for (const listener of emitter.listeners(event) as ((...args: unknown[]) => void)[]) {
+      emitter.removeListener(event, listener)
+      emitter.on(event, (...args: unknown[]) => {
+        if (!win.isDestroyed()) listener.apply(win, args)
+      })
+    }
+  }
+}
 
 /**
  * The permission matrix: sanitized clipboard writes and microphone access for

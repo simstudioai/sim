@@ -9,6 +9,7 @@ export const generateEmbeddingsTool: ToolConfig<
   name: 'Pinecone Generate Embeddings',
   description: "Generate embeddings from text using Pinecone's hosted models",
   version: '1.0',
+  effect: 'read',
 
   params: {
     model: {

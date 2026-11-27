@@ -16,6 +16,7 @@ export const createTagTool: ToolConfig<EmailBisonCreateTagParams, EmailBisonTagR
   name: 'Email Bison Create Tag',
   description: 'Creates a new Email Bison tag.',
   version: '1.0.0',
+  effect: 'write',
   oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,

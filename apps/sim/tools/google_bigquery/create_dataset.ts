@@ -13,6 +13,7 @@ export const googleBigQueryCreateDatasetTool: ToolConfig<
   name: 'BigQuery Create Dataset',
   description: 'Create a new dataset in a Google BigQuery project',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

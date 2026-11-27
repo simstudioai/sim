@@ -24,6 +24,7 @@ export const youComGetResearchTaskTool: ToolConfig<
   description:
     'Get the status of a background research task and, once completed, its cited answer and sources.',
   version: '1.0.0',
+  effect: 'read',
   oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {

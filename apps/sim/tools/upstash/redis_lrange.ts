@@ -12,6 +12,7 @@ export const upstashRedisLRangeTool: ToolConfig<
   description:
     'Get a range of elements from a list in Upstash Redis. Use 0 and -1 for start and stop to get all elements.',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

@@ -12,6 +12,7 @@ export const googleTranslateDetectTool: ToolConfig<
   name: 'Google Translate Detect Language',
   description: 'Detect the language of text using the Google Cloud Translation API.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

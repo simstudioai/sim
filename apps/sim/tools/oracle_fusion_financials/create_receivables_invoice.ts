@@ -20,6 +20,7 @@ export const oracleFusionFinancialsCreateReceivablesInvoiceTool: InternalToolCon
   name: 'Oracle Fusion Financials Create Receivables Invoice',
   description: 'Create Oracle Fusion receivables invoice.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     businessUnit: {

@@ -20,6 +20,7 @@ export const oracleFusionFinancialsGetPayablesInvoiceLineTool: InternalToolConfi
   name: 'Oracle Fusion Financials Get Payables Invoice Line',
   description: 'Get one Oracle Fusion Payables invoice line by its Oracle-derived opaque key.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     ...oracleFusionFinancialsAuthParamFields,
     invoiceUniqId: oracleFusionInvoiceParamField,

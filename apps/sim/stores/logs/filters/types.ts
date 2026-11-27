@@ -37,6 +37,13 @@ export const CORE_TRIGGER_TYPES = [
 
 export type CoreTriggerType = (typeof CORE_TRIGGER_TYPES)[number]
 
+/**
+ * The trigger of a test run: a dry run or a workflow test. Its writes were held back, so its
+ * outputs hold placeholders; it keeps nothing beyond its own log and is never resumed or the
+ * source of a run that sends its writes.
+ */
+export const TEST_TRIGGER = 'test' as const satisfies CoreTriggerType
+
 export type TriggerType = CoreTriggerType | 'all' | (string & {})
 
 export type LogViewMode = 'logs' | 'dashboard'

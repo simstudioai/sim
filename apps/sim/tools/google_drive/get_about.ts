@@ -27,6 +27,7 @@ export const getAboutTool: ToolConfig<GoogleDriveGetAboutParams, GoogleDriveGetA
   description:
     'Get information about the user and their Google Drive (storage quota, capabilities)',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

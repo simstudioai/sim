@@ -8,6 +8,7 @@ export const removeMattersPermissionsTool: ToolConfig<GoogleVaultRemoveMatterPer
   name: 'Vault Remove Matter Collaborator',
   description: 'Remove a collaborator from a matter',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

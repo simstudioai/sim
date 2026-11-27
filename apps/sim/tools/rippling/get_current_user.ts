@@ -7,6 +7,7 @@ export const ripplingGetCurrentUserTool: ToolConfig<RipplingGetCurrentUserParams
   name: 'Rippling Get Current User',
   description: 'Get SSO information for the current user',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

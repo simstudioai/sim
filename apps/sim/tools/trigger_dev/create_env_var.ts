@@ -14,6 +14,7 @@ export const triggerDevCreateEnvVarTool: ToolConfig<
   name: 'Trigger.dev Create Env Var',
   description: 'Create an environment variable in a Trigger.dev project environment.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {

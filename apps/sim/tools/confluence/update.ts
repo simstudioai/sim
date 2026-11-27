@@ -10,6 +10,7 @@ export const confluenceUpdateTool: InternalToolConfig<
   name: 'Confluence Update',
   description: 'Update a Confluence page using the Confluence API.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

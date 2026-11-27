@@ -3,15 +3,20 @@
  * findings (each with its location, frame and hint), the confirmation prompt, the refusal of a
  * write nobody confirmed, and an API refusal re-thrown with the exit status a script branches on.
  */
+import { relative } from 'node:path'
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { boundFindingText, type RefusalClass } from '@sim/workflow-code/diagnostics'
+import {
+  boundFindingText,
+  type RefusalClass,
+  SOURCE_REFUSAL_CODES,
+} from '@sim/workflow-code/diagnostics'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { type FlatDiagnostic, refusalClass } from '@sim/workspace-code'
 import type { Command } from 'commander'
 import { annotationLine, annotationPath, printAnnotations } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
 import { askLine } from '#sim-cli/terminal/line-input'
-import type { OutputFormat } from '../../config/index'
+import { isMachineFormat, type OutputFormat } from '../../config/index'
 import { embedStore, setSoftExitCode } from '../../embed-context'
 import {
   SOURCE_BUSY_EXIT_CODE,
@@ -25,6 +30,7 @@ import type {
   ApplyWorkspaceSourceResponse,
 } from '../../generated/v2-api'
 import { isRequestCancelled, noAnswer, SimApiError } from '../../http/client'
+import { safeOneLine } from '../../output/render'
 import { LocalRefusal } from './local-errors'
 
 /** One finding of a source write, as the workflow and workspace answers both carry it. */
@@ -77,6 +83,13 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
   if (diagnostic.frame) lines.push(diagnostic.frame)
   if (diagnostic.hint) lines.push(`  hint: ${diagnostic.hint}`)
   return lines.join('\n')
+}
+
+/** A finding as one line, without its frame or hint: where it is, its code and its message. */
+export function findingLine(diagnostic: Diagnostic): string {
+  return safeOneLine(
+    formatDiagnostic({ ...boundFindingText(diagnostic), frame: undefined, hint: undefined })
+  )
 }
 
 /** How many other locations a collapsed line lists before counting the rest. */
@@ -138,11 +151,6 @@ function printDiagnostics(diagnostics: readonly Diagnostic[]): void {
 /** A finding in a source command's `--output json` (or `yaml`) result: the frame stays human-only. */
 type ResultDiagnostic = Omit<FlatDiagnostic, 'frame' | 'code'> & { code: Diagnostic['code'] }
 
-/** Whether `format` prints one machine document on stdout rather than lines for a person. */
-export function isMachine(format: OutputFormat): boolean {
-  return format === 'json' || format === 'yaml'
-}
-
 /**
  * The `diagnostics` a source command's result carries in a machine format, so the one document on
  * stdout holds every finding: errors and warnings, and info only with `verbose` (a new workflow
@@ -154,7 +162,7 @@ function resultDiagnostics(
   diagnostics: readonly Diagnostic[],
   verbose = false
 ): { diagnostics?: ResultDiagnostic[] } {
-  if (!isMachine(format)) return {}
+  if (!isMachineFormat(format)) return {}
   const hidden = (finding: Diagnostic) =>
     !verbose && finding.severity === 'info' && finding.code !== 'I_FINDINGS_TRUNCATED'
   const hiddenCount = diagnostics.filter(hidden).length
@@ -244,7 +252,7 @@ export function findingsOutput(
   dir?: string
 ): FindingsOutput {
   const printed = new Set<string>()
-  const machine = isMachine(format)
+  const machine = isMachineFormat(format)
   return {
     machine,
     print(diagnostics) {
@@ -296,6 +304,52 @@ export function verboseFlag(command: Command): Command {
   )
 }
 
+/** Adds `--summary-file` to a source command that reports a plan (`publishSummary`). */
+export function summaryFileOption(command: Command): Command {
+  return command.option(
+    '--summary-file <path>',
+    'Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment'
+  )
+}
+
+/** At most this many changes and errors are listed in a summary; the rest are counted. */
+export const SUMMARY_ROWS = 50
+
+/** A Markdown table cell or list item: one line, with its pipes escaped. */
+export function markdownCell(text: string): string {
+  return safeOneLine(text).replaceAll('\\', '\\\\').replaceAll('|', '\\|')
+}
+
+/** `text` as one Markdown code span, fenced with more backticks than it contains, on one line. */
+export function codeSpan(text: string): string {
+  const line = safeOneLine(text)
+  const longest = Math.max(0, ...[...line.matchAll(/`+/g)].map((run) => run[0].length))
+  if (longest === 0) return `\`${line}\``
+  const fence = '`'.repeat(longest + 1)
+  return `${fence} ${line} ${fence}`
+}
+
+/** The error findings of a summary (already filtered to errors) as list items, capped at {@link SUMMARY_ROWS}. */
+export function errorBullets(errors: ReadonlyArray<Diagnostic>): string[] {
+  return errors
+    .slice(0, SUMMARY_ROWS)
+    .map(
+      (finding) =>
+        `- \`${finding.code}\`${finding.file ? ` ${markdownCell(finding.file)}${finding.line ? `:${finding.line}` : ''}` : ''}: ${markdownCell(finding.message)}`
+    )
+}
+
+/** The first line of a summary file for `dir`: stable per directory (every character outside `A-Za-z0-9._/` percent-encoded, so two names never share one and no `--` ends the comment). */
+export function summaryMarker(dir: string): string {
+  const name = relative(process.cwd(), dir) || '.'
+  const encoded = name.replace(/[^A-Za-z0-9._/]/gu, (char) =>
+    [...Buffer.from(char)]
+      .map((byte) => `%${byte.toString(16).toUpperCase().padStart(2, '0')}`)
+      .join('')
+  )
+  return `<!-- sim-plan:${encoded} -->`
+}
+
 function isDiagnosticList(value: unknown): value is Diagnostic[] {
   return Array.isArray(value) && value.every((item) => isRecordLike(item) && 'code' in item)
 }
@@ -312,10 +366,10 @@ export async function confirm(question: string): Promise<boolean> {
 }
 
 /** The exit status of each `409` the server tells apart by `details.code`; any other exits 1. */
-const CONFLICT_EXIT_CODES: Readonly<Record<string, number>> = {
-  SOURCE_STALE: SOURCE_STALE_EXIT_CODE,
-  SOURCE_BUSY: SOURCE_BUSY_EXIT_CODE,
-}
+const CONFLICT_EXIT_CODES: ReadonlyMap<string, number> = new Map([
+  [SOURCE_REFUSAL_CODES.stale, SOURCE_STALE_EXIT_CODE],
+  [SOURCE_REFUSAL_CODES.busy, SOURCE_BUSY_EXIT_CODE],
+])
 
 /**
  * The exit status of a refused write. A `409` is stale only when the server says so
@@ -325,7 +379,7 @@ const CONFLICT_EXIT_CODES: Readonly<Record<string, number>> = {
  */
 function refusalExitCode(error: SimApiError, detailCode: unknown): number {
   if (error.status === 409) {
-    return typeof detailCode === 'string' ? (CONFLICT_EXIT_CODES[detailCode] ?? 1) : 1
+    return typeof detailCode === 'string' ? (CONFLICT_EXIT_CODES.get(detailCode) ?? 1) : 1
   }
   return REFUSAL_EXIT_CODES[error.status] ?? error.exitCode
 }
@@ -359,26 +413,36 @@ const DETAILS_REFERENCE = / See details\.diagnostics\.$/
 export function printRefusal(
   error: unknown,
   format: OutputFormat,
-  options: { ifAnswerLost?: string; verbose?: boolean } = {}
+  options: {
+    ifAnswerLost?: string
+    verbose?: boolean
+    /** The `--folder` a create named, which the server answers "Folder not found" for. */
+    folder?: string
+  } = {}
 ): never {
-  const { ifAnswerLost, verbose = false } = options
+  const { ifAnswerLost, verbose = false, folder } = options
   if (!(error instanceof SimApiError)) throw error
   const details = toRecord(error.details)
   const diagnostics = details.diagnostics
   const printed = isDiagnosticList(diagnostics)
-  const machine = isMachine(format)
+  const machine = isMachineFormat(format)
   if (printed && !machine) printDiagnostics(diagnostics)
   const message = machine
     ? error.message
     : error.message.replace(DETAILS_REFERENCE, printed ? ' Each finding is printed above.' : '')
-  const nameTaken = error.status === 409 && details.code === 'SOURCE_NAME_TAKEN'
+  const nameTaken = error.status === 409 && details.code === SOURCE_REFUSAL_CODES.nameTaken
+  const folderMissing = folder !== undefined && /\bfolder not found\b/i.test(error.message)
   const hint = nameTaken
     ? 'Pass --name to create it under another name, or apply to that workflow.'
-    : ifAnswerLost && answerLost(error)
-      ? ifAnswerLost
-      : null
+    : folderMissing
+      ? `Create it with \`sim workflows folders create ${shellWord(folder)}\`, then create the workflow again.`
+      : ifAnswerLost && answerLost(error)
+        ? ifAnswerLost
+        : null
   throw new SimApiError(
-    hint ? `${message} ${hint}` : message,
+    hint
+      ? `${folderMissing && !/[.!?]$/.test(message) ? `${message}.` : message} ${hint}`
+      : message,
     error.status,
     error.code,
     printed ? refusalDetails(format, details, diagnostics, verbose) : error.details,
@@ -399,18 +463,23 @@ function refusalDetails(
 }
 
 /**
- * How a source write proceeds: `dry-run` checks only; `write` writes at once (`--yes`); `ask`
+ * How a source write proceeds: `dry` checks only; `write` writes at once (`--yes`); `ask`
  * previews and asks on a terminal; `plan` (no `--yes` and no terminal to ask) previews, prints the
  * plan and stops with {@link SOURCE_PLANNED_EXIT_CODE}, so an agent's edit loop sees the plan
  * without a separate dry run and applies it with `--yes`.
  */
-export type WriteMode = 'dry-run' | 'write' | 'ask' | 'plan'
+export type WriteMode = 'dry' | 'write' | 'ask' | 'plan'
 
-/** The {@link WriteMode} of a write's `--dry-run` and `--yes` flags, here. */
-export function writeMode(options: { dryRun?: boolean; yes?: boolean }): WriteMode {
-  if (options.dryRun) return 'dry-run'
+/** The {@link WriteMode} of a write's `--dry` and `--yes` flags, here. */
+export function writeMode(options: { dry?: boolean; yes?: boolean }): WriteMode {
+  if (options.dry) return 'dry'
   if (options.yes) return 'write'
   return canPrompt() ? 'ask' : 'plan'
+}
+
+/** ` --summary-file <path>` for a next command, so applying it writes the file the plan run was asked for; empty without one. */
+export function summaryFileFlag(path: string | undefined): string {
+  return path ? ` --summary-file ${shellWord(path)}` : ''
 }
 
 /** `value` as one shell word: as it is when it needs no quoting, else single-quoted. */

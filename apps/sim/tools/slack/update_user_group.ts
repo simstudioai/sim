@@ -8,6 +8,7 @@ export const slackUpdateUserGroupTool = createSlackWebApiTool({
   name: 'Slack Update User Group',
   description:
     'Change a Slack user group’s name, handle, description, or default channels. Requires permission to manage user groups.',
+  effect: 'write',
   endpoint: 'usergroups.update',
   method: 'POST',
   oauth: {

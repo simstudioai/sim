@@ -18,6 +18,7 @@ export const rocketlaneCreatePhaseTool: ToolConfig<
   name: 'Rocketlane Create Phase',
   description: 'Create a new phase in a Rocketlane project',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

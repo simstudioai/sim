@@ -13,6 +13,7 @@ export const putLogGroupRetentionTool: InternalToolConfig<
   name: 'CloudWatch Set Log Group Retention',
   description: 'Set (or clear, for never-expire) the retention period for a CloudWatch log group',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

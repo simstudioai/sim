@@ -15,6 +15,7 @@ export const getTranscriptTool: ToolConfig<
   description:
     'Retrieves a meeting transcript from Granola one page at a time, including when Get Note reports the transcript is too large to return inline.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {

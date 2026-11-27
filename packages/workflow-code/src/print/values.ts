@@ -6,8 +6,9 @@
  */
 
 import type { CatalogSubBlock } from '../catalog/types'
+import { parseJsonContainer } from '../json-text'
 import { type BlockKey, isSimNode, type Json, type SimNode, type Value } from '../model'
-import { getOwn, parseJsonContainer } from '../records'
+import { getOwn } from '../records'
 import { SDK_RESOURCE_CALLS, type TemplateTag } from '../sdk'
 import { type Doc, literalText } from './doc'
 import type { RefPrinter } from './refs'

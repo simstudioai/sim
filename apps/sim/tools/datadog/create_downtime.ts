@@ -17,6 +17,7 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
   name: 'Datadog Create Downtime',
   description: 'Schedule a downtime to suppress monitor notifications during maintenance windows.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

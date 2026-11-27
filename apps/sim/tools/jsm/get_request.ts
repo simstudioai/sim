@@ -12,6 +12,7 @@ export const jsmGetRequestTool: InternalToolConfig<JsmGetRequestParams, JsmGetRe
   name: 'JSM Get Request',
   description: 'Get a single service request from Jira Service Management',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

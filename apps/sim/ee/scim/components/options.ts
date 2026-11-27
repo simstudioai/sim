@@ -22,7 +22,7 @@ export const SETTING_TOGGLES = [
     key: 'lockManualMembership',
     label: 'Lock managed membership',
     description:
-      'Prevent manual invitations, role changes, and access grants for provisioned members.',
+      'Prevent manual organization changes for provisioned members, and manual access changes on workspaces their directory groups are mapped to.',
   },
   {
     key: 'disableJit',

@@ -21,6 +21,7 @@ export const dataverseUpsertRecordTool: ToolConfig<
   description:
     'Create or update a record in a Microsoft Dataverse table. If a record with the given ID exists, it is updated; otherwise, a new record is created.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

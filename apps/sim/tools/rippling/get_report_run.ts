@@ -8,6 +8,7 @@ export const ripplingGetReportRunTool: ToolConfig<RipplingGetReportRunParams> = 
   name: 'Rippling Get Report Run',
   description: 'Get a report run by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

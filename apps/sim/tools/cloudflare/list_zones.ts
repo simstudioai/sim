@@ -17,6 +17,7 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
   name: 'Cloudflare List Zones',
   description: 'Lists one page of zones (domains) in the Cloudflare account.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

@@ -19,6 +19,7 @@ export const greenhouseGetApplicationV2Tool: ToolConfig<
   name: 'Greenhouse Get Application',
   description: 'Retrieves one application by ID using the v3 list endpoint.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

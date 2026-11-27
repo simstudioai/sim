@@ -16,6 +16,7 @@ export const gitlabDeleteSamlGroupLinkTool: ToolConfig<
   name: 'GitLab Delete SAML Group Link',
   description: 'Delete a SAML group link from a GitLab group (GitLab Premium/Ultimate)',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

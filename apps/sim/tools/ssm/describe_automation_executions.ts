@@ -13,6 +13,7 @@ export const describeAutomationExecutionsTool: InternalToolConfig<
   name: 'SSM Describe Automation Executions',
   description: 'List Automation runbook executions in an AWS account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

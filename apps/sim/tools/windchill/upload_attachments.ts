@@ -17,6 +17,7 @@ export const windchillUploadAttachmentsTool: InternalToolConfig<
   name: 'Windchill Upload Attachments',
   description: 'Upload one or more files as document attachments',
   version: '1.0.0',
+  effect: 'write',
   params: {
     baseUrl: {
       type: 'string',

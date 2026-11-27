@@ -25,6 +25,7 @@ export const codaUpdateAclSettingsTool: ToolConfig<CodaAclSettingsParams, CodaAc
     description:
       'Update who can change permissions, copy, or request edit access on a Coda doc; unset settings are left unchanged',
     version: '1.0.0',
+    effect: 'write',
     oauth: codaOAuth,
     errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

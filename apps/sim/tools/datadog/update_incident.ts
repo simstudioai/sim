@@ -16,6 +16,7 @@ export const updateIncidentTool: ToolConfig<UpdateIncidentParams, UpdateIncident
   description:
     'Partially update an existing incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

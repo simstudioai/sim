@@ -19,6 +19,7 @@ export const editClusterTool: ToolConfig<DatabricksEditClusterParams, Databricks
   description:
     'Replace a compute cluster configuration; a running cluster restarts to apply the changes.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

@@ -17,6 +17,7 @@ export const clerkListUsersTool: ToolConfig<ClerkListUsersParams, ClerkListUsers
   name: 'List Users from Clerk',
   description: 'List all users in your Clerk application with optional filtering and pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {

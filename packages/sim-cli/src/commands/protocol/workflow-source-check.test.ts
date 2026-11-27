@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
 import type { SimApiError } from '../../http/client'
 import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, mockedProfile } from '../../test/context-mock'
@@ -32,7 +33,7 @@ async function check(): Promise<void> {
   const source = new Command('source')
   attachWorkflowSourceCheck(source)
   source.commands.forEach((command) => command.exitOverride())
-  await source.parseAsync(['node', 'source', 'check', '--dir', dir])
+  await source.parseAsync(['node', 'source', 'check', '--dir', dir, '--no-types'])
 }
 
 function cacheCatalog(): void {
@@ -44,6 +45,7 @@ function printedWithFixture(): void {
   writeFileSync(
     join(dir, '.sim/base.json'),
     JSON.stringify({
+      version: 1,
       workflowId: 'wf',
       workspaceId: WORKSPACE_ID,
       fingerprint: 'sf1:a',
@@ -158,7 +160,7 @@ async function checkIn(folder: string, ...flags: string[]): Promise<void> {
   const source = new Command('source')
   attachWorkflowSourceCheck(source)
   source.commands.forEach((command) => command.exitOverride())
-  await source.parseAsync(['node', 'source', 'check', '--dir', folder, ...flags])
+  await source.parseAsync(['node', 'source', 'check', '--dir', folder, '--no-types', ...flags])
 }
 
 /** `CLEAN` plus an API block with an unknown method: `W_UNKNOWN_OPTION` on block `call`. */
@@ -265,7 +267,7 @@ describe('sim workflows source check', () => {
 
     await check()
 
-    expect(result()).toMatchObject({ checked: 'compile', errors: 0, warnings: 0 })
+    expect(result()).toMatchObject({ checked: ['compile'], errors: 0, warnings: 0 })
     expect(process.exitCode).toBeUndefined()
     expect(contextMockFns.mockRequest).not.toHaveBeenCalled()
   })
@@ -374,7 +376,7 @@ describe('sim workflows source check', () => {
     })
   })
 
-  it('with --output json, prints each finding in the JSON only, not again as a frame on stderr', async () => {
+  it('with --output json, prints each finding in the JSON and nothing on stderr, so 2>&1 stays one document', async () => {
     cacheCatalog()
     writeFileSync(
       join(dir, 'workflow.ts'),
@@ -385,6 +387,48 @@ describe('sim workflows source check', () => {
 
     expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'E_UNKNOWN_PARAM' }] })
     expect(vi.mocked(console.error)).not.toHaveBeenCalled()
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('inside Mothership, whose shell checks with the default JSON output, ends stderr with the first error on one line and no frame', async () => {
+    vi.stubEnv('SIM_CLI_HOST', 'mothership')
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('{ body: { received: start.message } }', '{ bdy: { received: start.message } }')
+    )
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'E_UNKNOWN_PARAM' }] })
+    const stderr = vi.mocked(console.error).mock.calls.map((call) => call.join(' '))
+    expect(stderr).toEqual([
+      expect.stringMatching(/^Error: workflow\.ts:6:\d+ error E_UNKNOWN_PARAM: /),
+    ])
+  })
+
+  it('ends stderr with the first error, not a warning printed after it', async () => {
+    cacheCatalog()
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: 'ws_other',
+      output: 'table',
+    })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      UNKNOWN_METHOD.replace(
+        '{ body: { received: start.message } }',
+        '{ bdy: { received: start.message } }'
+      )
+    )
+    writeLock(['start', 'done', 'call'])
+
+    await check()
+
+    const stderr = vi.mocked(console.error).mock.calls.map((call) => call.join(' '))
+    expect(stderr.some((line) => / warning W_/.test(line))).toBe(true)
+    expect(stderr.at(-1)).toMatch(/^Error: workflow\.ts:6:\d+ error E_UNKNOWN_PARAM: /)
+    expect(process.exitCode).toBe(1)
   })
 
   it('with --output json in a GitHub Actions job, still annotates each finding on stderr, as a workflow command only', async () => {
@@ -477,6 +521,23 @@ describe('sim workflows source check', () => {
 
     expect(result()).toMatchObject({ errors: 0, warnings: 0, catalogHash: 'fixture' })
     expect(process.exitCode).toBeUndefined()
+  })
+
+  it('refuses a workflow folder while another command holds the workspace directory, writing no types', async () => {
+    cacheCatalog()
+    writeWorkspace()
+    const folder = writeWorkflowFolder('notify', workspaceWorkflow())
+    mkdirSync(join(dir, '.sim/command.lock'))
+    writeFileSync(
+      join(dir, '.sim/command.lock/owner.json'),
+      JSON.stringify({ pid: process.pid, host: hostname() })
+    )
+
+    const error = (await checkIn(folder).catch((caught: unknown) => caught)) as SimApiError
+
+    expect(error.code).toBe('SOURCE_DIR_BUSY')
+    expect(error.exitCode).toBe(SOURCE_BUSY_EXIT_CODE)
+    expect(existsSync(join(dir, '.sim/sdk/workspace.d.ts'))).toBe(false)
   })
 
   it('refuses a table or credential key the workspace directory does not declare', async () => {
@@ -668,6 +729,141 @@ describe('sim workflows source check', () => {
 
     await checkIn(dir, '--strict')
     expect(untyped()).toHaveLength(1)
+  })
+
+  it('reports an untyped JSON reference on a bound block an edit elsewhere makes store it bare, as the server does', async () => {
+    cacheCatalog()
+    writeLock(['start', 'done'])
+    printedWithFixture()
+    writeFileSync(join(dir, 'workflow.ts'), CLEAN)
+    const record = storedEdgesWrite(
+      {
+        files: { 'workflow.ts': CLEAN },
+        lock: JSON.parse(readFileSync(join(dir, '.sim/lock.json'), 'utf8')),
+        base: { fingerprint: 'sf1:a' },
+      },
+      JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+    )
+    if (!record) throw new Error('no stored-edges record')
+    writeFileSync(join(dir, record[0]), record[1])
+    const untyped = () =>
+      ((result().diagnostics ?? []) as Array<{ code: string; message: string }>)
+        .filter((finding) => finding.code === 'W_JSON_REF_UNTYPED')
+        .map((finding) => finding.message)
+
+    await check()
+    expect(untyped()).toEqual([])
+
+    // Only the Start trigger changes: done's body no longer reads a declared string, so it compiles bare.
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace("inputFormat: { message: 'string' }", "inputFormat: { topic: 'string' }")
+    )
+    await check()
+    expect(untyped()).toEqual([expect.stringContaining('<start.message>')])
+  })
+
+  describe('an untyped JSON reference the printed source already stored', () => {
+    const PRINTED = `// @sim-sdk 1
+import { api, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const calc = fn('Calc', { code: 'return 1' })
+  const call = api('Call', { url: 'https://x', method: 'POST', body: { n: calc.result.deep } })
+  start.to(calc)
+  calc.to(call)
+})
+`
+    /** Writes the lock and stored-edges record of `printed`, as a get leaves the directory. */
+    function writePrinted(printed = PRINTED): void {
+      cacheCatalog()
+      writeLock(['start', 'calc', 'call'])
+      printedWithFixture()
+      const record = storedEdgesWrite(
+        {
+          files: { 'workflow.ts': printed },
+          lock: JSON.parse(readFileSync(join(dir, '.sim/lock.json'), 'utf8')),
+          base: { fingerprint: 'sf1:a' },
+        },
+        JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+      )
+      if (!record) throw new Error('no stored-edges record')
+      writeFileSync(join(dir, record[0]), record[1])
+    }
+    const untyped = () =>
+      ((result().diagnostics ?? []) as Array<{ code: string; message: string }>)
+        .filter((finding) => finding.code === 'W_JSON_REF_UNTYPED')
+        .map((finding) => finding.message)
+
+    it('stays quiet when the block holding it and the block it reads are renamed', async () => {
+      writePrinted()
+      writeFileSync(
+        join(dir, 'workflow.ts'),
+        PRINTED.replace("fn('Calc',", "fn('Compute',").replace("api('Call',", "api('Call API',")
+      )
+
+      await check()
+
+      expect(result()).toMatchObject({ errors: 0 })
+      expect(untyped()).toEqual([])
+    })
+
+    it('stays quiet when another field of its block is edited', async () => {
+      writePrinted()
+      writeFileSync(
+        join(dir, 'workflow.ts'),
+        PRINTED.replace("url: 'https://x'", "url: 'https://y'")
+      )
+
+      await check()
+
+      expect(untyped()).toEqual([])
+    })
+
+    it('is reported once its field is edited, with the reference the edit added', async () => {
+      writePrinted()
+      writeFileSync(
+        join(dir, 'workflow.ts'),
+        PRINTED.replace('{ n: calc.result.deep }', '{ n: calc.result.deep, m: calc.result.other }')
+      )
+
+      await check()
+
+      expect(untyped()).toEqual([
+        expect.stringContaining('<calc.result.deep>'),
+        expect.stringContaining('<calc.result.other>'),
+      ])
+    })
+
+    it('is reported where the Function it reads typed it until an edit of its code', async () => {
+      const typed = PRINTED.replace("code: 'return 1'", "code: 'return [1, 2]'").replace(
+        '{ n: calc.result.deep }',
+        '{ n: calc.result.deep, all: calc.result }'
+      )
+      writePrinted(typed)
+      writeFileSync(join(dir, 'workflow.ts'), typed)
+      await checkIn(dir, '--strict')
+      expect(untyped()).toEqual([expect.stringContaining('<calc.result.deep>')])
+
+      writeFileSync(
+        join(dir, 'workflow.ts'),
+        typed.replace("code: 'return [1, 2]'", "code: 'return input.items'")
+      )
+
+      await check()
+
+      expect(untyped()).toEqual([expect.stringContaining('<calc.result>')])
+    })
+
+    it('is reported with --strict', async () => {
+      writePrinted()
+      writeFileSync(join(dir, 'workflow.ts'), PRINTED.replace("api('Call',", "api('Call API',"))
+
+      await checkIn(dir, '--strict')
+
+      expect(untyped()).toEqual([expect.stringContaining('<calc.result.deep>')])
+    })
   })
 
   it('fails on an iteration reference a new block reads outside its loop, and on one a move left behind', async () => {

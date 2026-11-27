@@ -102,6 +102,45 @@ const GITHUB_DATE_FIELD: Partial<Record<GitHubKind, 'updated' | 'author-date'>> 
   issues: 'updated',
   commits: 'author-date',
 }
+/** The qualifier limiting each kind to a person; code and repositories have none. */
+const GITHUB_PERSON_QUALIFIER: Partial<Record<GitHubKind, 'involves' | 'author'>> = {
+  issues: 'involves',
+  commits: 'author',
+}
+
+/**
+ * The login a person filter names: the connected account's own, or the one GitHub user whose
+ * public profile lists the email. Both lookups are memoized across the search's batches.
+ */
+async function githubPersonLogin(client: NativeClient, involving: string): Promise<string> {
+  if (involving === 'me') {
+    const login = string(object(await client.json('/user', { memo: true })).login)
+    if (!GITHUB_LOGIN.test(login))
+      throw new NativeSearchError('unavailable', 'GitHub did not return your account login.')
+    return login
+  }
+  const data = object(
+    await client.json('/search/users', {
+      query: { q: `${involving} in:email`, per_page: '2' },
+      memo: true,
+    })
+  )
+  const logins = array(data.items).map((row) => string(row.login))
+  const [login] = logins
+  if (logins.length !== 1 || !login || !GITHUB_LOGIN.test(login))
+    throw new NativeSearchError(
+      'unavailable',
+      'No single GitHub user lists this email publicly. Search with an involves:LOGIN native query instead.'
+    )
+  return login
+}
+
+const GITHUB_LOGIN = /^[A-Za-z\d](?:[A-Za-z\d-]{0,38})$/
+
+/** Whether a query already names a qualifier; GitHub ORs a repeated one rather than ANDing it. */
+const hasGitHubQualifier = (query: string, name: string) =>
+  githubTokens(query).some((token) => token.toLowerCase().startsWith(`${name}:`))
+
 /** Whether a query uses GitHub's boolean operators: upper-case AND/OR/NOT outside quoted phrases. */
 const hasGitHubBoolean = (query: string) =>
   githubTokens(query).some((token) => /^(?:AND|OR|NOT)$/.test(token))
@@ -111,6 +150,7 @@ const hasGitHubBoolean = (query: string) =>
  * code search, no boolean operators, so it would silently match nothing for such a query.
  */
 function codeExclusion(input: NativeSearchInput): string | undefined {
+  if (input.involving) return 'Code has no author and is excluded from person-filtered searches.'
   if (hasDateBounds(input.filters))
     return 'Code has no dates and is excluded from date-filtered searches.'
   if (hasGitHubBoolean(input.native?.query ?? input.query))
@@ -121,7 +161,14 @@ function codeExclusion(input: NativeSearchInput): string | undefined {
 /** The kinds a search runs: its explicit kind, or issues plus code unless code is excluded. */
 function githubKinds(input: NativeSearchInput, exclusion = codeExclusion(input)): GitHubKind[] {
   const kind = input.native?.kind
-  if (isGitHubKind(kind)) return [kind]
+  if (isGitHubKind(kind)) {
+    if (input.involving && !GITHUB_PERSON_QUALIFIER[kind])
+      throw new NativeSearchError(
+        'unavailable',
+        `GitHub ${kind} search cannot filter by person; use kind issues or commits.`
+      )
+    return [kind]
+  }
   if (kind)
     throw new NativeSearchError(
       'unavailable',
@@ -305,9 +352,7 @@ export async function searchGitHub(
    * already bounds the same date keeps its own range; results are still checked against the filters.
    */
   const dateField = GITHUB_DATE_FIELD[kind]
-  const nativeDateRange =
-    dateField !== undefined &&
-    githubTokens(text).some((token) => token.toLowerCase().startsWith(`${dateField}:`))
+  const nativeDateRange = dateField !== undefined && hasGitHubQualifier(text, dateField)
   const dateRange =
     !dateField || nativeDateRange
       ? ''
@@ -318,7 +363,20 @@ export async function searchGitHub(
           : dates.end
             ? `${dateField}:<=${dates.end}`
             : ''
-  const datedQuery = dateRange ? [groupGitHubText(text), dateRange].filter(Boolean).join(' ') : text
+  const personQualifier = GITHUB_PERSON_QUALIFIER[kind]
+  if (input.involving && personQualifier && hasGitHubQualifier(text, personQualifier))
+    throw new NativeSearchError(
+      'unavailable',
+      `GitHub ORs repeated ${personQualifier}: qualifiers; remove it from the query or drop involving.`
+    )
+  const person =
+    input.involving && personQualifier
+      ? `${personQualifier}:${await githubPersonLogin(client, input.involving)}`
+      : ''
+  const qualifiers = [person, dateRange].filter(Boolean)
+  const scopedQuery = qualifiers.length
+    ? [groupGitHubText(text), ...qualifiers].filter(Boolean).join(' ')
+    : text
   if (exceedsGitHubTextLimit(text))
     throw new NativeSearchError(
       'unavailable',
@@ -331,7 +389,7 @@ export async function searchGitHub(
   try {
     response = await client.json(`/search/${kind}`, {
       query: {
-        q: hasDateBounds(input.filters) ? datedQuery : text,
+        q: scopedQuery,
         per_page: String(input.limit),
         page,
         ...(dateField && dateSortDirection(input.filters)

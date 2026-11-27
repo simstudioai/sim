@@ -1,3 +1,4 @@
+import { utf8ByteLength } from '@sim/utils/paste'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileWriteParams {
@@ -17,6 +18,7 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
   description:
     'Create a new workspace file, either from text content or from an existing file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv") unless overwrite is enabled.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     fileName: {
@@ -90,6 +92,16 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       request: () => [{ key: 'content', inputPaths: [['content']] }],
     },
   },
+
+  /**
+   * A dry run's placeholder names the file the call asks for (a write that would collide is
+   * suffixed live) and sizes the text it writes, as masked; a stored file's size, and its name
+   * unless `fileName` overrides it, stay placeholders.
+   */
+  dryRunOutput: (params) => ({
+    name: params.fileName,
+    size: params.content === undefined ? undefined : utf8ByteLength(params.content),
+  }),
 
   transformResponse: async (response) => {
     const data = await response.json()

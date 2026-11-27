@@ -398,7 +398,7 @@ function cliIdentity(workflowId: string): EmbeddedCliIdentity {
 
 function runSavedCsv(workflowId: string, fileId: string) {
   return runCli(
-    ['workflows', 'run', workflowId, '--manual', '--input', JSON.stringify({ file_id: fileId })],
+    ['workflows', 'run', workflowId, '--draft', '--input', JSON.stringify({ file_id: fileId })],
     cliIdentity(workflowId),
     null
   )

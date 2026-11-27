@@ -36,6 +36,7 @@ export const sportmonksGetTransfersByTeamTool: ToolConfig<
   name: 'Get Transfers by Team',
   description: 'Retrieve transfers for a team by team ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

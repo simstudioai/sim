@@ -10,6 +10,7 @@ export const getDataCatalogTool: InternalToolConfig<
   name: 'Athena Get Data Catalog',
   description: 'Get the type, status, and connection parameters of an Athena data catalog',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

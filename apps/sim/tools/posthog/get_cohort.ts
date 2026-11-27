@@ -36,6 +36,7 @@ export const getCohortTool: ToolConfig<PostHogGetCohortParams, PostHogGetCohortR
   description:
     'Get a specific cohort by ID from PostHog. Returns detailed cohort definition, filters, and user count.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

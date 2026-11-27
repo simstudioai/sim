@@ -7,6 +7,7 @@ export const ripplingCreateTitleTool: ToolConfig<RipplingCreateTitleParams> = {
   name: 'Rippling Create Title',
   description: 'Create a new title',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

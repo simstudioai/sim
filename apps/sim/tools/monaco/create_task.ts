@@ -20,6 +20,7 @@ export const monacoCreateTaskTool: ToolConfig<MonacoCreateTaskParams, MonacoTask
   description:
     'Create a Monaco task, optionally linked to an account and/or opportunity. Without an assignee, the task is assigned to the API key owner.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

@@ -30,6 +30,7 @@ export const getCampaignTopLevelAnalyticsByDateTool: ToolConfig<
   description:
     'Retrieves top-level Smartlead campaign counts for a date range, including positive replies, skipped, failed, and stopped counts not present in the standard analytics.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

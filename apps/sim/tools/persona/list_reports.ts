@@ -20,6 +20,7 @@ export const personaListReportsTool: ToolConfig<
   description:
     'List screening reports, optionally filtered by account ID or reference ID. Results are cursor-paginated.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

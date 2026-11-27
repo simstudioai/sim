@@ -9,6 +9,7 @@ export const agiloftReadRecordTool: InternalToolConfig<
   name: 'Agiloft Read Record',
   description: 'Read a record by ID from an Agiloft table.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     instanceUrl: {

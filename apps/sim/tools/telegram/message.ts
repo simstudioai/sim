@@ -17,6 +17,7 @@ export const telegramMessageTool: ToolConfig<
   description:
     'Send a text message through the Telegram Bot API. Markdown is converted to Telegram HTML before sending; the response includes the sent message and recipient chat.',
   version: '1.0.0',
+  effect: 'write',
   oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
@@ -53,6 +54,19 @@ export const telegramMessageTool: ToolConfig<
       text: convertMarkdownToHTML(params.text),
       parse_mode: 'HTML',
     }),
+  },
+
+  /**
+   * A dry run's placeholder holds the chat the call names, when it names one by numeric id. The
+   * text stays a placeholder: Telegram returns it with the formatting the HTML conversion adds
+   * stripped.
+   */
+  dryRunOutput: (params) => {
+    const chatId = String(params.chatId).trim()
+    return {
+      message: 'Message sent successfully',
+      ...(/^-?\d+$/.test(chatId) ? { data: { chat: { id: Number(chatId) } } } : {}),
+    }
   },
 
   transformResponse: async (response: Response) => {

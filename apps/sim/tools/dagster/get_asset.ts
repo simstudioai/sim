@@ -59,6 +59,7 @@ export const getAssetTool: ToolConfig<DagsterGetAssetParams, DagsterGetAssetResp
   name: 'Dagster Get Asset',
   description: 'Get an asset definition and its latest materialization by asset key.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

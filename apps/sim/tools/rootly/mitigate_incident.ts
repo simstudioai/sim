@@ -15,6 +15,7 @@ export const rootlyMitigateIncidentTool: ToolConfig<
   name: 'Rootly Mitigate Incident',
   description: 'Transition a Rootly incident to the mitigated state.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

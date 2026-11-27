@@ -31,6 +31,7 @@ export const listInboxRepliesTool: ToolConfig<
   description:
     'Retrieves replies from the Smartlead master inbox across all campaigns, optionally limited to unread replies. Smartlead exposes no campaign filter on this endpoint.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

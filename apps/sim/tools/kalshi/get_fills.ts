@@ -33,6 +33,7 @@ export const kalshiGetFillsTool: ToolConfig<KalshiGetFillsParams, KalshiGetFills
   name: 'Get Fills from Kalshi',
   description: "Retrieve your portfolio's fills/trades from Kalshi",
   version: '1.0.0',
+  effect: 'read',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
@@ -189,6 +190,7 @@ export const kalshiGetFillsV2Tool: ToolConfig<KalshiGetFillsV2Params, KalshiGetF
   name: 'Get Fills from Kalshi V2',
   description: "Retrieve your portfolio's fills/trades from Kalshi",
   version: '2.0.0',
+  effect: 'read',
   oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {

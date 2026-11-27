@@ -5,11 +5,13 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { toRecord } from '@sim/utils/object'
+import { escapeRegExp } from '@sim/utils/string'
 import { compileWorkflow } from '@sim/workflow-code'
 import { fingerprintOf } from '@sim/workspace-code'
 import { Command } from 'commander'
@@ -52,6 +54,7 @@ const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const WORKSPACE_ID = 'ws_local'
 const APPLY_PATH = `/api/v2/workflows/${WORKFLOW_ID}/source`
 const BASE = {
+  version: 1,
   workflowId: WORKFLOW_ID,
   workspaceId: WORKSPACE_ID,
   fingerprint: 'sf1:a',
@@ -60,14 +63,14 @@ const BASE = {
 const LOCK = { version: 1, blocks: {}, variables: {} }
 const ENTRY = "// @sim-sdk 1\nexport default workflow('W', () => {})\n"
 
-function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[]; notes?: string[] } = {}) {
-  const dryRun = overrides.dryRun ?? false
+function outcome(overrides: { dry?: boolean; diagnostics?: unknown[]; notes?: string[] } = {}) {
+  const dry = overrides.dry ?? false
   return {
     data: {
       workflowId: WORKFLOW_ID,
       workspaceId: WORKSPACE_ID,
-      dryRun,
-      applied: !dryRun,
+      dry,
+      applied: !dry,
       diff: {
         noop: false,
         blocks: {
@@ -81,7 +84,12 @@ function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[]; notes?:
           modified: [] as Array<{ id: string; key: string; fields: string[] }>,
         },
         edges: { added: 1, removed: 0 },
-        variables: { added: [] as string[], removed: [] as string[], modified: [] as string[] },
+        variables: {
+          added: [] as string[],
+          removed: [] as string[],
+          renamed: [] as Array<{ from: string; to: string }>,
+          modified: [] as string[],
+        },
       },
       diagnostics: overrides.diagnostics ?? [],
       files: { 'workflow.ts': `${ENTRY}// stored\n` },
@@ -89,13 +97,18 @@ function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[]; notes?:
       base: { ...BASE, fingerprint: 'sf1:b' },
       mintedIds: {},
       notes: overrides.notes ?? [],
+      deployedVersion: 3 as number | null,
       needsRedeployment: true,
     },
   }
 }
 
 function program(): Command {
+  // The root's server options, as the CLI's program declares them.
   const root = new Command('sim')
+    .option('-P, --profile <name>')
+    .option('--endpoint <url>')
+    .option('-w, --workspace <id>')
   for (const command of buildGeneratedCommands()) root.addCommand(command)
   const workflows = root.commands.find((command) => command.name() === 'workflows')
   const sourceGroup = workflows?.commands.find((command) => command.name() === 'source')
@@ -127,6 +140,7 @@ let stderrTty: boolean | undefined
 beforeEach(() => {
   contextMockState.output = 'json'
   request.mockReset()
+  contextMockFns.mockRequestRaw.mockReset()
   prompt.question.mockReset()
   stdinTty = process.stdin.isTTY
   stderrTty = process.stderr.isTTY
@@ -138,6 +152,19 @@ beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+})
+
+afterEach(() => {
+  // A printed `next.command` is run as printed: a `{…}` placeholder belongs in its reason.
+  for (const [line] of vi.mocked(console.log).mock.calls) {
+    let printed: { next?: { command?: unknown } } | undefined
+    try {
+      printed = JSON.parse(String(line))
+    } catch {
+      continue
+    }
+    expect(String(printed?.next?.command ?? '')).not.toContain('…')
+  }
 })
 
 afterEach(() => {
@@ -167,13 +194,41 @@ function sentCodeFiles(): string[] {
 }
 
 function dryRunFlags() {
-  return request.mock.calls.map((call) => call[1].query?.dryRun === true)
+  return request.mock.calls.map((call) => call[1].query?.dry === true)
 }
 
 describe('sim workflows source apply', () => {
+  it('keeps the root --profile and --endpoint the caller typed in the next command, not --workspace', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dry: true }))
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      '--profile',
+      'staging',
+      '--endpoint',
+      'https://sim.example.test',
+      '-w',
+      'ws_other',
+      'workflows',
+      'source',
+      'apply',
+      WORKFLOW_ID,
+      '--dir',
+      dir,
+    ])
+
+    expect(stdoutJson()).toMatchObject({
+      next: {
+        command: `sim --profile staging --endpoint 'https://sim.example.test' workflows source apply --dir ${dir} --yes`,
+      },
+    })
+  })
+
   it('without --yes and nobody at a terminal, prints the plan, writes nothing and exits 14', async () => {
     setTerminal(false)
-    request.mockResolvedValue(outcome({ dryRun: true }))
+    request.mockResolvedValue(outcome({ dry: true }))
 
     await apply(WORKFLOW_ID, '--dir', dir, '--allow-delete')
 
@@ -182,12 +237,87 @@ describe('sim workflows source apply', () => {
     expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(ENTRY)
     expect(stdoutJson()).toMatchObject({
       applied: false,
-      dryRun: true,
+      dry: true,
       next: { command: `sim workflows source apply --dir ${dir} --allow-delete --yes` },
       blocksAdded: 1,
     })
     // The JSON on stdout is the plan: stderr does not repeat it.
     expect(stderrLines().join('\n')).not.toContain('Blocks:')
+  })
+
+  it('carries --summary-file onto the apply it names next, quoted', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dry: true }))
+    const file = join(dir, 'my plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--summary-file', file)
+
+    expect(stdoutJson()).toMatchObject({
+      next: {
+        command: `sim workflows source apply --dir ${dir} --summary-file '${file}' --yes`,
+      },
+    })
+  })
+
+  it('writes the plan to --summary-file: the counts, each block, the errors and a stale deployment', async () => {
+    setTerminal(false)
+    const dryRunAnswer = outcome({
+      dry: true,
+      diagnostics: [
+        {
+          code: 'E_UNKNOWN_IDENTIFIER',
+          severity: 'error',
+          message: 'Nothing | named x.',
+          file: 'workflow.ts',
+          line: 4,
+        },
+      ],
+    })
+    request.mockResolvedValue(dryRunAnswer)
+    const file = join(dir, 'plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry', '--summary-file', file)
+
+    const markdown = readFileSync(file, 'utf8')
+    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/%]+ -->$/)
+    expect(markdown).toContain(`### Sim workflow plan: ${WORKFLOW_ID}`)
+    expect(markdown).toContain('1 to add, 0 to remove, 0 to modify, 0 renamed; connections +1 -0')
+    expect(markdown).toContain('| + | start (start_trigger) | added |')
+    expect(markdown).toContain('- `E_UNKNOWN_IDENTIFIER` workflow.ts:4: Nothing \\| named x.')
+    expect(markdown).toContain('Live: version 3, draft has undeployed changes')
+  })
+
+  it('names variable changes in --summary-file, which no block or connection count shows', async () => {
+    setTerminal(false)
+    const answer = outcome({ dry: true })
+    answer.data.diff.blocks.added = []
+    answer.data.diff.edges = { added: 0, removed: 0 }
+    answer.data.diff.variables = {
+      added: ['limit'],
+      removed: [],
+      renamed: [],
+      modified: ['region'],
+    }
+    request.mockResolvedValue(answer)
+    const file = join(dir, 'plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain('Variables: added limit; modified region')
+  })
+
+  it('names a name or description change in --summary-file, which no count shows', async () => {
+    setTerminal(false)
+    const answer = outcome({ dry: true })
+    answer.data.diff.blocks.added = []
+    answer.data.diff.edges = { added: 0, removed: 0 }
+    Object.assign(answer.data.diff, { meta: ['name', 'description'] })
+    request.mockResolvedValue(answer)
+    const file = join(dir, 'plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain('Metadata: name, description')
   })
 
   it('prints the whole next command in a table, never clipping the flag it names', async () => {
@@ -198,7 +328,7 @@ describe('sim workflows source apply', () => {
     writeFileSync(join(deep, 'workflow.ts'), ENTRY)
     writeFileSync(join(deep, '.sim/lock.json'), JSON.stringify(LOCK))
     writeFileSync(join(deep, '.sim/base.json'), JSON.stringify(BASE))
-    request.mockResolvedValue(outcome({ dryRun: true }))
+    request.mockResolvedValue(outcome({ dry: true }))
 
     await apply(WORKFLOW_ID, '--dir', deep, '--allow-delete')
 
@@ -211,11 +341,11 @@ describe('sim workflows source apply', () => {
 
   it('applies the current directory when --dir is left out, as check and status do', async () => {
     setTerminal(false)
-    request.mockResolvedValue(outcome({ dryRun: true }))
+    request.mockResolvedValue(outcome({ dry: true }))
     const cwd = process.cwd()
     process.chdir(dir)
     try {
-      await apply('--dry-run')
+      await apply('--dry')
     } finally {
       process.chdir(cwd)
     }
@@ -228,7 +358,7 @@ describe('sim workflows source apply', () => {
     setTerminal(false)
     request.mockResolvedValue(
       outcome({
-        dryRun: true,
+        dry: true,
         diagnostics: [{ code: 'E_UNKNOWN_PARAM', severity: 'error', message: 'No param x.' }],
       })
     )
@@ -242,7 +372,7 @@ describe('sim workflows source apply', () => {
   it('plans a create without --yes and creates nothing', async () => {
     setTerminal(false)
     rmSync(join(dir, '.sim/base.json'))
-    request.mockResolvedValue(outcome({ dryRun: true }))
+    request.mockResolvedValue(outcome({ dry: true }))
 
     await program().parseAsync(['node', 'sim', 'workflows', 'source', 'create', '--dir', dir])
 
@@ -336,9 +466,9 @@ describe('sim workflows source apply', () => {
 
   it('never asks on a dry run, even at a terminal, and writes nothing', async () => {
     setTerminal(true)
-    request.mockResolvedValue(outcome({ dryRun: true }))
+    request.mockResolvedValue(outcome({ dry: true }))
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(dryRunFlags()).toEqual([true])
     expect(prompt.question).not.toHaveBeenCalled()
@@ -349,9 +479,9 @@ describe('sim workflows source apply', () => {
     mkdirSync(join(dir, '.sim/sdk'), { recursive: true })
     writeFileSync(join(dir, WORKSPACE_TYPES_FILE), '// types the last get wrote\n')
     writeFileSync(join(dir, '.sim/sdk/workspace.manifest.json'), '{}\n')
-    request.mockResolvedValue(outcome({ dryRun: true }))
+    request.mockResolvedValue(outcome({ dry: true }))
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(request.mock.calls.map((call) => call[0])).not.toContainEqual(
       expect.stringContaining('/source/resources')
@@ -366,7 +496,7 @@ describe('sim workflows source apply', () => {
     mkdirSync(join(dir, '.sim/sdk'), { recursive: true })
     writeFileSync(join(dir, WORKSPACE_TYPES_FILE), '// types the last get wrote\n')
     writeFileSync(join(dir, '.sim/sdk/workspace.manifest.json'), '{}\n')
-    request.mockResolvedValue(outcome({ dryRun: true }))
+    request.mockResolvedValue(outcome({ dry: true }))
 
     await apply(WORKFLOW_ID, '--dir', dir)
 
@@ -381,8 +511,8 @@ describe('sim workflows source apply', () => {
 
   it('at a terminal, shows the dry run and applies once the person confirms', async () => {
     setTerminal(true)
-    request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
-      outcome({ dryRun: options.query?.dryRun === true })
+    request.mockImplementation(async (_path: string, options: { query?: { dry?: boolean } }) =>
+      outcome({ dry: options.query?.dry === true })
     )
     prompt.question.mockResolvedValue('y')
 
@@ -397,7 +527,7 @@ describe('sim workflows source apply', () => {
 
   it('at a terminal, applies nothing when the person declines', async () => {
     setTerminal(true)
-    request.mockResolvedValue(outcome({ dryRun: true }))
+    request.mockResolvedValue(outcome({ dry: true }))
     prompt.question.mockResolvedValue('n')
 
     await expect(apply(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('Nothing was applied')
@@ -424,7 +554,7 @@ describe('sim workflows source apply', () => {
     'at a terminal, applies nothing when input ends at the prompt (%s)',
     async (_runtime, answer) => {
       setTerminal(true)
-      request.mockResolvedValue(outcome({ dryRun: true }))
+      request.mockResolvedValue(outcome({ dry: true }))
       prompt.question.mockImplementation(answer)
 
       await expect(apply(WORKFLOW_ID, '--dir', dir)).rejects.toMatchObject({
@@ -475,7 +605,7 @@ describe('sim workflows source apply', () => {
     setTerminal(true)
     request.mockResolvedValue(
       outcome({
-        dryRun: true,
+        dry: true,
         diagnostics: [
           { code: 'E_UNKNOWN_PARAM', severity: 'error', message: 'Slack has no param x.' },
         ],
@@ -493,14 +623,14 @@ describe('sim workflows source apply', () => {
     setTerminal(false)
     request.mockResolvedValue(
       outcome({
-        dryRun: true,
+        dry: true,
         diagnostics: [
           { code: 'E_LIMIT_EXCEEDED', severity: 'error', message: 'workflow.ts is too large.' },
         ],
       })
     )
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(process.exitCode).toBe(7)
   })
@@ -513,64 +643,69 @@ describe('sim workflows source apply', () => {
     setTerminal(false)
     request.mockResolvedValue(
       outcome({
-        dryRun: true,
+        dry: true,
         diagnostics: codes.map((code) => ({ code, severity: 'error', message: code })),
       })
     )
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(process.exitCode).toBe(exitCode)
   })
 
   it('names each modified block and its changed fields in the result and the preview', async () => {
     setTerminal(true)
-    const modified = outcome({ dryRun: true })
+    const modified = outcome({ dry: true })
     modified.data.diff.blocks.added = []
     modified.data.diff.blocks.modified = [{ id: 'b-2', key: 'eachticket', fields: ['subflow'] }]
     request.mockResolvedValue(modified)
     prompt.question.mockResolvedValue('n')
 
     await apply(WORKFLOW_ID, '--dir', dir).catch(() => {})
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(stderrLines().some((line) => line.includes('Modified: eachticket (subflow)'))).toBe(true)
     const printed = vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? ''
     expect(JSON.parse(printed)).toMatchObject({
       blocksModified: 1,
-      modified: [{ block: 'eachticket', fields: ['subflow'] }],
+      modified: ['eachticket (subflow)'],
     })
   })
 
   it('names each added and removed block with its type in the result and the preview', async () => {
     setTerminal(true)
-    const changed = outcome({ dryRun: true })
+    const changed = outcome({ dry: true })
     changed.data.diff.blocks.added = [{ id: 'b-3', key: 'bang', type: 'function' }]
     changed.data.diff.blocks.removed = [{ id: 'b-2', key: 'boom', type: 'function' }]
     request.mockResolvedValue(changed)
     prompt.question.mockResolvedValue('n')
 
     await apply(WORKFLOW_ID, '--dir', dir).catch(() => {})
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(stderrLines().some((line) => line.includes('Added: bang (function)'))).toBe(true)
     expect(stderrLines().some((line) => line.includes('Removed: boom (function)'))).toBe(true)
     const printed = vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? ''
     expect(JSON.parse(printed)).toMatchObject({
-      added: [{ block: 'bang', type: 'function' }],
-      removed: [{ block: 'boom', type: 'function' }],
+      added: ['bang (function)'],
+      removed: ['boom (function)'],
     })
   })
 
   it('names each changed variable in the result and the preview', async () => {
     setTerminal(true)
-    const changed = outcome({ dryRun: true })
-    changed.data.diff.variables = { added: ['retries'], removed: [], modified: ['threshold'] }
+    const changed = outcome({ dry: true })
+    changed.data.diff.variables = {
+      added: ['retries'],
+      removed: [],
+      renamed: [],
+      modified: ['threshold'],
+    }
     request.mockResolvedValue(changed)
     prompt.question.mockResolvedValue('n')
 
     await apply(WORKFLOW_ID, '--dir', dir).catch(() => {})
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(
       stderrLines().some((line) => line.includes('Variables: added retries; modified threshold'))
@@ -583,22 +718,22 @@ describe('sim workflows source apply', () => {
 
   it('prints the modified blocks readably in text output', async () => {
     contextMockState.output = 'text'
-    const modified = outcome({ dryRun: true })
+    const modified = outcome({ dry: true })
     modified.data.diff.blocks.modified = [{ id: 'b-2', key: 'eachticket', fields: ['subflow'] }]
     request.mockResolvedValue(modified)
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
     expect(lines.find((line) => line.startsWith('modified\t'))).toBe(
-      'modified\t[{"block":"eachticket","fields":["subflow"]}]'
+      'modified\teachticket (subflow)'
     )
   })
 
   it('prints no workflow id for a create dry run, since nothing was stored under it', async () => {
     setTerminal(false)
     rmSync(join(dir, '.sim/base.json'))
-    request.mockResolvedValue(outcome({ dryRun: true }))
+    request.mockResolvedValue(outcome({ dry: true }))
 
     await program().parseAsync([
       'node',
@@ -608,12 +743,12 @@ describe('sim workflows source apply', () => {
       'create',
       '--dir',
       dir,
-      '--dry-run',
+      '--dry',
     ])
 
     const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
     expect(printed).toMatchObject({
-      dryRun: true,
+      dry: true,
       created: [{ kind: 'workflow' }, { kind: 'block', key: 'start' }],
     })
     expect(printed).not.toHaveProperty('workflowId')
@@ -643,16 +778,16 @@ describe('sim workflows source apply', () => {
     }
     request.mockResolvedValue(
       outcome({
-        dryRun: true,
+        dry: true,
         diagnostics: [layout('a', 4), layout('b', 6), layout('c', 8), warning],
       })
     )
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
     expect(stderrLines().filter((line) => line.includes('I_MAT_NEEDS_LAYOUT'))).toEqual([])
     vi.mocked(console.error).mockClear()
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--verbose')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry', '--verbose')
 
     const lines = stderrLines()
     const layoutLines = lines.filter((line) => line.includes('I_MAT_NEEDS_LAYOUT'))
@@ -668,18 +803,18 @@ describe('sim workflows source apply', () => {
     setTerminal(false)
     contextMockState.output = 'text'
     const note = "The workflow name 'New' differs from the stored one and was not changed."
-    request.mockResolvedValue(outcome({ dryRun: true, notes: [note] }))
+    request.mockResolvedValue(outcome({ dry: true, notes: [note] }))
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(stderrLines()).toContain(`note: ${note}`)
   })
 
   it('lists notes apart from warnings in the JSON result, and prints none on stderr', async () => {
     setTerminal(false)
-    request.mockResolvedValue(outcome({ dryRun: true, notes: ['a kept name'] }))
+    request.mockResolvedValue(outcome({ dry: true, notes: ['a kept name'] }))
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(stdoutJson()).toMatchObject({ warnings: 0, notes: ['a kept name'] })
     expect(stderrLines()).toEqual([])
@@ -688,10 +823,10 @@ describe('sim workflows source apply', () => {
   it('at a terminal, prints the notes of the preview and of the applied write', async () => {
     setTerminal(true)
     contextMockState.output = 'text'
-    request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
+    request.mockImplementation(async (_path: string, options: { query?: { dry?: boolean } }) =>
       outcome({
-        dryRun: options.query?.dryRun === true,
-        notes: [options.query?.dryRun === true ? 'previewed note' : 'applied note'],
+        dry: options.query?.dry === true,
+        notes: [options.query?.dry === true ? 'previewed note' : 'applied note'],
       })
     )
     prompt.question.mockResolvedValue('y')
@@ -714,9 +849,9 @@ describe('sim workflows source apply', () => {
       line: 9,
       column: 5,
     }
-    request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
+    request.mockImplementation(async (_path: string, options: { query?: { dry?: boolean } }) =>
       outcome({
-        dryRun: options.query?.dryRun === true,
+        dry: options.query?.dry === true,
         diagnostics: [warning],
         notes: ['kept note'],
       })
@@ -738,9 +873,9 @@ describe('sim workflows source apply', () => {
 
   it('puts each finding of a dry run in the JSON on stdout', async () => {
     setTerminal(false)
-    request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [STALE] }))
+    request.mockResolvedValue(outcome({ dry: true, diagnostics: [STALE] }))
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(stdoutJson()).toMatchObject({
       errors: 1,
@@ -770,9 +905,9 @@ describe('sim workflows source apply', () => {
 
     it('with --output json, prints findings only in the JSON on stdout, never as frames on stderr', async () => {
       setTerminal(false)
-      request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [untyped(4)] }))
+      request.mockResolvedValue(outcome({ dry: true, diagnostics: [untyped(4)] }))
 
-      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
       expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'W_JSON_REF_UNTYPED' }] })
       expect(stderrLines().join('\n')).not.toContain('W_JSON_REF_UNTYPED')
@@ -780,13 +915,13 @@ describe('sim workflows source apply', () => {
 
     it('leaves info findings out of the JSON unless --verbose', async () => {
       setTerminal(false)
-      request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [layout, untyped(4)] }))
+      request.mockResolvedValue(outcome({ dry: true, diagnostics: [layout, untyped(4)] }))
 
-      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry')
       expect(stdoutJson().diagnostics).toEqual([expect.objectContaining({ severity: 'warning' })])
 
       vi.mocked(console.log).mockClear()
-      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--verbose')
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry', '--verbose')
       expect(stdoutJson().diagnostics).toEqual([
         expect.objectContaining({ code: 'I_MAT_NEEDS_LAYOUT' }),
         expect.objectContaining({ code: 'W_JSON_REF_UNTYPED' }),
@@ -801,10 +936,10 @@ describe('sim workflows source apply', () => {
         message: 'There are 140 findings; 40 more are left out.',
       }
       request.mockResolvedValue(
-        outcome({ dryRun: true, diagnostics: [layout, { ...layout, line: 4 }, truncated] })
+        outcome({ dry: true, diagnostics: [layout, { ...layout, line: 4 }, truncated] })
       )
 
-      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
       expect(stdoutJson().diagnostics).toEqual([
         {
@@ -819,10 +954,10 @@ describe('sim workflows source apply', () => {
       setTerminal(false)
       contextMockState.output = 'text'
       request.mockResolvedValue(
-        outcome({ dryRun: true, diagnostics: [4, 5, 6, 7].map((line) => untyped(line)) })
+        outcome({ dry: true, diagnostics: [4, 5, 6, 7].map((line) => untyped(line)) })
       )
 
-      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
       const lines = stderrLines()
       expect(lines.filter((line) => line.includes('> '))).toHaveLength(1)
@@ -836,12 +971,12 @@ describe('sim workflows source apply', () => {
       contextMockState.output = 'text'
       request.mockResolvedValue(
         outcome({
-          dryRun: true,
+          dry: true,
           diagnostics: [4, 5].map((line) => ({ ...untyped(line), message: 'Same words.' })),
         })
       )
 
-      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
       expect(stderrLines()).toContain('  1 more W_JSON_REF_UNTYPED like it: workflow.ts:5:7')
     })
@@ -880,6 +1015,9 @@ describe('sim workflows source apply', () => {
               knowledgeBases: [],
               credentials: [],
               workflows: [],
+              skills: [],
+              customTools: [],
+              mcpServers: [],
               env: [],
               truncated: false,
             },
@@ -929,7 +1067,11 @@ describe('sim workflows source apply', () => {
         isDeployed: true,
         deployedAt: null,
         warnings: [],
-        activeDeployment: null,
+        activeDeployment: {
+          deploymentVersionId: 'dv-4',
+          version: 4,
+          deployedAt: '2026-11-20T00:00:00Z',
+        } as { deploymentVersionId: string; version: number; deployedAt: string } | null,
         latestDeploymentAttempt: null,
         version: 4,
         lint: null,
@@ -980,6 +1122,163 @@ describe('sim workflows source apply', () => {
       )
     })
 
+    describe('--run', () => {
+      const RUN_PATH = `/api/v2/workflows/${WORKFLOW_ID}/execute`
+      const runAnswer = (record: Record<string, unknown>) =>
+        new Response(
+          JSON.stringify({ data: { workflowId: WORKFLOW_ID, runId: 'run-1', ...record } }),
+          {
+            headers: { 'content-type': 'application/json' },
+          }
+        )
+      const serveDeploy = () =>
+        request.mockImplementation(async (path: string) =>
+          path === DEPLOY_PATH ? deployed : path === STATUS_PATH ? liveStatus : outcome()
+        )
+
+      it('applies, dry-runs the saved draft with the input, then deploys, in one result', async () => {
+        setTerminal(false)
+        serveDeploy()
+        contextMockFns.mockRequestRaw.mockResolvedValue(
+          runAnswer({ status: 'completed', output: { tier: 'A' } })
+        )
+
+        await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{"email":"a@b.co"}', '--deploy')
+
+        const [path, sent] = contextMockFns.mockRequestRaw.mock.calls[0]
+        expect(path).toBe(RUN_PATH)
+        expect(sent.body).toMatchObject({
+          input: { email: 'a@b.co' },
+          run: { source: 'draft', dry: true },
+        })
+        expect(request.mock.calls.map((call) => call[0])).toEqual([
+          APPLY_PATH,
+          DEPLOY_PATH,
+          STATUS_PATH,
+        ])
+        const result = stdoutJson()
+        expect(result).toMatchObject({
+          applied: true,
+          run: { runId: 'run-1', status: 'completed', output: { tier: 'A' } },
+          live: 'version 4, serving (this deploy)',
+        })
+        expect(String(result.summary)).toContain('test run completed')
+      })
+
+      it('deploys nothing when the test run fails, exits 1, and keeps the saved draft', async () => {
+        setTerminal(false)
+        serveDeploy()
+        contextMockFns.mockRequestRaw.mockResolvedValue(
+          runAnswer({ status: 'failed', error: { message: 'score is not a number' } })
+        )
+
+        const failure = apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{}', '--deploy')
+
+        await expect(failure).rejects.toThrow(
+          /test run failed: score is not a number\. Nothing was deployed\./
+        )
+        expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
+        expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
+        expect(stdoutJson()).toMatchObject({
+          applied: true,
+          run: { status: 'failed', error: 'score is not a number' },
+          next: { command: `sim workflows source apply --dir ${dir} --run '{}' --deploy --yes` },
+        })
+      })
+
+      it('maps an input the server refuses like a failed run: saved, nothing deployed, a runnable next', async () => {
+        setTerminal(false)
+        serveDeploy()
+        const refusal =
+          'workflow_input does not match trigger "Start" (email: Invalid input: expected string, received undefined)'
+        contextMockFns.mockRequestRaw.mockRejectedValue(
+          new SimApiError(refusal, 400, 'BAD_REQUEST')
+        )
+
+        const failure = apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{}', '--deploy')
+
+        await expect(failure).rejects.toThrow(
+          /^The apply was saved into .*, but the test run failed: the server refused it before it started: workflow_input does not match trigger "Start" .*\. Nothing was deployed\. Fix the --run input, then run `sim workflows source apply --dir .* --run '\{\}' --deploy --yes`\.$/
+        )
+        expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
+        expect(stdoutJson()).toMatchObject({
+          applied: true,
+          run: { status: 'failed', error: refusal },
+          next: {
+            command: `sim workflows source apply --dir ${dir} --run '{}' --deploy --yes`,
+            reason: 'applies again and tests it with your fixed --run input',
+          },
+        })
+      })
+
+      it('says nothing changed when the source matched the draft and its test run fails', async () => {
+        setTerminal(false)
+        const unchanged = outcome()
+        unchanged.data.applied = false
+        unchanged.data.diff.noop = true
+        request.mockResolvedValue(unchanged)
+        contextMockFns.mockRequestRaw.mockResolvedValue(
+          runAnswer({ status: 'failed', error: { message: 'score is not a number' } })
+        )
+
+        await expect(apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{}')).rejects.toThrow(
+          /^Nothing changed: the draft already matched .*, and the test run failed: score is not a number\. Fix the source/
+        )
+      })
+
+      it("prints the run's side effects before the result, so the output still ends with it", async () => {
+        setTerminal(false)
+        contextMockState.output = 'table'
+        serveDeploy()
+        contextMockFns.mockRequestRaw.mockResolvedValue(
+          runAnswer({
+            status: 'completed',
+            output: {},
+            sideEffects: {
+              stubbed: [{ blockId: 'b-1', block: 'Send', tool: 'slack_message', count: 1 }],
+              allowed: [],
+              unchecked: [],
+            },
+          })
+        )
+        const printed: Array<{ to: 'stdout' | 'stderr'; text: string }> = []
+        vi.mocked(console.log).mockImplementation((...line: unknown[]) => {
+          printed.push({ to: 'stdout', text: line.join(' ') })
+        })
+        vi.mocked(process.stderr.write).mockImplementation((chunk: unknown) => {
+          printed.push({ to: 'stderr', text: String(chunk) })
+          return true
+        })
+
+        await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{}')
+
+        const sideEffects = printed.findIndex((entry) => entry.text.includes('slack_message'))
+        const result = printed.findIndex((entry) => entry.to === 'stdout')
+        expect(sideEffects).toBeGreaterThanOrEqual(0)
+        expect(sideEffects).toBeLessThan(result)
+        expect(printed.at(-1)?.to).toBe('stdout')
+      })
+
+      it('refuses beside --dry, before sending anything', async () => {
+        await expect(apply(WORKFLOW_ID, '--dir', dir, '--dry', '--run', '{}')).rejects.toThrow(
+          /--run test-runs what the write saves, and --dry saves nothing/
+        )
+        expect(request).not.toHaveBeenCalled()
+        expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
+      })
+
+      it('refuses an input that is not JSON before saving anything', async () => {
+        setTerminal(false)
+        serveDeploy()
+
+        const failure = apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{bad', '--deploy')
+
+        await expect(failure).rejects.toThrow(/--run: its input is not JSON. Nothing was saved./)
+        expect(request).not.toHaveBeenCalled()
+        expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
+      })
+    })
+
     it('deploys through the deploy operation once the apply is saved', async () => {
       setTerminal(false)
       request.mockImplementation(async (path: string) =>
@@ -1011,6 +1310,7 @@ describe('sim workflows source apply', () => {
       noop.data.applied = false
       noop.data.diff.noop = true
       noop.data.needsRedeployment = false
+      let attempt: Record<string, unknown> | null = null
       const status = (isDeployed: boolean) => ({
         data: {
           ...deployed.data,
@@ -1021,6 +1321,7 @@ describe('sim workflows source apply', () => {
           activeDeployment: isDeployed
             ? { deploymentVersionId: 'dv-7', version: 7, deployedAt: '2026-11-20T00:00:00Z' }
             : null,
+          latestDeploymentAttempt: attempt,
         },
       })
       let live = true
@@ -1046,24 +1347,152 @@ describe('sim workflows source apply', () => {
         DEPLOY_PATH,
         STATUS_PATH,
       ])
+
+      // A version still activating is about to replace the one that matches: the draft is deployed.
+      live = true
+      attempt = {
+        id: 'op-5',
+        deploymentVersionId: 'dv-5',
+        version: 5,
+        action: 'rollback',
+        status: 'activating',
+        isCurrent: true,
+        readiness: { webhooks: 'pending', schedules: 'ready', mcp: 'ready' },
+        requestedAt: '2026-11-20T00:00:00Z',
+      }
+      request.mockClear()
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+      expect(request.mock.calls.map((call) => call[0])).toEqual([
+        APPLY_PATH,
+        STATUS_PATH,
+        DEPLOY_PATH,
+        STATUS_PATH,
+      ])
     })
 
-    it('without --deploy, names the deploy command when the deployed workflow now differs', async () => {
+    it('without --deploy, names the pinned deploy when the deployed workflow now differs, and the tested one in its reason', async () => {
       setTerminal(false)
       request.mockResolvedValue(outcome())
 
       await apply(WORKFLOW_ID, '--dir', dir, '--yes')
 
       expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
-      expect(stdoutJson()).toMatchObject({
+      const result = stdoutJson()
+      // `next.command` runs as printed: no placeholder an agent would have to fill in.
+      expect(result).toMatchObject({
         needsRedeployment: true,
-        next: {
-          command: `sim workflows deploy ${WORKFLOW_ID} --expected-draft-fingerprint sf1:b`,
-        },
+        next: { command: `sim workflows deploy ${WORKFLOW_ID} --expected-draft-fingerprint sf1:b` },
       })
+      expect(toRecord(result.next).reason).toContain(
+        `\`sim workflows source apply --dir ${dir} --yes --run '{…}' --deploy\` tests and deploys it in one step`
+      )
     })
 
-    it('deploys nothing after a refused apply, and refuses beside --dry-run', async () => {
+    it('inside Mothership, names the test run through sim_cli, never --run or --deploy, in the reason', async () => {
+      setTerminal(false)
+      vi.stubEnv('SIM_CLI_HOST', 'mothership')
+      request.mockResolvedValue(outcome())
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+
+      const reason = String(toRecord(stdoutJson().next).reason)
+      expect(reason).toContain(`sim_cli (\`workflows run ${WORKFLOW_ID} --dry`)
+      expect(reason).not.toMatch(/--run|--deploy/)
+    })
+
+    it.each([
+      [null, false, 'not deployed'],
+      [3, false, 'version 3, matches the draft'],
+      [3, true, 'version 3, draft has undeployed changes'],
+    ])(
+      'without --deploy, a workflow live at %s (draft differs: %s) reads as %s',
+      async (deployedVersion, needsRedeployment, live) => {
+        setTerminal(false)
+        const answer = outcome()
+        answer.data.deployedVersion = deployedVersion
+        answer.data.needsRedeployment = needsRedeployment
+        request.mockResolvedValue(answer)
+
+        await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+
+        expect(stdoutJson()).toMatchObject({ live, deployedVersion, needsRedeployment })
+        vi.mocked(console.log).mockClear()
+        contextMockState.output = 'text'
+        await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+        const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
+        expect(lines[0]).toMatch(new RegExp(`^summary\tapplied: .*; live: ${escapeRegExp(live)}$`))
+        expect(lines).toContain(`live\t${live}`)
+      }
+    )
+
+    it('prints no live line against a server that does not report deployedVersion', async () => {
+      setTerminal(false)
+      const answer = outcome()
+      answer.data.needsRedeployment = false
+      Reflect.deleteProperty(answer.data, 'deployedVersion')
+      request.mockResolvedValue(answer)
+      contextMockState.output = 'text'
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+
+      const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
+      expect(lines.some((line) => line.startsWith('live\t'))).toBe(false)
+      expect(lines.join('\n')).not.toContain('undefined')
+    })
+
+    it('says the version it deployed is still activating, not that it is live', async () => {
+      setTerminal(false)
+      const activating = {
+        data: {
+          ...deployed.data,
+          activeDeployment: {
+            deploymentVersionId: 'dv-3',
+            version: 3,
+            deployedAt: '2026-11-20T00:00:00Z',
+          },
+          latestDeploymentAttempt: {
+            id: 'op-4',
+            deploymentVersionId: 'dv-4',
+            version: 4,
+            action: 'deploy',
+            status: 'activating',
+            isCurrent: true,
+            readiness: { webhooks: 'pending', schedules: 'ready', mcp: 'ready' },
+            requestedAt: '2026-11-20T00:00:00Z',
+          },
+        },
+      }
+      /** The status the server reports meanwhile: version 3 serves, the draft's version 4 activates. */
+      const pending = { data: { ...liveStatus.data, ...activating.data, needsRedeployment: false } }
+      request.mockImplementation(async (path: string) =>
+        path === DEPLOY_PATH ? activating : path === STATUS_PATH ? pending : outcome()
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+
+      expect(stdoutJson()).toMatchObject({
+        live: 'version 3 still serving; version 4 activating',
+        deployedVersion: 3,
+        // As the deployment status reports it, false while the draft's version 4 activates: only
+        // `live` says it is not live yet.
+        needsRedeployment: false,
+        next: { command: `sim workflows deployment status ${WORKFLOW_ID}` },
+      })
+
+      vi.mocked(console.log).mockClear()
+      contextMockState.output = 'text'
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+      const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
+      expect(lines[0]).toMatch(/; live: version 3 still serving; version 4 activating$/)
+      expect(lines.slice(-2)).toEqual([
+        'live\tversion 3 still serving; version 4 activating',
+        `next\tsim workflows deployment status ${WORKFLOW_ID}  # shows when version 4 is live`,
+      ])
+      // The admitted version is never printed as if it were deployed.
+      expect(lines.some((line) => line.startsWith('deployed\t'))).toBe(false)
+    })
+
+    it('deploys nothing after a refused apply, and refuses beside --dry', async () => {
       setTerminal(false)
       request.mockResolvedValue(outcome({ diagnostics: [STALE] }))
 
@@ -1071,8 +1500,8 @@ describe('sim workflows source apply', () => {
       expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
 
       request.mockClear()
-      await expect(apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--deploy')).rejects.toThrow(
-        /--dry-run saves nothing/
+      await expect(apply(WORKFLOW_ID, '--dir', dir, '--dry', '--deploy')).rejects.toThrow(
+        /--dry saves nothing/
       )
       expect(request).not.toHaveBeenCalled()
     })
@@ -1101,16 +1530,16 @@ describe('sim workflows source apply', () => {
 
   it('exits 5 when a dry run finds the directory stale', async () => {
     setTerminal(false)
-    request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [STALE] }))
+    request.mockResolvedValue(outcome({ dry: true, diagnostics: [STALE] }))
 
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
 
     expect(process.exitCode).toBe(5)
   })
 
   it('at a terminal, exits 5 without asking when the preview finds the directory stale', async () => {
     setTerminal(true)
-    request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [STALE] }))
+    request.mockResolvedValue(outcome({ dry: true, diagnostics: [STALE] }))
 
     await apply(WORKFLOW_ID, '--dir', dir)
 
@@ -1214,6 +1643,33 @@ describe('sim workflows source apply in a workflow folder of a workspace directo
     expect(lockedDuringWrite).toBe(true)
     expect(existsSync(join(dir, '.sim/command.lock'))).toBe(false)
   })
+
+  it('writes the stored source back when another folder cannot be read to type its calls', async () => {
+    setTerminal(false)
+    const config = mkdtempSync(join(tmpdir(), 'sim-source-apply-config-'))
+    vi.stubEnv('SIM_CONFIG_DIR', config)
+    const catalogText = readFileSync(FIXTURE_CATALOG, 'utf8')
+    cacheCatalogText(config, WORKSPACE_ID, catalogText)
+    mkdirSync(join(dir, 'workflows/other'))
+    writeFileSync(join(config, 'elsewhere.ts'), ENTRY)
+    symlinkSync(join(config, 'elsewhere.ts'), join(dir, 'workflows/other/workflow.ts'))
+    const stored = outcome()
+    stored.data.base.catalogHash = JSON.parse(catalogText).hash
+    request.mockResolvedValue(stored)
+
+    try {
+      await apply('--dir', folder(), '--yes')
+    } finally {
+      rmSync(config, { recursive: true, force: true })
+    }
+
+    expect(process.exitCode).toBeUndefined()
+    expect(readFileSync(join(folder(), 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
+    expect(JSON.parse(readFileSync(join(folder(), '.sim/base.json'), 'utf8')).fingerprint).toBe(
+      'sf1:b'
+    )
+    expect(existsSync(join(folder(), '.sim/stored-edges.json'))).toBe(false)
+  })
 })
 
 describe('a standalone workflow directory', () => {
@@ -1238,10 +1694,10 @@ describe('a standalone workflow directory', () => {
 
   it('dry-runs and plans a directory no one may write, and refuses to apply it, sending nothing', async () => {
     setTerminal(false)
-    request.mockResolvedValue(outcome({ dryRun: true }))
+    request.mockResolvedValue(outcome({ dry: true }))
     for (const path of ['', '.sim']) chmodSync(join(dir, path), 0o555)
     try {
-      await apply('--dir', dir, '--dry-run')
+      await apply('--dir', dir, '--dry')
       await apply('--dir', dir)
       expect(dryRunFlags()).toEqual([true, true])
 
@@ -1272,8 +1728,8 @@ describe('the code files an apply sends', () => {
   async function applyEntry(entry: string): Promise<void> {
     writeFileSync(join(dir, 'workflow.ts'), entry)
     setTerminal(false)
-    request.mockResolvedValue(outcome({ dryRun: true }))
-    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    request.mockResolvedValue(outcome({ dry: true }))
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry')
   }
 
   it('sends a file named by a template literal without substitutions', async () => {
@@ -1410,6 +1866,9 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
       knowledgeBases: [],
       credentials: [],
       workflows: [],
+      skills: [],
+      customTools: [],
+      mcpServers: [],
       env: ['OPENAI_API_KEY'],
       truncated: false,
     },
@@ -1418,6 +1877,17 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
   async function create(...argv: string[]): Promise<void> {
     await program().parseAsync(['node', 'sim', 'workflows', 'source', 'create', ...argv])
   }
+
+  it('refuses a --run input that is not JSON before writing a starter', async () => {
+    const empty = join(dir, 'new')
+
+    await expect(create('--dir', empty, '--run', '{bad')).rejects.toThrow(
+      /--run: its input is not JSON/
+    )
+
+    expect(existsSync(join(empty, 'workflow.ts'))).toBe(false)
+    expect(request).not.toHaveBeenCalled()
+  })
 
   it('writes a starter workflow.ts, the types, tsconfig and the guide, and creates nothing', async () => {
     setTerminal(false)
@@ -1459,12 +1929,30 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     expect(printed.files).toBeGreaterThan(0)
   })
 
-  /** Answers the starter's catalog and manifest reads, and a create with a stored workflow. */
-  function answerStarterAndCreate() {
-    request.mockImplementation(async (path: string, init: { query?: { dryRun?: boolean } }) => {
+  it("names a starter's create with the --name and --folder the caller chose", async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'new')
+    request.mockImplementation(async (path: string) => {
       if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
       if (path.endsWith('/workflows/source/resources')) return MANIFEST
-      if (path.endsWith('/workflows/source')) return outcome({ dryRun: init.query?.dryRun })
+      throw new Error(`unexpected request ${path}`)
+    })
+
+    await create('--dir', empty, '--name', 'Lead Router', '--folder', 'Sales/Q4', '--run', '{}')
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed.next.command).toBe(
+      `sim workflows source create --dir ${empty} --workspace ${WORKSPACE_ID} --name 'Lead Router' --folder Sales/Q4 --run '{}' --yes`
+    )
+  })
+
+  /** Answers the starter's catalog and manifest reads, and a create with a stored workflow. */
+  function answerStarterAndCreate() {
+    request.mockImplementation(async (path: string, init: { query?: { dry?: boolean } }) => {
+      if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
+      if (path.endsWith('/workflows/source/resources')) return MANIFEST
+      if (path.endsWith('/workflows/source')) return outcome({ dry: init.query?.dry })
       throw new Error(`unexpected request ${path}`)
     })
   }
@@ -1474,6 +1962,28 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
       .map((call) => call[0] as string)
       .filter((path) => path.endsWith('/workflows/source'))
   }
+
+  it('names the command that creates a --folder the server does not find', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'new')
+    answerStarterAndCreate()
+    await create('--dir', empty)
+    request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
+      if (path.endsWith('/workflows/source/resources')) return MANIFEST
+      throw new SimApiError('Folder not found', 404)
+    })
+
+    await expect(create('--dir', empty, '--folder', 'Reports/Q4', '--dry')).rejects.toThrow(
+      /^Folder not found\. Create it with `sim workflows folders create '?Reports\/Q4'?`, then create the workflow again\.$/
+    )
+    // The command the hint names is one the CLI has.
+    const folders = program()
+      .commands.find((command) => command.name() === 'workflows')
+      ?.commands.find((command) => command.name() === 'folders')
+    expect(folders?.commands.map((command) => command.name())).toContain('create')
+  })
 
   it('plans a starter without reading or rewriting its workspace types', async () => {
     setTerminal(false)
@@ -1546,7 +2056,38 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     }
   })
 
-  it.each(['--dry-run', '--yes'])('refuses %s instead of scaffolding', async (flag) => {
+  it('after a create whose test run fails, names the apply of the created workflow, not a second create', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const starter = join(dir, 'new')
+    answerStarterAndCreate()
+    await create('--dir', starter)
+    vi.mocked(console.log).mockClear()
+    contextMockFns.mockRequestRaw.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            workflowId: WORKFLOW_ID,
+            runId: 'run-1',
+            status: 'failed',
+            error: { message: 'bad' },
+          },
+        }),
+        { headers: { 'content-type': 'application/json' } }
+      )
+    )
+
+    await expect(create('--dir', starter, '--yes', '--run', '{}', '--deploy')).rejects.toThrow(
+      `run \`sim workflows source apply --dir ${starter} --run '{}' --deploy --yes\``
+    )
+
+    expect(existsSync(join(starter, '.sim/base.json'))).toBe(true)
+    expect(stdoutJson()).toMatchObject({
+      next: { command: `sim workflows source apply --dir ${starter} --run '{}' --deploy --yes` },
+    })
+  })
+
+  it.each(['--dry', '--yes'])('refuses %s instead of scaffolding', async (flag) => {
     setTerminal(false)
     vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
     const empty = join(dir, 'missing')

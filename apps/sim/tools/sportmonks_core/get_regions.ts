@@ -34,6 +34,7 @@ export const sportmonksCoreGetRegionsTool: ToolConfig<
   name: 'Get Regions',
   description: 'Retrieve all regions from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

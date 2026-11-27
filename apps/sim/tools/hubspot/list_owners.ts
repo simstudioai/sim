@@ -11,6 +11,7 @@ export const hubspotListOwnersTool: ToolConfig<HubSpotListOwnersParams, HubSpotL
     name: 'List Owners from HubSpot',
     description: 'Retrieve all owners from HubSpot account with pagination support',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

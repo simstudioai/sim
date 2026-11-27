@@ -10,6 +10,7 @@ export const vantaGetPersonTool: InternalToolConfig<VantaGetPersonParams, VantaG
     description:
       'Get a person tracked in Vanta by ID, including employment, leave, and security task status',
     version: '1.0.0',
+    effect: 'read',
 
     oauth: {
       required: true,

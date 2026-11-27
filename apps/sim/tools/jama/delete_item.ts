@@ -14,6 +14,7 @@ export const jamaDeleteItemTool: ToolConfig<JamaDeleteItemParams, JamaDeleteItem
   name: 'Jama Delete Item',
   description: "Delete Item in Jama Connect using the connected user's access permissions.",
   version: '1.0.0',
+  effect: 'write',
   oauth: jamaOAuth,
   params: {
     ...jamaAuthParams,

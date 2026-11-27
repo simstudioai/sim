@@ -1,8 +1,12 @@
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
-import { tableSuccess } from '@/tools/table/response'
-import type { TableRowInsertParams, TableUpsertResponse } from '@/tools/table/types'
+import { placeholderRow, tableSuccess } from '@/tools/table/response'
+import {
+  IGNORED_COLUMNS_OUTPUT,
+  type TableRowInsertParams,
+  type TableUpsertResponse,
+} from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableUpsertResponse> = {
@@ -11,6 +15,7 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
   description:
     'Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.',
   version: '1.0.0',
+  effect: 'write',
 
   toolEnrichment: {
     dependsOn: 'tableId',
@@ -30,7 +35,7 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
       type: 'string',
       required: false,
       description:
-        'Unique column to match on. Required only when the table has more than one unique column.',
+        'Unique column (name or id) to match on. Required only when the table has more than one unique column.',
       visibility: 'user-only',
     },
   },
@@ -55,6 +60,12 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
     },
   },
 
+  /**
+   * A dry run's placeholder holds the row the call writes, its id and position placeholders; whether
+   * it inserts or updates is stored state.
+   */
+  dryRunOutput: (params) => ({ row: placeholderRow(params.data, 0), ignoredColumns: [] }),
+
   transformResponse: async (response): Promise<TableUpsertResponse> => {
     const result = await response.json()
     const data = result.data || result
@@ -63,6 +74,7 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
       row: data.row,
       operation: data.operation,
       message: data.message || 'Row upserted successfully',
+      ignoredColumns: data.ignoredColumns ?? [],
     })
   },
 
@@ -70,6 +82,7 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
     success: { type: 'boolean', description: 'Whether row was upserted' },
     row: { type: 'json', description: 'Upserted row data' },
     operation: { type: 'string', description: 'Operation performed: insert or update' },
+    ignoredColumns: IGNORED_COLUMNS_OUTPUT,
     message: { type: 'string', description: 'Status message' },
   },
 }

@@ -14,6 +14,7 @@ export const batchScrapeStatusTool: ToolConfig<
   description:
     'Check the status and retrieve results of a previously started Firecrawl batch scrape job by its job ID.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     jobId: {

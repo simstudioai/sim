@@ -26,6 +26,7 @@ export const planetScaleCreateBranchTool: ToolConfig<
   name: 'PlanetScale Create Branch',
   description: 'Create a branch',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {

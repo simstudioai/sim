@@ -25,6 +25,7 @@ export const listRepositoriesTool: ToolConfig<ListRepositoriesParams, ListReposi
   name: 'Cursor List Repositories',
   description: 'List the GitHub repositories accessible to the authenticated user.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...listRepositoriesBase,
@@ -84,6 +85,7 @@ export const listRepositoriesV2Tool: ToolConfig<
   description:
     'List the GitHub repositories accessible to the authenticated user. Returns API-aligned fields only.',
   version: '2.0.0',
+  effect: 'read',
   oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()

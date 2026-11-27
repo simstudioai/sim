@@ -11,6 +11,7 @@ import {
 import { SimApiError } from '../http/client'
 import { callsOperations } from './called-operations'
 import { BULK_OUTCOME_CHECKS, executeOperation } from './execute'
+import { warnRenamedCommand, writeRenameWarnings } from './renamed'
 import type { OperationSpec } from './types'
 
 const { request, output, workspaceSource } = vi.hoisted(() => ({
@@ -135,7 +136,7 @@ const PUBLISH_CHAT: OperationSpec = {
 }
 
 const PUBLIC_NOTE =
-  'note: auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
+  'auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
 
 /** Publishes a chat past its `--yes` gate with the required fields and the given extras. */
 function publishChat(flags: Record<string, unknown>) {
@@ -163,7 +164,7 @@ function streams() {
 }
 
 describe('a chat publish that lands on public auth', () => {
-  it('notes the exposure on stderr when the default chose public, and keeps stdout the record', async () => {
+  it('carries the exposure in the JSON record when the default chose public, so stdout and stderr merged still parse', async () => {
     request.mockResolvedValue({
       data: { id: 'chat_1', identifier: 'support', authType: 'public' },
     })
@@ -172,13 +173,62 @@ describe('a chat publish that lands on public auth', () => {
     await publishChat({})
 
     expect(request.mock.calls[0][1].body).not.toHaveProperty('authType')
-    expect(captured.stderr).toContain(PUBLIC_NOTE)
-    expect(captured.stdout).not.toContain('note:')
-    expect(JSON.parse(captured.stdout)).toEqual({
+    expect(JSON.parse(captured.stdout + captured.stderr)).toEqual({
       id: 'chat_1',
       identifier: 'support',
       authType: 'public',
+      note: PUBLIC_NOTE,
     })
+  })
+
+  it('notes the exposure on stderr for a person reading the table, and keeps it out of stdout', async () => {
+    output.format = 'table'
+    request.mockResolvedValue({
+      data: { id: 'chat_1', identifier: 'support', authType: 'public' },
+    })
+    const captured = streams()
+
+    await publishChat({})
+
+    expect(captured.stderr).toContain(`note: ${PUBLIC_NOTE}`)
+    expect(captured.stdout).not.toContain('anyone with the link')
+  })
+})
+
+describe('a workflow export', () => {
+  const EXPORTED = {
+    version: '1.0',
+    state: { blocks: { a: { subBlocks: { tableSelector: { value: 'tbl_1' } } } } },
+  }
+
+  function exportWorkflow(flags: Record<string, unknown>) {
+    const host = leaf('exportWorkflow')
+    return executeOperation(
+      'exportWorkflow',
+      CLI_CONTRACT.exportWorkflow ?? {},
+      V2_OPERATIONS.exportWorkflow,
+      ['wf_1', flags, host]
+    )
+  }
+
+  it('asks for the workspace bindings by default and prints only the document', async () => {
+    request.mockResolvedValue({ data: EXPORTED })
+    const captured = streams()
+
+    await exportWorkflow({})
+
+    expect(request.mock.calls[0][1].query).toMatchObject({ includeWorkspaceBindings: true })
+    expect(captured.stderr).toBe('')
+    expect(JSON.parse(captured.stdout)).toEqual(EXPORTED)
+  })
+
+  it('clears the bindings when the caller asks for a copy to share', async () => {
+    request.mockResolvedValue({ data: EXPORTED })
+    streams()
+
+    await exportWorkflow({ includeWorkspaceBindings: false })
+
+    expect(request.mock.calls[0][1].query).toMatchObject({ includeWorkspaceBindings: false })
   })
 })
 
@@ -393,6 +443,35 @@ describe('a bulk call that changed nothing', () => {
     )
   })
 
+  it('fails a machine result as one document: the refusal carries the result and the warnings owed', async () => {
+    const payload = {
+      deleted: [],
+      skipped: [],
+      notFound: [{ kind: 'table', id: 'tbl_nope' }],
+      failed: [],
+      deletedItems: { tables: 0, folders: 0 },
+    }
+    request.mockResolvedValue({ data: payload })
+    const host = leaf('bulkDeleteTables')
+    warnRenamedCommand(host, 'tables remove', 'tables batch-delete')
+    const written = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const failure = await executeOperation('bulkDeleteTables', {}, BULK_DELETE_TABLES, [
+      {},
+      host,
+    ]).catch((error: unknown) => error)
+    writeRenameWarnings(host)
+
+    expect(failure).toBeInstanceOf(SimApiError)
+    expect((failure as SimApiError).details).toEqual({
+      ...payload,
+      note: 'command "sim tables remove" has been renamed to "sim tables batch-delete". The old name still works.',
+    })
+    expect(console.log).not.toHaveBeenCalled()
+    expect(written).not.toHaveBeenCalled()
+  })
+
   /**
    * The scoping guard. Some items really were deleted, so the call did work;
    * failing here would break every caller sweeping a list that legitimately
@@ -464,24 +543,32 @@ describe('workspace invitation batch outcomes', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
   })
 
-  it.each([false, true])(
-    'prints every result and exits nonzero on a partial=%s failure',
-    async (partial) => {
-      const payload = {
-        ...empty,
-        success: false,
-        successful: partial ? ['first@example.com'] : [],
-        invitations: partial ? [receipt] : [],
-        failed: [{ email: 'second@example.com', error: 'Unable to invite this recipient' }],
-      }
-      request.mockResolvedValue({ data: payload })
-      await expect(invite()).rejects.toThrow(
-        'Invitation batch failed for 1 recipient. Successful results remain committed; inspect failed recipients before retrying.'
-      )
-      expect(JSON.parse(vi.mocked(console.log).mock.calls[0][0])).toEqual(payload)
-      expect(request).toHaveBeenCalledTimes(1)
-    }
-  )
+  const failedBatch = (partial: boolean) => ({
+    ...empty,
+    success: false,
+    successful: partial ? ['first@example.com'] : [],
+    invitations: partial ? [receipt] : [],
+    failed: [{ email: 'second@example.com', error: 'Unable to invite this recipient' }],
+  })
+  const BATCH_FAILED =
+    'Invitation batch failed for 1 recipient. Successful results remain committed; inspect failed recipients before retrying.'
+
+  it('prints the committed part of a failed batch, then exits nonzero', async () => {
+    request.mockResolvedValue({ data: failedBatch(true) })
+    await expect(invite()).rejects.toThrow(BATCH_FAILED)
+    expect(JSON.parse(vi.mocked(console.log).mock.calls[0][0])).toEqual(failedBatch(true))
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails a batch that committed nothing as one document, the refusal carrying the result', async () => {
+    request.mockResolvedValue({ data: failedBatch(false) })
+    await expect(invite()).rejects.toMatchObject({
+      message: BATCH_FAILED,
+      details: failedBatch(false),
+    })
+    expect(console.log).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledTimes(1)
+  })
 
   it('preserves HTTP failures without reporting a successful batch or retrying', async () => {
     const failure = new SimApiError('Organization access denied', 403)

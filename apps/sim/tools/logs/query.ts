@@ -6,6 +6,7 @@ export const logsQueryTool: InternalToolConfig<LogsQueryParams, LogsQueryRespons
   name: 'Query Logs',
   description: 'Query workflow execution logs in the current workspace with filters.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     workflowIds: {

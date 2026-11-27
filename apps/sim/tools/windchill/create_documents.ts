@@ -15,6 +15,7 @@ export const windchillCreateDocumentsTool: InternalToolConfig<WindchillParams, W
     name: 'Windchill Create Documents',
     description: 'Create several documents in one atomic Windchill request',
     version: '1.0.0',
+    effect: 'write',
     params: {
       baseUrl: {
         type: 'string',

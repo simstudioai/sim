@@ -15,6 +15,7 @@ export const findEmailsByDomainTool: ToolConfig<
   description:
     'Find verified contacts at a given domain matching one or more target roles (max 3 roles). Limited to 5 concurrent synchronous requests.',
   version: '1.0.0',
+  effect: 'write',
 
   hosting: findymailHosting<FindymailFindEmailsByDomainParams>((_params, output) => {
     // No contacts array means no verified contacts returned — no charge.

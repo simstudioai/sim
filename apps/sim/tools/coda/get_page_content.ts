@@ -34,6 +34,7 @@ export const codaGetPageContentTool: ToolConfig<
   description:
     'Read the content of a Coda canvas page as plain-text lines with their styles (headings, paragraphs, lists, quotes, code) and element IDs',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

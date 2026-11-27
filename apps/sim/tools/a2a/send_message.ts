@@ -14,6 +14,7 @@ export const a2aSendMessageTool: InternalToolConfig<A2ASendMessageParams, A2ATas
   name: 'A2A Send Message',
   description: 'Send a message to an external A2A agent and return its response.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     agentUrl: {

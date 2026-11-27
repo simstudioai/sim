@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const WORKSPACE_ID = 'ws_local'
 const BASE = {
+  version: 1,
   workflowId: WORKFLOW_ID,
   workspaceId: WORKSPACE_ID,
   fingerprint: 'sf1:a',
@@ -24,7 +25,7 @@ function applied() {
     data: {
       workflowId: WORKFLOW_ID,
       workspaceId: WORKSPACE_ID,
-      dryRun: false,
+      dry: false,
       applied: true,
       diff: {
         noop: false,

@@ -21,6 +21,7 @@ export const createWarehouseTool: ToolConfig<
   name: 'Databricks Create Warehouse',
   description: 'Create a SQL warehouse with sizing, autoscaling, and serverless settings.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

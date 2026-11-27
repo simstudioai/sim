@@ -13,6 +13,7 @@ export const unsetReactionTool: ToolConfig<
   name: 'Remove Reaction from Microsoft Teams Message',
   description: 'Remove an emoji reaction from a message in Microsoft Teams',
   version: '1.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

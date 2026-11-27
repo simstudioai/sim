@@ -13,6 +13,7 @@ export const createIncidentTool: ToolConfig<
   name: 'PagerDuty Create Incident',
   description: 'Create a new incident in PagerDuty.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

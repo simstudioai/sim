@@ -17,6 +17,7 @@ export const followUpsUpdateTool: ToolConfig<
   description:
     'Update an existing follow-up in incident.io, for example to mark it completed or reassign it',
   version: '1.0.0',
+  effect: 'write',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

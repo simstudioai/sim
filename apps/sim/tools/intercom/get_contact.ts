@@ -60,6 +60,7 @@ export const intercomGetContactTool: ToolConfig<
   name: 'Get Single Contact from Intercom',
   description: 'Get a single contact by ID from Intercom',
   version: '1.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...intercomGetContactBase,
@@ -117,6 +118,7 @@ export const intercomGetContactV2Tool: ToolConfig<
   name: 'Get Single Contact from Intercom',
   description: 'Get a single contact by ID from Intercom. Returns API-aligned fields only.',
   version: '2.0.0',
+  effect: 'read',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

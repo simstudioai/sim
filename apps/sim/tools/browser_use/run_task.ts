@@ -8,6 +8,7 @@ export const runTaskTool: InternalToolConfig<BrowserUseRunTaskParams, BrowserUse
   name: 'Browser Use',
   description: 'Runs a browser automation task using BrowserUse',
   version: '1.0.0',
+  effect: 'write',
   oauth: BROWSER_USE_CREDENTIAL_OAUTH,
 
   params: {

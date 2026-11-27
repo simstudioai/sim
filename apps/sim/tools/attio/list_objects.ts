@@ -10,6 +10,7 @@ export const attioListObjectsTool: ToolConfig<AttioListObjectsParams, AttioListO
   name: 'Attio List Objects',
   description: 'List all objects (system and custom) in the Attio workspace',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

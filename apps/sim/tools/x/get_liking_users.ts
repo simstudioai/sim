@@ -10,6 +10,7 @@ export const xGetLikingUsersTool: ToolConfig<XGetLikingUsersParams, XUserListRes
   name: 'X Get Liking Users',
   description: 'Get the list of users who liked a specific tweet',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

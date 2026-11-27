@@ -38,6 +38,7 @@ export const semrushDomainPaidKeywordsTool: ToolConfig<
   description:
     'List the keywords a domain buys in Google Ads, with ad position, copy, and traffic share.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

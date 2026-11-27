@@ -9,6 +9,7 @@ export const asanaDeleteTaskTool: InternalToolConfig<
   name: 'Asana Delete Task',
   description: 'Delete an Asana task by its GID (moves it to the trash)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

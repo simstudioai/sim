@@ -7,7 +7,8 @@ import type { ToolMetadata } from '@/tools/metadata'
 
 const tool: ToolMetadata = {
   id: 'google_drive_get_file',
-  assistant: { effect: 'read', version: 1 },
+  effect: 'read',
+  assistant: { version: 1 },
   oauth: { required: true, provider: 'google-drive', authoritativeParams: ['instanceUrl'] },
   params: {
     credential: { type: 'string', visibility: 'user-only' },
@@ -21,7 +22,8 @@ const tool: ToolMetadata = {
 describe('Assistant integration policy', () => {
   const tokenTool: ToolMetadata = {
     id: 'gitlab_list_projects',
-    assistant: { effect: 'read', version: 1 },
+    effect: 'read',
+    assistant: { version: 1 },
     personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
     params: {
       accessToken: { type: 'string', required: true, visibility: 'user-only' },
@@ -66,12 +68,16 @@ describe('Assistant integration policy', () => {
     const writeTool: ToolMetadata = {
       ...tool,
       id: 'gmail_draft_v2',
-      assistant: { effect: 'write', version: 1 },
+      effect: 'write',
+      assistant: { version: 1 },
       oauth: { required: true, provider: 'google-email' },
     }
-    expect(() =>
+    expect(
       assertAssistantIntegrationCall(writeTool, { credential: 'mine', body: 'Reviewed draft' })
-    ).not.toThrow()
+    ).toEqual({ credentialId: 'mine', operation: { effect: 'write', version: 1 } })
+    expect(assertAssistantIntegrationCall(tool, { credential: 'mine' }).operation.effect).toBe(
+      'read'
+    )
     expect(() => assertAssistantIntegrationCall(writeTool, { body: 'Missing account' })).toThrow(
       'Select one'
     )

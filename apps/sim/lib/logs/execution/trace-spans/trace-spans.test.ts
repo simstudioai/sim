@@ -1639,3 +1639,181 @@ describe('findFailedTraceBlock', () => {
     expect(findFailedTraceBlock(root([span({ blockId: 'ok', status: 'success' })]))).toBeNull()
   })
 })
+
+describe('child deployment version on spans', () => {
+  const baseLog = {
+    startedAt: '2024-01-01T10:00:00.000Z',
+    endedAt: '2024-01-01T10:00:02.000Z',
+    durationMs: 2000,
+    executionOrder: 1,
+    input: {},
+  }
+
+  function spanFor(log: Record<string, unknown>): TraceSpan {
+    const { traceSpans } = buildTraceSpans({
+      success: true,
+      output: {},
+      logs: [{ ...baseLog, ...log }],
+    } as unknown as ExecutionResult)
+    return traceSpans[0].children?.find((s) => s.blockId === log.blockId) ?? traceSpans[0]
+  }
+
+  function agentToolSpan(name: string, result: Record<string, unknown>, withSegments: boolean) {
+    const toolCall = {
+      name,
+      arguments: {},
+      result,
+      startTime: '2024-01-01T10:00:00.500Z',
+      endTime: '2024-01-01T10:00:01.500Z',
+      duration: 1000,
+    }
+    const agent = spanFor({
+      blockId: 'agent-1',
+      blockName: 'Agent 1',
+      blockType: 'agent',
+      success: true,
+      output: {
+        content: 'done',
+        toolCalls: { list: [toolCall], count: 1 },
+        ...(withSegments
+          ? {
+              providerTiming: {
+                duration: 2000,
+                startTime: baseLog.startedAt,
+                endTime: baseLog.endedAt,
+                timeSegments: [
+                  {
+                    type: 'tool',
+                    name,
+                    startTime: Date.parse(toolCall.startTime),
+                    endTime: Date.parse(toolCall.endTime),
+                    duration: 1000,
+                  },
+                ],
+              },
+            }
+          : {}),
+      },
+    })
+    return agent.children?.find((s) => s.type === 'tool')
+  }
+
+  it('records the version a workflow block ran, on success and on failure', () => {
+    const succeeded = spanFor({
+      blockId: 'wf-1',
+      blockName: 'Score',
+      blockType: 'workflow_input',
+      success: true,
+      output: {
+        result: { score: 3 },
+        childWorkflowId: 'child-1',
+        childDeploymentVersionId: 'dv-7',
+      },
+    })
+    const failed = spanFor({
+      blockId: 'wf-2',
+      blockName: 'Score',
+      blockType: 'workflow',
+      success: false,
+      error: 'boom',
+      output: { error: 'boom', childDeploymentVersionId: 'dv-8' },
+    })
+
+    expect(succeeded.childDeploymentVersionId).toBe('dv-7')
+    expect(succeeded.output).not.toHaveProperty('childDeploymentVersionId')
+    expect(failed.childDeploymentVersionId).toBe('dv-8')
+  })
+
+  it('does not take the version from a non-workflow block that returns the same key', () => {
+    const span = spanFor({
+      blockId: 'fn-1',
+      blockName: 'Function 1',
+      blockType: 'function',
+      success: true,
+      output: { result: 1, childDeploymentVersionId: 'forged' },
+    })
+
+    expect(span.childDeploymentVersionId).toBeUndefined()
+    expect(span.output?.childDeploymentVersionId).toBe('forged')
+  })
+
+  it.each([true, false])(
+    'records the version a workflow Agent tool ran (time segments: %s)',
+    (withSegments) => {
+      const toolSpan = agentToolSpan(
+        'workflow_executor',
+        { success: true, result: {}, childDeploymentVersionId: 'dv-9' },
+        withSegments
+      )
+
+      expect(toolSpan?.childDeploymentVersionId).toBe('dv-9')
+      expect(toolSpan?.output).not.toHaveProperty('childDeploymentVersionId')
+    }
+  )
+
+  it.each([true, false])(
+    'ignores the key on a streamed custom tool titled like the workflow tool (time segments: %s)',
+    (withSegments) => {
+      const toolSpan = agentToolSpan(
+        'custom_workflow_executor',
+        { childDeploymentVersionId: 'forged' },
+        withSegments
+      )
+
+      expect(toolSpan).toBeDefined()
+      expect(toolSpan?.childDeploymentVersionId).toBeUndefined()
+    }
+  )
+
+  it('never gives the workflow tool a version from a streamed custom tool titled like it', () => {
+    const call = (name: string, childDeploymentVersionId: string, start: number) => ({
+      name,
+      arguments: {},
+      result: { success: true, result: {}, childDeploymentVersionId },
+      startTime: new Date(Date.parse(baseLog.startedAt) + start).toISOString(),
+      endTime: new Date(Date.parse(baseLog.startedAt) + start + 100).toISOString(),
+      duration: 100,
+    })
+    const custom = call('custom_workflow_executor', 'forged', 0)
+    const real = call('workflow_executor', 'dv-real', 200)
+    const agent = spanFor({
+      blockId: 'agent-1',
+      blockName: 'Agent 1',
+      blockType: 'agent',
+      success: true,
+      output: {
+        content: 'done',
+        toolCalls: { list: [custom, real], count: 2 },
+        providerTiming: {
+          duration: 2000,
+          startTime: baseLog.startedAt,
+          endTime: baseLog.endedAt,
+          timeSegments: [real, custom].map((tc) => ({
+            type: 'tool',
+            name: tc.name,
+            startTime: Date.parse(tc.startTime),
+            endTime: Date.parse(tc.endTime),
+            duration: tc.duration,
+          })),
+        },
+      },
+    })
+
+    const versions = (agent.children ?? []).map((child) => child.childDeploymentVersionId)
+    expect(versions).not.toContain('forged')
+  })
+
+  it.each([true, false])(
+    'ignores the key on any other Agent tool (time segments: %s)',
+    (withSegments) => {
+      const toolSpan = agentToolSpan(
+        'http_request',
+        { childDeploymentVersionId: 'forged' },
+        withSegments
+      )
+
+      expect(toolSpan).toBeDefined()
+      expect(toolSpan?.childDeploymentVersionId).toBeUndefined()
+    }
+  )
+})

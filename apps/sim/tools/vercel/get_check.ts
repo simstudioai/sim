@@ -8,6 +8,7 @@ export const vercelGetCheckTool: ToolConfig<VercelGetCheckParams, VercelCheckRes
   name: 'Vercel Get Check',
   description: 'Get details of a specific deployment check',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

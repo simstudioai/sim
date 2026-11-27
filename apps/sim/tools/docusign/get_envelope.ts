@@ -9,6 +9,7 @@ export const docusignGetEnvelopeTool: InternalToolConfig<
   name: 'Get DocuSign Envelope',
   description: 'Get the details and status of a DocuSign envelope',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

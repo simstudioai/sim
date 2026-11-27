@@ -10,6 +10,7 @@ export const attioDeleteTaskTool: ToolConfig<AttioDeleteTaskParams, AttioDeleteT
   name: 'Attio Delete Task',
   description: 'Delete a task from Attio',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

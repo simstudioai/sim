@@ -16,6 +16,7 @@ export const hubspotRemoveListMembershipsTool: ToolConfig<
   name: 'Remove List Members in HubSpot',
   description: 'Remove records from a manual (static) HubSpot list by record ID',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

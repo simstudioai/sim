@@ -14,20 +14,29 @@ import {
   type MockMatcher,
   type ParkedMockCall,
 } from '@/lib/workflow-tests/mock-channel'
-import type { TestCaseStatus, TestEvent, TestTarget } from '@/lib/workflow-tests/protocol'
+import type {
+  StoredTestReport,
+  TestCaseStatus,
+  TestEvent,
+  TestRunSideEffects,
+  TestTarget,
+} from '@/lib/workflow-tests/protocol'
 import { type EnteredWorkflow, readDraftTimestamps } from '@/lib/workflow-tests/repository'
 import {
   runWorkflowForTest,
   type WorkflowTestRunResult,
   type WorkflowTestVersion,
 } from '@/lib/workflows/application/run-workflow-for-test'
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
+import {
+  type SideEffectsSummary,
+  sampleBlockOutput,
+  sampleToolOutput,
+} from '@/lib/workflows/dry-run'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { getActiveWorkflowName, listActiveWorkflowsNamed } from '@/lib/workflows/queries'
-import { generateMockPayloadFromOutputsDefinition } from '@/lib/workflows/triggers/mock-payload'
 import { resolveTriggerRunOptions } from '@/lib/workflows/triggers/run-options'
 import { AGENT, normalizeName } from '@/executor/constants'
 import type { TestWorkflowBlock } from '@/executor/execution/types'
@@ -35,11 +44,56 @@ import type { ExecutionResult } from '@/executor/types'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { hasToolId } from '@/tools/tool-ids'
 
 /** How long one `testNext` broker call waits before answering `waiting`, well under the broker timeout. */
 const EVENT_WAIT_MS = 25_000
+
+/** Runs whose side effects a test file's report keeps; it counts the rest. */
+const MAX_RUNS_WITH_SIDE_EFFECTS = 50
+
+/** Distinct entries a run keeps per list, so a report row stays small; it counts the rest. */
+const MAX_SITES_PER_RUN = 20
+
+/**
+ * `entries` with each repeat folded into one entry and counted, at most
+ * {@link MAX_SITES_PER_RUN} of them; `omitted` counts the calls of the distinct ones left out.
+ */
+function tally<T extends object>(entries: readonly T[]) {
+  const kept = new Map<string, T & { count: number }>()
+  let omitted = 0
+  for (const entry of entries) {
+    const key = JSON.stringify(entry)
+    const seen = kept.get(key)
+    if (seen) seen.count++
+    else if (kept.size < MAX_SITES_PER_RUN) kept.set(key, { ...entry, count: 1 })
+    else omitted++
+  }
+  return { kept: [...kept.values()], omitted }
+}
+
+/** A run's side effects as a report keeps them: who did what and how often, never a payload. */
+function compactSideEffects(summary: SideEffectsSummary): TestRunSideEffects {
+  const stubbed = tally(
+    summary.stubbed.map(({ workflowId, blockId, block, tool, mcp, reason }) => ({
+      workflowId,
+      blockId,
+      block,
+      tool,
+      mcp: mcp ?? null,
+      ...(reason ? { reason } : {}),
+    }))
+  )
+  const unchecked = tally(summary.unchecked.map(({ block, reason }) => ({ block, reason })))
+  return {
+    stubbed: stubbed.kept,
+    unchecked: unchecked.kept,
+    omitted: {
+      stubbed: summary.omitted.stubbed + stubbed.omitted,
+      unchecked: summary.omitted.unchecked + unchecked.omitted,
+    },
+  }
+}
 
 export interface WorkflowTestSessionConfig {
   workspaceId: string
@@ -190,19 +244,6 @@ function sameTool(mockToolId: string, toolId: string): boolean {
     toolId.startsWith(prefix) &&
     normalizeName(mockToolId.slice(prefix.length)) === normalizeName(toolId.slice(prefix.length))
   )
-}
-
-/** Placeholder output shaped like a block's real one, for its configured operation. */
-function sampleBlockOutput(block: TestWorkflowBlock | undefined): Record<string, unknown> {
-  if (!block) return {}
-  const subBlocks: Record<string, { value: unknown }> = {}
-  for (const [key, value] of Object.entries(block.params)) subBlocks[key] = { value }
-  return generateMockPayloadFromOutputsDefinition(getEffectiveBlockOutputs(block.type, subBlocks))
-}
-
-function sampleToolOutput(toolId: string): Record<string, unknown> {
-  const outputs = getToolOutputsMetadata(toolId)
-  return outputs ? generateMockPayloadFromOutputsDefinition(outputs) : {}
 }
 
 interface ToolMock {
@@ -473,6 +514,7 @@ class TestWorkflowRun {
     const { blockId, blockName, input, branchIndex } = parked.call
     const key = this.matcher.mockKey(blockId)
     if (!key) throw new Error(`Block ${blockName} was parked without a mock`)
+    const block = this.matcher.block(blockId)
     return {
       kind: 'mock',
       runId: this.id,
@@ -480,7 +522,7 @@ class TestWorkflowRun {
       key,
       block: blockName,
       input,
-      sample: sampleBlockOutput(this.matcher.block(blockId)),
+      sample: block ? sampleBlockOutput(block) : {},
       ...(branchIndex !== undefined ? { branchIndex } : {}),
     }
   }
@@ -529,6 +571,9 @@ export class WorkflowTestSession {
   private closed = false
   /** Stops `toMatchRubric` model calls still in flight when the sandbox run ends. */
   private readonly judgeAbort = new AbortController()
+  /** Each finished run's side effects by execution id, for runs that reached any write or code. */
+  private readonly runSideEffects = new Map<string, TestRunSideEffects>()
+  private omittedRunSideEffects = 0
 
   constructor(readonly config: WorkflowTestSessionConfig) {}
 
@@ -559,6 +604,7 @@ export class WorkflowTestSession {
       triggerBlockId,
       testHooks: channel.hooks,
       abortSignal: abort.signal,
+      onSideEffects: (executionId, summary) => this.recordSideEffects(executionId, summary),
     })
     const run = new TestWorkflowRun(channel, execution, abort, matcher)
     this.runs.set(run.id, run)
@@ -612,6 +658,27 @@ export class WorkflowTestSession {
 
   enteredWorkflows(): EnteredWorkflow[] {
     return [...this.enteredVersions.values()]
+  }
+
+  private recordSideEffects(executionId: string, summary: SideEffectsSummary): void {
+    const { stubbed, unchecked, omitted } = summary
+    if (stubbed.length + unchecked.length + omitted.stubbed + omitted.unchecked === 0) return
+    if (this.runSideEffects.size >= MAX_RUNS_WITH_SIDE_EFFECTS) {
+      this.omittedRunSideEffects++
+      return
+    }
+    this.runSideEffects.set(executionId, compactSideEffects(summary))
+  }
+
+  /**
+   * What this file's runs finished so far did with the writes they reached, recorded here from
+   * the runs themselves: the sandbox's own report is untrusted. A run still going is absent.
+   */
+  sideEffects(): NonNullable<StoredTestReport['sideEffects']> {
+    return {
+      executions: Object.fromEntries(this.runSideEffects),
+      omittedExecutions: this.omittedRunSideEffects,
+    }
   }
 
   close(): void {

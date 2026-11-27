@@ -8,6 +8,7 @@ export const getAnalyticsTool: ToolConfig<DubGetAnalyticsParams, DubGetAnalytics
   description:
     'Retrieve analytics for links including clicks, leads, and sales. Supports filtering by link, time range, and grouping by various dimensions.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {

@@ -27,6 +27,7 @@ export const outlookCalendarRespondTool: ToolConfig<
   name: 'Outlook Respond to Calendar Invite',
   description: 'Accept, tentatively accept, or decline an Outlook calendar event invitation',
   version: '1.0.0',
+  effect: 'write',
 
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 

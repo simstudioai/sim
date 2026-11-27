@@ -8,6 +8,7 @@ export const vercelListDomainsTool: ToolConfig<VercelListDomainsParams, VercelLi
     name: 'Vercel List Domains',
     description: 'List all domains in a Vercel account or team',
     version: '1.0.0',
+    effect: 'read',
     oauth: VERCEL_CREDENTIAL_OAUTH,
 
     params: {

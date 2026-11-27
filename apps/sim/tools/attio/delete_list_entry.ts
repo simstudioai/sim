@@ -13,6 +13,7 @@ export const attioDeleteListEntryTool: ToolConfig<
   name: 'Attio Delete List Entry',
   description: 'Remove an entry from an Attio list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -21,6 +21,7 @@ export const deleteSpreadsheetV2Tool: ToolConfig<
   name: 'Delete Spreadsheet V2',
   description: 'Permanently delete a Google Sheets spreadsheet using the Google Drive API',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -22,6 +22,7 @@ export const listIncidentsTool: ToolConfig<
   description:
     'List all incidents (outages) across every company that were active in the chosen time period, or in the last 24 hours if no date range is provided.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     onlyActive: {

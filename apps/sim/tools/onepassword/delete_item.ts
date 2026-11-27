@@ -12,6 +12,7 @@ export const deleteItemTool: InternalToolConfig<
   name: '1Password Delete Item',
   description: 'Delete an item from a vault',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     connectionMode: {

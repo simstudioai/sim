@@ -23,6 +23,7 @@ export const codaDeletePageContentTool: ToolConfig<
   description:
     'Delete specific content elements from a Coda page, or all of its content when no element IDs are given. Applied asynchronously.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

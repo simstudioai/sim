@@ -18,6 +18,7 @@ export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSea
   description:
     'Perform a full-text relevance search across Microsoft Dataverse tables. Requires Dataverse Search to be enabled on the environment. Supports simple and Lucene query syntax.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',

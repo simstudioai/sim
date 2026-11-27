@@ -14,6 +14,7 @@ export const listServicesTool: ToolConfig<ListServicesParams, ListServicesRespon
   description:
     'List service definitions from the Datadog Service Catalog. Requires the `apm_service_catalog_read` permission.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

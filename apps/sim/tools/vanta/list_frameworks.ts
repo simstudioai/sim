@@ -15,6 +15,7 @@ export const vantaListFrameworksTool: InternalToolConfig<
   description:
     'List the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta account with completion counts',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

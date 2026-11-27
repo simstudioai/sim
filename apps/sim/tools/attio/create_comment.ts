@@ -13,6 +13,7 @@ export const attioCreateCommentTool: ToolConfig<
   name: 'Attio Create Comment',
   description: 'Create a comment on a list entry in Attio',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

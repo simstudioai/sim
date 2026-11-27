@@ -13,6 +13,7 @@ export const searchPostReactionsByUrlTool: ToolConfig<
   name: 'Enrich Search Post Reactions by URL',
   description: 'Get reactions on a LinkedIn post by its URL, filtered by reaction type.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

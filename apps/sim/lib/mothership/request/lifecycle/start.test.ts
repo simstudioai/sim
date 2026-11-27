@@ -7,6 +7,7 @@ import {
   billingAttributionMock,
   billingAttributionMockFns,
 } from '@sim/testing/mocks/billing-attribution.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   mothershipAgentUrlMock,
   mothershipAgentUrlMockFns,
@@ -27,6 +28,13 @@ import {
   MothershipStreamV1EventType,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { TitleRequest } from '@/lib/mothership/generated/protocol'
+import {
+  CopilotRequestCancelReason,
+  CopilotTransport,
+} from '@/lib/mothership/observability/trace-attribute-values'
+import { startCopilotOtelRoot } from '@/lib/mothership/request/otel'
+import { isExplicitStopReason } from '@/lib/mothership/request/session/abort-reason'
+import { RequestTraceOutcome } from '@/lib/mothership/request/trace'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const {
@@ -113,7 +121,7 @@ vi.mock('@/lib/mothership/request/session', () => ({
   unregisterActiveStream,
   hasStreamViewer,
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
-  isExplicitStopReason: (reason: unknown) => reason === 'user_stop:abortActiveStream',
+  isExplicitStopReason: (reason: unknown) => isExplicitStopReason(reason),
   SSE_RESPONSE_HEADERS: {},
   StreamWriter: class {
     attach = vi.fn().mockImplementation((ctrl: ReadableStreamDefaultController) => {
@@ -609,7 +617,9 @@ describe('createSSEStream terminal error handling', () => {
     expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1')
   })
 
-  it('publishes a cancelled completion (not an error) when the orchestrator reports cancelled without abortSignal aborted', async () => {
+  it('publishes a cancelled completion and classifies it as a Stop when the orchestrator reports cancelled without abortSignal aborted', async () => {
+    // Regression: the worker's cancelled terminal (live or replayed) left this node's signal
+    // unaborted, so the turn was logged as "Stream cancelled with unknown abort reason".
     runCopilotLifecycle.mockResolvedValue({
       success: false,
       cancelled: true,
@@ -617,6 +627,11 @@ describe('createSSEStream terminal error handling', () => {
       contentBlocks: [],
       toolCalls: [],
     })
+    const otelRoot = startCopilotOtelRoot({
+      requestId: 'req-cancelled',
+      transport: CopilotTransport.Stream,
+    })
+    const finish = vi.spyOn(otelRoot, 'finish')
 
     const stream = createSSEStream({
       requestPayload: { message: 'hello' },
@@ -629,6 +644,7 @@ describe('createSSEStream terminal error handling', () => {
       titleModel: 'gpt-5.4',
       requestId: 'req-cancelled',
       orchestrateOptions: { userId: 'user-1' },
+      otelRoot,
     })
 
     await drainStream(stream)
@@ -645,6 +661,17 @@ describe('createSSEStream terminal error handling', () => {
           status: MothershipStreamV1CompletionStatus.cancelled,
         }),
       })
+    )
+    expect(getMockLogger('CopilotChatStreaming').error).not.toHaveBeenCalledWith(
+      'Stream cancelled with unknown abort reason',
+      expect.anything()
+    )
+    await vi.waitFor(() =>
+      expect(finish).toHaveBeenCalledWith(
+        RequestTraceOutcome.cancelled,
+        undefined,
+        CopilotRequestCancelReason.ExplicitStop
+      )
     )
   })
 

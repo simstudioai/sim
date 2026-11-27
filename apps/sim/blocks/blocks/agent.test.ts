@@ -112,4 +112,20 @@ describe('AgentBlock', () => {
       })
     })
   })
+
+  describe('tools.config.tool function', () => {
+    const toolFunction = AgentBlock.tools.config?.tool
+
+    it('records the provider sim-auto falls back to, since it has none of its own', () => {
+      expect(toolFunction?.({ model: 'sim-auto' })).toBe('anthropic')
+    })
+
+    it('falls back to the same provider when no model is set', () => {
+      expect(toolFunction?.({})).toBe('anthropic')
+    })
+
+    it('records the default provider for a model reference, not its written namespace', () => {
+      expect(toolFunction?.({ model: 'openrouter/<variable.x>' })).toBe('anthropic')
+    })
+  })
 })

@@ -25,6 +25,7 @@ export const listAttacksTool: ToolConfig<DynatraceListAttacksParams, DynatraceLi
     description:
       'List runtime attacks Dynatrace Application Protection detected — injection attempts, their source, and whether they were blocked.',
     version: '1.0.0',
+    effect: 'read',
     oauth: DYNATRACE_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

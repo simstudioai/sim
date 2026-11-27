@@ -36,6 +36,7 @@ export const sportmonksGetPastFixturesByTvStationTool: ToolConfig<
   name: 'Get Past Fixtures by TV Station',
   description: 'Retrieve all past fixtures that were available for a TV station ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

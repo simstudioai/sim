@@ -13,6 +13,7 @@ export const gitlabUpdateMemberTool: ToolConfig<
   name: 'GitLab Update Member',
   description: "Update a member's access level in a GitLab project or group",
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

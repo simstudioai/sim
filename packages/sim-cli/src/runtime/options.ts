@@ -6,12 +6,21 @@ import {
   type FieldSpec,
   flagNameFor,
   flagSpecFor,
+  listValuesOf,
   otherSpellings,
   PROFILE_INJECTED_FIELD,
   pathFlagNameFor,
   takesJson,
 } from './request'
 import type { OperationSpec } from './types'
+
+/** The value placeholder of a flag that takes JSON inline or from a file. */
+export const JSON_PLACEHOLDER = '<json|@file>'
+
+/** Collects every use of a repeatable option, in order. */
+export function collectRepeated(value: string, previous: string[] = []): string[] {
+  return [...previous, value]
+}
 
 export const DEFAULT_PAGE_SIZE = 100
 
@@ -206,13 +215,17 @@ function addFieldOption(
   }
 
   const takesList = flag.list === true
+  const inlineForms =
+    listValuesOf(flag) === 'text'
+      ? 'space-separated, a JSON array'
+      : 'space- or comma-separated, a JSON array'
   const wantsJson = takesJson(descriptor, flag)
   const placeholder = takesList
     ? '<value...>'
     : flag.rowCap
       ? '<n>'
       : wantsJson
-        ? '<json|@file>'
+        ? JSON_PLACEHOLDER
         : flag.textSource
           ? '<value|@file>'
           : descriptor.nullable
@@ -227,8 +240,8 @@ function addFieldOption(
   const describe = `${documented}${
     takesList
       ? flag.manifest
-        ? ' (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @)'
-        : ' (space-separated, or @path / @- with one value per line; @@value for a literal leading @)'
+        ? ` (${inlineForms}, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @)`
+        : ` (${inlineForms}, or @path / @- with one value per line; @@value for a literal leading @)`
       : wantsJson
         ? ' (JSON, or @path / @- to read a file or stdin)'
         : flag.textSource
@@ -244,7 +257,6 @@ function addFieldOption(
 
   const hiddenNames = otherSpellings(flag).map(({ name }) => name)
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
-  if (flag.hidden) option.hideHelp()
   if (choices && !takesList) option.choices([...choices])
   if (descriptor.default !== undefined && field !== 'limit') {
     option.default(undefined, String(descriptor.default))
@@ -316,13 +328,13 @@ export function addOperationOptions(
     if (commandSpec.bodyVariants) {
       for (const variant of commandSpec.bodyVariants) {
         command.option(
-          `--${variant.name} <json|@file>`,
+          `--${variant.name} ${JSON_PLACEHOLDER}`,
           `${variant.describe} (JSON, or @path / @-; choose exactly one body flag)`
         )
       }
     } else {
       command.requiredOption(
-        '--body <json|@file>',
+        `--body ${JSON_PLACEHOLDER}`,
         'Request body as JSON (or @path / @- to read a file or stdin) (required)'
       )
     }
@@ -345,18 +357,18 @@ export function addOperationOptions(
     // readers looking for a question the CLI never asks, and hid that the flag
     // is the only way the command ever runs.
     // A dry run is exempt at the gate itself, so on an operation that accepts
-    // `--dry-run` the flag is not unconditionally required and saying so
+    // `--dry` the flag is not unconditionally required and saying so
     // outright would send a caller reaching for `--yes` to preview a change.
-    const exemptedByDryRun =
-      operationSpec.query?.dryRun !== undefined || operationSpec.body?.dryRun !== undefined
+    const exemptedByDry =
+      operationSpec.query?.dry !== undefined || operationSpec.body?.dry !== undefined
     // Not "destructive": the gate also covers operations that only add —
     // `files unzip` writes the archive's contents into the workspace and
     // destroys nothing — so the adjective was wrong on the help line while the
     // refusal itself, which states the operation's own consequence, was right.
     command.option(
       '-y, --yes',
-      exemptedByDryRun
-        ? 'Confirm this operation (required unless --dry-run)'
+      exemptedByDry
+        ? 'Confirm this operation (required unless --dry)'
         : 'Confirm this operation (required)'
     )
   } else if (commandSpec.acceptsYes) {

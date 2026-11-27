@@ -14,6 +14,7 @@ export const oktaDeleteGroupTool: ToolConfig<OktaDeleteGroupParams, OktaDeleteGr
   description:
     'Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP type can be removed.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

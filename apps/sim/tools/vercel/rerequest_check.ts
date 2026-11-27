@@ -11,6 +11,7 @@ export const vercelRerequestCheckTool: ToolConfig<
   name: 'Vercel Rerequest Check',
   description: 'Rerequest a deployment check',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

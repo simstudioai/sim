@@ -7,6 +7,7 @@ export const firefliesGetUserTool: ToolConfig<FirefliesGetUserParams, FirefliesG
   name: 'Fireflies Get User',
   description: 'Get user information from Fireflies.ai. Returns current user if no ID specified.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const dropboxSearchTool: ToolConfig<DropboxSearchParams, DropboxSearchRes
   name: 'Dropbox Search',
   description: 'Search for files and folders in Dropbox',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

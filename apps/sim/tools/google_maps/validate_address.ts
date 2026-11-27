@@ -12,6 +12,7 @@ export const googleMapsValidateAddressTool: ToolConfig<
   name: 'Google Maps Validate Address',
   description: 'Validate and standardize a postal address',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

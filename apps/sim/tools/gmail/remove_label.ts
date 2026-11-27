@@ -6,6 +6,7 @@ export const gmailRemoveLabelTool: InternalToolConfig<GmailLabelParams, GmailToo
   name: 'Gmail Remove Label',
   description: 'Remove label(s) from a Gmail message',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,
@@ -92,6 +93,7 @@ export const gmailRemoveLabelV2Tool: InternalToolConfig<GmailLabelParams, GmailM
   name: 'Gmail Remove Label',
   description: 'Remove label(s) from a Gmail message.',
   version: '2.0.0',
+  effect: 'write',
   oauth: gmailRemoveLabelTool.oauth,
   params: gmailRemoveLabelTool.params,
   operation: gmailRemoveLabelTool.operation,

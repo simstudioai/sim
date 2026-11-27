@@ -13,6 +13,7 @@ export const listEventDataStoresTool: InternalToolConfig<
   name: 'CloudTrail List Event Data Stores',
   description: 'List the CloudTrail Lake event data stores in the account for the current Region',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

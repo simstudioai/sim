@@ -10,6 +10,7 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
   name: 'List Deals from HubSpot',
   description: 'Retrieve all deals from HubSpot account with pagination support',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -17,6 +17,7 @@ import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   hasPaidSubscriptionStatus,
+  isTrialingSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -67,6 +68,14 @@ export const POST = withRouteHandler(
             status: 400,
             error:
               'Only active Team or Enterprise subscriptions can be transferred to an organization.',
+          }
+        }
+
+        if (isTrialingSubscription(sub)) {
+          return {
+            kind: 'error',
+            status: 400,
+            error: 'A subscription in its free trial can be transferred once the trial ends.',
           }
         }
 

@@ -16,6 +16,7 @@ export const revenuecatCreatePurchaseTool: ToolConfig<
   name: 'RevenueCat Create Purchase',
   description: 'Record a purchase (receipt) for a subscriber via the REST API',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

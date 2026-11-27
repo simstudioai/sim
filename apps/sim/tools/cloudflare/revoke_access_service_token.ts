@@ -22,6 +22,7 @@ export const revokeAccessServiceTokenTool: ToolConfig<
   description:
     'Permanently deletes a Cloudflare Access (Zero Trust) service token, revoking it. Every machine or integration still presenting that client ID and secret is locked out of the Access-protected applications immediately, and the secret cannot be recovered. This cannot be undone. Requires an API token with Account Access: Service Tokens Edit.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

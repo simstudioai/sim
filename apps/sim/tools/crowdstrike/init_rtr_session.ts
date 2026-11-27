@@ -17,6 +17,7 @@ export const crowdstrikeInitRtrSessionTool: InternalToolConfig<
   description:
     'Open a CrowdStrike Falcon Real Time Response session against a host so read-only commands can be run on it (POST /real-time-response/entities/sessions/v1). This connects a live remote shell to the endpoint. Requires the "Real time response: Read" API scope.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

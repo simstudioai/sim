@@ -882,8 +882,11 @@ export const NotionBlock: BlockConfig = {
     },
     type: {
       type: 'string',
-      description: 'Block type',
-      condition: { field: 'operation', value: ['notion_retrieve_block', 'notion_update_block'] },
+      description: 'Block type, or user type (person or bot)',
+      condition: {
+        field: 'operation',
+        value: ['notion_retrieve_block', 'notion_update_block', 'notion_retrieve_user'],
+      },
     },
     block: {
       type: 'json',
@@ -1165,8 +1168,11 @@ export const NotionV2Block: BlockConfig = {
     // Block retrieve/update/delete outputs
     type: {
       type: 'string',
-      description: 'Block type',
-      condition: { field: 'operation', value: ['notion_retrieve_block', 'notion_update_block'] },
+      description: 'Block type, or user type (person or bot)',
+      condition: {
+        field: 'operation',
+        value: ['notion_retrieve_block', 'notion_update_block', 'notion_retrieve_user'],
+      },
     },
     block: {
       type: 'json',

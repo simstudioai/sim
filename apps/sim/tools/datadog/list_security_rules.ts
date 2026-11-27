@@ -14,6 +14,7 @@ export const listSecurityRulesTool: ToolConfig<ListSecurityRulesParams, ListSecu
     description:
       'List Cloud SIEM detection rules. Requires the `security_monitoring_rules_read` permission.',
     version: '1.0.0',
+    effect: 'read',
     oauth: DATADOG_CREDENTIAL_OAUTH,
 
     params: {

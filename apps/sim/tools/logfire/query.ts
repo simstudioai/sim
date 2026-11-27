@@ -21,6 +21,7 @@ export const logfireQueryTool: ToolConfig<LogfireQueryParams, LogfireQueryRespon
   description:
     'Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the records and metrics tables using PostgreSQL-compatible syntax.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LOGFIRE_CREDENTIAL_OAUTH,
 
   params: {

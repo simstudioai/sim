@@ -103,13 +103,13 @@ The Start block's `inputFormat` field declares the input fields a run accepts. A
 
 Replace `START_ID` with the Start block ID. The CLI's `--operations` takes just the array, so the CLI examples pass `.operations` from this file. `inputs` maps field IDs from the block catalog to values. `connections` maps a source handle to a target block, and replaces that block's outgoing edges. Within one batch, refer to new blocks by the `block_id` you gave them.
 
-Add `?dryRun=true` to validate and lint without saving:
+Add `?dry=true` to validate and lint without saving:
 
 <Tabs items={['curl', 'CLI']}>
   <Tab value="curl">
     ```bash
     curl -sS --fail-with-body -X POST \
-      "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/operations?dryRun=true" \
+      "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/operations?dry=true" \
       -H "X-API-Key: $SIM_API_KEY" -H 'Content-Type: application/json' \
       -d @ops.json
     ```
@@ -117,12 +117,12 @@ Add `?dryRun=true` to validate and lint without saving:
   <Tab value="CLI">
     ```bash
     jq .operations ops.json |
-      sim workflows operations apply "$WORKFLOW_ID" --operations @- --dry-run
+      sim workflows operations apply "$WORKFLOW_ID" --operations @- --dry
     ```
   </Tab>
 </Tabs>
 
-A dry run returns the same validation, warnings, lint, and ID conflicts as a committed write, with `dryRun: true`. Its `previewBlockIds` are provisional; never use them in a later request.
+A dry run returns the same validation, warnings, lint, and ID conflicts as a committed write, with `dry: true`. Its `previewBlockIds` are provisional; never use them in a later request.
 
 ## 5. Read the result and lint [#lint]
 
@@ -143,7 +143,7 @@ Lint is advisory. It never blocks a write or a deploy, so fix findings before yo
 
 ## 6. Apply the batch [#apply]
 
-Apply without `dryRun`. Set `atomic: true` in the body to write nothing when any operation is declined or any input would be dropped; the request then returns `409` with `OPERATIONS_NOT_APPLIED`. Without it, the batch applies what it can and reports the rest in `skipped` and `inputValidationErrors`.
+Apply without `dry`. Set `atomic: true` in the body to write nothing when any operation is declined or any input would be dropped; the request then returns `409` with `OPERATIONS_NOT_APPLIED`. Without it, the batch applies what it can and reports the rest in `skipped` and `inputValidationErrors`.
 
 <Tabs items={['curl', 'CLI']}>
   <Tab value="curl">
@@ -166,7 +166,15 @@ Apply without `dryRun`. Set `atomic: true` in the body to write nothing when any
 
 ## 7. Test the draft [#test-run]
 
-Run the saved draft with `run.source: "manual"`. Manual runs are synchronous or streamed, never `async`.
+Run the saved draft with `run.source: "draft"` and `run.dry: true`. A dry run sends no writes. Each call that could change something outside the run returns a correctly shaped placeholder and is listed under `sideEffects.stubbed` with the request it would have sent, credentials, secrets and password fields redacted: every tool call not declared `read` (table writes, sends, custom tools), every MCP call, and an HTTP request other than a `GET`, `HEAD` or `OPTIONS`, or one carrying a method-override header. A table row insert, upsert or update echoes the data it would have written, secrets masked, so a block reading `row.data` gets the values it wrote. Check those payloads instead of cleaning up test data.
+
+Placeholder ids, and values the request cannot determine, are distinctive: strings shaped `dry_run_<kind>_<n>` and numbers above 900000000. A read that would send one (a placeholder row's id or issue number in a URL, or free text quoting one) is not sent either, so a create-then-read chain does not fail: it gets a placeholder and its entry has `reason: "placeholder"`. An MCP call is stubbed even when its server declares the tool read-only, which Sim cannot verify: its entry has `reason: "mcp-read-only"`, and naming its block in `run.allow` sends it.
+
+Reads, model calls and code run for real. Code in the isolate (JavaScript without imports: a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes) sends its `GET`, `HEAD` and `OPTIONS` `fetch` calls, so an API that writes on a `GET` is not stubbed; any other request, or one with a method-override header, gets an empty `200` and is listed under `sideEffects.stubbed` as tool `function_execute`. Code in a remote sandbox (shell, Python, JavaScript with imports, a selected sandbox or files) has network the run cannot see, and is listed under `sideEffects.unchecked`.
+
+Child workflows run dry too. `run.allow` and `run.mocks` name a block of a workflow this one calls as `<workflow>.<block>`, and the entry applies wherever that workflow runs. Custom, Human in the loop and Wait blocks are answered whole, so a dry run never pauses, and a test run is never resumed. Allowing an Agent sends only its own tool calls, not a workflow or custom block it calls. A dry run keeps nothing beyond its own log, which is under the `test` trigger: Agents read their memory but write none, and it raises no workspace event and does not count as a run of the workflow.
+
+A mock is data: it cannot replace a locked block or set a field the run's execution, trace or billing reads (such as `cost`, `tokens`, `model` or a field starting with `_`). `run.mocksFrom: {runId, blocks}` answers this workflow's blocks with the outputs they recorded in an earlier run of it. The result's `overrides` names the allowed and mocked blocks (`<blockId>`, or `<workflowId>.<blockId>` for a child's), but never a mock's output, so a rerun passes `run.mocks` again. `sideEffects.unreached` lists an allowed or mocked block the run never reached, and `sideEffects.mockFields` a mock's fields a block reading them never gets; both are absent when empty. `run.allow`, `run.mocks` and `run.mocksFrom.blocks` each name at most 50 blocks. A failed dry run still returns its `sideEffects`, and only another dry run can use it, or a workflow test's run, as `run.entry.sourceRunId`. Draft runs are synchronous or streamed, never `async`; a dry run is synchronous only.
 
 <Tabs items={['curl', 'CLI']}>
   <Tab value="curl">
@@ -174,12 +182,12 @@ Run the saved draft with `run.source: "manual"`. Manual runs are synchronous or 
     curl -sS --fail-with-body -X POST \
       "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/execute" \
       -H "X-API-Key: $SIM_API_KEY" -H 'Content-Type: application/json' \
-      -d '{"run": {"source": "manual"}, "input": {"ticketId": "T-123"}}'
+      -d '{"run": {"source": "draft", "dry": true}, "input": {"ticketId": "T-123"}}'
     ```
   </Tab>
   <Tab value="CLI">
     ```bash
-    sim workflows run "$WORKFLOW_ID" --manual --input '{"ticketId": "T-123"}'
+    sim workflows run "$WORKFLOW_ID" --dry --input '{"ticketId": "T-123"}'
     ```
   </Tab>
 </Tabs>
@@ -189,10 +197,14 @@ Narrow a test run with these options:
 | Goal | Request | CLI |
 | --- | --- | --- |
 | Enter through a specific trigger | `run.entry: {type: "trigger", blockId}` | `--trigger <blockId>` |
-| Use the trigger's mock payload instead of `input` | `run.entry: {type: "trigger", useMockPayload: true}` | `--mock-payload` |
+| Use the trigger's sample payload instead of `input` | `run.entry: {type: "trigger", sample: true}` | `--sample` |
 | Stop after one block | `run.stopAfterBlockId` | `--stop-after <blockId>` |
 | Rerun from a block, reusing an earlier run's upstream outputs | `run.entry: {type: "block", blockId, sourceRunId}` | `--from-block <blockId> --source-run <runId>` |
 | Rerun one block only | Block entry plus `stopAfterBlockId` naming the same block | `--from-block` and `--stop-after` with the same block |
+| Send one block's writes for real during a dry run | `run.allow: ["<block>"]` | `--allow <block>` |
+| Answer a block with a fixed output during a dry run, to steer a branch | `run.mocks: {"<block>": {...}}` | `--mock <block>='{...}'` |
+| Answer a block with its output in an earlier run, during a dry run | `run.mocksFrom: {runId, blocks: ["<block>"]}` | `--mock-from <runId> --mock <block>` |
+| Run everything for real | omit `run.dry` | `--draft` |
 
 `stopAfterBlockId` cannot name a block inside a loop or parallel. A run that routes away from the stop block fails as soon as that is decided.
 
@@ -307,7 +319,7 @@ Resume returns the resumed run's result (`200`) or a queue receipt (`202`). Poll
 
 ## Use Sim MCP [#use-sim-mcp]
 
-AI agents can follow the same loop through [Sim MCP](/mcp/overview) (`https://mcp.sim.ai/mcp` on Sim Cloud, `/api/mcp` on a self-hosted deployment). Its tools are `search_operations`, `describe_operation`, `call_read_operation`, and `call_write_operation`. Operation names match the API reference, such as `listBlocks`, `getBlock`, `createWorkflow`, `applyWorkflowOperations`, `executeWorkflow`, `deployWorkflow`, `getWorkflowDeployment`, `getWorkflowRun`, `getLog`, and `resumeWorkflow`. Pass the dry run as `query: {"dryRun": true}`.
+AI agents can follow the same loop through [Sim MCP](/mcp/overview) (`https://mcp.sim.ai/mcp` on Sim Cloud, `/api/mcp` on a self-hosted deployment). Its tools are `search_operations`, `describe_operation`, `call_read_operation`, and `call_write_operation`. Operation names match the API reference, such as `listBlocks`, `getBlock`, `createWorkflow`, `applyWorkflowOperations`, `executeWorkflow`, `deployWorkflow`, `getWorkflowDeployment`, `getWorkflowRun`, `getLog`, and `resumeWorkflow`. Pass the dry run as `query: {"dry": true}`.
 
 <Callout type="info">
 Use `describe_operation` for the current request schema instead of copying one into a prompt. Schemas change as Sim adds fields.

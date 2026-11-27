@@ -26,6 +26,7 @@ export const bufferGetChannelsTool: ToolConfig<BufferGetChannelsParams, BufferCh
   description:
     'List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)',
   version: '1.0.0',
+  effect: 'read',
   oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {

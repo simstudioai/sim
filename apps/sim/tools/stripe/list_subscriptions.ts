@@ -13,6 +13,7 @@ export const stripeListSubscriptionsTool: ToolConfig<
   description:
     'List one page of subscriptions. Follow starting_after while metadata.has_more is true.',
   version: '1.0.0',
+  effect: 'read',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

@@ -8,6 +8,7 @@ export const listSuppliersTool: InternalToolConfig<ListSuppliersParams, SapS4Han
   description:
     'List suppliers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

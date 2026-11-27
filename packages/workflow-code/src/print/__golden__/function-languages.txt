@@ -8,15 +8,14 @@ export default workflow('Fixture', {}, () => {
 // keep \`ticks\` and \${braces}
 return total`,
   })
+  start.to(jsCode)
   const pyCode = fn('Py code', {
     language: 'python',
     code: py`def main():
     return ${start.total}
 `,
   })
-  const shCode = fn('Sh code', { language: raw('shell'), code: sh`echo "${env.HOME_DIR}"` })
-
-  start.to(jsCode)
   jsCode.to(pyCode)
+  const shCode = fn('Sh code', { language: raw('shell'), code: sh`echo "${env.HOME_DIR}"` })
   pyCode.to(shCode)
 })

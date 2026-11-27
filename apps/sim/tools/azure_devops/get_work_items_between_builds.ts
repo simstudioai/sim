@@ -16,6 +16,7 @@ export const getWorkItemsBetweenBuildsTool: ToolConfig<
   description:
     'Get work item references associated with commits between two builds in Azure DevOps. Returns work item IDs and URLs — use Get Work Items Batch for full field details.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {

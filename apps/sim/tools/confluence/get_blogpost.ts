@@ -45,6 +45,7 @@ export const confluenceGetBlogPostTool: InternalToolConfig<
   name: 'Confluence Get Blog Post',
   description: 'Get a specific Confluence blog post by ID, including its content.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

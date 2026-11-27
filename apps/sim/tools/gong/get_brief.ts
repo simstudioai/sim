@@ -9,6 +9,7 @@ export const getBriefTool: ToolConfig<GongGetBriefParams, GongGetBriefResponse> 
   description:
     'Generate an AI brief (configured in Gong Agent Studio) for a CRM account, deal, contact, or lead. Consumes Gong credits.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

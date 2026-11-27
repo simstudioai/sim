@@ -5706,7 +5706,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         inputFromExecutionId: {
           type: 'string',
           description:
-            'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input — handy for replaying a run without retyping inputs. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and useMockPayload.',
+            'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input — handy for replaying a run without retyping inputs. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and sample.',
+        },
+        sample: {
+          type: 'boolean',
+          description:
+            "When true, run with the trigger's sample payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
         },
         triggerBlockId: {
           type: 'string',
@@ -5717,11 +5722,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'boolean',
           description:
             'When true, runs the deployed version instead of the live draft. Default: false (draft).',
-        },
-        useMockPayload: {
-          type: 'boolean',
-          description:
-            "When true, run with the trigger's generated mock payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
         },
         workflowId: {
           type: 'string',
@@ -5745,7 +5745,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         inputFromExecutionId: {
           type: 'string',
           description:
-            'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and useMockPayload.',
+            'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and sample.',
+        },
+        sample: {
+          type: 'boolean',
+          description:
+            "When true, run with the trigger's sample payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
         },
         stopAfterBlockId: {
           type: 'string',
@@ -5760,11 +5765,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'boolean',
           description:
             'When true, runs the deployed version instead of the live draft. Default: false (draft).',
-        },
-        useMockPayload: {
-          type: 'boolean',
-          description:
-            "When true, run with the trigger's generated mock payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
         },
         workflowId: {
           type: 'string',
@@ -6102,6 +6102,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported, or use an explicit native browse mode. Notion date-only search depends on plan capabilities.',
           type: 'string',
           maxLength: 2000,
+        },
+        involving: {
+          description:
+            'Only items this person acted on: "me" (you) or a colleague\'s email address, never a name. Each source applies its own meaning (sent, authored, owns, assigned, attended; your own mail means mail you sent) and skips sources that cannot filter by person. Use it for what someone did or is assigned, not for your exchanges with others, which it would cut to one side; with an empty query and a date range it lists that person\'s activity.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 254,
         },
         topK: {
           default: 20,
@@ -7832,6 +7839,36 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
         },
       },
+    },
+    resultSchema: undefined,
+  },
+  search_people: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        query: {
+          description:
+            'Up to 8 words from a name, email, title, department, or location; a person matches when every word appears in one of them.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 200,
+        },
+        personId: {
+          description:
+            'A personId from an earlier result, to show that person with their managers and direct reports. Used instead of query.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 255,
+        },
+        cursor: {
+          description: 'nextCursor from the previous page of the same query.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 1024,
+        },
+      },
+      additionalProperties: false,
     },
     resultSchema: undefined,
   },

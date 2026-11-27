@@ -15,6 +15,7 @@ export const createQuickExpenseWithImageTool: InternalToolConfig<
   description:
     'Create a quick expense with an attached image (POST /quickexpense/v4/users/{userId}/context/{contextType}/quickexpenses/image).',
   version: '1.0.0',
+  effect: 'write',
   params: {
     datacenter: {
       type: 'string',

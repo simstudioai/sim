@@ -41,6 +41,7 @@ export const listProfilesTool: ToolConfig<
   description:
     'List the Browser Context Profiles saved on the TinyFish account, with the ids an agent run can start from to reuse a logged-in session',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

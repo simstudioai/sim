@@ -13,6 +13,7 @@ export const createEmailIdentityTool: InternalToolConfig<
   name: 'SES Create Email Identity',
   description: 'Start verification of a new SES email address or domain identity',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

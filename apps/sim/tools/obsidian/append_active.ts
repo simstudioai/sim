@@ -9,6 +9,7 @@ export const appendActiveTool: ToolConfig<
   name: 'Obsidian Append to Active File',
   description: 'Append content to the currently active file in Obsidian',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

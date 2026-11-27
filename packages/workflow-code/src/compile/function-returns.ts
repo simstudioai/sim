@@ -1,14 +1,16 @@
 /**
- * What a Function block's `result` fields hold, read from the object literal its JavaScript code
- * returns (`return { total: subtotal + tax, tier: 'gold' }`), so a bare reference to one in a JSON
- * field is not reported as untyped when the code says it is a number, boolean, array or object.
+ * What a Function block's `result` holds, read from the JavaScript code: the whole value
+ * (`return new Date().toISOString()` is text, `return [1, 2]` is not), and the fields of the object
+ * literal it returns (`return { total: subtotal + tax, tier: 'gold' }`), so a bare reference to
+ * either in a JSON field is typed when the code says whether it is text.
  *
- * The reading is deliberately narrow: every `return` outside a nested function must return an
- * object literal, and a field counts only when each of them sets it to an expression whose kind
- * is certain (a literal, arithmetic, a comparison, `String(…)`, the `.length` of a string or an
- * array, a local variable never
+ * The reading is deliberately narrow. The whole value counts only when every `return` outside a
+ * nested function yields an expression of one kind and the code ends in a `return` or `throw`
+ * (falling off the end returns nothing). A field counts only when every `return` is an object
+ * literal and each sets it to an expression whose kind is certain (a literal, arithmetic, a
+ * comparison, `String(…)`, the `.length` of a string or an array, a local variable never
  * reassigned to another kind, …). Anything else stays unknown, and the reference keeps its
- * warning: a wrong "typed" would store a string bare and break the JSON at run time.
+ * warning: a wrong "typed" would store a string bare, where text that reads as JSON stops being text.
  */
 
 import { parse } from '@babel/parser'
@@ -66,6 +68,8 @@ const NUMBER_METHODS: ReadonlySet<string> = new Set([
   'getTime',
   'charCodeAt',
 ])
+/** Methods that return their receiver's kind: a string's `slice` is a string, an array's an array. */
+const SAME_KIND_METHODS: ReadonlySet<string> = new Set(['slice', 'concat'])
 const ARRAY_METHODS: ReadonlySet<string> = new Set(['map', 'filter', 'split', 'flat', 'flatMap'])
 const STATIC_KINDS: Readonly<Record<string, JsKind>> = {
   'Number.isFinite': 'boolean',
@@ -107,8 +111,16 @@ const COMPARISON: ReadonlySet<string> = new Set([
   'instanceof',
 ])
 
-/** Each function block's returned field kinds, read once per compiled block object. */
-const cache = new WeakMap<CanonicalBlock, ReadonlyMap<string, ReturnedKind> | null>()
+/** What a Function's code returns: the whole value's kind, and the kinds of an object's fields. */
+interface ReturnedKinds {
+  /** The kind of `result` itself, when every `return` agrees on one and none can be skipped. */
+  whole: ReturnedKind | undefined
+  /** The fields every `return` sets, when each returns an object literal; empty otherwise. */
+  fields: ReadonlyMap<string, ReturnedKind>
+}
+
+/** Each function block's returned kinds, read once per compiled block object. */
+const cache = new WeakMap<CanonicalBlock, ReturnedKinds | null>()
 
 function isFunctionNode(node: Node): boolean {
   return (
@@ -157,6 +169,12 @@ function collectBindings(program: Node): Bindings {
       const name = boundName(node.id)
       if (name !== null) declare(name, node.init ?? null)
       else for (const child of childNodes(node.id)) walkPatternNames(child, (n) => declare(n, null))
+    } else if (
+      node.type === 'ImportSpecifier' ||
+      node.type === 'ImportDefaultSpecifier' ||
+      node.type === 'ImportNamespaceSpecifier'
+    ) {
+      declare(node.local.name, null)
     } else if (node.type === 'FunctionDeclaration' && node.id) {
       declare(node.id.name, null)
     } else if (isFunctionNode(node) && 'params' in node) {
@@ -271,7 +289,8 @@ class Inference {
 
   private call(callee: Node): JsKind | undefined {
     if (callee.type === 'Identifier') {
-      if (callee.name === 'String') return 'string'
+      if (callee.name === 'String') return this.isBuiltin(callee.name) ? 'string' : undefined
+      if (!this.isBuiltin(callee.name)) return undefined
       if (NUMBER_FUNCTIONS.has(callee.name)) return 'number'
       if (BOOLEAN_FUNCTIONS.has(callee.name)) return 'boolean'
       return undefined
@@ -279,38 +298,84 @@ class Inference {
     const method = memberName(callee)
     if (method === null || !('object' in callee)) return undefined
     if (callee.object.type === 'Identifier') {
-      if (callee.object.name === 'Math') return 'number'
+      if (callee.object.name === 'Math') return this.isBuiltin('Math') ? 'number' : undefined
       const known = STATIC_KINDS[`${callee.object.name}.${method}`]
-      if (known) return known
+      if (known) return this.isBuiltin(callee.object.name) ? known : undefined
     }
-    if (STRING_METHODS.has(method)) return 'string'
+    if (STRING_METHODS.has(method))
+      return this.producesString(method, callee.object) ? 'string' : undefined
+    if (SAME_KIND_METHODS.has(method)) {
+      if (this.kind(callee.object) === 'string') return 'string'
+      return this.isArray(callee.object, true) ? 'typed' : undefined
+    }
     if (BOOLEAN_METHODS.has(method)) return 'boolean'
     if (NUMBER_METHODS.has(method)) return 'number'
     if (ARRAY_METHODS.has(method)) return 'typed'
     return undefined
   }
 
+  /** Whether a global is the built-in: no local declaration or assignment shadows it. */
+  private isBuiltin(name: string): boolean {
+    return !this.bindings.initial.has(name) && !this.bindings.writes.has(name)
+  }
+
+  /**
+   * Whether `receiver.method()` certainly yields text. A method name alone proves nothing (an
+   * object can define its own `toString`), so the receiver's kind must: a string for the string
+   * methods, a number for `toFixed`, an array for `join`, a built-in `Date` for `toISOString`.
+   */
+  private producesString(method: string, receiver: Node): boolean {
+    const kind = this.kind(receiver)
+    if (method === 'toString') {
+      return kind === 'string' || kind === 'number' || kind === 'boolean' || this.isDate(receiver)
+    }
+    if (method === 'toFixed' || method === 'toPrecision') return kind === 'number'
+    if (method === 'join') return this.isArray(receiver, true)
+    if (method === 'toISOString') return this.isDate(receiver)
+    if (method === 'toLocaleString') {
+      return kind === 'number' || kind === 'string' || kind === 'boolean' || this.isDate(receiver)
+    }
+    return kind === 'string'
+  }
+
+  private isDate(node: Node): boolean {
+    return (
+      node.type === 'NewExpression' &&
+      node.callee.type === 'Identifier' &&
+      node.callee.name === 'Date' &&
+      this.isBuiltin('Date')
+    )
+  }
+
   /**
    * Whether `node` is certainly an array: a literal, an array method's result, `Object.keys`
    * (`values`, `entries`), or a local variable set to one and never reassigned. Any other object
-   * can hold anything under `length`.
+   * can hold anything under `length`. `strict` accepts only what the code proves: a call named
+   * like an array method (`map`) may be any object's own, so it proves nothing there.
    */
-  private isArray(node: Node): boolean {
+  private isArray(node: Node, strict = false): boolean {
     if (node.type === 'ArrayExpression') return true
     if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
       const method = memberName(node.callee)
       if (method === null || !('object' in node.callee)) return false
       if (node.callee.object.type === 'Identifier' && node.callee.object.name === 'Object') {
-        return method === 'keys' || method === 'values' || method === 'entries'
+        return (
+          this.isBuiltin('Object') &&
+          (method === 'keys' || method === 'values' || method === 'entries')
+        )
       }
-      return ARRAY_METHODS.has(method)
+      if (!ARRAY_METHODS.has(method)) return false
+      if (!strict) return true
+      return method === 'split'
+        ? this.kind(node.callee.object) === 'string'
+        : this.isArray(node.callee.object, true)
     }
     if (node.type !== 'Identifier') return false
     const init = this.bindings.initial.get(node.name)
     if (!init || this.bindings.writes.has(node.name) || this.resolving.has(node.name)) return false
     this.resolving.add(node.name)
     try {
-      return this.isArray(init)
+      return this.isArray(init, strict)
     } finally {
       this.resolving.delete(node.name)
     }
@@ -380,8 +445,29 @@ function returnedFields(
   return fields
 }
 
-/** The field kinds a function body's returns agree on, or `null` when any return is no literal. */
-function readReturns(code: string): ReadonlyMap<string, ReturnedKind> | null {
+/**
+ * The kind of the whole returned value: what every `return` yields, when they agree and the code
+ * cannot finish without one (it ends in a `return` or `throw`), since falling off the end returns
+ * nothing.
+ */
+function wholeKind(
+  program: Node,
+  returns: ReadonlyArray<Node | null | undefined>,
+  inference: Inference
+): ReturnedKind | undefined {
+  const last = program.type === 'Program' ? program.body.at(-1) : undefined
+  if (last?.type !== 'ReturnStatement' && last?.type !== 'ThrowStatement') return undefined
+  let agreed: JsKind | undefined
+  for (const [index, argument] of returns.entries()) {
+    const kind = inference.kind(argument)
+    agreed = index === 0 ? kind : merge(agreed, kind)
+    if (agreed === undefined) return undefined
+  }
+  return agreed === undefined ? undefined : agreed === 'string' ? 'string' : 'typed'
+}
+
+/** The field kinds a function body's returns agree on, or none when any return is no literal. */
+function readReturns(code: string): ReturnedKinds | null {
   let program: Node
   try {
     const file = parse(toCodeFile(code, 'javascript'), {
@@ -401,9 +487,14 @@ function readReturns(code: string): ReadonlyMap<string, ReturnedKind> | null {
   })
   if (returns.length === 0) return null
   const inference = new Inference(collectBindings(program))
+  const whole = wholeKind(program, returns, inference)
+  const objects = returns.filter(
+    (argument): argument is ObjectExpression => argument?.type === 'ObjectExpression'
+  )
+  const kinds = new Map<string, ReturnedKind>()
+  if (objects.length !== returns.length) return { whole, fields: kinds }
   let agreed: Map<string, JsKind | undefined> | null = null
-  for (const argument of returns) {
-    if (argument?.type !== 'ObjectExpression') return null
+  for (const argument of objects) {
     const fields = returnedFields(argument, inference)
     if (agreed === null) {
       agreed = fields
@@ -413,36 +504,38 @@ function readReturns(code: string): ReadonlyMap<string, ReturnedKind> | null {
       agreed.set(key, fields.has(key) ? merge(kind, fields.get(key)) : undefined)
     }
   }
-  const kinds = new Map<string, ReturnedKind>()
   for (const [key, kind] of agreed ?? []) {
     if (kind !== undefined) kinds.set(key, kind === 'string' ? 'string' : 'typed')
   }
-  return kinds
+  return { whole, fields: kinds }
 }
 
 /**
- * The kind of `result.<field>` of a JavaScript Function block, from the object literal its code
- * returns; `undefined` for any other block, path or language, or when the code does not say.
+ * The kind of a JavaScript Function block's `result` (path `['result']`), from what every
+ * `return` yields, or of `result.<field>`, from the object literal its code returns; `undefined`
+ * for any other block, path or language, or when the code does not say.
  */
 function functionResultKind(
   block: CanonicalBlock,
   path: readonly string[]
 ): ReturnedKind | undefined {
-  if (block.type !== FUNCTION_TYPE || path.length !== 2 || path[0] !== 'result') return undefined
-  let fields = cache.get(block)
-  if (fields === undefined) {
+  if (block.type !== FUNCTION_TYPE || path.length < 1 || path.length > 2 || path[0] !== 'result') {
+    return undefined
+  }
+  let kinds = cache.get(block)
+  if (kinds === undefined) {
     const code = getOwn(block.params, 'code')
     const language = getOwn(block.params, 'language')
     const javascript =
       language === undefined ||
       (language.kind === 'value' && (language.value === 'javascript' || language.value === ''))
-    fields =
+    kinds =
       javascript && code?.kind === 'value' && typeof code.value === 'string'
         ? readReturns(code.value)
         : null
-    cache.set(block, fields)
+    cache.set(block, kinds)
   }
-  return fields?.get(path[1])
+  return path.length === 1 ? kinds?.whole : kinds?.fields.get(path[1] ?? '')
 }
 
 /**

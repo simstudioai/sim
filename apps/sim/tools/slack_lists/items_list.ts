@@ -25,6 +25,7 @@ export const slackListsItemsListTool: ToolConfig<
   description:
     'Read a page of Slack List rows and optionally its column schema. Pass nextCursor as cursor to continue; an empty nextCursor ends pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: {
     required: true,
     provider: 'slack',

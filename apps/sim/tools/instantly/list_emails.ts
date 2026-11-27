@@ -20,6 +20,7 @@ export const listEmailsTool: ToolConfig<InstantlyListEmailsParams, InstantlyList
   name: 'Instantly List Emails',
   description: 'Retrieves Instantly V2 Unibox emails with search and pagination filters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,

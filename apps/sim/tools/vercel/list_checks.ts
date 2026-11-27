@@ -8,6 +8,7 @@ export const vercelListChecksTool: ToolConfig<VercelListChecksParams, VercelList
   name: 'Vercel List Checks',
   description: 'List all checks for a deployment',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

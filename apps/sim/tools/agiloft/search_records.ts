@@ -9,6 +9,7 @@ export const agiloftSearchRecordsTool: InternalToolConfig<
   name: 'Agiloft Search Records',
   description: 'Search for records in an Agiloft table using a query.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     instanceUrl: {

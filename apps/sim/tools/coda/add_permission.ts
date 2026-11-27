@@ -26,6 +26,7 @@ export const codaAddPermissionTool: ToolConfig<CodaAddPermissionParams, CodaAddP
     description:
       'Share a Coda doc with a user, group, domain, workspace, or anyone with the link. Sharing with an email sends a notification unless suppressed.',
     version: '1.0.0',
+    effect: 'write',
     oauth: codaOAuth,
     errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

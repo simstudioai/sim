@@ -14,6 +14,7 @@ export const searchSimilarCompaniesTool: ToolConfig<
   description:
     'Find companies similar to a given company by LinkedIn URL with filters for location and size.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

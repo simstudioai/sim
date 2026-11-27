@@ -16,6 +16,7 @@ export const getAlertRuleGroupTool: ToolConfig<
   description:
     'Read an alert rule group: its evaluation interval and every rule in it. The interval is the group-level knob that decides how often those rules are evaluated, which the individual alert rule operations do not expose.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

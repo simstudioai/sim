@@ -6,6 +6,7 @@ export const sftpListTool: InternalToolConfig<SftpListParams, SftpListResult> = 
   name: 'SFTP List Directory',
   description: 'List files and directories on a remote SFTP server',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

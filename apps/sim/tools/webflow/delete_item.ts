@@ -8,6 +8,7 @@ export const webflowDeleteItemTool: ToolConfig<WebflowDeleteItemParams, WebflowD
     name: 'Webflow Delete Item',
     description: 'Delete an item from a Webflow CMS collection',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

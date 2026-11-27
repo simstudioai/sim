@@ -31,6 +31,7 @@ export const markLeadCompleteTool: ToolConfig<
   description:
     'Marks a lead as completed in a Smartlead campaign so it stops receiving further sequence steps.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

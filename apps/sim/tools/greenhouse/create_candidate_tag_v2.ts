@@ -19,6 +19,7 @@ export const greenhouseCreateCandidateTagV2Tool: ToolConfig<
   name: 'Greenhouse Create Candidate Tag',
   description: 'Create candidate tag using Greenhouse Harvest v3.',
   version: '2.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

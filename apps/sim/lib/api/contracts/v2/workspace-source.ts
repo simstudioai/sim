@@ -115,7 +115,7 @@ const baseResourceSchema = z
         z.string(),
         z.object({
           id: z.string().describe('Stored id of the binary file.'),
-          rev: z.union([z.number().int(), z.string()]).describe('Content revision as last read.'),
+          rev: z.string().describe('Content revision as last read.'),
           sha256: sha256Schema,
         })
       )
@@ -239,7 +239,7 @@ export const v2GetWorkspaceSourceContract = defineRouteContract({
 
 const applyQuerySchema = z
   .object({
-    dryRun: booleanQueryFlagSchema
+    dry: booleanQueryFlagSchema
       .optional()
       .describe(
         'Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.'
@@ -299,7 +299,7 @@ const applyBodySchema = z
 const applyDataSchema = z
   .object({
     workspaceId: z.string().describe('Workspace id.'),
-    dryRun: z.boolean().describe('True when nothing was written because `dryRun` was set.'),
+    dry: z.boolean().describe('True when nothing was written because `dry` was set.'),
     plan: z.array(changeSchema).describe('Every planned change, no-ops included, in apply order.'),
     refuses: z
       .boolean()

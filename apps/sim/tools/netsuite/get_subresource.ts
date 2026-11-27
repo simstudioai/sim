@@ -11,6 +11,7 @@ export const netsuiteGetSubresourceTool: InternalToolConfig<
   name: 'NetSuite Get Subresource',
   description: 'Retrieve a record sublist, subrecord, referenced record, or nested subresource.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

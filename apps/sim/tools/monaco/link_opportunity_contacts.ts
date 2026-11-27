@@ -24,6 +24,7 @@ export const monacoLinkOpportunityContactsTool: ToolConfig<
   description:
     'Link one or more contacts to a Monaco opportunity. Contacts that are already linked are left as they are, and previously unlinked contacts are restored.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

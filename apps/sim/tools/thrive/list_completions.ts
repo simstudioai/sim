@@ -21,6 +21,7 @@ export const listCompletionsTool: ToolConfig<
   description:
     'List learning completion records in Thrive, optionally filtered by user or content.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

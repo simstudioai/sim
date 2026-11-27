@@ -10,6 +10,7 @@ export const zoomDeleteRecordingTool: ToolConfig<
   name: 'Zoom Delete Recording',
   description: 'Delete cloud recordings for a Zoom meeting',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -8,6 +8,7 @@ export const downloadTool: InternalToolConfig<GoogleDriveToolParams, GoogleDrive
     description:
       'Download a file from Google Drive with complete metadata (exports Google Workspace files automatically)',
     version: '1.0',
+    effect: 'read',
 
     oauth: {
       required: true,

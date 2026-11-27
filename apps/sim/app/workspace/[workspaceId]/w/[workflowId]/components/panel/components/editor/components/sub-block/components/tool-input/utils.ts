@@ -1,6 +1,8 @@
 import { stripVersionSuffix } from '@sim/utils/string'
 import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
 import type { BlockConfig } from '@/blocks/types'
+import { resolveModelProviderId } from '@/blocks/utils'
+import { supportsToolUsageControl } from '@/providers/models'
 
 /**
  * Core blocks the agent tool picker offers even though they are not
@@ -70,4 +72,14 @@ export function isWorkflowAlreadySelected(
   return selectedTools.some(
     (tool) => tool.type === 'workflow_input' && tool.params?.workflowId === workflowId
   )
+}
+
+/**
+ * Whether the tool picker offers the per-tool usage control (auto, force, none) for the
+ * block's model. Sim Chat always does; any other block asks its model's provider.
+ */
+export function supportsToolUsageControlForModel(blockType: string, model: string): boolean {
+  if (blockType === 'mothership') return true
+  if (!model) return false
+  return supportsToolUsageControl(resolveModelProviderId(model))
 }

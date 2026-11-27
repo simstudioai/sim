@@ -19,6 +19,7 @@ export const crunchbaseSearchOrganizationsTool: ToolConfig<
   description:
     'Search Crunchbase companies, investors, and schools with filter predicates on funding, headcount, location, category, and rank.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 

@@ -25,6 +25,7 @@ export const quickbooksCreateCustomerPaymentTool: ToolConfig<
   name: 'QuickBooks Create Customer Payment',
   description: 'Record a customer payment with optional bounded invoice allocations',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

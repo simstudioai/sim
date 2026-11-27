@@ -11,6 +11,7 @@ export const netsuiteListRecordTypesTool: InternalToolConfig<
   name: 'NetSuite List Record Types',
   description: 'List record types exposed to the authenticated role by the REST metadata catalog.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

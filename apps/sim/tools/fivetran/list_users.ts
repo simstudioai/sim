@@ -25,6 +25,7 @@ export const fivetranListUsersTool: ToolConfig<FivetranListUsersParams, Fivetran
     description:
       'List the users and service accounts in the Fivetran account with their role, status, and last login, for access reviews.',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
     oauth: FIVETRAN_OAUTH,
 

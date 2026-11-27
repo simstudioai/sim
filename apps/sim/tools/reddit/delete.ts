@@ -7,6 +7,7 @@ export const deleteTool: ToolConfig<RedditDeleteParams, RedditWriteResponse> = {
   name: 'Delete Reddit Post/Comment',
   description: 'Delete your own Reddit post or comment',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

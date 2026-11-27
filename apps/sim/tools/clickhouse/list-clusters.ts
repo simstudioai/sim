@@ -9,6 +9,7 @@ export const listClustersTool: InternalToolConfig<
   name: 'ClickHouse List Clusters',
   description: 'List configured clusters, shards, and replicas',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

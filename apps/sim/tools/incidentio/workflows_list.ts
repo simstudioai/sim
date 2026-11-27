@@ -9,6 +9,7 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
   name: 'incident.io Workflows List',
   description: 'List all workflows in your incident.io workspace.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const listCategoriesTool: ToolConfig<
   name: 'WordPress List Categories',
   description: 'List categories from WordPress.com',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

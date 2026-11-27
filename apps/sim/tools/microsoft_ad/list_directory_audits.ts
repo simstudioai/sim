@@ -16,6 +16,7 @@ export const listDirectoryAuditsTool: ToolConfig<
   description:
     'List directory audit records showing who changed what in Microsoft Entra ID, such as user creation, group membership changes, and role assignments',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

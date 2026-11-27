@@ -174,6 +174,7 @@ export const fileParserTool: InternalToolConfig<FileParserInput, FileParserOutpu
   name: 'File Parser',
   description: 'Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     filePath: {
@@ -304,6 +305,7 @@ export const fileParserV2Tool: InternalToolConfig<FileParserInput, FileParserOut
   name: 'File Parser',
   description: 'Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)',
   version: '2.0.0',
+  effect: 'read',
 
   params: fileParserTool.params,
   operation: fileParserTool.operation,
@@ -356,6 +358,7 @@ export const fileParserV3Tool: InternalToolConfig<FileParserInput, FileParserV3O
   name: 'File Parser',
   description: 'Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)',
   version: '3.0.0',
+  effect: 'read',
   params: fileParserTool.params,
   operation: fileParserTool.operation,
   transformResponse: parseFileParserV3Response,
@@ -370,6 +373,7 @@ export const fileFetchTool: InternalToolConfig<FileFetchInput, FileParserV3Outpu
   name: 'File Fetch',
   description: 'Fetch and parse a file from a URL with optional custom headers.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     fileUrl: {
       type: 'string',

@@ -18,6 +18,7 @@ export const powerbiGetReportTool: ToolConfig<PowerBIGetReportParams, PowerBIGet
   name: 'Power BI Get Report',
   description: 'Get report metadata from a Power BI workspace.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: { required: true, provider: 'microsoft-powerbi' },
   params: {

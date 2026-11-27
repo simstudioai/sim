@@ -30,6 +30,7 @@ export const sportmonksMotorsportGetSeasonTool: ToolConfig<
   name: 'Get Season by ID',
   description: 'Retrieve a single motorsport season by its ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

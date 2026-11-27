@@ -11,6 +11,7 @@ export const rootlyListIncidentsTool: ToolConfig<
   name: 'Rootly List Incidents',
   description: 'List incidents from Rootly with optional filtering by status, severity, and more.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

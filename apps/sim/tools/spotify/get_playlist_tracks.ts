@@ -13,6 +13,7 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
   name: 'Spotify Get Playlist Tracks',
   description: 'Get the tracks in a Spotify playlist.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

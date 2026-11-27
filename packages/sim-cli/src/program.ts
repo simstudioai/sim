@@ -14,6 +14,7 @@ import {
   assertNoReservedProgramFlags,
   buildGeneratedCommands,
   refuseHelpAfterUnknownCommand,
+  runActionsInvoked,
 } from './runtime/build'
 import { detectCodingAgent } from './telemetry/coding-agent'
 import { announceUpdateIfAvailable } from './update/check'
@@ -22,25 +23,31 @@ import { cliVersion } from './version'
 /** Root program description, shared by `--help` and the generated docs. */
 export const PROGRAM_DESCRIPTION = 'Talk to the Sim API from your terminal'
 
-export const HELP_EPILOGUE = `
+const HELP_NOTES = `
 Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
 ~/.sim/credentials (0600), or under SIM_CONFIG_DIR when it is set. Select one
 with -P, --profile, or SIM_PROFILE.
 
-A command targets the profile's workspace unless -w <id> (--workspace <id>) or
-SIM_WORKSPACE names another. A source directory records its own: a workflow
-directory acts on the workflow its .sim/base.json names, a workspace directory
-on the workspace its base names (refusing a -w naming another), and a starter
-on the one .sim/starter.json names unless -w names another. In a script, export
-SIM_WORKSPACE=<id> once, or keep only the ID in a variable and write -w "$WS".
-A variable holding "--workspace <id>" is one argument: alone it is an unknown
-option, and after -w all of it is taken as the ID.
+A command's workspace is, first to last: -w <id>, SIM_WORKSPACE, the source
+directory at or above the working directory whose .sim/base.json or
+.sim/starter.json names one (a workflow folder counts as its workspace's), then
+the profile's. A source command acts on what its --dir names: a workflow
+directory on the workflow its .sim/base.json names, a workspace directory on the
+workspace its base names (refusing a -w or SIM_WORKSPACE naming another,
+SOURCE_OTHER_WORKSPACE), and a starter, until \`source create\` creates its
+workflow, on the workspace .sim/starter.json names unless -w or SIM_WORKSPACE
+names another. In a script, export SIM_WORKSPACE=<id> once, or keep only
+the ID in a variable and write -w "$WS" (one holding "--workspace <id>" is a
+single argument).
 
 Workflow, knowledge-base and workspace IDs are bare UUIDs. Table IDs carry a
 tbl_ prefix and file IDs a wf_ one, so wf_ never names a workflow. An audit-log
 or custom-tool ID can open with a dash, which reads as a flag; put -- in front
 of it, as in sim audit-logs get -- -HlDcD1z76nK6R4crsUp0.
+`
 
+/** The worked examples a person reads; a coding agent is pointed at `sim cli search` instead. */
+const HELP_EXAMPLES = `
 Examples:
   $ sim cli search "cancel a workflow run"  Find the command for a task
   $ sim login                          Authorize the default profile
@@ -59,12 +66,15 @@ Examples:
   $ sim whoami --profile dev
 `
 
+export const HELP_EPILOGUE = `${HELP_NOTES}${HELP_EXAMPLES}`
+
 /**
- * Printed above group-level help when a coding agent runs the CLI.
+ * Printed above the root help when a coding agent runs the CLI.
  *
  * Agents otherwise map the surface by walking `--help` down every group, which
- * costs a call and a screenful of context per level. Leaf help is left alone:
- * an agent reading it has already found its command.
+ * costs a call and a screenful of context per level. Group and leaf help are
+ * left alone: an agent reading one has already found where its task lives, and
+ * the note there is the same screen again on every call.
  */
 export const AGENT_DISCOVERY_NOTE = `=== AGENT COMMAND DISCOVERY ===
 Do not explore commands by chaining nested --help calls. Instead run:
@@ -218,14 +228,18 @@ export function buildProgram(
   attachSecretCommands(program)
   attachSourcePermissionCommands(program)
 
-  program.addHelpText('after', options.helpText ?? HELP_EPILOGUE)
-  program.addHelpText('beforeAll', ({ command }) =>
-    detectCodingAgent(env) !== undefined && command.commands.length > 0 ? AGENT_DISCOVERY_NOTE : ''
+  program.addHelpText('after', () => {
+    if (options.helpText !== undefined) return options.helpText
+    return detectCodingAgent(env) !== undefined ? HELP_NOTES : HELP_EPILOGUE
+  })
+  program.addHelpText('before', () =>
+    detectCodingAgent(env) !== undefined ? AGENT_DISCOVERY_NOTE : ''
   )
 
   refuseHelpAfterUnknownCommand(program)
   addParseErrorGuidanceToTree(program)
   assertNoReservedProgramFlags(program)
+  runActionsInvoked(program)
 
   return program
 }

@@ -18,6 +18,7 @@ export const spotifyFollowPlaylistTool: ToolConfig<
   name: 'Spotify Follow Playlist',
   description: 'Follow (save) a playlist.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

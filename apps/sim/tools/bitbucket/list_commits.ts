@@ -29,6 +29,7 @@ export const bitbucketListCommitsTool: ToolConfig<
   name: 'Bitbucket List Commits',
   description: 'List repository commits in reverse chronological order',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

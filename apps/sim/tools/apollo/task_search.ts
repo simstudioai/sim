@@ -8,6 +8,7 @@ export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTask
   name: 'Apollo Search Tasks',
   description: 'Search for tasks in Apollo',
   version: '1.0.0',
+  effect: 'read',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

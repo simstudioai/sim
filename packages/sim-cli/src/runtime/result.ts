@@ -1,9 +1,11 @@
+import { isRecordLike, omit, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import { truncationMetadata } from '#sim-cli/output/truncation'
-import type { OutputFormat } from '../config/index'
+import { isMachineFormat, type OutputFormat } from '../config/index'
 import type { ColumnSpec, CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
+import { nextStepText } from '../output/next-step'
 import {
   bool,
   bytes,
@@ -17,9 +19,106 @@ import {
   timestamp,
 } from '../output/render'
 import { printTraceSpans } from '../output/trace'
+import { withDeploymentLive } from './deployment-live'
+import { withRunNext } from './run-next'
+
+/**
+ * Result fields printed whole: the command to run (a clipped flag would make it wrong), and the
+ * note naming the mocks it leaves out for the reader to pass again.
+ */
+const RUN_COMMAND_FIELDS: ReadonlySet<string> = new Set(['next', 'next note'])
 
 interface RenderResultOptions {
   expandedTrace?: boolean
+  /** One line of context the CLI adds to a successful result (see {@link renderResult}). */
+  note?: string
+  /** What the invocation itself deserves a warning about, such as a renamed flag. */
+  warnings?: readonly string[]
+  /**
+   * Called once `warnings` have reached the reader: written on stderr, or printed inside the
+   * result. A render that throws before then leaves them for the caller to write.
+   */
+  warningsDelivered?: () => void
+}
+
+/**
+ * A fact the CLI states about a result beyond the API's data, placed by {@link placeNotices}.
+ *
+ * A JSON or YAML result carries it as `field`, so `--output json 2>&1` stays one document; a
+ * person reads the lines `before` and `after` on stderr, around the printed result.
+ */
+interface ResultNotice {
+  field: string
+  value: unknown
+  before?: readonly string[]
+  after?: readonly string[]
+}
+
+/**
+ * Places each notice: in a machine format, inside the result as its `field` (a result that
+ * already holds that value carries it as it is); otherwise, and wherever the field cannot be
+ * added — a display format, a document (its value is the deliverable), a result that is not a
+ * record, or one whose own `field` says something else — as its lines on stderr.
+ */
+function placeNotices(
+  format: OutputFormat,
+  result: unknown,
+  notices: readonly ResultNotice[],
+  document = false
+): { result: unknown; before: string[]; after: string[]; carried: Set<string> } {
+  const record = isMachineFormat(format) ? toRecordOrNull(result) : null
+  let carried: Record<string, unknown> | null = null
+  const before: string[] = []
+  const after: string[] = []
+  const fields = new Set<string>()
+  for (const notice of notices) {
+    const held: Record<string, unknown> | null = carried ?? record
+    if (held && notice.field in held && held[notice.field] === notice.value) {
+      fields.add(notice.field)
+      continue
+    }
+    if (held && !document && !(notice.field in held)) {
+      carried = { ...held, [notice.field]: notice.value }
+      fields.add(notice.field)
+      continue
+    }
+    before.push(...(notice.before ?? []))
+    after.push(...(notice.after ?? []))
+  }
+  return { result: carried ?? result, before, after, carried: fields }
+}
+
+/**
+ * Writes the lines placed before a result, and reports the invocation's warnings delivered once
+ * they are on stderr; carried in the result, they are delivered when it has printed.
+ */
+function writeLeadingNotices(
+  placed: ReturnType<typeof placeNotices>,
+  options: RenderResultOptions
+): void {
+  writeNoticeLines(placed.before)
+  if (!placed.carried.has('note')) options.warningsDelivered?.()
+}
+
+function writeNoticeLines(lines: readonly string[]): void {
+  for (const line of lines) writeStderr(`${line}\n`)
+}
+
+/**
+ * The CLI's own notes on a result as one `note`: each warning about the invocation, then the
+ * result's note, one per line.
+ */
+function noteNotice({ warnings = [], note }: RenderResultOptions): ResultNotice[] {
+  const notes = note === undefined ? warnings : [...warnings, note]
+  if (notes.length === 0) return []
+  return [
+    {
+      field: 'note',
+      value: notes.join('\n'),
+      before: warnings.map((warning) => `warning: ${warning}`),
+      after: note === undefined ? [] : [styles().dim(`note: ${note}`)],
+    },
+  ]
 }
 
 function countTraceSpans(value: unknown): number {
@@ -294,6 +393,28 @@ function inferColumns(rows: unknown[], expand?: string): Column<unknown>[] {
   }))
 }
 
+/** Lint report fields that describe the graph's shape rather than report a finding. */
+const LINT_GRAPH_FACTS: ReadonlySet<string> = new Set(['sources', 'sinks'])
+
+/**
+ * A record whose `lint` (the workflow lint report a deploy or a graph write returns) keeps only
+ * its findings, in every format: the report lists every category, almost all empty, plus every
+ * source and sink block of the graph, which grows with the workflow and pushes the outcome off a
+ * short terminal or a `| tail`. Without a finding the field is dropped. The graph's shape is what
+ * `sim workflows outline` prints.
+ */
+function withLintFindingsOnly(data: unknown): unknown {
+  if (!isRecordLike(data) || !('lint' in data)) return data
+  if (!isRecordLike(data.lint)) return data.lint === null ? omit(data, ['lint']) : data
+  const findings = Object.entries(data.lint).filter(
+    ([key, value]) =>
+      !LINT_GRAPH_FACTS.has(key) && value !== null && !(Array.isArray(value) && value.length === 0)
+  )
+  return findings.length > 0
+    ? { ...data, lint: Object.fromEntries(findings) }
+    : omit(data, ['lint'])
+}
+
 function unwrapResource(data: unknown): unknown {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return data
   const entries = Object.entries(data)
@@ -302,45 +423,48 @@ function unwrapResource(data: unknown): unknown {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : data
 }
 
+/**
+ * Renders the rows a paginated operation walked, with what its envelope states about them
+ * ({@link placeNotices}): a JSON or YAML page carries its truncation flags, its
+ * {@link CommandSpec.pageNote} and the invocation's warnings beside `data` and `nextCursor`.
+ */
 export function renderPage(
   format: OutputFormat,
   page: { data: unknown[]; nextCursor: string | null },
   spec: CommandSpec,
-  envelope?: unknown
+  envelope?: unknown,
+  options: Pick<RenderResultOptions, 'warnings' | 'warningsDelivered'> = {}
 ): void {
-  writePageNote(spec, envelope)
-  writeEnvelopeTruncation(envelope)
+  const placed = placeNotices(format, page, [
+    ...noteNotice(options),
+    ...pageNotice(spec, envelope),
+    ...truncationNotices(envelope),
+  ])
+  writeLeadingNotices(placed, options)
   printList(
     format,
     page.data,
     spec.columns ? columnsFrom(spec.columns) : inferColumns(page.data, spec.expand),
-    { ...page, ...truncationMetadata(envelope) }
+    placed.result
   )
+  options.warningsDelivered?.()
 }
 
 /**
- * States a page-envelope fact once, above the rows, on stderr.
- *
- * `--output text` is positional and tab-separated, so this note cannot occupy
- * a row. JSON and YAML expose the rows and continuation cursor; other envelope
- * facts such as billing scope are reported here for every format.
+ * A page-envelope fact, stated once above the rows for a person: `--output text` is positional
+ * and tab-separated, so it cannot occupy a row.
  */
-function writePageNote(spec: CommandSpec, envelope: unknown): void {
-  if (!spec.pageNote) return
-  const value = at(envelope, spec.pageNote.path)
-  if (value === undefined || value === null) return
-  writeStderr(styles().dim(`${spec.pageNote.label}: ${String(value)}\n`))
-}
-
-/** The flags one object raised, in the spelling the wire used. */
-function truncationFlags(container: unknown): string[] {
-  return Object.entries(truncationMetadata(container))
-    .filter(([, value]) => value)
-    .map(([key]) => key)
+function pageNotice(spec: CommandSpec, envelope: unknown): ResultNotice[] {
+  if (!spec.pageNote) return []
+  const { field, label } = spec.pageNote
+  const value = toRecord(envelope)[field]
+  if (value === undefined || value === null) return []
+  return [{ field, value, before: [styles().dim(`${label}: ${String(value)}`)] }]
 }
 
 /**
- * The flags a whole response raised, on its envelope or inside its payload.
+ * The truncation flags a whole response states, on its envelope or inside its payload, raised or
+ * not: a machine format carries each, and a person reads the raised ones.
  *
  * Two responses state their clip one level down: `files text`, whose file body
  * stops at `maxBytes`, and `tables rows search`, whose match list the server
@@ -352,8 +476,17 @@ function truncationFlags(container: unknown): string[] {
  * the rows, and a row's keys are the user's rather than the API's, so a shape
  * match there is a guess about a name somebody else chose.
  */
-function responseTruncationFlags(envelope: unknown): string[] {
-  return [...truncationFlags(envelope), ...truncationFlags(at(envelope, 'data'))]
+function truncationNotices(envelope: unknown): ResultNotice[] {
+  return [
+    ...Object.entries(truncationMetadata(envelope)),
+    ...Object.entries(truncationMetadata(at(envelope, 'data'))),
+  ].map(([flag, value]) => ({ field: flag, value, before: value ? [truncationLine(flag)] : [] }))
+}
+
+function truncationLine(flag: string): string {
+  return styles().dim(
+    `${spellOut(flag)}: the server clipped ${clippedSubject(flag)}, so the answer is incomplete`
+  )
 }
 
 /**
@@ -399,24 +532,20 @@ function clippedSubject(flag: string): string {
   return subject ? `the ${spellOut(subject)} it returned` : 'this result'
 }
 
-/**
- * States a server-side clip once, on stderr, in every format.
- *
- * The API answers a clipped inventory with a flag on the envelope. It is
- * separate from pagination: a null nextCursor does not establish whether the
- * server clipped fields within the returned rows.
- */
-function writeEnvelopeTruncation(envelope: unknown): void {
-  for (const flag of responseTruncationFlags(envelope)) {
-    writeStderr(
-      styles().dim(
-        `${spellOut(flag)}: the server clipped ${clippedSubject(flag)}, so the answer is incomplete\n`
-      )
-    )
-  }
+/** A result whose `next` a person reads: its command, then why ({@link nextStepText}). */
+function withNextText(data: unknown): unknown {
+  if (!isRecordLike(data)) return data
+  const step = nextStepText(data.next)
+  return step === null ? data : { ...data, next: step }
 }
 
-/** Renders one non-paginated operation result according to its CLI contract. */
+/**
+ * Renders one non-paginated operation result according to its CLI contract.
+ *
+ * What the CLI states beside the API's data is placed by {@link placeNotices}: a truncation the
+ * response states (on the envelope `execute` unwraps, or in the payload; a null nextCursor says
+ * nothing about a clip), and `options.warnings` and `options.note` as one `note`.
+ */
 export function renderResult(
   operation: V2OperationName,
   format: OutputFormat,
@@ -425,19 +554,41 @@ export function renderResult(
   options: RenderResultOptions = {},
   envelope?: unknown
 ): void {
-  // Before any branch: the flag lives on the envelope `execute` unwraps one
-  // line before rendering, and states a fact about the payload below it.
-  writeEnvelopeTruncation(envelope)
+  const placed = placeNotices(
+    format,
+    raw,
+    [...noteNotice(options), ...truncationNotices(envelope)],
+    spec.document
+  )
+  writeLeadingNotices(placed, options)
+  printResult(operation, format, placed.result, spec, options)
+  writeNoticeLines(placed.after)
+  options.warningsDelivered?.()
+}
 
+function printResult(
+  operation: V2OperationName,
+  format: OutputFormat,
+  raw: unknown,
+  spec: CommandSpec,
+  options: RenderResultOptions
+): void {
   if (spec.document) {
     printDocument(format, raw)
     return
   }
 
   // The single-key unwrap exists for the human table: `{ mcpServer: {...} }` rendered as-is
-  // printed nothing. Machine formats print the API's data verbatim, so `--output json`
-  // matches the OpenAPI shape the docs and the agent reference card are generated from.
-  const data = format === 'json' || format === 'yaml' ? raw : unwrapResource(raw)
+  // printed nothing. Machine formats print the API's data as the OpenAPI shape the docs and the
+  // agent reference card are generated from, except a lint report's graph facts, plus the fields
+  // the CLI adds for a run or deploy: `live`, and `next` with `{ command, reason }` (a person
+  // reads it as the command, then why), and a result's `note` ({@link renderResult}).
+  const machine = isMachineFormat(format)
+  const added = withRunNext(
+    operation,
+    withDeploymentLive(operation, withLintFindingsOnly(machine ? raw : unwrapResource(raw)))
+  )
+  const data = machine ? added : withNextText(added)
   if (spec.itemsPath) {
     const items = at(data, spec.itemsPath)
     if (!Array.isArray(items)) {
@@ -467,7 +618,7 @@ export function renderResult(
       ? inferredFields(data, spec.dataKeys === true)
       : []
 
-  printRecord(format, fields, data)
+  printRecord(format, fields, data, RUN_COMMAND_FIELDS)
   if (spec.expandedTrace && options.expandedTrace) {
     const traceSpans = at(data, 'traceSpans')
     if (!Array.isArray(traceSpans)) {

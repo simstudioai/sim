@@ -50,6 +50,7 @@ export const getSurveyTool: ToolConfig<PostHogGetSurveyParams, PostHogGetSurveyR
   name: 'PostHog Get Survey',
   description: 'Get details of a specific survey in PostHog by ID.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

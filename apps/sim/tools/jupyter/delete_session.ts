@@ -13,6 +13,7 @@ export const jupyterDeleteSessionTool: InternalToolConfig<
   name: 'Jupyter Delete Session',
   description: 'Delete a session and shut down its associated kernel on a Jupyter server',
   version: '1.0.0',
+  effect: 'write',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

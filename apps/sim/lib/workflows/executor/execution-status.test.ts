@@ -41,6 +41,7 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
       executionData: {},
       blockOutputs: new Map(),
+      placeholderBlockIds: new Set(),
     })
   })
 
@@ -69,6 +70,7 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValueOnce({
       executionData: { finalOutput: { token: '[REDACTED]' } },
       blockOutputs: new Map([['block-1', { token: '[REDACTED]' }]]),
+      placeholderBlockIds: new Set(),
     })
     const status = await getWorkflowExecutionStatus({
       ...input,
@@ -442,6 +444,7 @@ describe('getWorkflowExecutionStatus settled resume attempts', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockImplementation(async (executionData) => ({
       executionData,
       blockOutputs: new Map(),
+      placeholderBlockIds: new Set(),
     }))
   })
 
@@ -643,6 +646,7 @@ describe('getWorkflowExecutionStatus polls that read no execution data', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
       executionData: {},
       blockOutputs: new Map([['block-1', { content: 'partial' }]]),
+      placeholderBlockIds: new Set(),
     })
 
     await expect(
@@ -725,6 +729,7 @@ describe('getWorkflowExecutionStatus once a pause has settled', () => {
         ],
       },
       blockOutputs: new Map(),
+      placeholderBlockIds: new Set(),
     })
   })
 
@@ -777,6 +782,34 @@ describe('getWorkflowExecutionStatus once a pause has settled', () => {
         resumeAt: waiting.resumeAt,
       },
     })
+  })
+
+  it.each([
+    [
+      'the message an error finalization recorded',
+      {
+        finalizationPath: 'force_failed',
+        completionFailure: 'Lookup: upstream returned 500',
+        finalOutput: { error: 'Lookup: upstream returned 500' },
+      },
+      'Lookup: upstream returned 500',
+    ],
+    [
+      "no error from a workflow output's own error field",
+      { finalizationPath: 'completed', finalOutput: { error: 'no matching customer' } },
+      null,
+    ],
+  ])('reports as a failed run its error %s', async (_, recorded, error) => {
+    queueFailedRunWithOpenPause({ 'wait-five': FAILED_TIME_POINT })
+    mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
+      executionData: { ...recorded, traceSpans: [] },
+      blockOutputs: new Map(),
+      placeholderBlockIds: new Set(),
+    })
+
+    const projected = await getProjectedWorkflowExecutionStatus(input)
+
+    expect(projected?.status).toMatchObject({ status: 'failed', error })
   })
 })
 

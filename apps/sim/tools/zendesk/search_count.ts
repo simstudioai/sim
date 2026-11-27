@@ -30,6 +30,7 @@ export const zendeskSearchCountTool: ToolConfig<
   name: 'Count Search Results in Zendesk',
   description: 'Count the number of search results matching a query in Zendesk',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

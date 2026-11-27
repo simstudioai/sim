@@ -15,6 +15,7 @@ export const rootlyListIncidentEventsTool: ToolConfig<
   name: 'Rootly List Incident Events',
   description: 'List the timeline events for a Rootly incident.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

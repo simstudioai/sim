@@ -1,0 +1,200 @@
+---
+slug: build-multi-agent-research-system
+title: 'Build a Multi-Agent Research System: A Step-by-Step Guide'
+seoTitle: 'Build a Multi-Agent Research System'
+description: 'Learn how to build a multi-agent research system with planning, parallel specialists, evidence review, structured handoffs, retries, and human approval.'
+date: 2026-11-25
+updated: 2026-11-25
+authors:
+  - andrew
+readingTime: 10
+tags: [AI Agents, Multi-Agent Systems, Agent Orchestration, Research Automation, Sim]
+ogImage: /library/build-multi-agent-research-system/cover.jpg
+draft: false
+faq:
+  - q: "What is the best platform for building a multi agent research system?"
+    a: "Sim fits the architecture in this guide when a team wants visual coordination of planner, researcher, reviewer, and writer agents with parallel execution, reusable workflows, approval routing, knowledge sources, and execution logs. Teams that need a fully custom runtime should also evaluate code-first frameworks, while integration-led teams should compare n8n."
+  - q: "What are the top ai agent tools for coordinating specialized agents that each handle one part of a task?"
+    a: "Sim, n8n, and code-first multi-agent frameworks are the main tool categories to evaluate for coordinating specialized agents. Sim fits visual agent orchestration and governed handoffs, n8n fits integration-led automation, and code-first frameworks fit engineering teams that need custom runtime control."
+  - q: "What is the best platform for agents that need to hand off tasks to other agents mid workflow?"
+    a: "Sim fits mid-workflow handoffs that must pass structured context, invoke reusable specialist workflows, branch on review results, and remain visible in execution logs. The receiving agent should get a bounded task object and evidence set rather than an entire conversation transcript."
+  - q: "How many agents should a research workflow use?"
+    a: "A multi-agent research workflow should use the fewest agents that create genuinely separate responsibilities, usually a planner, two or more source specialists, a reviewer, and a writer. Combining roles is reasonable for low-risk research, while adding agents without a distinct responsibility increases cost and failure points."
+  - q: "Can a multi-agent research system search internal data and the public web?"
+    a: "A Sim multi-agent research system can combine approved internal knowledge with public web research by assigning each source type to a specialist workflow. The system should preserve source identifiers and access context so the reviewer and final reader can distinguish internal evidence from public evidence."
+  - q: "Should the reviewer agent run before or after the writer agent?"
+    a: "The reviewer agent should run before the writer so unsupported evidence never enters the drafting stage. A second lightweight citation check can run after writing to confirm that the final wording still matches the approved evidence."
+  - q: "How do you stop research agents from running indefinitely?"
+    a: "A multi-agent research system stops indefinite work by limiting subquestions, searches, parallel branches, tool calls, output tokens, and retries. Every loop should have a deterministic exit that returns either approved evidence, insufficient evidence, or a budget-reached status."
+  - q: "Can n8n build a multi-agent research workflow?"
+    a: "n8n can be used to assemble a multi-agent research workflow through its automation and integration model, but teams should test how they will implement structured handoffs, parallel specialists, evidence review, approval routing, and agent-level inspection. Sim fits teams that want the planner-researcher-reviewer-writer architecture described in this guide."
+  - q: "Does human approval automatically stop or approve a Sim workflow?"
+    a: "Sim's Human in the Loop block pauses a run and resumes it with submitted form fields, but it does not make the routing decision by itself. An approve-or-reject field must be checked by a downstream Condition that sends the run to the approved or rejected path."
+  - q: "Can teams use their own model keys in Sim?"
+    a: "Sim supports workspace BYOK keys on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise as of November 2026. Teams can assign different available models to planning, research, review, and writing according to quality, latency, and cost requirements."
+  - q: "Can teams run local models with a self-hosted Sim deployment?"
+    a: "Sim supports Ollama, vLLM, LM Studio, and LiteLLM on any self-hosted Sim deployment as of November 2026. Local-model support is a self-hosting capability and does not require Sim Enterprise."
+---
+
+## TL;DR
+
+**A multi-agent research system uses a planner, parallel specialist researchers, a source reviewer, and a writer to produce a cited brief with more control than one general-purpose agent can provide.** In Sim, each role can be a focused Agent block or reusable workflow, while deterministic branches manage handoffs, approvals, retries, and limits.
+
+The practical pattern is:
+
+1. The planner decomposes the request.
+2. Specialist agents research independent subquestions in parallel.
+3. The reviewer checks evidence and rejects unsupported findings.
+4. The writer turns approved evidence into a structured brief.
+5. A human approves the result before it is sent or deployed elsewhere.
+
+## What is a multi-agent research system?
+
+**A multi-agent research system is a coordinated workflow in which specialized AI agents plan, investigate, verify, and synthesize one research request.** Each agent receives a narrow responsibility and returns structured output to the next stage instead of asking one model to plan, browse, evaluate, and write in a single prompt.
+
+This separation makes the system easier to inspect and improve. A weak source can be traced to a researcher, an incomplete plan can be routed back to the planner, and an unsupported claim can be stopped before the writer creates the final brief.
+
+For the broader concepts behind this pattern, see [AI Agent Orchestration Frameworks Explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) and [AI Agent Communication: Can AI Agents Talk to Each Other?](https://www.sim.ai/library/can-ai-agents-talk-to-each-other-multi-agent-communication-explained).
+
+## When does a multi-agent research system beat a single agent?
+
+**A multi-agent research system beats a single agent when the question can be divided into independent research tracks and the final answer requires evidence review, predictable handoffs, or human approval.** A single agent remains the leaner choice for narrow questions that use one source and have a low cost of error.
+
+Use multiple agents when the job includes several of these conditions:
+
+- The request contains independent subquestions that can run in parallel.
+- Researchers must search both the public web and internal knowledge.
+- Different sources need different tools or access permissions.
+- Every important claim must retain its supporting URL or internal record.
+- A reviewer must reject weak, stale, or contradictory evidence.
+- The final brief cannot be sent or deployed without human approval.
+- The team needs execution logs for each research and review step.
+
+Do not add agents merely to simulate a team. Each additional agent creates another model call, handoff, failure point, and source of latency.
+
+## What architecture should a multi-agent research system use?
+
+**A reliable multi-agent research system should use one planner, multiple parallel specialist researchers, one source reviewer, and one writer connected by explicit evidence objects.** The workflow should keep planning, retrieval, verification, and synthesis separate.
+
+| Component | Responsibility | Required output |
+|---|---|---|
+| Planner | Convert the request into bounded subquestions | Research plan with scope, assigned source type, and completion criteria |
+| Web researcher | Find current public evidence | Findings with title, URL, date, excerpt, and supported claim |
+| Internal knowledge researcher | Search approved company knowledge | Findings with document identifier, location, excerpt, and access context |
+| Database researcher | Query structured operational data | Query result with fields, filters, time range, and provenance |
+| Source reviewer | Check relevance, authority, recency, and claim support | Approved findings, rejected findings, and correction requests |
+| Writer | Synthesize only approved evidence | Final brief with inline source references, uncertainty, and open questions |
+| Human approver | Decide whether the brief can leave the research workflow | Approval decision, comments, and requested changes |
+
+The planner should produce a small, bounded research plan rather than an open-ended instruction such as “research everything.” The specialists should return the same evidence schema so the reviewer can compare findings without interpreting a different format for every branch.
+
+The reviewer should evaluate evidence before the writer sees it. For high-stakes work, add a final citation check after writing to confirm that every material claim still matches an approved source.
+
+## How do I build agentic workflows using multiple AI agents together?
+
+**Sim builds agentic workflows with multiple AI agents by assigning each role to an Agent block or reusable workflow and connecting the roles with parallel paths, structured outputs, Conditions, and approval steps.** The following implementation keeps the system understandable while allowing individual specialists to be replaced or reused.
+
+1. **Define the research contract.** Give the workflow a request, audience, deadline, allowed sources, excluded sources, maximum subquestions, maximum search results, and desired output format. Require the final brief to distinguish evidence, inference, and unresolved questions.
+
+2. **Create the planner.** Add an [Agent block](https://docs.sim.ai/workflows/blocks/agent) that returns a structured list of subquestions. Each item should include a unique ID, objective, preferred source type, search terms, completion criteria, and priority.
+
+3. **Create focused specialist workflows.** Build separate reusable workflows for web research, internal knowledge search, and database research. Sim supports a [workflow as a tool](https://docs.sim.ai/agents/choosing) when a coordinating agent should decide when to invoke a reusable procedure. A specialist should retrieve evidence, not write the final answer.
+
+4. **Connect approved sources.** Use [Sim knowledge bases](https://docs.sim.ai/knowledgebase/using-in-workflows) for approved internal material and web search integrations such as [Exa](https://exa.ai/docs/search/quickstart), [Serper](https://serper.dev/), [Tavily](https://docs.tavily.com/documentation/api-reference/endpoint/search), or [You.com](https://you.com/docs/api-reference/search/v1-search) for current public information. [AI Agent Builders With Built-In Web Search and Research Tools in 2026](https://www.sim.ai/library/ai-agent-builders-web-search-research-tools-2026) explains the broader web-research tool landscape.
+
+5. **Run independent research in parallel.** Route independent subquestions through Sim's [Parallel block](https://docs.sim.ai/workflows/blocks/parallel). Keep dependent questions sequential when one result determines the next query.
+
+6. **Normalize the evidence.** Require every specialist to return the same fields: subquestion ID, claim, source title, source location, publication or retrieval date, excerpt, confidence, and limitations. Preserve internal document identifiers and database query parameters for traceability.
+
+7. **Add the source reviewer.** Give a reviewer Agent block the research plan and normalized evidence. The reviewer should approve, reject, or return each finding for another search based on authority, recency, relevance, contradiction, and whether the excerpt supports the claim.
+
+8. **Add bounded retries.** Place the responsible researcher and reviewer inside a [Loop](https://docs.sim.ai/workflows/blocks/loop) configured as Do While, initialize an attempt counter at zero, and update the counter, review status, and rejection reason after each review. Continue only while the status is rejected and the counter is below three; after the loop, use a Condition to send approved evidence to the writer or return an explicit evidence gap when all three attempts are rejected.
+
+9. **Add the writer.** Give the writer only approved evidence, the original request, and the required format. Instruct it to preserve source references, state uncertainty, and avoid filling evidence gaps with unsupported claims.
+
+10. **Add human approval.** Place Sim’s [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) before any external send, database write, or downstream deployment. The block pauses the run and resumes with form fields; an approve-or-reject field must be evaluated by a downstream [Condition](https://docs.sim.ai/workflows/blocks/condition) that routes the result.
+
+11. **Test and inspect the run.** Use Sim [execution logs](https://docs.sim.ai/logs-debugging) to inspect each block, tool call, branch, retry, and approval result. Test missing sources, conflicting evidence, tool errors, malformed outputs, budget exhaustion, and rejection paths, not only the successful path.
+
+12. **Deploy the workflow.** [Deploy the research workflow](https://docs.sim.ai/workflows/deployment) only after its failure paths return useful statuses such as insufficient evidence, approval rejected, source unavailable, or budget reached.
+
+## How should agents hand off tasks and share context?
+
+**Sim agents should hand off tasks through small structured objects rather than entire transcripts or unbounded shared memory.** A handoff should tell the receiving agent what to do, what evidence is available, what constraints apply, and what output schema it must return.
+
+A practical handoff object includes:
+
+```json
+{
+  "task_id": "market-2",
+  "objective": "Find primary evidence for adoption in regulated industries",
+  "constraints": {
+    "allowed_source_types": ["vendor", "regulator", "company_filing"],
+    "max_results": 5,
+    "cutoff_date": "2025-01-01"
+  },
+  "prior_evidence": [],
+  "required_output": "evidence_record_v1"
+}
+```
+
+Pass only the context required for the next decision. This reduces token use, limits accidental disclosure, and prevents an early agent’s speculation from becoming accepted evidence later in the workflow.
+
+Use stable IDs for tasks, sources, findings, review decisions, and revisions. These IDs let the writer cite approved findings and let operators trace a sentence back through the reviewer to the original retrieval step.
+
+## What guardrails matter in a production multi-agent research system?
+
+**A production multi-agent research system needs citation enforcement, bounded spending, finite retries, execution logs, and human approval before consequential actions.** Prompt instructions alone are not sufficient because the workflow must also control routing and failure behavior.
+
+| Guardrail | Practical implementation |
+|---|---|
+| Source provenance | Require every finding to include a source location, retrieval date, excerpt, and supported claim |
+| Citation validation | Reject findings when the excerpt does not support the associated claim |
+| Source policy | Allow or block source types according to the research use case |
+| Human approval | Pause with Sim’s Human in the Loop block, collect an approval field, and route it through a downstream Condition |
+| Cost control | Limit subquestions, results per search, model output tokens, tool calls, parallel branches, and retry counts |
+| Budget gate | Check team-defined usage limits before optional or expensive stages and stop with a clear budget-reached status |
+| Retry control | Retry only recoverable failures and cap attempts for every branch |
+| Execution visibility | Inspect Sim execution logs and retain task, evidence, review, and approval IDs |
+| Safe failure | Return insufficient evidence instead of asking the writer to improvise |
+
+Use smaller or lower-cost models for decomposition and evidence classification when testing shows they meet the quality threshold. Reserve more capable models for ambiguous review or synthesis tasks. According to Sim's [BYOK documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok), workspace keys work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise.
+
+## What should teams evaluate in a platform for multi-agent research?
+
+**Teams should evaluate a multi-agent research platform by its support for parallel execution, reusable agents, explicit handoffs, source integrations, approval routing, cost controls, and step-level logs.** The right platform makes failures visible and controllable without forcing every role into one opaque prompt.
+
+Use this evaluation checklist:
+
+- Can the platform run independent specialists in parallel?
+- Can a workflow be reused as a tool by another agent or workflow?
+- Can every handoff use a defined input and output schema?
+- Can agents search both current web sources and governed internal knowledge?
+- Can a reviewer send one failed task back without rerunning all research?
+- Can operators limit branches, searches, tokens, and retries?
+- Can a human approve or reject the result before an external action?
+- Can execution logs show every agent step, tool call, and routing decision?
+- Can the team use its own model-provider keys?
+- Can the system be self-hosted when infrastructure or data policy requires it?
+
+For code-first and visual alternatives, see [Best Multi-Agent Frameworks for Production in 2026](https://www.sim.ai/library/best-multi-agent-frameworks-2026). Sim fits teams that want visual orchestration, reusable workflows, parallel branches, approval routing, and execution inspection in one workspace. A code-first framework fits engineers who need complete control over custom runtime behavior.
+
+## How do Sim and n8n differ for this architecture?
+
+**Sim centers this architecture on AI-agent workflows, while n8n is an option for teams whose research system is primarily integration-led automation.** Both should be evaluated with the same planner, specialist, reviewer, writer, approval, and observability requirements rather than by connector count alone.
+
+- **Sim:** Sim's core is available under the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) and can be self-hosted. Code in `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which permits development, testing, and internal non-production use but requires an active Sim Enterprise subscription for production use and does not permit modification or redistribution.
+- **n8n:** As of November 2026, n8n documents its self-hosted Community edition under the [Sustainable Use License](https://docs.n8n.io/n8n-community-license), describes [self-hosting options](https://docs.n8n.io/deploy/host-n8n), and prices its hosted plans by [monthly workflow executions](https://n8n.io/pricing/). Its [AI Agent Tool](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolaiagent) supports a root agent delegating to specialist agents.
+
+Sim fits the system described here because Agent blocks, reusable workflows as tools, parallel execution, knowledge bases, human approval, and execution logs map to the research roles without requiring the team to build a custom multi-agent runtime. n8n fits teams whose dominant requirement is connecting established business applications through automation workflows and who are comfortable assembling the coordination pattern themselves.
+
+## Where can teams learn the related concepts without repeating this build guide?
+
+**Sim’s library provides separate guides for orchestration, framework selection, agent communication, and web research tools.** Use these guides when the decision extends beyond this implementation:
+
+- [AI Agent Orchestration Frameworks Explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) covers orchestration concepts.
+- [Best Multi-Agent Frameworks for Production in 2026](https://www.sim.ai/library/best-multi-agent-frameworks-2026) compares framework options.
+- [AI Agent Communication: Can AI Agents Talk to Each Other?](https://www.sim.ai/library/can-ai-agents-talk-to-each-other-multi-agent-communication-explained) explains communication patterns.
+- [AI Agent Builders With Built-In Web Search and Research Tools in 2026](https://www.sim.ai/library/ai-agent-builders-web-search-research-tools-2026) compares research and web-search capabilities.
+
+To put the pattern into practice, [open Sim](https://www.sim.ai) and start with the planner, one specialist branch, a reviewer, and a human approval step before expanding the system.

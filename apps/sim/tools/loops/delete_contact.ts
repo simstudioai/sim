@@ -11,6 +11,7 @@ export const loopsDeleteContactTool: ToolConfig<
   description:
     'Delete a contact from Loops by email address or userId. At least one identifier must be provided.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {

@@ -16,6 +16,7 @@ export const listWarehousesTool: ToolConfig<
   description:
     'List a page of SQL warehouses in a Databricks workspace including their size, state, and type. Use this to discover the warehouse ID needed for Execute SQL.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

@@ -17,6 +17,7 @@ export const createTaskTool: ToolConfig<
   name: 'Create Microsoft Planner Task',
   description: 'Create a new task in Microsoft Planner',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

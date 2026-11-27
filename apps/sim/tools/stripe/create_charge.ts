@@ -20,6 +20,7 @@ export const stripeCreateChargeTool: ToolConfig<
   name: 'Stripe Create Charge',
   description: 'Create a new charge to process a payment',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

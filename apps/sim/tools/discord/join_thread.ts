@@ -9,6 +9,7 @@ export const discordJoinThreadTool: ToolConfig<DiscordJoinThreadParams, DiscordJ
     name: 'Discord Join Thread',
     description: 'Join a thread in Discord',
     version: '1.0.0',
+    effect: 'write',
     oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {

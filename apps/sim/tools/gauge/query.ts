@@ -35,6 +35,7 @@ export const gaugeQueryTool: ToolConfig<GaugeQueryParams, GaugeQueryResponse> = 
   description:
     'Run a report on AI answers, citations, search queries, or AI bot traffic using metrics from the query catalog.',
   version: '1.0.0',
+  effect: 'read',
   oauth: gaugeOAuth,
   params: {
     ...gaugeAuthParams,

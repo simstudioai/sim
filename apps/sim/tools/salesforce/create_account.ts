@@ -14,6 +14,7 @@ export const salesforceCreateAccountTool: ToolConfig<
   name: 'Create Account in Salesforce',
   description: 'Create a new account in Salesforce CRM',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -16,6 +16,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
   name: 'LangSmith Create Feedback',
   description: 'Attach a score, correction, or comment to a LangSmith run.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     region: LANGSMITH_REGIONS.param,

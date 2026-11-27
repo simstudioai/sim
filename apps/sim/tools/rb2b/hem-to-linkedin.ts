@@ -9,6 +9,7 @@ export const rb2bHemToLinkedinTool: ToolConfig<Rb2bIdentifierParams, Rb2bLinkedi
   description:
     'Return the LinkedIn slug (the profile identifier portion of the URL) for an email address or MD5-hashed email.',
   version: '1.0.0',
+  effect: 'read',
   oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {

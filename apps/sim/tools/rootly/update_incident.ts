@@ -12,6 +12,7 @@ export const rootlyUpdateIncidentTool: ToolConfig<
   name: 'Rootly Update Incident',
   description: 'Update an existing incident in Rootly (status, severity, summary, etc.).',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

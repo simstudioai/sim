@@ -46,6 +46,7 @@ export const updateShapePropertiesTool: ToolConfig<
   description:
     "Update a shape's appearance — background fill color, outline, link, content alignment, autofit. Pass only the properties you want to change.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

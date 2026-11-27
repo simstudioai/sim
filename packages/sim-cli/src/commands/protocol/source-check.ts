@@ -10,13 +10,19 @@ import { collectStringLeaves, findWorkflowReferenceTokens } from '@sim/utils/wor
 import {
   type BlockCatalog,
   type CanonicalWorkflow,
+  type ChildResultNode,
+  type ChildResults,
+  type CompileInput,
+  calledWorkflowKey,
   catalogBlock,
   codeFrame,
   codePointLabel,
+  compiledResultNode,
   compileWorkflow,
   didYouMean,
   EDIT_REFUSALS,
   encodeAnchor,
+  folderCompileInput,
   formatStoredPath,
   getOwn,
   parseJsonField,
@@ -26,6 +32,7 @@ import {
   raisedMessage,
   refuseEditedFindings,
   refusesEdited,
+  resolveChildResults,
   respondsOnEveryRun,
   scriptName,
   startInputs,
@@ -37,26 +44,40 @@ import { SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS } from '@sim/workspace-code'
 import { KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import type { Command } from 'commander'
+import { isMachineFormat } from '../../config/index'
 import { setSoftExitCode } from '../../embed-context'
+import { printError } from '../../output/io'
 import { SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
-import { digest, readFolderWritten, readSourceText } from './source-dir'
+import {
+  digest,
+  readFolderWritten,
+  readSourceText,
+  unchangedTexts,
+  type Written,
+  workspaceFolderOf,
+} from './source-dir'
+import { primerSurface } from './source-primer'
 import { STRICT_FINDINGS } from './source-strict'
 import {
   cachedCatalog,
   cachedSourceCatalog,
   type LocalDeclarations,
   refreshTsconfigs,
+  refreshWorkspaceTypes,
+  workspaceTypesText,
 } from './source-tree'
-import { type Diagnostic, findingsOutput } from './source-ui'
-import { blockDigest, readStoredBlockDigests, readStoredEdges } from './stored-edges'
-import { lockRecoveryHint, readSourceFiles } from './workflow-dir'
+import { type TypeCheck, typeCheck } from './source-types'
+import { type Diagnostic, findingLine, findingsOutput } from './source-ui'
+import { blockDigest, compiledWithChildResults, readStoredRecord } from './stored-edges'
+import { lockRecoveryHint, readSourceFiles, resourceNodes } from './workflow-dir'
 import {
   type DeclaredColumn,
   kindFolders,
   readWorkspaceDeclarations,
   WORKSPACE_TREE,
   type WorkspaceDeclarations,
+  writtenLocalDeclarations,
 } from './workspace-source-dir'
 
 /**
@@ -80,10 +101,14 @@ const STRICT_CODES: ReadonlySet<string> = new Set(STRICT_FINDINGS.keys())
 const STORED_EXEMPT_CODES: ReadonlySet<string> = new Set(['W_BRANCH_UNWIRED'])
 
 /**
- * Warnings a check reports only on a block the lock does not bind (one added since the get), and
- * on every block with `--strict`: printed source holds them on blocks nobody edited, and the
- * server, which compares with the stored workflow, already reports them only for an edited field.
- * `W_JSON_REF_UNTYPED`: a bare reference nothing types, in a JSON field.
+ * Warnings a check reports, as the server does, only on a JSON field the edit made store a
+ * reference anew: the compile reads what the source the last get or apply printed held from
+ * `.sim/stored-edges.json`. A field counts when its text differs from what it held, through the
+ * lock's renames, or when the reference was typed then, as when an edit elsewhere (a Start input,
+ * a Function's code) changes how it is typed. Without that record, or the catalog the source was
+ * printed with, they are reported only on a block the edit added or changed (see `changed` in
+ * {@link checkWorkflowDir}); with `--strict`, on every block. `W_JSON_REF_UNTYPED`: a bare
+ * reference nothing types, in a JSON field.
  */
 const EDIT_SCOPED_CODES: ReadonlySet<string> = new Set(['W_JSON_REF_UNTYPED'])
 
@@ -116,9 +141,13 @@ const REFUSAL_WHERE: Record<(typeof EDIT_REFUSALS)[number]['where'], string> = {
   'edited code file': 'in a function file changed since the get',
 }
 
-/** Help shared by both check commands: what fails, and the strict flags. */
-export const STRICT_HELP = `Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or
-no cached catalog (run the get once). With --output json, stdout is one document that also lists
+/**
+ * Help shared by both check commands: what fails, and the strict flags. `noCatalog` says what a
+ * check with no cached block catalog does, which differs by kind.
+ */
+export function strictHelp(noCatalog: string): string {
+  return `Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or
+${noCatalog}. With --output json, stdout is one document that also lists
 every finding under diagnostics.
 
 These warnings, which an apply saves as written, fail the check as errors on every block the lock
@@ -127,8 +156,8 @@ ${[...STRICT_CODES].map((code) => `  ${code}`).join(',\n')}.
 --strict fails on them in every block, except ${[...STORED_EXEMPT_CODES].join(', ')} on a block the
 lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails
 on none of them. In every mode, as the server refuses them: ${EDIT_REFUSALS.map(
-  ({ warning, refusal, where }) => `${warning} is the error ${refusal} ${REFUSAL_WHERE[where]}`
-).join('; ')}. A block counts as changed when the lock does not bind it, when the source moved it
+    ({ warning, refusal, where }) => `${warning} is the error ${refusal} ${REFUSAL_WHERE[where]}`
+  ).join('; ')}. A block counts as changed when the lock does not bind it, when the source moved it
 into another container, or when it compiles differently than in the source the last get or
 apply printed (.sim/stored-edges.json records a digest of each block). That last comparison
 needs the catalog the source was printed with in the cache: without it, a bound block that did
@@ -136,8 +165,12 @@ not move counts as unchanged, so the server may refuse what the check passes. A 
 function file to a block the lock binds that the source no longer declares stays a warning, unless
 a warning cap left findings out: the server may infer that block was renamed and rewrite the
 reference, and refuses it otherwise.
-${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not bind, and with
---strict on every block.`
+${[...EDIT_SCOPED_CODES].join(', ')} is reported, as the server reports it, only on a field the
+edit made store the reference anew: one whose text differs from what the printed source stored,
+through block renames, or where the reference was typed then, as when an edit elsewhere (a Start
+input, a Function's code) changes its type. Without the record or that catalog, it is reported on
+every block the edit added or changed; with --strict, on every block.`
+}
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
 export function strictFlags(command: Command): Command {
@@ -163,7 +196,7 @@ function workflowEntry(key: string): string {
  * Points the workspace directory's tsconfig files at the blocks its workflows now use, keeping the
  * blocks they include.
  */
-export async function refreshWorkspaceTsconfigs(root: string, workspaceId: string): Promise<void> {
+async function refreshWorkspaceTsconfigs(root: string, workspaceId: string): Promise<void> {
   const keys = await workspaceWorkflowKeys(root)
   const sources = await Promise.all(keys.map((key) => readSourceText(root, workflowEntry(key))))
   await refreshTsconfigs(
@@ -173,22 +206,6 @@ export async function refreshWorkspaceTsconfigs(root: string, workspaceId: strin
     { sources: sources.filter((text) => text !== null) },
     { incremental: true }
   )
-}
-
-/** A canonical resource node: what `table('k')`, `credential('k')` and the like compile to. */
-function resourceNode(value: unknown): { kind: string; key: string } | null {
-  if (!isRecordLike(value) || value.$sim !== 'resource') return null
-  const { kind, key } = value
-  return typeof kind === 'string' && typeof key === 'string' ? { kind, key } : null
-}
-
-/** Every resource node inside a value, depth first. */
-function resourceNodes(value: unknown): Array<{ kind: string; key: string }> {
-  const node = resourceNode(value)
-  if (node) return [node]
-  if (Array.isArray(value)) return value.flatMap(resourceNodes)
-  if (isRecordLike(value)) return Object.values(value).flatMap(resourceNodes)
-  return []
 }
 
 /**
@@ -239,13 +256,6 @@ function inputMappingOf(canonical: CanonicalWorkflow['blocks'][string]): Record<
   if (mapping?.kind !== 'value') return {}
   const value = rowJson(mapping.value)
   return toRecord(value)
-}
-
-/** The workflow a child workflow call names by key, or `null` for an id, a reference or none. */
-function calledWorkflowKey(canonical: CanonicalWorkflow['blocks'][string]): string | null {
-  const ref = canonical.params.workflowId
-  const child = ref?.kind === 'value' ? resourceNode(ref.value) : null
-  return child?.kind === 'workflow' ? child.key : null
 }
 
 /**
@@ -448,80 +458,121 @@ function declarationFindings(
 /**
  * Compiles the workflow source directory `dir` against the catalog its base names when that one is
  * cached (a workflow holding a type the workspace catalog lacks was printed with its own), else
- * `catalog`, checking env names against the names `secrets.ts` declares when `declarations` hold
- * them.
+ * `catalog`, checking env names against `envNames` (what `secrets.ts` declares) when given. Its
+ * calls are untyped: {@link compiledWithChildResults} types them.
  */
-async function compileWorkflowDir(
+export async function compileWorkflowDir(
   dir: string,
   workspaceCatalog: BlockCatalog,
-  declarations?: WorkspaceDeclarations
+  envNames?: ReadonlySet<string>,
+  { everyUntypedRef = false }: { everyUntypedRef?: boolean } = {}
 ) {
   const lockText = await readSourceText(dir, SOURCE_LOCK_FILE)
   const parsedLock = lockText === null ? null : parseWorkflowLock(lockText)
   const lock = parsedLock?.lock
-  const [files, storedEdges, storedBlocks, printedWith] = await Promise.all([
+  const [files, stored, printedWith] = await Promise.all([
     readSourceFiles(dir, lock ?? null),
-    readStoredEdges(dir),
-    readStoredBlockDigests(dir),
+    readStoredRecord(dir),
     cachedSourceCatalog(dir),
   ])
+  const {
+    edges: storedEdges,
+    blockDigests: storedBlocks,
+    untypedJsonFields: storedUntypedFields,
+  } = stored
   const catalog = printedWith ?? workspaceCatalog
-  const envNames = declarations?.envNames
-  const compiled = compileWorkflow({
-    entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
-    files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
-    catalog,
-    sdkMajor: catalog.sdkMajor,
-    knownKeys: new Set(Object.keys(lock?.blocks ?? {})),
-    storedUnread: lock ?? undefined,
+  // Compiled against another catalog than the source was printed with, a field may store a
+  // reference differently with no edit, so the record says nothing of what the edit changed.
+  const untypedFields = printedWith && !everyUntypedRef ? storedUntypedFields : undefined
+  const input: CompileInput = {
+    ...folderCompileInput(files[SOURCE_ENTRY_FILE], files, lock, catalog),
     ...(storedEdges ? { storedUnreadEdges: storedEdges } : {}),
+    ...(untypedFields ? { storedUnreadUntypedFields: untypedFields } : {}),
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
-  })
+  }
   return {
+    /** Whether the compile reports `W_JSON_REF_UNTYPED` only where a field stores it anew. */
+    untypedScoped: untypedFields !== undefined,
     lock,
     lockProblems: parsedLock?.diagnostics ?? [],
     files,
-    compiled,
+    input,
+    compiled: compileWorkflow(input),
     storedBlocks,
     printedWith,
     catalog,
   }
 }
 
+type CompiledWorkflowDir = Awaited<ReturnType<typeof compileWorkflowDir>>
+
+/** What {@link readCheckDeclarations} reads: the declarations and the compiled workflows' facts. */
+type CheckDeclarations = WorkspaceDeclarations &
+  Awaited<ReturnType<typeof compileWorkspaceWorkflows>>
+
 /**
  * The workspace directory `root`'s declarations, with what a child workflow call is checked
  * against from compiling each of its workflows: the inputs of each workflow that compiles
  * (`startInputs`, `null` without a Start trigger), which `workspace.d.ts` also types
- * `inputMapping` with, and the keys of those that end at a Response block on every run, whose
- * `result` is that block's output.
+ * `inputMapping` with, the keys of those that end at a Response block on every run, whose
+ * `result` is that block's output, and the typed fields of the data each of those responds with,
+ * which type a call's `<call.result.data.<field>>`. Each compile is kept (`compiledWorkflows`, by
+ * key) for {@link checkWorkflowDir}: env names change only its findings, never its blocks.
  */
 export async function readCheckDeclarations(
   root: string,
   catalog: BlockCatalog
-): Promise<WorkspaceDeclarations & Awaited<ReturnType<typeof compileWorkspaceWorkflows>>> {
-  const [declared, workflows] = await Promise.all([
-    readWorkspaceDeclarations(root),
-    compileWorkspaceWorkflows(root, catalog),
-  ])
-  return { ...declared, ...workflows }
+): Promise<CheckDeclarations> {
+  const declared = await readWorkspaceDeclarations(root)
+  return { ...declared, ...(await compileWorkspaceWorkflows(root, catalog, declared.envNames)) }
 }
 
-async function compileWorkspaceWorkflows(root: string, catalog: BlockCatalog) {
+async function compileWorkspaceWorkflows(
+  root: string,
+  catalog: BlockCatalog,
+  envNames?: ReadonlySet<string>
+) {
   const workflowInputs = new Map<string, WorkflowInput[] | null>()
   const respondingWorkflows = new Set<string>()
+  const nodes = new Map<string, ChildResultNode>()
+  const compiledWorkflows = new Map<string, CompiledWorkflowDir>()
   for (const key of await workspaceWorkflowKeys(root)) {
-    const { compiled } = await compileWorkflowDir(join(root, KIND_DIRS.workflow, key), catalog)
-    if (!compiled.workflow) continue
-    workflowInputs.set(key, startInputs(compiled.workflow))
-    if (respondsOnEveryRun(compiled.workflow)) respondingWorkflows.add(key)
+    const dir = await compileWorkflowDir(join(root, KIND_DIRS.workflow, key), catalog, envNames)
+    compiledWorkflows.set(key, dir)
+    const { workflow } = dir.compiled
+    if (!workflow) continue
+    workflowInputs.set(key, startInputs(workflow))
+    if (respondsOnEveryRun(workflow)) respondingWorkflows.add(key)
+    const node = compiledResultNode(dir.input, dir.compiled)
+    if (node) nodes.set(key, node)
   }
-  return { workflowInputs, respondingWorkflows }
+  const childResults = resolveChildResults(nodes)
+  return { workflowInputs, respondingWorkflows, childResults, compiledWorkflows }
+}
+
+/**
+ * The child results that type the calls of a workflow written into `dir`, as a check of it types
+ * them: those of the workspace directory it is a workflow folder of, compiled from disk against
+ * the workspace's cached catalog; `undefined` for a workflow directory of its own, which has none.
+ * `null` when that directory cannot be read (a symbolic link in any of its workflow folders, say):
+ * they only type the folder's stored-edges record, a cache fill, so that record is skipped
+ * ({@link storedEdgesWrite}) and nothing else.
+ */
+export async function folderChildResults(dir: string): Promise<ChildResults | null | undefined> {
+  try {
+    const folder = await workspaceFolderOf(dir)
+    const catalog = folder && cachedCatalog(folder.workspaceId)
+    if (!folder || !catalog) return undefined
+    return (await compileWorkspaceWorkflows(folder.root, catalog)).childResults
+  } catch {
+    return null
+  }
 }
 
 /**
  * The workflows of `local` typed with the inputs each declares (`inputs`), for `workspace.d.ts`.
  */
-export function withWorkflowInputs(
+function withWorkflowInputs(
   local: LocalDeclarations,
   inputs: ReadonlyMap<string, readonly WorkflowInput[] | null>
 ): LocalDeclarations {
@@ -535,6 +586,52 @@ export function withWorkflowInputs(
 }
 
 /**
+ * Type-checks the workspace directory `root` as a check leaves it: regenerates `workspace.d.ts`
+ * from `declarations` and points its tsconfig files at the blocks its workflows use, then runs
+ * {@link typeCheck} against them (`scope` keeps one workflow folder's errors).
+ */
+export async function typeCheckWorkspace(
+  root: string,
+  workspaceId: string,
+  declarations: CheckDeclarations,
+  options: { enabled: boolean; compiled: readonly Diagnostic[]; scope?: string }
+): Promise<TypeCheck> {
+  await refreshWorkspaceTypes(
+    root,
+    withWorkflowInputs(declarations.local, declarations.workflowInputs)
+  )
+  await refreshWorkspaceTsconfigs(root, workspaceId)
+  return typeCheck(root, {
+    ...options,
+    writtenTypes: (written) => writtenWorkspaceTypes(root, declarations.workflowInputs, written),
+  })
+}
+
+/**
+ * `workspace.d.ts` as the last get or apply (`written`) left the workspace directory `root`: the
+ * kept manifest, what the files that write recorded declare, and the `workflowInputs` of each
+ * workflow whose `workflow.ts` is unchanged since. A workflow edited since keeps its stored inputs
+ * (none without a kept manifest), so an error its edit causes in another workflow is not taken
+ * for one that workflow's printed source already had.
+ */
+async function writtenWorkspaceTypes(
+  root: string,
+  workflowInputs: ReadonlyMap<string, readonly WorkflowInput[] | null>,
+  written: Written
+): Promise<string | null> {
+  const unchanged = await unchangedTexts(
+    root,
+    [...workflowInputs.keys()].map(workflowEntry),
+    written.digests
+  )
+  const inputs = new Map([...workflowInputs].filter(([key]) => unchanged.has(workflowEntry(key))))
+  return workspaceTypesText(
+    root,
+    withWorkflowInputs(await writtenLocalDeclarations(root, written), inputs)
+  )
+}
+
+/**
  * Compiles one workflow source directory offline against `catalog`, with the workspace's
  * declarations when the directory sits in a workspace directory, and returns its findings with
  * the {@link STRICT_CODES} the strict mode fails on raised to errors, and the `workflow.ts` text.
@@ -543,10 +640,27 @@ export function withWorkflowInputs(
 export async function checkWorkflowDir(
   dir: string,
   catalog: BlockCatalog,
-  options: { declarations?: WorkspaceDeclarations; strict: StrictMode; prefix?: string }
+  options: {
+    declarations?: CheckDeclarations
+    strict: StrictMode
+    /** The key of the workflow folder `dir` is, whose compile `declarations` hold. */
+    key?: string
+    prefix?: string
+  }
 ): Promise<{ findings: CheckFinding[]; entry: string; unlisted: UnlistedCounts }> {
-  const compiledDir = await compileWorkflowDir(dir, catalog, options.declarations)
-  const { lock, lockProblems, files, compiled, storedBlocks, printedWith } = compiledDir
+  const { declarations } = options
+  const everyUntypedRef = options.strict === 'all'
+  const untyped =
+    (options.key === undefined || everyUntypedRef
+      ? undefined
+      : declarations?.compiledWorkflows.get(options.key)) ??
+    (await compileWorkflowDir(dir, catalog, declarations?.envNames, { everyUntypedRef }))
+  const compiledDir = {
+    ...untyped,
+    compiled: compiledWithChildResults(untyped.input, untyped.compiled, declarations?.childResults),
+  }
+  const { lock, lockProblems, files, compiled, storedBlocks, printedWith, untypedScoped } =
+    compiledDir
   const entryText = files[SOURCE_ENTRY_FILE]
   const locate = (block: string, param: string, names: string | undefined) => {
     const prefix = encodeAnchor({ kind: 'param', block, param: '' })
@@ -621,7 +735,13 @@ export async function checkWorkflowDir(
   const prefix = options.prefix ?? ''
   const reported = (code: string, blockKey: string | undefined) =>
     !SERVER_ONLY_CODES.has(code) &&
-    !(EDIT_SCOPED_CODES.has(code) && options.strict !== 'all' && bound(blockKey))
+    !(
+      EDIT_SCOPED_CODES.has(code) &&
+      options.strict !== 'all' &&
+      !untypedScoped &&
+      blockKey !== undefined &&
+      !changed(blockKey)
+    )
   /**
    * Whether the code `blockKey` runs from `file` changed, as the server compares it: the file's
    * text, or a bound block now pointed at another file whose text differs from what it ran.
@@ -760,7 +880,8 @@ interface UnlistedCounts {
 }
 
 /**
- * Prints a check's findings and result, and exits 1 on any error. The findings are bounded as the
+ * Prints a check's findings and result, and exits 1 on any error. `checked` lists what ran: the
+ * compile, and the type check unless it was skipped or could not run. The findings are bounded as the
  * server bounds an answer of the same source (`bound`, the workflow answer's by default), while
  * `errors` and `warnings` count every one. `verbose` keeps info findings in a machine result.
  */
@@ -774,8 +895,11 @@ export function reportCheck(
     unlisted?: UnlistedCounts
     /** The source directory, which GitHub Actions annotations resolve finding files under. */
     dir?: string
+    /** The type check that ran after the compile, whose findings join the compile's. */
+    types?: TypeCheck
   } = {}
 ): void {
+  findings = [...findings, ...(options.types?.findings ?? [])]
   const shown = findingsOutput(output, options.verbose, options.dir)
   const listed = boundAnswerFindings(findings, options.bound)
   shown.print(listed)
@@ -783,13 +907,21 @@ export function reportCheck(
   const errors = findings.filter((finding) => finding.severity === 'error').length + unlisted.errors
   if (errors > 0) setSoftExitCode(1)
   printProtocolResult(output, {
-    checked: 'compile',
+    checked: options.types?.checked ? ['compile', 'types'] : ['compile'],
     errors,
     warnings:
       findings.filter((finding) => finding.severity === 'warning').length + unlisted.warnings,
     ...result,
     ...shown.result(listed),
   })
+  // A failed check's stderr ends with its first error, so a caller that reads the last stderr
+  // line as the failure reads the mistake, never a notice (the TypeScript install's) or a warning.
+  // A machine result already holds it and stays one document under `2>&1`; only Mothership,
+  // whose shell runs the check with the default JSON output, reads that line beside it.
+  if (isMachineFormat(output) && primerSurface() !== 'chat') return
+  const first = findings.find((finding) => finding.severity === 'error')
+  if (first) printError(`Error: ${findingLine(first)}`)
+  else if (errors > 0) printError(`Error: ${errors} errors past the findings a check lists.`)
 }
 
 /** The catalog a cache read found, or a refusal naming `get`, the command that caches one. */
@@ -803,9 +935,4 @@ export function cachedOrRefuse(
     `No block catalog is cached for workspace ${workspaceId}. Run ${get} once, then check again.`,
     { code: 'CATALOG_NOT_CACHED' }
   )
-}
-
-/** The cached catalog of `workspaceId`, or a refusal naming `get`, the command that caches one. */
-export function requireCachedCatalog(workspaceId: string, get: string): BlockCatalog {
-  return cachedOrRefuse(cachedCatalog(workspaceId), workspaceId, get)
 }

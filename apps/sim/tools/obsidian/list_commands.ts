@@ -9,6 +9,7 @@ export const listCommandsTool: ToolConfig<
   name: 'Obsidian List Commands',
   description: 'List all available commands in Obsidian',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

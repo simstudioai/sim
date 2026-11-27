@@ -14,6 +14,7 @@ export const getTableMetadataTool: InternalToolConfig<
   description:
     'Get the columns, partition keys, and properties of a single table in an Athena data catalog database',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

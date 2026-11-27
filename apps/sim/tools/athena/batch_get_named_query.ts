@@ -13,6 +13,7 @@ export const batchGetNamedQueryTool: InternalToolConfig<
   name: 'Athena Batch Get Named Queries',
   description: 'Get the details of up to 50 Athena named queries by ID in a single call',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

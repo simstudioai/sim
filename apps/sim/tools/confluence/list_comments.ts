@@ -31,10 +31,11 @@ export const confluenceListCommentsTool: InternalToolConfig<
   ConfluenceListCommentsResponse
 > = {
   id: 'confluence_list_comments',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'Confluence List Comments',
   description: 'List all comments on a Confluence page.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

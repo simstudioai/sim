@@ -19,6 +19,7 @@ export const listSourcesTool: ToolConfig<AshbyListSourcesParams, AshbyListSource
   name: 'Ashby List Sources',
   description: 'Lists all candidate sources configured in Ashby.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

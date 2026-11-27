@@ -8,6 +8,7 @@ export const linqCheckRcsTool: ToolConfig<LinqCapabilityCheckParams, LinqCapabil
   name: 'Check RCS Capability',
   description: 'Check whether an address (phone number or email) supports RCS',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

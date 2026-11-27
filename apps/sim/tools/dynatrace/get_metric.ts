@@ -17,6 +17,7 @@ export const getMetricTool: ToolConfig<DynatraceGetMetricParams, DynatraceGetMet
   description:
     'Get the descriptor of a single Dynatrace metric — its unit, dimensions, supported aggregations, and transformations.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

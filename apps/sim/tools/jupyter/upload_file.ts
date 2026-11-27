@@ -10,6 +10,7 @@ export const jupyterUploadFileTool: InternalToolConfig<
   name: 'Jupyter Upload File',
   description: 'Upload a file to a Jupyter server',
   version: '1.0.0',
+  effect: 'write',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

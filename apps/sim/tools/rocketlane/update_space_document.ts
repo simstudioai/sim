@@ -18,6 +18,7 @@ export const rocketlaneUpdateSpaceDocumentTool: ToolConfig<
   name: 'Rocketlane Update Space Document',
   description: 'Update a Rocketlane space document by its ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const agentphoneReleaseNumberTool: ToolConfig<
   name: 'Release Phone Number',
   description: 'Release (delete) a phone number. This action is irreversible.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

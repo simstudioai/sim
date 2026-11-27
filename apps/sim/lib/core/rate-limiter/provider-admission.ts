@@ -41,6 +41,7 @@ const HOSTED_RERANK_REQUEST_BURST = 16
 const DEFAULT_REQUEST_BURST = 2
 
 function hostedRerankRequestsPerMinute(): number {
+  // env-number-normalized: parsed with Number() below, and an invalid value throws rather than falling back
   const configured =
     env.KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE ?? env.KB_CONFIG_RERANK_REQUESTS_PER_MINUTE
   if (configured === undefined) return 600
@@ -65,8 +66,8 @@ export class ProviderAdmissionTimeoutError extends Error {
 /**
  * Shared per-credential admission for indexing workers and interactive callers.
  * These are deployment operating budgets, not claims about provider quotas.
- * Redis and PostgreSQL use the same durable token buckets; storage errors fail
- * before the provider request. Capacity is spent only when every dimension and
+ * The token buckets live in Redis; storage errors fail before the provider
+ * request. Capacity is spent only when every dimension and
  * the shared provider cooldown permit the request in one atomic operation.
  */
 export async function waitForProviderAdmission(input: ProviderAdmissionInput): Promise<void> {

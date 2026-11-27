@@ -21,6 +21,7 @@ export const rocketlaneListInvoicesTool: ToolConfig<
   description:
     'Search invoices in Rocketlane with date, amount, company, invoice-number, and status filters, sorting, and pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

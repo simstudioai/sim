@@ -26,6 +26,7 @@ export const deleteTableRowTool: ToolConfig<DeleteTableRowParams, DeleteTableRow
   name: 'Delete Table Row in Google Slides',
   description: 'Delete the row containing the reference cell from a table.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

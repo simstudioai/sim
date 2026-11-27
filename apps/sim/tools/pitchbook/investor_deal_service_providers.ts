@@ -12,6 +12,7 @@ export const pitchbookInvestorDealServiceProvidersTool: ToolConfig<
   description:
     'Retrieve the service providers that worked on an investor’s deals, and what each was hired for',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -8,6 +8,7 @@ export const ripplingUpdateTitleTool: ToolConfig<RipplingUpdateTitleParams> = {
   name: 'Rippling Update Title',
   description: 'Update an existing title',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

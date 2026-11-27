@@ -24,6 +24,7 @@ export const updateAccessGroupTool: ToolConfig<
   description:
     'Updates a configured Access group. Replaces the configuration; resend all values to retain.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {

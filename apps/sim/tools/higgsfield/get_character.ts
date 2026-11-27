@@ -21,6 +21,7 @@ export const higgsfieldGetCharacterTool: ToolConfig<
   name: 'Higgsfield Get Character',
   description: 'Get a Soul ID character reference, including its training status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: higgsfieldOAuth,
   params: {
     ...higgsfieldAuthParams,

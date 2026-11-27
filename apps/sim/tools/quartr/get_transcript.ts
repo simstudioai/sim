@@ -19,6 +19,7 @@ export const quartrGetTranscriptTool: ToolConfig<
   description:
     'Retrieve an event transcript from Quartr by its document ID and download the transcript JSON file (paragraphs, sentences, timestamps, and speaker identification).',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

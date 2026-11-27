@@ -18,6 +18,7 @@ export const spotifyUnfollowPlaylistTool: ToolConfig<
   name: 'Spotify Unfollow Playlist',
   description: 'Unfollow (unsave) a playlist.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

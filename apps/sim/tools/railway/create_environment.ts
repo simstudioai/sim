@@ -25,6 +25,7 @@ export const railwayCreateEnvironmentTool: ToolConfig<
   name: 'Railway Create Environment',
   description: 'Create a Railway project environment',
   version: '1.0.0',
+  effect: 'write',
   oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {

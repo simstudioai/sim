@@ -11,6 +11,7 @@ export const createTagTool: ToolConfig<WordPressCreateTagParams, WordPressCreate
   name: 'WordPress Create Tag',
   description: 'Create a new tag in WordPress.com',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

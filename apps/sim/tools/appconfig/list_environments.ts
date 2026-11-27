@@ -13,6 +13,7 @@ export const listEnvironmentsTool: InternalToolConfig<
   name: 'AppConfig List Environments',
   description: 'List environments for an AWS AppConfig application',
   version: '1.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

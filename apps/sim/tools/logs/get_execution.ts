@@ -10,6 +10,7 @@ export const logsGetExecutionTool: InternalToolConfig<
   description:
     'Fetch full execution details for a workflow run, including the per-block state snapshot.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     executionId: {

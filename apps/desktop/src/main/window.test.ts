@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSecureWebPreferences } from '@/main/window-preferences'
 
@@ -7,7 +8,12 @@ import { BrowserWindow, dialog, screen, systemPreferences, WebContentsView } fro
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
 import type { ConfigStore } from '@/main/config'
 import type { EventRecorder } from '@/main/observability'
-import { createMainWindow, resolvePermission, setupPermissionHandlers } from '@/main/window'
+import {
+  createMainWindow,
+  guardVisibilityListenersAfterDestroy,
+  resolvePermission,
+  setupPermissionHandlers,
+} from '@/main/window'
 
 const APP = 'https://sim.ai'
 
@@ -193,5 +199,49 @@ describe('createMainWindow', () => {
     vi.mocked(dialog.showMessageBoxSync).mockReturnValueOnce(1)
     handler?.(event as never)
     expect(event.preventDefault).toHaveBeenCalledOnce()
+  })
+})
+
+describe('guardVisibilityListenersAfterDestroy', () => {
+  /** A window wired the way Electron wires every BrowserWindow: its visibility listener reads the native window. */
+  function electronLikeWindow() {
+    let destroyed = false
+    const visibilityChecks = vi.fn()
+    const win = Object.assign(new EventEmitter(), {
+      isDestroyed: () => destroyed,
+      isVisible: () => {
+        if (destroyed) throw new TypeError('Object has been destroyed')
+        visibilityChecks()
+        return true
+      },
+      destroy: () => {
+        destroyed = true
+      },
+    })
+    const visibilityChanged = () => win.isVisible()
+    for (const event of ['show', 'hide', 'minimize', 'maximize', 'restore']) {
+      win.on(event, visibilityChanged)
+    }
+    return { win, visibilityChecks }
+  }
+
+  it('keeps tracking visibility while the window lives', () => {
+    const { win, visibilityChecks } = electronLikeWindow()
+    guardVisibilityListenersAfterDestroy(win as never)
+
+    win.emit('show')
+    win.emit('minimize')
+
+    expect(visibilityChecks).toHaveBeenCalledTimes(2)
+  })
+
+  it('a visibility event delivered after the window was destroyed no longer throws', () => {
+    const { win } = electronLikeWindow()
+    guardVisibilityListenersAfterDestroy(win as never)
+
+    win.destroy()
+
+    expect(() => win.emit('show')).not.toThrow()
+    expect(() => win.emit('hide')).not.toThrow()
   })
 })

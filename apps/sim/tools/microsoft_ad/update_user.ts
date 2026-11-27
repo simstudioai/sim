@@ -13,6 +13,7 @@ export const updateUserTool: ToolConfig<
   name: 'Update Azure AD User',
   description: 'Update user properties in Azure AD (Microsoft Entra ID)',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

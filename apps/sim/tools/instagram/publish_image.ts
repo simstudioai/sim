@@ -15,6 +15,7 @@ export const instagramPublishImageTool: InternalToolConfig<
   description:
     'Create and publish a single JPEG image post from a Sim file (polls until the container is ready)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

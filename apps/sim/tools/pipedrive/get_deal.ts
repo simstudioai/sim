@@ -11,6 +11,7 @@ export const pipedriveGetDealTool: ToolConfig<PipedriveGetDealParams, PipedriveG
   name: 'Get Deal Details from Pipedrive',
   description: 'Retrieve detailed information about a specific deal',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

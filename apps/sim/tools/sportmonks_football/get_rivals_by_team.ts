@@ -30,6 +30,7 @@ export const sportmonksGetRivalsByTeamTool: ToolConfig<
   name: 'Get Rivals by Team',
   description: 'Retrieve rival teams for a team by team ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

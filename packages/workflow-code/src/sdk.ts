@@ -7,6 +7,14 @@
 import type { CatalogBlock, CatalogBuilder } from './catalog/types'
 import type { ResourceKind } from './model'
 
+/**
+ * The SDK major `core.d.ts` is written for, the one the server's block catalog serves, and the
+ * only one a workflow or declaration file's `// @sim-sdk N` header may name. A block catalog for
+ * another major describes builders these declarations cannot type, so a consumer bundling
+ * `CORE_DTS` refuses to write beside it.
+ */
+export const SDK_MAJOR = 1
+
 /** The module a workflow file imports the SDK from: the only import compile accepts. */
 export const SDK_MODULE = '@sim/workflow-sdk'
 
@@ -86,12 +94,6 @@ export const SDK_RESOURCE_CALLS = {
   file: 'file',
   'file-folder': 'folder',
 } as const satisfies Partial<Record<ResourceKind, string>>
-
-/**
- * The oldest SDK major the compiler reads. A header below it is `E_SDK_MAJOR_OLD`: no
- * down-migration exists, so such a file must be printed again for a supported major.
- */
-export const OLDEST_SDK_MAJOR = 1
 
 /** How the SDK treats one core export. An export with no traits is a value constructor or const. */
 interface SdkCoreExportTraits {

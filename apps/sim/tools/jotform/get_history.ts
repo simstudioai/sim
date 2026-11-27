@@ -16,6 +16,7 @@ export const getHistoryTool: ToolConfig<JotformGetHistoryParams, JotformGetHisto
   description:
     'Read the account activity log: forms created, updated, deleted or purged, and account logins.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

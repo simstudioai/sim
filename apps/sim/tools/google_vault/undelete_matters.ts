@@ -8,6 +8,7 @@ export const undeleteMattersTool: ToolConfig<GoogleVaultMatterActionParams> = {
   name: 'Vault Undelete Matter',
   description: 'Restore a deleted matter',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

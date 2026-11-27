@@ -11,6 +11,7 @@ export const getEmailIdentityTool: InternalToolConfig<
   description:
     'Retrieve verification status, DKIM, Mail-From, and policy details for an SES identity',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

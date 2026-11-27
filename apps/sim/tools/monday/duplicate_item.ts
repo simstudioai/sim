@@ -15,6 +15,7 @@ export const mondayDuplicateItemTool: ToolConfig<
   name: 'Monday Duplicate Item',
   description: 'Duplicate an existing item on a Monday.com board',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

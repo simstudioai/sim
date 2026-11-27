@@ -8,6 +8,7 @@ export const ripplingGetTitleTool: ToolConfig<RipplingGetTitleParams> = {
   name: 'Rippling Get Title',
   description: 'Get a specific title by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

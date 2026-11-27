@@ -12,6 +12,7 @@ export const createSpreadsheetV2Tool: ToolConfig<
   name: 'Create Spreadsheet V2',
   description: 'Create a new Google Sheets spreadsheet',
   version: '2.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

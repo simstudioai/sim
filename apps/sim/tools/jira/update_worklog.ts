@@ -56,6 +56,7 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
     name: 'Jira Update Worklog',
     description: 'Update an existing worklog entry on a Jira issue',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

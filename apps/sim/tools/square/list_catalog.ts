@@ -14,6 +14,7 @@ export const squareListCatalogTool: ToolConfig<ListCatalogParams, CatalogListRes
   name: 'Square List Catalog',
   description: 'List catalog objects, optionally filtered by type',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

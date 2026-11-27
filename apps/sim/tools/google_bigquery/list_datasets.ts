@@ -13,6 +13,7 @@ export const googleBigQueryListDatasetsTool: ToolConfig<
   name: 'BigQuery List Datasets',
   description: 'List all datasets in a Google BigQuery project',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

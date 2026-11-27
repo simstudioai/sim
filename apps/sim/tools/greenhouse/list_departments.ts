@@ -13,6 +13,7 @@ export const greenhouseListDepartmentsTool: ToolConfig<
   name: 'Greenhouse List Departments',
   description: 'Lists all departments configured in Greenhouse',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

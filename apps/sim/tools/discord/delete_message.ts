@@ -14,6 +14,7 @@ export const discordDeleteMessageTool: ToolConfig<
   name: 'Discord Delete Message',
   description: 'Delete a message from a Discord channel',
   version: '1.0.0',
+  effect: 'write',
   oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {

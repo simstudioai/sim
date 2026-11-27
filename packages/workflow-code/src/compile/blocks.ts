@@ -4,6 +4,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { utf8ByteLength } from '@sim/utils/paste'
 import {
   findWorkflowReferenceTokens,
+  isFilePathReference,
   isLikelyWorkflowReferenceSegment,
 } from '@sim/utils/workflow-references'
 import {
@@ -16,7 +17,7 @@ import {
   type WorkflowBranchKind,
 } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
-import { babelErrorShape } from '../babel'
+import { babelErrorShape, babelMessage } from '../babel'
 import { isBranchExtraField } from '../canonicalize/branches'
 import {
   DEFAULT_LOOP_ITERATIONS,
@@ -34,6 +35,7 @@ import {
   declarationFor,
   type FieldIndex,
   isModalPair,
+  isModelField,
   isWrittenInSource,
   memberFor,
   typedForBuilder,
@@ -44,6 +46,7 @@ import {
   type CodeFileLanguage,
   type CodeFileRef,
   codeFileLanguage,
+  codeFileRefs,
   fromCodeFile,
 } from '../code-files'
 import { isIdentifierName, LOOP_PROPERTIES, parseStoredPath } from '../code-files/ref-path'
@@ -78,13 +81,14 @@ import {
   type CompileContext,
   catalogBlockOf,
   EDGE_METHODS,
+  lockBinds,
   type ResolvedBuilder,
   rangeOf,
   recordSpan,
   unsupported,
 } from './context'
 import { closest, didYouMean } from './hints'
-import { babelMessage, bracketDepthOverflow } from './parse'
+import { bracketDepthOverflow } from './parse'
 import type { Range } from './report'
 import { compileToolList } from './tools'
 import {
@@ -461,7 +465,8 @@ function parseCodeFile(
     return null
   }
   if (language !== 'javascript') reportScriptRefSyntax(ctx, path, text, language, decl.key)
-  const refs = [...back.refs, ...referenceTags(text)].sort((a, b) => a.start - b.start)
+  const refs = codeFileRefs(back.refs, text)
+  if (language === 'python') reportQuotedScriptRefs(ctx, path, text, refs, decl.key)
   if (refs.length > 0) ctx.codeFiles.chains.push({ path, blockKey: decl.key, refs })
   return back.code
 }
@@ -522,30 +527,37 @@ function reportScriptRefSyntax(
   }
 }
 
-/** The name inside a `{{NAME}}` env token a run substitutes; other `{{…}}` text is left alone. */
-const ENV_TOKEN_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
-
 /**
- * The `<key.path>` references a code file writes as text, found by the runtime's own scanner (a
- * JavaScript string, a Python or shell line): the run resolves each one, so compile checks them as
- * it checks a `$ref` chain. A token with no path (`<b>` in HTML text) is no reference.
+ * `W_CODE_FILE_REF_QUOTED` on each `<key.path>` tag a Python file writes between quotes of its own
+ * (`"<start.country>"`, `'<start.country>'`): the run substitutes a tag as a Python literal (inside
+ * a string, as its JSON text), so the value arrives with its quotes in it. A tag inside longer text
+ * (a JSON body a string builds) reads that JSON text on purpose, a file's path is spliced raw
+ * (`isFilePathReference`), and a shell file quotes a tag in quotes correctly, so none is reported.
  */
-function referenceTags(text: string): CodeFileRef[] {
-  const tags: CodeFileRef[] = []
-  for (const token of findWorkflowReferenceTokens(text)) {
-    if (token.kind === 'environment') {
-      const name = token.value.slice(2, -2).trim()
-      if (ENV_TOKEN_NAME.test(name)) {
-        tags.push({ kind: 'env', name, start: token.start, end: token.end })
+function reportQuotedScriptRefs(
+  ctx: CompileContext,
+  path: string,
+  text: string,
+  refs: readonly CodeFileRef[],
+  blockKey: BlockKey
+): void {
+  for (const ref of refs) {
+    if (ref.kind !== 'ref' || !ref.tag) continue
+    const quote = text[ref.start - 1]
+    if ((quote !== '"' && quote !== "'") || text[ref.end] !== quote) continue
+    const tag = text.slice(ref.start, ref.end)
+    // A file's path is spliced raw into its quotes: `open('<start.file.path>')` is right.
+    if (isFilePathReference(tag)) continue
+    ctx.reporter.report(
+      'W_CODE_FILE_REF_QUOTED',
+      `${quote}${tag}${quote} quotes a reference the run already substitutes as a Python literal, so a string value arrives with its quotes in it.`,
+      { file: path, start: ref.start - 1, end: ref.end + 1 },
+      {
+        hint: `References are substituted as language literals: remove the quotes and write ${tag}.`,
+        blockKey,
       }
-      continue
-    }
-    if (token.kind !== 'workflow') continue
-    const segments = parseStoredPath(token.value.slice(1, -1))
-    if (!segments || segments.length < 2) continue
-    tags.push({ kind: 'ref', segments, start: token.start, end: token.end, tag: true })
+    )
   }
-  return tags
 }
 
 interface WrittenParam {
@@ -788,16 +800,24 @@ function pairMode(field: Extract<CatalogField, { kind: 'pair' }>, value: Compile
 /**
  * `stored()`: the param keeps what the stored block holds (`CompileInput.stored`), a pair its
  * members and mode, without the value ever appearing in source. Only a block the stored workflow
- * already has under this key and type, holding a value for the param, can keep one.
+ * already has under this key and type, holding a value for the param, can keep one. Under
+ * `CompileInput.storedUnread` a block the lock binds may be such a block, which only the server
+ * can tell, so its param is left out unread (neither refused nor defaulted, nor required).
  */
 function keepStored(
   ctx: CompileContext,
-  state: Pick<BlockState, 'decl' | 'params' | 'modes' | 'unset'>,
+  state: Pick<BlockState, 'decl' | 'params' | 'modes' | 'unset'> &
+    Partial<Pick<BlockState, 'explained'>>,
   members: ReadonlyArray<{ id: SubBlockId; password?: boolean }>,
   property: ObjectProperty,
   field: CatalogField | null
 ): void {
   const { decl, params, modes } = state
+  if (!ctx.stored && lockBinds(ctx, decl)) {
+    for (const member of members) state.unset.add(member.id)
+    if (field) state.explained?.add(field.name)
+    return
+  }
   const stored = ctx.stored ? getOwn(ctx.stored.blocks, decl.key) : undefined
   const name = field?.name ?? members[0]?.id ?? ''
   const type =
@@ -1490,7 +1510,7 @@ function unknownOption(
 ): { value: string; ids: string[] } | null {
   const options = sub.options
   if (!Array.isArray(options) || options.length === 0) return null
-  const isModel = sub.id === 'model' && sub.type === 'combobox'
+  const isModel = isModelField(sub)
   if (sub.type !== 'dropdown' && !isModel) return null
   const ids = options.map((option) => option.id)
   const known = new Set(ids)
@@ -1537,7 +1557,7 @@ function checkOption(
     )
     return
   }
-  if (sub.id === 'model' && sub.type === 'combobox') {
+  if (isModelField(sub)) {
     ctx.reporter.report(
       'W_UNKNOWN_MODEL',
       `${unknown.value} is not a model the catalog lists; it is kept as written.`,
@@ -2046,16 +2066,6 @@ export function compileBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   return decl.builder.kind === 'container'
     ? compileContainer(ctx, decl)
     : compileRegularBlock(ctx, decl)
-}
-
-/** Whether the lock of an unread stored workflow binds `decl`, by key or by ident. */
-function lockBinds(ctx: CompileContext, decl: BlockDecl): boolean {
-  const lock = ctx.storedUnread
-  return (
-    lock !== undefined &&
-    (Object.hasOwn(lock.blocks, decl.key) ||
-      (decl.ident !== null && ctx.storedUnreadIdents.has(decl.ident)))
-  )
 }
 
 /**

@@ -17,6 +17,7 @@ export const windchillDownloadAttachmentTool: InternalToolConfig<
   name: 'Windchill Download Attachment',
   description: 'Download a document attachment into a canonical UserFile',
   version: '1.0.0',
+  effect: 'read',
   params: {
     baseUrl: {
       type: 'string',

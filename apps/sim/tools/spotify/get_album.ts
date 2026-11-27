@@ -11,6 +11,7 @@ export const spotifyGetAlbumTool: ToolConfig<SpotifyGetAlbumParams, SpotifyGetAl
   description:
     'Get detailed information about an album on Spotify by its ID, including track listing.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

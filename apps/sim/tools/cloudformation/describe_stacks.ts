@@ -13,6 +13,7 @@ export const describeStacksTool: InternalToolConfig<
   name: 'CloudFormation Describe Stacks',
   description: 'List and describe CloudFormation stacks',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

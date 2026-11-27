@@ -25,6 +25,7 @@ export const checkrListInvitationsTool: ToolConfig<
   name: 'Checkr List Invitations',
   description: 'List invitations, optionally filtered by candidate or status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

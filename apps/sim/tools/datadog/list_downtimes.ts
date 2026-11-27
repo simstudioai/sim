@@ -13,6 +13,7 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
   name: 'Datadog List Downtimes',
   description: 'List all scheduled downtimes in Datadog.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {

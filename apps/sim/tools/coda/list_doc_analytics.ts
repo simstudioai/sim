@@ -57,6 +57,7 @@ export const codaListDocAnalyticsTool: ToolConfig<
   description:
     'Get per-day or cumulative analytics (views, copies, likes, sessions by device, AI credits) for Coda docs',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

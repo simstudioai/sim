@@ -38,6 +38,7 @@ export const listDepartmentsTool: ToolConfig<
   name: 'Ashby List Departments',
   description: 'Lists all departments in Ashby.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

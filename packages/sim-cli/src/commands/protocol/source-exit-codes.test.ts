@@ -1,14 +1,13 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as exitCodes from '../../exit-codes'
-import { sourceExitCodesHelp } from './source-exit-codes'
+import { sourceExitCodesHelp, sourceExitCodesTable } from './source-exit-codes'
+import type { PrimerSurface } from './source-primer'
 import { WORKFLOW_TREE } from './workflow-dir'
 import { WORKSPACE_TREE } from './workspace-source-dir'
 
 /**
  * Every code a source command can exit with: each `*_EXIT_CODE` the CLI defines except the
- * run-wait timeout (4), which no source command returns, plus 0, 1 and Ctrl-C's 130.
+ * run-wait timeout (4), which no source command returns, plus 0 and 1.
  */
 const SOURCE_EXIT_CODES = [
   0,
@@ -16,65 +15,37 @@ const SOURCE_EXIT_CODES = [
   ...Object.entries(exitCodes)
     .filter(([name]) => name.endsWith('_EXIT_CODE') && name !== 'STILL_RUNNING_EXIT_CODE')
     .map(([, code]) => code as number),
-  130,
 ].sort((a, b) => a - b)
 
-const WORKFLOW_SDK_README = readFileSync(
-  join(import.meta.dirname, '../../../../workflow-sdk/README.md'),
-  'utf8'
-)
-
-const SCRIPTING_DOCS = readFileSync(
-  join(import.meta.dirname, '../../../../../apps/docs/content/docs/cli/scripting.mdx'),
-  'utf8'
-)
-
-/** The codes of each `| Code | <commands> |` table in the scripting docs, by its header cell. */
-const DOCS_TABLES = new Map(
-  SCRIPTING_DOCS.split(/\n\s*\n/).flatMap((block) => {
-    const header = block.match(/^\| Code \| (.+) \|$/m)
-    if (!header) return []
-    const codes = [...block.matchAll(/^\| `(\d+)` \|/gm)].map((match) => Number(match[1]))
-    return [[header[1], codes] as const]
-  })
-)
-
-function docsTable(heading: string): number[] {
-  const codes = DOCS_TABLES.get(heading)
-  if (!codes) throw new Error(`scripting.mdx has no exit-code table headed ${heading}`)
-  return codes
-}
+/** Everything a get writes beside the primer for an agent to read: `.sim/AGENTS.md` and the guides. */
+const guidesOf = (tree: typeof WORKFLOW_TREE, surface: PrimerSurface) =>
+  [tree.agents(surface), ...(tree.guides?.(surface) ?? []).map(([, text]) => text)].join('\n')
 
 describe('the exit-code tables an agent or a reader relies on', () => {
   it.each([
-    ['the workflow directory guide', WORKFLOW_TREE.agents],
-    ['the workspace directory guide', WORKSPACE_TREE.agents],
-    ['the workflow SDK README', WORKFLOW_SDK_README],
-  ])('%s lists every code a source command exits with', (_name, text) => {
+    ['the workflow directory guides', guidesOf(WORKFLOW_TREE, 'cli')],
+    ["the workflow directory guides Mothership's chat reads", guidesOf(WORKFLOW_TREE, 'chat')],
+    ['the workspace directory guides', guidesOf(WORKSPACE_TREE, 'cli')],
+  ])('%s list every code a source command exits with', (_name, text) => {
     const listed = [...text.matchAll(/^\| (\d+) \|/gm)].map((match) => Number(match[1]))
     expect(listed).toEqual(SOURCE_EXIT_CODES)
   })
 })
 
-describe('the exit-code tables of the CLI scripting docs', () => {
-  it.each([
-    ['workflows source apply', '`sim workflows source apply` or `create`'],
-    ['workflows source create', '`sim workflows source apply` or `create`'],
-    ['workflows source get', '`sim workflows source get --dir` or `sim workspaces source get`'],
-    ['workspaces source get', '`sim workflows source get --dir` or `sim workspaces source get`'],
-    ['workspaces source apply', '`sim workspaces source apply`'],
-  ] as const)('list every code %s names in its --help', (command, heading) => {
-    const help = sourceExitCodesHelp(command).replace(/\s+/g, ' ')
-    const named = [...help.matchAll(/(?:: |; )(\d+) /g)].map((match) => Number(match[1]))
-    expect(named.length).toBeGreaterThan(0)
-    expect(docsTable(heading)).toEqual(expect.arrayContaining(named))
+describe('the locked row of a directory guide', () => {
+  const lockedRow = (prefix: Parameters<typeof sourceExitCodesTable>[0]) =>
+    sourceExitCodesTable(prefix)
+      .split('\n')
+      .find((row) => row.startsWith(`| ${exitCodes.SOURCE_LOCKED_EXIT_CODE} |`))
+
+  it('says where a workspace apply unlocks each kind of resource it can find locked', () => {
+    expect(lockedRow('sim workspaces source')).toMatch(/a table\b.*a table in its settings/)
+    expect(lockedRow('sim workspaces source')).toContain('a workflow in the workflow builder')
   })
 
-  it('name only codes a source command exits with', () => {
-    const sourceTables = [...DOCS_TABLES].filter(([heading]) => heading.includes(' source '))
-    expect(sourceTables.length).toBeGreaterThanOrEqual(5)
-    for (const [, codes] of sourceTables)
-      expect(SOURCE_EXIT_CODES).toEqual(expect.arrayContaining(codes))
+  it('sends a workflow apply to the workflow builder', () => {
+    expect(lockedRow('sim workflows source')).toContain('unlock it in the workflow builder')
+    expect(lockedRow('sim workflows source')).not.toContain('table')
   })
 })
 

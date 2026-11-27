@@ -18,6 +18,19 @@ export const DEFAULT_TEAM_TIER_COST_LIMIT = 40
 export const DEFAULT_ENTERPRISE_TIER_COST_LIMIT = 200
 
 /**
+ * Length of the Pro free trial a new subscriber gets at checkout. Stripe collects a card up front
+ * and charges it when the trial ends unless the subscriber cancels first.
+ */
+export const PRO_TRIAL_DAYS = 14
+
+/**
+ * Usage a Pro trial may spend, in dollars (2,000 credits). A trial holds this fixed cap instead of
+ * the plan's included credits, with no weekly refresh and no on-demand usage, so a trial costs at
+ * most this much before the subscriber pays.
+ */
+export const PRO_TRIAL_USAGE_LIMIT_DOLLARS = 10
+
+/**
  * Base charge applied to every workflow execution
  * This charge is applied regardless of whether the workflow uses AI models
  */
@@ -93,7 +106,8 @@ export const CREDITS_PER_DOLLAR = 200
 
 /**
  * Annual subscribers pay 15% less than the equivalent monthly plan
- * but receive the same included credits. The Stripe annual price is
+ * but receive the same included credits: twelve months of them for the yearly
+ * billing period (see `getPlanPricing`). The Stripe annual price is
  * `monthlyDollars * 12 * (1 - ANNUAL_DISCOUNT_RATE)`.
  */
 export const ANNUAL_DISCOUNT_RATE = 0.15
@@ -107,3 +121,12 @@ export const ON_DEMAND_UNLIMITED = 999999
 /** Shown when usage could not be read, instead of a limit the read never measured. */
 export const USAGE_UNAVAILABLE_MESSAGE =
   'Usage could not be verified right now. Please try again in a moment.'
+
+/**
+ * Payment terms, in days, for every invoice emailed to a customer who pays by invoice: Enterprise
+ * contracts, and the overage, true-up, and final invoices billed on top of them.
+ */
+export const INVOICE_DAYS_UNTIL_DUE = 30
+
+/** Average calendar month in milliseconds, for pricing a billing period by its months. */
+export const AVERAGE_MONTH_MS = 30.44 * 24 * 60 * 60 * 1000

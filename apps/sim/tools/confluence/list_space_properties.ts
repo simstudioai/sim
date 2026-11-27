@@ -32,6 +32,7 @@ export const confluenceListSpacePropertiesTool: InternalToolConfig<
   name: 'Confluence List Space Properties',
   description: 'List properties on a Confluence space.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

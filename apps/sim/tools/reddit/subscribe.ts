@@ -8,6 +8,7 @@ export const subscribeTool: ToolConfig<RedditSubscribeParams, RedditWriteRespons
   name: 'Subscribe/Unsubscribe from Subreddit',
   description: 'Subscribe or unsubscribe from a subreddit',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

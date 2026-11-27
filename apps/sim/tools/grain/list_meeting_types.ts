@@ -13,6 +13,7 @@ export const grainListMeetingTypesTool: ToolConfig<
   name: 'Grain List Meeting Types',
   description: 'List all meeting types in the workspace',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRAIN_CREDENTIAL_OAUTH,
 
   params: {

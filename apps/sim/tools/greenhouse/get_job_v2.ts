@@ -16,6 +16,7 @@ export const greenhouseGetJobV2Tool: ToolConfig<
   name: 'Greenhouse Get Job',
   description: 'Retrieves one job by ID using the v3 list endpoint.',
   version: '2.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'greenhouse' },
   params: {
     accessToken: {

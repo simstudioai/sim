@@ -24,6 +24,7 @@ export const checkrListAdverseActionsTool: ToolConfig<
   name: 'Checkr List Adverse Actions',
   description: 'List the adverse actions for a report, optionally filtered by context.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

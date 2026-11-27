@@ -11,6 +11,7 @@ export const pitchbookCompanyActiveInvestorsTool: ToolConfig<
   name: 'PitchBook Company Active Investors',
   description: 'Retrieve only the investors currently holding a position in a company',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

@@ -11,6 +11,7 @@ export const deleteFunctionTool: InternalToolConfig<
   name: 'Lambda Delete Function',
   description: 'Delete a Lambda function, or a single published version of it',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -12,6 +12,7 @@ export const langsmithUpdateRunTool: ToolConfig<
   name: 'LangSmith Update Run',
   description: 'Patch an existing LangSmith run with outputs, status, or timing once it completes.',
   version: '1.0.0',
+  effect: 'write',
   oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     region: LANGSMITH_REGIONS.param,

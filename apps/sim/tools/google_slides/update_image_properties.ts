@@ -48,6 +48,7 @@ export const updateImagePropertiesTool: ToolConfig<
   description:
     'Update image properties — brightness, contrast, transparency, crop, outline, link — on an existing image.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

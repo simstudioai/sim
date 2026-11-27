@@ -17,6 +17,7 @@ export const daytonaStopSandboxTool: ToolConfig<DaytonaStopSandboxParams, Dayton
     name: 'Daytona Stop Sandbox',
     description: 'Stop a running Daytona sandbox',
     version: '1.0.0',
+    effect: 'write',
     oauth: DAYTONA_CREDENTIAL_OAUTH,
 
     params: {

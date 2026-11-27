@@ -6,6 +6,7 @@ export const jsmDeleteFormTool: InternalToolConfig<JsmDeleteFormParams, JsmDelet
   name: 'JSM Delete Form',
   description: 'Remove a form from a Jira issue or JSM request',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'jira' },
   params: {
     accessToken: {

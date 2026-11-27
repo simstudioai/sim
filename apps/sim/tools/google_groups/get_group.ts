@@ -7,6 +7,7 @@ export const getGroupTool: ToolConfig<GoogleGroupsGetParams, GoogleGroupsRespons
   name: 'Google Groups Get Group',
   description: 'Get details of a specific Google Group by email or group ID',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

@@ -9,6 +9,7 @@ export const rampGetUserTool: ToolConfig<RampGetUserParams, RampGetUserResponse>
   name: 'Ramp Get User',
   description: 'Fetch a user in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

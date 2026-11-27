@@ -546,9 +546,6 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
     disabled: {
       label: 'Disabled',
       hint: 'local JavaScript execution only',
-      env: {
-        NEXT_PUBLIC_E2B_ENABLED: 'false',
-      },
       currentWhen: {
         kind: 'all',
         conditions: [
@@ -568,9 +565,6 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
   providers: {
     e2b: {
       hint: 'dedicated Function code and CLI sandboxes',
-      env: {
-        NEXT_PUBLIC_E2B_ENABLED: 'true',
-      },
       prompts: [
         { type: 'field', key: 'E2B_API_KEY', input: 'secret', required: true },
         {
@@ -594,9 +588,6 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
     },
     daytona: {
       hint: 'dedicated Function code and CLI sandboxes',
-      env: {
-        NEXT_PUBLIC_E2B_ENABLED: 'false',
-      },
       prompts: [
         {
           type: 'field',

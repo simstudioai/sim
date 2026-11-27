@@ -38,6 +38,7 @@ export const getExperimentTool: ToolConfig<
   name: 'PostHog Get Experiment',
   description: 'Get details of a specific experiment',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

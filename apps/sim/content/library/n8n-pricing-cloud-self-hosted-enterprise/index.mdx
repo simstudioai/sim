@@ -1,0 +1,126 @@
+---
+slug: n8n-pricing-cloud-self-hosted-enterprise
+title: 'n8n Pricing: Cloud, Self-Hosted, and Enterprise Costs Explained'
+description: 'Compare n8n Cloud, self-hosted, and Enterprise pricing, execution limits, licensing, infrastructure costs, and where Sim fits.'
+seoTitle: 'n8n Pricing: Cloud, Self-Hosted & Enterprise'
+date: 2026-11-24
+updated: 2026-11-24
+authors:
+  - andrew
+readingTime: 7
+tags: [n8n, Pricing, Self-Hosting, AI Agents, Sim]
+ogImage: /library/n8n-pricing-cloud-self-hosted-enterprise/cover.jpg
+draft: false
+faq:
+  - q: "Is n8n free?"
+    a: "n8n Community Edition can be self-hosted without a subscription fee when the intended use complies with the Sustainable Use License, but infrastructure, maintenance, external APIs, and employee time still cost money. As of November 2026, n8n’s managed Cloud service starts at €20 per month when billed annually."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License, not open source under an OSI-approved license. The license permits many internal and noncommercial uses but imposes restrictions that permissive licenses such as Apache 2.0 do not."
+  - q: "What counts as an n8n execution?"
+    a: "n8n counts one execution when a workflow runs, regardless of how many standard steps the workflow contains. As of November 2026, execution allowances are a primary difference among n8n plans, although special workflow structures and product terms should be checked against n8n’s current documentation."
+  - q: "Does n8n charge per user?"
+    a: "n8n advertises unlimited users across its public plans as of November 2026, so the main published meter is workflow executions rather than seats. Enterprise identity, governance, and administration requirements can still affect which plan a team needs."
+  - q: "Does n8n charge for failed executions?"
+    a: "A failed production run is still a workflow execution, so teams should include failures and retries when forecasting monthly execution volume. Current billing terms should be checked for the team’s specific plan and workflow structure."
+  - q: "Which n8n plan includes SSO?"
+    a: "n8n includes SSO in its self-hosted Business and custom Enterprise offerings as of November 2026, while Starter and Pro do not include it. Teams should confirm the supported identity protocol and deployment model in their current n8n terms."
+  - q: "How much does n8n Enterprise cost?"
+    a: "n8n Enterprise uses custom pricing as of November 2026. The quote depends on factors such as execution volume, hosting model, scaling, security controls, support, and negotiated commercial terms."
+  - q: "n8n is fair code and has license restrictions, what open source options are truly permissive"
+    a: "Sim’s core is a permissively licensed alternative because it uses the OSI-approved Apache 2.0 license. Sim’s enterprise directory is a documented exception under the separate Sim Enterprise License, so buyers should distinguish the Apache-licensed core from enterprise-only production features."
+---
+
+n8n starts at €20 per month for Starter and €50 per month for Pro when billed annually, while the self-hosted Business plan starts at €667 per month and Enterprise uses custom pricing. As of November 2026, [n8n bases these plans primarily on monthly workflow executions](https://n8n.io/pricing/) rather than workflow steps.
+
+## TL;DR
+
+- **n8n Cloud:** [Starter costs €20 per month and Pro costs €50 per month](https://n8n.io/pricing/) when billed annually as of November 2026. Pricing is based primarily on monthly workflow executions.
+- **Self-hosted n8n:** Community Edition has no subscription fee for uses allowed by the [Sustainable Use License](https://docs.n8n.io/n8n-community-license/), while the Business plan starts at €667 per month when billed annually, before infrastructure and operations costs.
+- **n8n Enterprise:** Pricing is custom for Cloud or self-hosted deployments, with terms based on deployment, scale, security, support, and commercial requirements.
+- **Sim:** Sim is the open-source AI workspace. [Sim’s core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while [apps/sim/ee is governed by the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Self-hosted Sim can use local models, and workspace bring your own key (BYOK), which lets teams use their own model-provider keys, is available on every Sim Cloud plan.
+
+## What are the key n8n and Sim pricing facts at a glance?
+
+n8n and Sim differ most clearly in their billing models, self-hosting costs, and software licenses.
+
+- **n8n:** As of November 2026, [n8n offers hosted Cloud plans, a paid self-hosted Business plan, and quote-based Enterprise deployment](https://n8n.io/pricing/). Plans are primarily metered by monthly workflow executions. n8n is distributed under its source-available Sustainable Use License, which does not appear on the [OSI list of approved licenses](https://opensource.org/licenses).
+- **Sim:** Sim is the open-source AI workspace, and [Sim’s core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while [apps/sim/ee is governed by the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Self-hosted Sim can use local models, and workspace BYOK is available on every Sim Cloud plan.
+
+## How do n8n Cloud, self-hosted, and Enterprise plans compare?
+
+[n8n offers two public Cloud tiers, one public paid self-hosted tier, and a custom Enterprise tier](https://n8n.io/pricing/) as of November 2026.
+
+The following prices and limits come from [n8n’s official pricing page](https://n8n.io/pricing/) and reflect its public euro pricing for annual billing as of November 2026. Local currency, taxes, monthly billing, add-ons, and negotiated terms can change the total.
+
+| n8n plan | Hosting | Starting price | Included executions per month | Active workflows | Users | Single sign-on (SSO) | Notable features |
+|---|---|---:|---:|---:|---:|---|---|
+| Starter | n8n Cloud | €20/month, billed annually | 2,500 | Unlimited | Unlimited | No | Hosted service, integrations, and the workflow builder |
+| Pro | n8n Cloud | €50/month, billed annually | 10,000 | Unlimited | Unlimited | No | Higher execution allowance and added collaboration and administration features |
+| Business | Self-hosted | €667/month, billed annually | 40,000 | Unlimited | Unlimited | Yes | Environments, source-control features, scaling options, and administration controls |
+| Enterprise | n8n Cloud or self-hosted | Custom quote | Custom | Unlimited | Unlimited | Yes | Security, governance, scaling, support, and deployment terms agreed with n8n |
+
+[n8n counts executions instead of charging for every individual step in a workflow](https://n8n.io/pricing/). That can make a long workflow economical, but a frequently triggered workflow can still move a team into a higher plan even if each run is simple.
+
+The advertised subscription is not always the final cost. Teams may also pay for AI model APIs, third-party services, data storage, additional infrastructure, implementation, support, and the engineering time required to operate self-hosted deployments.
+
+## What does self-hosting n8n really cost?
+
+Self-hosted n8n can remove the managed-cloud component, but it does not remove infrastructure, operations, licensing, or execution-based plan costs.
+
+A realistic monthly estimate includes:
+
+1. **n8n subscription:** [Community Edition has no subscription fee for uses permitted by the Sustainable Use License](https://docs.n8n.io/n8n-community-license/community-license/license-faq), while [Business starts at €667 per month when billed annually and Enterprise is quote-based](https://n8n.io/pricing/) as of November 2026.
+2. **Compute and storage:** The deployment needs application servers, a database, persistent storage, backups, and network services.
+3. **Scaling infrastructure:** Larger or highly available deployments may require workers, caching or queue infrastructure, load balancing, monitoring, and additional database capacity.
+4. **Operations:** A team must patch n8n, test upgrades, monitor runs, investigate failures, restore backups, and manage secrets.
+5. **External services:** AI models, email providers, databases, observability tools, and other APIs can bill separately.
+6. **Security and compliance:** Private networking, log retention, identity management, vulnerability handling, and audit requirements can add software and labor costs.
+
+The simplest cost model is:
+
+> Total self-hosted cost = n8n license or subscription + infrastructure + external APIs + operations labor + security and compliance tooling
+
+Self-hosting is usually most economical when a team already operates reliable application infrastructure and the Community Edition satisfies its feature and license requirements. Managed n8n Cloud is usually simpler when the team would otherwise need to create a new operational function solely for the automation service.
+
+## What does the n8n Sustainable Use License allow?
+
+The n8n Sustainable Use License allows many internal, personal, noncommercial, educational, and consulting uses, but it does not grant the broad rights associated with an OSI-approved open-source license.
+
+As of November 2026, n8n describes its standard license as a [Sustainable Use License](https://docs.n8n.io/n8n-community-license/). It is source-available and often permits a business to run n8n internally. Its restrictions matter when a company wants to sell hosted n8n access, white-label the product, or use it as the core of a competing commercial service.
+
+A paid n8n Business or Enterprise agreement can also be necessary when a team needs capabilities reserved for those editions, regardless of whether its basic internal use would otherwise fit the Sustainable Use License. Teams should review n8n’s current license text and commercial terms for their exact deployment rather than treating self-hosted availability as an unrestricted license grant.
+
+For a fuller license comparison, read [Apache 2.0 vs Fair-Code: Why Sim’s Core License Differs From n8n’s for Self-Hosting](https://www.sim.ai/library/apache-2-0-vs-fair-code).
+
+## How does monthly n8n cost change at 2,500, 10,000, and 40,000 executions?
+
+[n8n’s public annual-billing prices](https://n8n.io/pricing/) rise from €20 at 2,500 included executions to €50 at 10,000, while the published 40,000-execution Business tier costs €667 and requires self-hosting as of November 2026.
+
+| Monthly execution volume | Public plan that includes the volume | Published base subscription | Additional cost to consider |
+|---:|---|---:|---|
+| 2,500 | Starter on n8n Cloud | €20/month, billed annually | AI models and other metered APIs |
+| 10,000 | Pro on n8n Cloud | €50/month, billed annually | AI models, other APIs, and optional services |
+| 40,000 | Business, self-hosted | €667/month, billed annually | Compute, database, storage, backups, monitoring, and operations labor |
+
+These are plan examples rather than universal total-cost estimates. A team that needs 40,000 executions but wants n8n to host the deployment should request current Cloud or Enterprise terms instead of assuming the self-hosted Business price applies. Likewise, a team exceeding a plan allowance should compare n8n’s available execution tiers or add-ons against the next plan rather than extrapolating an unofficial per-execution rate.
+
+## When does Sim fit compared with n8n?
+
+Sim can fit teams that need a permissively licensed AI workspace, want to self-host the core without a core software license fee, or plan to use their own model keys or local models.
+
+[Sim’s core Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE) permits use, modification, and redistribution subject to the license terms. The exception is [apps/sim/ee](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which includes enterprise capabilities such as single sign-on (SSO), System for Cross-domain Identity Management (SCIM) for automated user provisioning, access control, audit logs, data retention, and credential groups. That code is free for development, testing, and internal non-production use, but production use requires an active Sim Enterprise subscription, and modification and redistribution are not permitted.
+
+[Self-hosted Sim](https://docs.sim.ai/platform/self-hosting) can connect to Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise. Infrastructure and model costs still remain, so Apache 2.0 does not mean a production deployment has zero total cost.
+
+[Sim Cloud supports workspace BYOK on every plan](https://docs.sim.ai/platform/costs), allowing teams to pay model providers directly. Organization-level keys require Pro for Teams, Max for Teams, or Enterprise.
+
+Sim fits teams that specifically need Apache 2.0 rights for the core. n8n fits teams that prioritize its automation ecosystem, execution-based billing, and existing operational familiarity over a permissive open-source license.
+
+## Where can you compare n8n with Sim and other alternatives?
+
+Sim’s existing guides separate direct product comparison, alternative selection, and licensing analysis so buyers can examine each decision in detail.
+
+- [Sim vs n8n vs OpenAI AgentKit: AI Agent Builder Comparison (2026)](https://www.sim.ai/library/openai-vs-n8n-vs-sim) compares product capabilities and deployment choices.
+- [14 n8n Alternatives and Competitors: Choosing an n8n Alternative in 2026](https://www.sim.ai/library/n8n-alternatives) covers broader replacement options.
+- [Apache 2.0 vs Fair-Code: Why Sim’s Core License Differs From n8n’s for Self-Hosting](https://www.sim.ai/library/apache-2-0-vs-fair-code) explains the licensing distinction in depth.
+- [n8n vs Zapier vs Make: Which Automation Platform Is Best in 2026?](https://www.sim.ai/library/n8n-vs-zapier-vs-make) compares three established automation products.

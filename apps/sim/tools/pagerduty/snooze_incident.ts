@@ -15,6 +15,7 @@ export const snoozeIncidentTool: ToolConfig<
   description:
     'Snooze a triggered PagerDuty incident for a number of seconds, after which it returns to triggered.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

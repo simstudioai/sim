@@ -6,7 +6,7 @@ import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
 import { SIM_RULE_COOLDOWN_HOURS, SIM_TRIGGER_PROVIDER } from '@/lib/workspace-events/constants'
 import { dispatchSimEvent } from '@/lib/workspace-events/emitter'
 import { buildNoActivityEventPayload } from '@/lib/workspace-events/payload'
-import { excludeSimExecutionsCondition } from '@/lib/workspace-events/rules'
+import { excludeEventlessExecutionsCondition } from '@/lib/workspace-events/rules'
 import { claimCooldown, isWithinCooldown, readLastFiredAt } from '@/lib/workspace-events/state'
 import { parseSubscriptionConfig } from '@/lib/workspace-events/subscriptions'
 import type { SimSubscription, SimSubscriptionConfig } from '@/lib/workspace-events/types'
@@ -127,7 +127,7 @@ async function hasRecentActivity(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
         gte(workflowExecutionLogs.startedAt, windowStart),
-        excludeSimExecutionsCondition()
+        excludeEventlessExecutionsCondition()
       )
     )
     .limit(1)

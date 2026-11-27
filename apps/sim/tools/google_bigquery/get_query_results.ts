@@ -14,6 +14,7 @@ export const googleBigQueryGetQueryResultsTool: ToolConfig<
   description:
     'Fetch results for a previously submitted BigQuery job, or the next page of a Run Query result',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

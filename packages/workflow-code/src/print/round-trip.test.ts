@@ -8,7 +8,7 @@ import { TEST_CATALOG } from '../compile/catalog.test-helpers'
 import type { CanonicalWorkflow } from '../model'
 import { printWorkflow } from './printer'
 
-const IMPORTS = "import { agent, api, customTool, js, workflow } from '@sim/workflow-sdk'"
+const IMPORTS = "import { agent, api, customTool, fn, js, workflow } from '@sim/workflow-sdk'"
 
 function compile(text: string) {
   return compileWorkflow({
@@ -45,6 +45,23 @@ describe('printWorkflow round trip', () => {
     expect(entry?.text).not.toContain('vars.constructor')
     const again = compile(entry?.text ?? '')
     expect(again.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+  })
+
+  it('prints a quoted reference to a text field a Function returns as a template, not the bare reference', () => {
+    const body = [
+      `  const score = fn('Score', { code: ${JSON.stringify("return { tier: 'gold' }")} })`,
+      "  const next = api('Next', { url: 'https://x', body: { tier: score.result.tier } })",
+    ].join('\n')
+    const workflow = compiled(body)
+    expect(workflow.blocks.next?.params.body).toEqual({
+      kind: 'value',
+      value: '{\n  "tier": "<score.result.tier>"\n}',
+    })
+    const entry = printed(workflow).files[0]?.text ?? ''
+    expect(entry).toContain('body: { tier: t`${score.result.tier}` }')
+    expect(compile(entry).workflow?.blocks.next?.params.body).toEqual(
+      workflow.blocks.next?.params.body
+    )
   })
 
   it('prints a literal credential id as raw() and compiles it back into the advanced member', () => {

@@ -13,6 +13,7 @@ export const gitlabDeleteBranchTool: ToolConfig<
   name: 'GitLab Delete Branch',
   description: 'Delete a branch from a GitLab project repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

@@ -9,38 +9,99 @@ import { embeddedFileContent } from '../transfer/local-file'
 import { camel, kebab } from './derive'
 import type { OperationSpec } from './types'
 
-const BODY_VARIANT_EXAMPLES: Readonly<Record<BodyVariantSpec['kind'], string>> = {
+type JsonShape = 'object' | 'array'
+
+const JSON_SHAPE_EXAMPLES: Readonly<Record<JsonShape, string>> = {
   array: `'[{"key":"value"}]'`,
   object: `'{"key":"value"}'`,
 }
 
-function jsonShape(value: unknown): BodyVariantSpec['kind'] | undefined {
+function jsonShape(value: unknown): JsonShape | undefined {
   if (Array.isArray(value)) return 'array'
   if (isRecordLike(value)) return 'object'
   return undefined
 }
 
 /**
- * The refusal for a body variant given the wrong JSON shape, stating what came
- * in and the spelling that takes it. Neither `--rows '{"rows":[...]}'` nor a
- * single-row `--rows` is reshaped, because guessing which part the caller
+ * The refusal for a JSON flag given the wrong shape, stating what came in and a value of the
+ * right one. An object wrapping the value under the field's own name (`--operations
+ * '{"operations":[…]}'`) is named as such, but never unwrapped: guessing which part the caller
  * meant is the server's write to make.
+ */
+function wrongJsonShape(
+  flag: string,
+  kind: JsonShape,
+  property: string,
+  parsed: unknown,
+  example = JSON_SHAPE_EXAMPLES[kind]
+): string {
+  const shape = jsonShape(parsed)
+  const got = shape ? `a JSON ${shape}` : parsed === null ? 'null' : `a JSON ${typeof parsed}`
+  const base = `${flag} must be a JSON ${kind}, e.g. ${flag} ${example}; got ${got}.`
+  return isRecordLike(parsed) && jsonShape(parsed[property]) === kind
+    ? `${base} Pass the ${kind} under its "${property}" key itself, not the object wrapping it.`
+    : base
+}
+
+/**
+ * The refusal for a body variant given the wrong JSON shape, naming the variant that takes the
+ * shape that came in. Neither `--rows '{"rows":[...]}'` nor a single-row `--rows` is reshaped.
  */
 function bodyVariantShapeError(
   variant: BodyVariantSpec,
   parsed: unknown,
-  shape: BodyVariantSpec['kind'] | undefined,
   variants: readonly BodyVariantSpec[]
 ): string {
-  const flag = `--${variant.name}`
-  const got = shape ? `a JSON ${shape}` : parsed === null ? 'null' : `a JSON ${typeof parsed}`
-  const base = `${flag} must be a JSON ${variant.kind}, e.g. ${flag} ${BODY_VARIANT_EXAMPLES[variant.kind]}; got ${got}.`
-  if (variant.kind === 'array' && isRecordLike(parsed) && Array.isArray(parsed[variant.property])) {
-    return `${base} Pass the array under its "${variant.property}" key itself, not the object wrapping it.`
-  }
+  const base = wrongJsonShape(`--${variant.name}`, variant.kind, variant.property, parsed)
+  if (isRecordLike(parsed) && jsonShape(parsed[variant.property]) === variant.kind) return base
+  const shape = jsonShape(parsed)
   const other =
     shape && variants.find((candidate) => candidate !== variant && candidate.kind === shape)
   return other ? `${base} For that shape use --${other.name}.` : base
+}
+
+/**
+ * The refusal for an array field given an object, or an object field given an array, with the
+ * shape it takes, so the server's `expected array, received object` does not cost a round trip
+ * without saying what to send. Null for any other value, which is the server's to judge.
+ */
+function shapeRefusal(
+  field: FieldSpec,
+  flag: FlagSpec,
+  flagName: string,
+  property: string,
+  value: unknown
+): string | null {
+  if ((field.kind !== 'array' && field.kind !== 'object') || flag.list) return null
+  const shape = jsonShape(value)
+  if (shape === undefined || shape === field.kind) return null
+  return wrongJsonShape(`--${flagName}`, field.kind, property, value, flag.example)
+}
+
+/**
+ * The shape refusal of the first body field typed inline as JSON (`--operations '{…}'`, not
+ * `@file` or `@-`, which are read only once the command is confirmed), so a refusal for a missing
+ * `--yes` names the shape mistake beside it and one retry fixes both.
+ */
+export function inlineShapeRefusal(
+  operation: V2OperationName,
+  flags: Record<string, unknown>
+): string | null {
+  const { body } = V2_OPERATIONS[operation] as OperationSpec
+  for (const [field, descriptor] of Object.entries(body ?? {})) {
+    const flagName = flagNameFor(operation, field)
+    const raw = flags[camel(flagName)]
+    if (typeof raw !== 'string' || raw.startsWith('@')) continue
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      continue
+    }
+    const refusal = shapeRefusal(descriptor, flagSpecFor(operation, field), flagName, field, parsed)
+    if (refusal) return refusal
+  }
+  return null
 }
 
 /** One request field, as the generator describes it. */
@@ -267,14 +328,18 @@ function literalAtHint(error: unknown, path: string): string {
     : ''
 }
 
+/** Whether an argument names a file (`@path`, `@-`) rather than a value: `@@x` is the literal `@x`. */
+export function namesFile(raw: string): boolean {
+  return raw.startsWith('@') && !raw.startsWith('@@')
+}
+
 export async function readArgumentSource(
   raw: string,
   flagName: string
 ): Promise<{ text: string; from: string }> {
   if (Buffer.byteLength(raw, 'utf8') > MAX_JSON_ARGUMENT_BYTES)
     throw new SimApiError(`--${flagName} exceeds the 10 MiB JSON input limit`, 0)
-  if (raw.startsWith('@@')) return { text: raw.slice(1), from: '' }
-  if (!raw.startsWith('@')) return { text: raw, from: '' }
+  if (!namesFile(raw)) return { text: raw.startsWith('@@') ? raw.slice(1) : raw, from: '' }
 
   // An embedded run executes in-process on the hosting server, so a raw file
   // path here would read the SERVER's filesystem with argv the model controls.
@@ -327,20 +392,40 @@ export async function readArgumentSource(
   }
 }
 
+/** How a list flag reads one value as entries ({@link FlagSpec.listValues}). */
+export function listValuesOf(flag: FlagSpec): 'ids' | 'text' | 'fileReferences' {
+  return flag.listValues ?? (flag.folderPath ? 'text' : 'ids')
+}
+
+/** Whether `value`, read as `listValues`, is a comma-joined run of entries. */
+function splitsOnCommas(value: string, listValues: ReturnType<typeof listValuesOf>): boolean {
+  if (!value.includes(',')) return false
+  if (listValues === 'fileReferences') return !value.includes('/')
+  return listValues === 'ids'
+}
+
 /**
- * The file references one list value carries: a JSON array's strings, a comma-joined run of
- * ids, or the value itself. See {@link FlagSpec.fileReferences} for why neither reading can
- * misread a single id or path.
+ * The entries one list value carries under its flag's {@link FlagSpec.listValues}: a JSON array's
+ * strings, a comma-joined run, or the value itself.
  */
-function fileReferenceEntries(value: string, flagName: string): string[] {
+function listEntries(
+  value: string,
+  flagName: string,
+  listValues: ReturnType<typeof listValuesOf>
+): string[] {
   const entries = value.startsWith('[')
     ? jsonStringArray(value)
-    : value.includes(',') && !value.includes('/')
+    : splitsOnCommas(value, listValues)
       ? value.split(',')
       : undefined
-  if (!entries) return [value]
+  if (!entries) {
+    if (value.startsWith('[') && listValues !== 'text') {
+      throw new SimApiError(`--${flagName} must be a JSON array of strings: ${value}`, 0)
+    }
+    return [value]
+  }
   const trimmed = entries.map((entry) => entry.trim())
-  if (trimmed.some((entry) => !entry)) {
+  if (trimmed.length === 0 || trimmed.some((entry) => !entry)) {
     throw new SimApiError(`--${flagName} values cannot be empty: ${value}`, 0)
   }
   return trimmed
@@ -364,15 +449,28 @@ function isManifestNoise(line: string): boolean {
 }
 
 /**
+ * A list flag's values as entries: argv and `@path` values ({@link readListValues}), each read
+ * under the flag's {@link FlagSpec.listValues}. The one parser every list goes through, a
+ * wrapper that reads a list before the request is built (`workflows runs get --select-output`)
+ * included.
+ */
+export async function readListFlag(
+  raw: unknown,
+  flag: FlagSpec,
+  flagName: string
+): Promise<string[]> {
+  const listValues = listValuesOf(flag)
+  return (await readListValues(raw, flagName, flag.manifest === true)).flatMap((value) =>
+    listEntries(value, flagName, listValues)
+  )
+}
+
+/**
  * Reads a primitive list from argv or a newline-delimited file. A `manifest`
  * list drops blank and `#` comment lines read from a file, so a requirements
  * file can be passed as it is on disk.
  */
-export async function readListValues(
-  raw: unknown,
-  flagName: string,
-  manifest = false
-): Promise<string[]> {
+async function readListValues(raw: unknown, flagName: string, manifest = false): Promise<string[]> {
   const arguments_ = Array.isArray(raw) ? raw : [raw]
   const values: string[] = []
   for (const argument of arguments_) {
@@ -524,12 +622,8 @@ export async function coerce(
    *   or failed validation outright.
    */
   if (flag.list) {
-    const listed = await readListValues(raw, flagName, flag.manifest === true)
-    const values = (
-      flag.fileReferences
-        ? listed.flatMap((value) => fileReferenceEntries(value, flagName))
-        : listed
-    ).map((value) => (flag.folderPath ? encodeFolderPath(value) : value))
+    const listed = await readListFlag(raw, flag, flagName)
+    const values = flag.folderPath ? listed.map(encodeFolderPath) : listed
     // Encoding first is also what keeps the comma-joined form unambiguous: a
     // folder name containing a comma leaves here as `%2C`, so the route's split
     // cannot cut one path in half.
@@ -784,6 +878,9 @@ export async function buildRequest(
 
       const value = await coerce(raw ?? undefined, descriptor, flag, flagName)
 
+      const misshapen = shapeRefusal(descriptor, flag, flagName, field, value)
+      if (misshapen) throw new SimApiError(misshapen, 0)
+
       /**
        * A non-paginated `limit` is a row cap the route bounds at `1`, which is
        * what `--help` already tells the caller ("note 0 is not accepted") — so
@@ -845,12 +942,8 @@ export async function buildRequest(
       const raw = flags[camel(variant.name)]
       if (typeof raw !== 'string') throw new SimApiError(`--${variant.name} is required`, 0)
       const parsed = await coerce(raw, { kind: variant.kind }, { json: true }, variant.name)
-      const shape = jsonShape(parsed)
-      if (shape !== variant.kind) {
-        throw new SimApiError(
-          bodyVariantShapeError(variant, parsed, shape, commandSpec.bodyVariants),
-          0
-        )
+      if (jsonShape(parsed) !== variant.kind) {
+        throw new SimApiError(bodyVariantShapeError(variant, parsed, commandSpec.bodyVariants), 0)
       }
       return boundedRequest({
         params,

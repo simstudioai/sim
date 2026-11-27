@@ -24,6 +24,7 @@ export const affinityGetEntityFieldValueTool: ToolConfig<
   name: 'Affinity Get Entity Field Value',
   description: 'Read one non-list field value from a company or person.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

@@ -29,6 +29,7 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
   name: 'Add SharePoint List Item',
   description: 'Add a new item to a SharePoint list',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

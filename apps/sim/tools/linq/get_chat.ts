@@ -9,6 +9,7 @@ export const linqGetChatTool: ToolConfig<LinqGetChatParams, LinqChatResult> = {
   name: 'Get Chat',
   description: 'Retrieve a chat by ID, including participants and line health',
   version: '1.0.0',
+  effect: 'read',
   oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {

@@ -14,6 +14,7 @@ export const vercelGetDeploymentEventsTool: ToolConfig<
   name: 'Vercel Get Deployment Events',
   description: 'Get build and runtime events for a Vercel deployment',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

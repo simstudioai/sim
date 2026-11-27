@@ -6,6 +6,7 @@ export const spotifyPauseTool: ToolConfig<SpotifyPauseParams, SpotifyPauseRespon
   name: 'Spotify Pause',
   description: 'Pause playback on Spotify.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

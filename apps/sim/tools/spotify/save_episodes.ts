@@ -18,6 +18,7 @@ export const spotifySaveEpisodesTool: ToolConfig<
   name: 'Spotify Save Episodes',
   description: "Save podcast episodes to the user's library.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

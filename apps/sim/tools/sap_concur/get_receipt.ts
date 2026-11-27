@@ -11,6 +11,7 @@ export const getReceiptTool: InternalToolConfig<GetReceiptParams, SapConcurRespo
   name: 'SAP Concur Get Receipt',
   description: 'Get a single receipt by ID (GET /receipts/v4/{receiptId}).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

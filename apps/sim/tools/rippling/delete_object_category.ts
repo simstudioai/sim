@@ -8,6 +8,7 @@ export const ripplingDeleteObjectCategoryTool: ToolConfig<RipplingDeleteObjectCa
   name: 'Rippling Delete ObjectCategory',
   description: 'Delete an object category',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

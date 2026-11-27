@@ -14,6 +14,7 @@ export const deleteLabelTool: ToolConfig<JotformDeleteLabelParams, JotformMessag
   name: 'Jotform Delete Label',
   description: 'Delete a Jotform label along with all of its sublabels.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

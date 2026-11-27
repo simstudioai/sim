@@ -10,6 +10,7 @@ export const ripplingGetBusinessPartnerTool: ToolConfig<RipplingGetBusinessPartn
   name: 'Rippling Get Business Partner',
   description: 'Get a specific business partner by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

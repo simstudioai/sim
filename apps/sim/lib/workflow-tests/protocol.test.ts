@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { testReplyArgsSchema } from '@/lib/workflow-tests/protocol'
+import { storedTestReportSchema, testReplyArgsSchema } from '@/lib/workflow-tests/protocol'
 
 describe('testReplyArgsSchema', () => {
   it('keeps the error of a mock that threw', () => {
@@ -16,5 +16,25 @@ describe('testReplyArgsSchema', () => {
   it('never reads an error past the cap as an empty output', () => {
     const reply = { runId: 'r', callId: 'c', error: 'x'.repeat(10_001) }
     expect(testReplyArgsSchema.safeParse(reply).success).toBe(false)
+  })
+})
+
+describe('storedTestReportSchema', () => {
+  const stored = (stubbed: Array<Record<string, unknown>>) => ({
+    topLevel: [],
+    tests: [],
+    sideEffects: {
+      executions: {
+        'exec-1': { stubbed, unchecked: [], omitted: { stubbed: 0, unchecked: 0 } },
+      },
+      omittedExecutions: 0,
+    },
+  })
+  const call = { workflowId: 'wf', blockId: 'b', block: 'Send', tool: 'slack', count: 1 }
+
+  it('still reads a report stored before a stubbed call recorded its MCP target or reason', () => {
+    const parsed = storedTestReportSchema.parse(stored([call]))
+
+    expect(parsed.sideEffects?.executions['exec-1'].stubbed).toEqual([{ ...call, mcp: null }])
   })
 })

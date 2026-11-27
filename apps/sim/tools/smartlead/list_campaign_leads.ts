@@ -29,6 +29,7 @@ export const listCampaignLeadsTool: ToolConfig<
   name: 'Smartlead List Campaign Leads',
   description: 'Retrieves the leads in a Smartlead campaign with their per-campaign status.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

@@ -221,15 +221,15 @@ jobs:
 
       - name: Install tmux
         run: brew install tmux
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
 
       - name: Run Electron smoke partition
         working-directory: apps/desktop
         env:
           SIM_DESKTOP_DEFAULT_ORIGIN: ${{ needs.source.outputs.origin }}
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/desktop-smoke.json
-          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
-          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
-          CONTINUE_SIGN_IN_REPORT_PATH: test-results/continue-sign-in-report.json
         run: bun run ../../scripts/desktop-e2e.ts ${{ matrix.shard }}/${{ strategy.job-total }}
 
       - name: Upload smoke coverage and timings

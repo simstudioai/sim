@@ -13,6 +13,7 @@ export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchRes
   description:
     'Search for tracks, albums, artists, or playlists on Spotify. Returns matching results based on the query.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

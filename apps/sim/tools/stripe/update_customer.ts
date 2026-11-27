@@ -22,6 +22,7 @@ export const stripeUpdateCustomerTool: ToolConfig<
   name: 'Stripe Update Customer',
   description: 'Update an existing customer',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

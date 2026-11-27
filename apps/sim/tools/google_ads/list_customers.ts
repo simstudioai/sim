@@ -14,6 +14,7 @@ export const googleAdsListCustomersTool: ToolConfig<
   description:
     'List Google Ads accounts directly accessible by the authenticated user; query customer_client for manager subaccounts',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

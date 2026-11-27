@@ -12,6 +12,7 @@ export const cancelRunTool: ToolConfig<DatabricksCancelRunParams, DatabricksCanc
   description:
     'Cancel a running or pending Databricks job run. Cancellation is asynchronous; poll the run status to confirm termination.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {

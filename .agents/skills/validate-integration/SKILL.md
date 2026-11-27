@@ -77,6 +77,21 @@ For **every** tool file, check:
 - [ ] Tool `description` is a concise one-liner describing what it does
 - [ ] Tool `version` is set (`'1.0.0'` or `'2.0.0'` for V2)
 
+### Effect
+- [ ] Every tool declares `effect`, and the label matches the API docs, not the name (rules:
+      `add-tools` → Declaring the effect)
+- [ ] Any `// tool-effect: <reason>` sits on a genuine verb/label exception, and
+      `bun run check:tool-effects` passes
+- [ ] A dry run (`sim workflows run <workflowId> --dry --input '{…}'` on a workflow using the
+      block) lists every write operation in `sideEffects.stubbed` (at most 50 entries; the rest
+      are counted in `sideEffects.omitted.stubbed`) with the request the API docs expect where
+      `request` is not `null`, and every read runs for real; a write absent from `stubbed` counts
+      only if its block ran (not on an untaken branch or `--mock`ed) (rules: `add-tools` →
+      Declaring the effect)
+- [ ] A write's `dryRunOutput`, where it declares one, echoes only what its request determines,
+      provider-assigned ids as `dryRunId(kind, n)`, and shares any param normalisation with the
+      request builder through a named helper (rules: `add-tools` → Declaring the effect)
+
 ### Params
 - [ ] All required API params are marked `required: true`
 - [ ] All optional API params are marked `required: false`

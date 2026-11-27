@@ -36,6 +36,7 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
   name: 'Ashby List Offers',
   description: 'Lists all offers with their latest version in an Ashby organization.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

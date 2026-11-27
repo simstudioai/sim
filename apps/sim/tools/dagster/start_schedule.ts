@@ -53,6 +53,7 @@ export const startScheduleTool: ToolConfig<
   name: 'Dagster Start Schedule',
   description: 'Enable (start) a schedule in a Dagster repository.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

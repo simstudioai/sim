@@ -9,6 +9,7 @@ export const pitchbookEntityUpdatesTool: ToolConfig<PitchbookUpdatesParams, Pitc
   description:
     'Check which entity datasets changed in a window, so a sync only refetches what moved',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

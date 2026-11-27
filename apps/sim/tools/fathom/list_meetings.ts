@@ -7,6 +7,7 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
   name: 'Fathom List Meetings',
   description: 'List recent meetings recorded by the user or shared to their team.',
   version: '1.0.0',
+  effect: 'read',
   oauth: FATHOM_CREDENTIAL_OAUTH,
 
   params: {

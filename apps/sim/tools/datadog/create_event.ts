@@ -14,6 +14,7 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
   description:
     'Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences. Uses the v1 events endpoint, which Datadog has deprecated and serves only to organizations that have used it before.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATADOG_API_KEY_CREDENTIAL_OAUTH,
 
   params: {

@@ -47,6 +47,7 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
   description:
     'Apply one precise edit to an existing text file without rewriting it. Use search_replace for verbatim replacement, optionally with replaceAll. Use replace_between, insert_after, or delete_between for complete trimmed-line anchors that stay stable when line numbers move. Folder scope can disambiguate a name or constrain a file ID.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     fileName: {

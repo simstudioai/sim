@@ -19,6 +19,7 @@ export const personaCreateReportTool: ToolConfig<PersonaCreateReportParams, Pers
     description:
       'Run a screening report (watchlist, adverse media, or politically exposed person) against an individual by name or search term.',
     version: '1.0.0',
+    effect: 'write',
     oauth: PERSONA_CREDENTIAL_OAUTH,
 
     params: {

@@ -34,6 +34,7 @@ export const sportmonksMotorsportGetTeamStandingsTool: ToolConfig<
   name: 'Get All Team Standings',
   description: 'Retrieve all team (constructor) championship standings from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

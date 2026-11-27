@@ -12,6 +12,7 @@ export const getOrganizationsTool: InternalToolConfig<
   name: 'Get Workday Organizations',
   description: 'Retrieve organizations, departments, and cost centers from Workday.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     tenantUrl: {

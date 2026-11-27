@@ -20,6 +20,7 @@ export const instagramPrivateReplyTool: ToolConfig<
   description:
     'Send the one allowed initial private reply within 7 days of a comment; follow-ups require a recipient response',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

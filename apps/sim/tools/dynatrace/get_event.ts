@@ -16,6 +16,7 @@ export const getEventTool: ToolConfig<DynatraceGetEventParams, DynatraceGetEvent
   name: 'Dynatrace Get Event',
   description: 'Get the full details of a single Dynatrace event.',
   version: '1.0.0',
+  effect: 'read',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

@@ -15,6 +15,7 @@ export const sendblueSendMessageTool: ToolConfig<
   name: 'Sendblue Send Message',
   description: 'Send an iMessage or SMS to a single recipient via Sendblue.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...sendblueBaseParamFields,

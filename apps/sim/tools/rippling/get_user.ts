@@ -8,6 +8,7 @@ export const ripplingGetUserTool: ToolConfig<RipplingGetUserParams> = {
   name: 'Rippling Get User',
   description: 'Get a specific user by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

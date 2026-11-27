@@ -550,7 +550,6 @@
     "apps/sim/app/api/billing/invoices/route.ts": 2,
     "apps/sim/app/api/billing/portal/route.ts": 2,
     "apps/sim/app/api/billing/route.ts": 2,
-    "apps/sim/app/api/billing/switch-plan/route.ts": 2,
     "apps/sim/app/api/chat/[identifier]/otp/route.ts": 2,
     "apps/sim/app/api/chat/[identifier]/route.ts": 2,
     "apps/sim/app/api/chat/[identifier]/sso/route.ts": 2,

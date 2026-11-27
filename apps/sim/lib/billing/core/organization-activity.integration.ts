@@ -8,7 +8,11 @@ const { execute, select } = vi.hoisted(() => ({ execute: vi.fn(), select: vi.fn(
 const databaseUrl = readTestDatabaseUrl()
 
 vi.mock('@sim/db', () => ({ dbReplica: { execute, select } }))
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => null }))
+vi.mock('@/lib/core/config/redis', () => ({
+  getRedisClient: () => {
+    throw new Error('Redis is unavailable in this suite; the usage cache falls back to the ledger')
+  },
+}))
 
 import type { ActivityScope } from '@/lib/billing/core/organization-activity'
 import {

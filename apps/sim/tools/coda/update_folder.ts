@@ -21,6 +21,7 @@ export const codaUpdateFolderTool: ToolConfig<CodaUpdateFolderParams, CodaFolder
   description:
     'Rename a Coda folder or change its description. Coda can return the folder as it was before the change; read it again to confirm.',
   version: '1.0.0',
+  effect: 'write',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

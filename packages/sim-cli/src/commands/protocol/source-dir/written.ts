@@ -8,7 +8,6 @@ import { createHash } from 'node:crypto'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { toRecord } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
-import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS } from '@sim/workspace-code'
 import { workspaceFolderOf } from './dir-kind'
 import { FILE_CONCURRENCY, normalizeSourceText, readSourceJson, readSourceText } from './files'
@@ -19,9 +18,11 @@ import { orphanedCodeFiles, SOURCE_WRITTEN_FILE } from './layout'
  * which names this machine's files (device, inode, times) and so is never committed. The folder
  * ignores itself (`.sim/cache/.gitignore`), whatever the repository's own `.gitignore` says.
  */
-const SOURCE_CACHE_DIR = '.sim/cache'
+export const SOURCE_CACHE_DIR = '.sim/cache'
 const SOURCE_STATS_FILE = `${SOURCE_CACHE_DIR}/stats.json`
-const SOURCE_CACHE_IGNORE_FILE = `${SOURCE_CACHE_DIR}/.gitignore`
+
+/** The cache folder's own `.gitignore`, written with any file the CLI keeps there. */
+export const SOURCE_CACHE_IGNORE = [`${SOURCE_CACHE_DIR}/.gitignore`, '*\n'] as const
 
 /**
  * What identifies a file's bytes without reading them, taken when its digest was: the file (device
@@ -134,11 +135,7 @@ export function writtenFiles(written: Written): Array<readonly [string, string]>
   )
   if (stats.length === 0) return files
   const cache: StatsRecord = { version: 1, stats: sortedByPath(Object.fromEntries(stats)) }
-  return [
-    ...files,
-    [SOURCE_STATS_FILE, `${JSON.stringify(cache, null, 2)}\n`],
-    [SOURCE_CACHE_IGNORE_FILE, '*\n'],
-  ]
+  return [...files, [SOURCE_STATS_FILE, `${JSON.stringify(cache, null, 2)}\n`], SOURCE_CACHE_IGNORE]
 }
 
 /** What the CLI recorded for its last write, empty when it recorded nothing. */
@@ -204,6 +201,23 @@ export async function editedFiles(
   })
 }
 
+/** The texts of those of `paths` still as the CLI last wrote them (`written`), by path. */
+export async function unchangedTexts(
+  dir: string,
+  paths: readonly string[],
+  written: Written['digests']
+): Promise<Map<string, string>> {
+  const texts = await mapWithConcurrency(paths, FILE_CONCURRENCY, (path) =>
+    readSourceText(dir, path)
+  )
+  return new Map(
+    paths.flatMap((path, index) => {
+      const text = texts[index]
+      return text !== null && written[path] === digest(text) ? [[path, text] as const] : []
+    })
+  )
+}
+
 /**
  * The source files a write of `answer` would destroy edits in: a file it replaces or prunes whose
  * text on disk is neither what the CLI last wrote there nor what it is about to write.
@@ -229,22 +243,12 @@ export function inWorkspace(key: string, path: string): string {
 /**
  * What the CLI last wrote into the workflow directory `dir`: its own `.sim/written.json`, or for a
  * workflow folder of a workspace directory, the workspace record's entries for the folder (its
- * `.sim/` records left out). A write into such a folder records there and never in the folder, but
- * a CLI from before that left a record of the folder's own. That record wins only when it is the
- * later one: when the workspace record's digest of the folder's `.sim/base.json` is not the base on
- * disk, a single-workflow write replaced the base after the workspace record was taken. Otherwise
- * the folder's own record is stale and ignored.
+ * `.sim/` records left out). A write into such a folder records there and never in the folder.
  */
 export async function readFolderWritten(dir: string): Promise<Written> {
-  const own = await readWritten(dir)
   const folder = await workspaceFolderOf(dir)
-  if (!folder) return own
+  if (!folder) return readWritten(dir)
   const record = await readWritten(folder.root)
-  if (Object.keys(own.digests).length > 0) {
-    const base = await readSourceText(dir, SOURCE_BASE_FILE)
-    const recorded = record.digests[inWorkspace(folder.key, SOURCE_BASE_FILE)]
-    if (base !== null && recorded !== digest(base)) return own
-  }
   const prefix = inWorkspace(folder.key, '')
   const inFolder = <T>(entries: Record<string, T>) =>
     Object.fromEntries(

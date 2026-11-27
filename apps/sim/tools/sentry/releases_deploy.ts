@@ -10,6 +10,7 @@ export const createDeployTool: ToolConfig<SentryCreateDeployParams, SentryCreate
   description:
     'Create a deploy record for a Sentry release in a specific environment. Deploys track when and where releases are deployed. Returns the created deploy details.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {

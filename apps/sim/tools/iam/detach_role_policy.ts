@@ -10,6 +10,7 @@ export const detachRolePolicyTool: InternalToolConfig<
   name: 'IAM Detach Role Policy',
   description: 'Remove a managed policy from an IAM role',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

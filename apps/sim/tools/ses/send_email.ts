@@ -8,6 +8,7 @@ export const sendEmailTool: InternalToolConfig<SESSendEmailParams, SESSendEmailR
   name: 'SES Send Email',
   description: 'Send an email via AWS SES using simple or HTML content',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

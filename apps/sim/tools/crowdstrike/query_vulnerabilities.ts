@@ -17,6 +17,7 @@ export const crowdstrikeQueryVulnerabilitiesTool: InternalToolConfig<
   description:
     'Search CrowdStrike Falcon Spotlight vulnerabilities with a required Falcon Query Language filter and return their IDs (GET /spotlight/queries/vulnerabilities/v1). Requires the spotlight-vulnerabilities:read API scope, shown as "Vulnerabilities: Read" in the Falcon API client UI.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

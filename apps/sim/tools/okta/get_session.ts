@@ -14,6 +14,7 @@ export const oktaGetSessionTool: ToolConfig<OktaGetSessionParams, OktaGetSession
   description:
     'Retrieve an Okta session by ID, including who it belongs to, when it expires, and which authentication methods were used to establish it.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

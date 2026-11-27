@@ -13,6 +13,7 @@ export const deleteSecretTool: InternalToolConfig<
   name: 'Secrets Manager Delete Secret',
   description: 'Delete a secret from AWS Secrets Manager',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

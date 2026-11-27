@@ -38,15 +38,18 @@ ${ticketIn.body}`,
       model: 'claude-sonnet-5-5',
       temperature: 0.2,
     })
+    ticketIn.to(classify)
     const byCategory = condition('By category', {
       billing: js`${classify.content} === 'billing'`,
       urgent: js`${classify.content}.includes("urgent") && ${vars.escalations} < 3`,
       else: true,
     })
+    classify.to(byCategory)
     const logTicket = table.insertRow('Log ticket', {
       tableId: table('tickets'),
       data: { subject: ticketIn.subject },
     })
+    byCategory.billing.to(logTicket)
     const notify = slack.sendMessage(
       'Notify',
       {
@@ -56,15 +59,11 @@ ${ticketIn.body}`,
       },
       { errorPort: true }
     )
-    const reply = response('Reply', { body: { ok: true, category: classify.content } })
-
-    ticketIn.to(classify)
-    classify.to(byCategory)
-    byCategory.billing.to(logTicket)
     byCategory.urgent.to(notify)
-    byCategory.else.to(reply)
     logTicket.to(notify)
     logTicket.onError(notify)
+    const reply = response('Reply', { body: { ok: true, category: classify.content } })
+    byCategory.else.to(reply)
     notify.to(reply)
   }
 )

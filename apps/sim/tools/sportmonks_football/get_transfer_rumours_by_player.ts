@@ -36,6 +36,7 @@ export const sportmonksGetTransferRumoursByPlayerTool: ToolConfig<
   name: 'Get Transfer Rumours by Player',
   description: 'Retrieve transfer rumours for a player ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

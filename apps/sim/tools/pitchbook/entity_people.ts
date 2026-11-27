@@ -9,6 +9,7 @@ export const pitchbookEntityPeopleTool: ToolConfig<PitchbookProfileParams, Pitch
   description:
     'Retrieve the people at an entity: primary contact, current and former team, and current and former board members',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

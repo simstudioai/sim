@@ -44,6 +44,7 @@ export const zendeskGetOrganizationsTool: ToolConfig<
   name: 'Get Organizations from Zendesk',
   description: 'Retrieve a list of organizations from Zendesk',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: ZENDESK_CREDENTIAL_OAUTH,
 

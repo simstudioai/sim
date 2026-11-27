@@ -18,6 +18,7 @@ export const intuneRemoteLockDeviceTool: ToolConfig<
   name: 'Microsoft Intune Remote Lock Device',
   description: 'Request a remote device lock after explicit confirmation on supported platforms',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-intune' },
   params: {
     ...INTUNE_AUTH_PARAMS,

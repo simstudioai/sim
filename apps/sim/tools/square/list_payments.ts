@@ -14,6 +14,7 @@ export const squareListPaymentsTool: ToolConfig<ListPaymentsParams, PaymentListR
   name: 'Square List Payments',
   description: 'List payments taken by the account, optionally filtered by location and time range',
   version: '1.0.0',
+  effect: 'read',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

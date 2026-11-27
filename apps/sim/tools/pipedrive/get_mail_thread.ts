@@ -17,6 +17,7 @@ export const pipedriveGetMailThreadTool: ToolConfig<
   name: 'Get Mail Thread Messages from Pipedrive',
   description: 'Retrieve all messages from a specific mail thread',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

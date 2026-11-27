@@ -41,6 +41,7 @@ import {
   validateAndPinProxyUrl,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { waitWithAbort } from '@/lib/core/utils/concurrency'
 import { HttpError } from '@/lib/core/utils/http-error'
@@ -126,6 +127,7 @@ import {
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
 import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
+import { mcpRunOperationTool } from '@/tools/mcp/run-operation'
 import {
   getOwnEnumerableDataEntries,
   prepareToolRequest,
@@ -133,6 +135,16 @@ import {
   readRequestedDeadline,
 } from '@/tools/request-transport'
 import { AWS_CREDENTIAL_OAUTH, AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
+import {
+  answerCheckedMcpCall,
+  answerUnsentCall,
+  type CodeNetwork,
+  codeNetworkFor,
+  describeMcpToolRequest,
+  describeToolRequest,
+  unsentReadFor,
+  unsentWriteFor,
+} from '@/tools/side-effects'
 import type {
   BYOKProviderId,
   CredentialParamSource,
@@ -251,6 +263,16 @@ function createInternalToolOperationContext(
     fileKeys: context.fileKeys,
     allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
   }
+}
+
+/**
+ * The operation context of an MCP call a run's side-effect policy holds back: authorized and
+ * checked against the server's tools as a live call is, then answered without being sent.
+ */
+function checkOnlyContext(
+  context: InternalToolOperationContext | undefined
+): InternalToolOperationContext {
+  return { ...(context ?? { workflowId: '' }), checkOnly: true }
 }
 
 function toUserFileFromWorkspaceRecord(record: {
@@ -647,13 +669,18 @@ function applyCredentialParams(
  * Checks BYOK workspace keys first, refuses Sim's key to a payer without paid access, then uses the
  * HostedKeyRateLimiter for round-robin key selection.
  * Returns whether a hosted (billable) key was injected and which env var it came from.
+ *
+ * `drawKey: false` is a call that will not be sent (a run's side-effect policy answers it): it
+ * passes every check a sent call does but draws no key, so it spends no rate-limit slot, and its
+ * key param holds the redaction marker instead.
  */
 async function injectHostedKeyIfNeeded(
   tool: ToolDefinition,
   params: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
   requestId: string,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  { drawKey }: { drawKey: boolean }
 ): Promise<HostedKeyInjectionResult> {
   if (!tool.hosting || !hostedKeyMayFill(tool, params)) return { isUsingHostedKey: false }
 
@@ -686,6 +713,11 @@ async function injectHostedKeyIfNeeded(
 
   if (!(await mayUseHostedKey(workspaceId, billingAttribution))) {
     throw new HostedKeyRequiresPaidPlanError(tool.name)
+  }
+
+  if (!drawKey) {
+    params[apiKeyParam] = REDACTED_MARKER
+    return { isUsingHostedKey: false }
   }
 
   const rateLimiter = getHostedKeyRateLimiter()
@@ -1795,18 +1827,31 @@ async function executeToolImplementation(
     : suppliedOperationContext
       ? { ...suppliedOperationContext, resolvedSecretTraceRegistry }
       : undefined
+  /**
+   * Under a run's side-effect policy, a tool's own follow-up calls (a `postProcess` that writes
+   * again) run in its caller's `_context`, so the policy decides them for the same block as the
+   * call that made them. Any other run passes them on as they are.
+   */
+  const callerContext =
+    executionContext?.sideEffects && isPlainRecord(params._context) ? params._context : undefined
   const executeNestedTool: typeof executeTool = (nestedToolId, nestedParams, nestedOptions = {}) =>
-    executeTool(nestedToolId, nestedParams, {
-      ...nestedOptions,
-      ...(operationContext?.requestMode === 'assistant' ? { operationContext } : {}),
-      executionContext:
-        operationContext?.requestMode === 'assistant'
-          ? undefined
-          : (nestedOptions.executionContext ?? executionContext),
-      signal: nestedOptions.signal ?? effectiveSignal,
-      resolvedSecretTraceRegistry:
-        nestedOptions.resolvedSecretTraceRegistry ?? resolvedSecretTraceRegistry,
-    })
+    executeTool(
+      nestedToolId,
+      callerContext
+        ? { ...nestedParams, _context: { ...callerContext, ...toRecord(nestedParams._context) } }
+        : nestedParams,
+      {
+        ...nestedOptions,
+        ...(operationContext?.requestMode === 'assistant' ? { operationContext } : {}),
+        executionContext:
+          operationContext?.requestMode === 'assistant'
+            ? undefined
+            : (nestedOptions.executionContext ?? executionContext),
+        signal: nestedOptions.signal ?? effectiveSignal,
+        resolvedSecretTraceRegistry:
+          nestedOptions.resolvedSecretTraceRegistry ?? resolvedSecretTraceRegistry,
+      }
+    )
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
   const requestId = generateRequestId()
@@ -1916,14 +1961,22 @@ async function executeToolImplementation(
         logger.error(`Custom tool not found: ${normalizedToolId}`, { requestId })
       }
     } else if (isMcpTool(normalizedToolId)) {
-      return await executeMcpTool(
+      // An MCP tool declares no effect, so a run's side-effect policy decides every one.
+      const unsentMcpCall = unsentWriteFor({ toolId: normalizedToolId, params, executionContext })
+      const response = await executeMcpTool(
         normalizedToolId,
         params,
-        operationContext,
+        unsentMcpCall ? checkOnlyContext(operationContext) : operationContext,
         requestId,
         startTimeISO,
         effectiveSignal
       )
+      if (!unsentMcpCall) return response
+      return await answerCheckedMcpCall(unsentMcpCall, response, {
+        params,
+        registry: resolvedSecretTraceRegistry,
+        describe: describeMcpToolRequest,
+      })
     } else {
       tool = getTool(normalizedToolId)
       if (!tool) {
@@ -1961,12 +2014,24 @@ async function executeToolImplementation(
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
     await resolveToolEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
 
+    /**
+     * Decided before a hosted key is drawn, so a call the run's side-effect policy will not send
+     * spends no rate-limit slot.
+     */
+    const readsOnly =
+      tool.effect === 'read' ||
+      Boolean(executionContext?.sideEffects && tool.readsWhen?.(contextParams))
+    const unsentCall = readsOnly
+      ? unsentReadFor({ tool, params: contextParams, executionContext })
+      : unsentWriteFor({ toolId: normalizedToolId, params: contextParams, executionContext })
+
     const hostedKeyInfo = await injectHostedKeyIfNeeded(
       tool,
       contextParams,
       executionContext,
       requestId,
-      effectiveSignal
+      effectiveSignal,
+      { drawKey: !unsentCall }
     )
 
     if (hostedKeyInfo.isUsingHostedKey) {
@@ -2144,7 +2209,7 @@ async function executeToolImplementation(
         if (
           tool.oauth?.retryOnUnauthorized &&
           tool.operation &&
-          !(operationContext?.requestMode === 'assistant' && tool.assistant?.effect === 'write')
+          !(operationContext?.requestMode === 'assistant' && tool.effect === 'write')
         ) {
           refreshCredential = resolveCredential
         }
@@ -2200,6 +2265,36 @@ async function executeToolImplementation(
       contextParams.sessionToken = session.sessionToken
     }
 
+    // After credentials resolve, so an unsent write still proves them.
+    if (unsentCall) {
+      const unsentTool = tool
+      const unsent = {
+        params: contextParams,
+        registry: resolvedSecretTraceRegistry,
+        describe: (maskedParams: Record<string, unknown>) =>
+          describeToolRequest(unsentTool, maskedParams),
+        echo: unsentTool.dryRunOutput,
+      }
+      if (normalizedToolId !== mcpRunOperationTool.id || !tool.operation) {
+        return await answerUnsentCall(unsentCall, unsent)
+      }
+      // The MCP block's operation is checked like an MCP tool's; a failed check throws like a
+      // failed call.
+      const checked = await executeDeclaredInternalOperation({
+        toolId: normalizedToolId,
+        tool,
+        params: contextParams,
+        context: checkOnlyContext(operationContext),
+        signal: effectiveSignal,
+        requestId,
+        privateToolMetadataType,
+        resolvedSecretTraceRegistry,
+        internalSandboxProfile,
+        authorizedServiceAccountCredential,
+      })
+      return await answerCheckedMcpCall(unsentCall, checked, unsent)
+    }
+
     // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
     // The runner is dynamic-imported from a server-only module so the client-bundled
     // tool registry never pulls in the executor/db dependency graph (a static or
@@ -2243,6 +2338,8 @@ async function executeToolImplementation(
           // copies (`normalizeStringRecord`); this boundary is the longest-lived one.
           environmentVariables: { ...executionContext?.environmentVariables },
           piiBlockOutputRedaction: executionContext?.piiBlockOutputRedaction,
+          // The child runs under this run's side-effect policy, so its own writes are decided.
+          sideEffects: executionContext?.sideEffects,
         }
       )
       const endTime = new Date()
@@ -2303,6 +2400,14 @@ async function executeToolImplementation(
     }
 
     if (tool.operation) {
+      const codeNetwork =
+        normalizedToolId === 'function_execute'
+          ? codeNetworkFor({
+              executionContext,
+              params: contextParams,
+              registry: resolvedSecretTraceRegistry,
+            })
+          : undefined
       const result = await executeDeclaredInternalOperation({
         toolId: normalizedToolId,
         tool,
@@ -2315,7 +2420,10 @@ async function executeToolImplementation(
         internalSandboxProfile,
         refreshCredential,
         authorizedServiceAccountCredential,
+        codeNetwork,
       }).catch(async (error: unknown) => {
+        const hint = codeNetwork?.failureHint()
+        if (hint && error instanceof Error) error.message = `${error.message} ${hint}`
         throw authorizedServiceAccountCredential
           ? await explainExpiredServiceAccountToken(
               error,
@@ -2602,11 +2710,14 @@ async function executeToolImplementation(
     const responseData = isRecordLike(rawResponseData) ? rawResponseData : undefined
     const functionSandboxCost =
       normalizedToolId === 'function_execute' ? readFunctionSandboxCost(responseData) : undefined
+    const functionErrorMessage =
+      normalizedToolId === 'function_execute' ? readResponseErrorMessage(responseData) : undefined
     return {
       success: false,
       output: loggedFailureOutput(error, {
         ...errorDetails,
         ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
+        ...(functionErrorMessage ? { errorMessage: functionErrorMessage } : {}),
       }),
       error: errorMessage,
       ...(responseData?.retryable === false ? { retryable: false } : {}),
@@ -2762,6 +2873,8 @@ interface ExecuteDeclaredInternalOperationInput {
   refreshCredential?: (signal: AbortSignal) => Promise<void>
   /** Service-account credential the executor authorized for this call (never from tool params). */
   authorizedServiceAccountCredential?: AuthorizedServiceAccountCredential
+  /** The run's side-effect policy for a Function's code (never from tool params). */
+  codeNetwork?: CodeNetwork
 }
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
@@ -2795,6 +2908,13 @@ function readFunctionSandboxCost(value: unknown): FunctionSandboxCost | undefine
   return { input, output, total }
 }
 
+/** A failed Function's thrown message alone, without the line and code its `error` carries. */
+function readResponseErrorMessage(value: unknown): string | undefined {
+  return isRecordLike(value) && typeof value.errorMessage === 'string'
+    ? value.errorMessage
+    : undefined
+}
+
 function isToolResponse(value: unknown): value is ToolResponse {
   return isRecordLike(value) && typeof value.success === 'boolean' && isRecordLike(value.output)
 }
@@ -2811,6 +2931,7 @@ async function executeDeclaredInternalOperation({
   internalSandboxProfile,
   refreshCredential,
   authorizedServiceAccountCredential,
+  codeNetwork,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   const organizationScratch =
     toolId === 'function_execute' &&
@@ -2931,6 +3052,7 @@ async function executeDeclaredInternalOperation({
       requestId,
       ...(signal ? { signal } : {}),
       ...(internalSandboxProfile ? { sandboxProfile: internalSandboxProfile } : {}),
+      ...(codeNetwork ? { codeNetwork } : {}),
     })
   } else {
     const handler = await getInternalToolOperationHandler(toolId)
@@ -3199,7 +3321,7 @@ async function executeToolRequest(
     })
 
     const retryConfig =
-      context?.requestMode === 'assistant' && tool.assistant?.effect === 'write'
+      context?.requestMode === 'assistant' && tool.effect === 'write'
         ? null
         : getRetryConfig(tool.request.retry, params, requestParams.method)
     const maxAttempts = retryConfig ? 1 + retryConfig.maxRetries : 1

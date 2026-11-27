@@ -14,6 +14,7 @@ export const updateReleaseTool: ToolConfig<UpdateReleaseParams, ReleaseResponse>
   description:
     'Update an existing GitHub release. Modify tag name, target commit, title, description, draft status, or prerelease status.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -173,6 +174,7 @@ export const updateReleaseV2Tool: ToolConfig = {
   name: updateReleaseTool.name,
   description: updateReleaseTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: updateReleaseTool.params,
   request: updateReleaseTool.request,
   oauth: updateReleaseTool.oauth,

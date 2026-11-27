@@ -8,6 +8,7 @@ export const boxSignGetRequestTool: ToolConfig<BoxSignGetRequestParams, BoxSignR
   name: 'Box Sign Get Request',
   description: 'Get the details and status of a Box Sign request',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

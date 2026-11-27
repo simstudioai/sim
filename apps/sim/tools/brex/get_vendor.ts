@@ -8,6 +8,7 @@ export const brexGetVendorTool: ToolConfig<BrexGetVendorParams, BrexGetVendorRes
   name: 'Brex Get Vendor',
   description: 'Get a Brex vendor by its ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

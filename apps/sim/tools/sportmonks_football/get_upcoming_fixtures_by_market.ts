@@ -36,6 +36,7 @@ export const sportmonksGetUpcomingFixturesByMarketTool: ToolConfig<
   name: 'Get Upcoming Fixtures by Market',
   description: 'Retrieve all upcoming fixtures for a market ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

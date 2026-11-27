@@ -11,6 +11,7 @@ export const netsuiteDeleteRecordTool: InternalToolConfig<
   name: 'NetSuite Delete Record',
   description: 'Delete one NetSuite record by internal or external ID.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

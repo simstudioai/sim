@@ -24,6 +24,7 @@ export const updateQuestionTool: ToolConfig<
   description:
     'Edit the properties of a form question, such as its label, order, or validation. Only the supplied properties change.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

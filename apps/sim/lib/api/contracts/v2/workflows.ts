@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import {
   BLOCK_RETRY_MAX_TRIES,
   BLOCK_RETRY_MAX_WAIT_MS,
@@ -85,6 +86,12 @@ export const V2_WORKFLOW_DESCRIPTION_MAX_LENGTH = 50_000
 export const v2WorkflowRunIdSchema = runIdSchema
   .describe('Unique workflow run identifier.')
   .meta({ examples: ['run_8f14e45f-ceea-467f-a'] })
+
+const v2PausedRunIdSchema = z
+  .string()
+  .describe(
+    'Run to name in Resume workflow run: the run this pause is recorded under, which for a resumed run that paused again is the run it resumed.'
+  )
 
 /**
  * `X-Run-Id` reserves an execution ID without guaranteeing a retrievable run.
@@ -1597,6 +1604,17 @@ export const v2ExecutionErrorSchema = z
       .describe(
         'Integration or block type that failed, when attributable. Present whenever `blockId` is.'
       ),
+    /**
+     * A run cannot start inside a loop or parallel, so a failure in one is rerun from the
+     * outermost container holding it. Execute reads containment from the graph the run
+     * executed; the run resource, which keeps no graph, from the saved draft a rerun runs.
+     */
+    rerunFromBlockId: z
+      .string()
+      .optional()
+      .describe(
+        'Block a rerun of this failure starts from (`run.entry` of type `block` naming it, with this run as `sourceRunId`): the failing block, or the outermost loop or parallel holding it, since a run cannot start inside one. Set by Execute workflow from the graph the run executed and by Get workflow run from the saved draft, whenever `blockId` is and that graph still has the block.'
+      ),
   })
   .meta({
     id: 'ExecutionError',
@@ -1618,6 +1636,12 @@ export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
 export const EXECUTE_OPTION_CONSTRAINTS =
   'Input descriptions specify compatible modes; invalid combinations return `400`.'
 
+/** Blocks one run may name in each of `run.allow`, `run.mocks` and `run.mocksFrom.blocks`. */
+const MAX_RUN_OVERRIDES = 50
+
+/** Longest block selector a dry run resolves; a dotted one is tried at every dot. */
+const MAX_BLOCK_SELECTOR_LENGTH = 256
+
 export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
   z
     .object({
@@ -1631,14 +1655,14 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
     .strict(),
   z
     .object({
-      source: z.literal('manual').describe('Execute the current saved workflow state manually.'),
+      source: z.literal('draft').describe('Run the saved draft.'),
       entry: z
         .discriminatedUnion('type', [
           z
             .object({
               type: z
                 .literal('trigger')
-                .describe('Enter the manual run through a runnable trigger.'),
+                .describe('Enter the draft run through a runnable trigger.'),
               blockId: z
                 .string()
                 .min(1, 'run.entry.blockId cannot be empty')
@@ -1646,11 +1670,11 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
                 .describe(
                   'Runnable trigger block to enter through. Omit only when the saved workflow has exactly one runnable trigger.'
                 ),
-              useMockPayload: z
+              sample: z
                 .boolean()
                 .optional()
                 .describe(
-                  "Use the selected trigger's server-derived mock payload. Cannot be combined with `input`."
+                  "Run with the selected trigger's sample payload, which the server derives from the trigger, instead of `input`. Its writes are sent unless `dry`. Cannot be combined with `input`."
                 ),
             })
             .strict(),
@@ -1658,25 +1682,25 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
             .object({
               type: z
                 .literal('block')
-                .describe('Resume manual execution at a block using persisted upstream state.'),
+                .describe('Start the draft run at a block, using persisted upstream state.'),
               blockId: z
                 .string()
                 .min(1, 'run.entry.blockId cannot be empty')
                 .describe(
-                  'Saved workflow block at which manual execution should resume: its id, display name or reference key (the name lowercased, whitespace and dots removed).'
+                  'Saved workflow block at which the draft run starts: its id, display name or reference key (the name lowercased, whitespace and dots removed).'
                 ),
               sourceRunId: z
                 .string()
                 .min(1, 'run.entry.sourceRunId cannot be empty')
                 .describe(
-                  'Run in this workflow whose persisted execution state supplies upstream block results. Missing or expired state returns 404.'
+                  'Run in this workflow whose persisted execution state supplies upstream block results. Missing or expired state returns 404. A test run (a dry run, or a workflow test) holds placeholders for the writes it did not send, so it is the source only of a `dry` run.'
                 ),
             })
             .strict(),
         ])
         .optional()
         .describe(
-          'Manual entry mode. Omit to enter through the workflow trigger; a block entry requires an exact source run.'
+          'Where the draft run enters. Omit to enter through the workflow trigger; a block entry requires an exact source run.'
         ),
       stopAfterBlockId: z
         .string()
@@ -1684,6 +1708,80 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .optional()
         .describe(
           'Saved workflow block after which the run stops (its id, display name or reference key); downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.'
+        ),
+      dry: z
+        .boolean()
+        .optional()
+        .describe(
+          "Dry run: a call that could change something outside the run (a tool call not declared `read`, every MCP call, an HTTP request other than a GET, HEAD or OPTIONS without a method-override header) is not sent but answered with a correctly shaped placeholder, and the run returns what it held back in `sideEffects`, each list described there. Reads, model calls, credential resolution and code run for real. Child workflows inherit it; custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole, so the run never pauses. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event, does not count as a run of the workflow, and is logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`."
+        ),
+      allow: z
+        .array(
+          z
+            .string()
+            .min(1, 'run.allow entries cannot be empty')
+            .max(
+              MAX_BLOCK_SELECTOR_LENGTH,
+              `run.allow entries are at most ${MAX_BLOCK_SELECTOR_LENGTH} characters`
+            )
+        )
+        .max(MAX_RUN_OVERRIDES, `run.allow names at most ${MAX_RUN_OVERRIDES} blocks`)
+        .optional()
+        .describe(
+          `Blocks whose writes a dry run sends for real, listed in \`sideEffects.allowed\`. Requires \`dry\`. Name a block of this workflow by id, display name or reference key, or a block of a workflow it calls as \`<workflow>.<block>\` (the workflow's id or name, then the block's id, name or key), at most ${MAX_BLOCK_SELECTOR_LENGTH} characters. A selector holding a dot names a block of this workflow only by its exact id or display name; otherwise its workflow part is matched against the workflows its Workflow blocks call at any depth, then, for a child chosen as the run goes, a workflow of this workspace by id or exact name. A selector matching several blocks is refused with them. A child's entry applies wherever that workflow runs, at every depth. A Human in the loop or Wait block, a block that runs another workflow (a Workflow or custom block), a loop or parallel, a disabled block, or a block of a workflow reached only as a custom block's cannot be allowed. Allowing an Agent sends only its own tool calls: a workflow or custom block it calls stays stubbed. An entry the run never reaches is listed in \`sideEffects.unreached\`.`
+        ),
+      mocks: z
+        .record(
+          z
+            .string()
+            .max(
+              MAX_BLOCK_SELECTOR_LENGTH,
+              `run.mocks keys are at most ${MAX_BLOCK_SELECTOR_LENGTH} characters`
+            )
+            .describe('Block selector.'),
+          z
+            .record(z.string(), z.unknown().describe('Output field.'))
+            .describe('Output object that answers the block instead of its handler.')
+        )
+        .refine((mocks) => Object.keys(mocks).length <= MAX_RUN_OVERRIDES, {
+          message: `run.mocks names at most ${MAX_RUN_OVERRIDES} blocks`,
+        })
+        .meta({ maxProperties: MAX_RUN_OVERRIDES })
+        .optional()
+        .describe(
+          'Blocks answered with this output object instead of running, to steer branches or give a stubbed write a realistic result, keyed like `allow` entries (a block of this workflow, or `<workflow>.<block>` of a workflow it calls). Requires `dry`. A locked block (or one inside a locked loop or parallel), a loop or parallel, and a disabled block cannot be mocked; a block of a locked workflow, or of one in a locked folder, returns `423`. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`), nor hold a large-value reference (an object with `__simLargeValueRef`). A field the block does not declare is listed in `sideEffects.mockFields`, not refused. The run records only which blocks were mocked, so a rerun passes the outputs again; its log shows a mocked block’s output like any other block’s.'
+        ),
+      mocksFrom: z
+        .object({
+          runId: z
+            .string()
+            .min(1, 'run.mocksFrom.runId cannot be empty')
+            .describe(
+              'Run of this workflow whose recorded block outputs answer the blocks. An unknown or expired run returns `404`; one still running, or whose log is not written yet, `409`; reading it needs what reading the run does, and a permission group that hides execution data returns `403`.'
+            ),
+          blocks: z
+            .array(
+              z
+                .string()
+                .min(1, 'run.mocksFrom.blocks entries cannot be empty')
+                .max(
+                  MAX_BLOCK_SELECTOR_LENGTH,
+                  `run.mocksFrom.blocks entries are at most ${MAX_BLOCK_SELECTOR_LENGTH} characters`
+                )
+            )
+            .min(1, 'run.mocksFrom.blocks names at least one block')
+            .max(
+              MAX_RUN_OVERRIDES,
+              `run.mocksFrom.blocks names at most ${MAX_RUN_OVERRIDES} blocks`
+            )
+            .describe(
+              "This workflow's blocks (not a child's; not inside a loop or parallel unless that run mocked it), by id, display name or reference key, answered with the output each recorded in that run, redacted as the run shows it. Refused: a block the run did not execute, and, when that run was a test run, a block it answered with a placeholder rather than mocking or allowing it. Fields a mock cannot set (see `mocks`) are left out and listed in `sideEffects.mockFields`; an output holding a large-value reference is refused. Other refusals are those of `mocks`, and a block cannot be named here and in `mocks` both."
+            ),
+        })
+        .strict()
+        .optional()
+        .describe(
+          'Answer blocks with their outputs in an earlier run of this workflow. Requires `dry`. The run records the source run and blocks, so a rerun names them again.'
         ),
     })
     .strict(),
@@ -1693,7 +1791,7 @@ export type V2WorkflowRunSelection = z.input<typeof v2WorkflowRunSelectionSchema
 /**
  * Strict public execute body. Async is body-selected (`async: true`) — v2 has
  * no `X-Execution-Mode`/`X-Stream-Response` headers. `run` selects the public
- * deployment/manual behavior (a deployment run may name a version number),
+ * deployment/draft behavior (a deployment run may name a version number),
  * while internal executor facts (`triggerType`, `useDraftState`, deployment
  * version row ids, and source snapshots) remain trusted server-side options and
  * are NEVER wire fields.
@@ -1711,7 +1809,7 @@ export const v2ExecuteWorkflowBodySchema = z
     run: v2WorkflowRunSelectionSchema
       .optional()
       .describe(
-        'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.'
+        'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version, and `source: "draft"` the saved draft. A draft run requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.'
       ),
     async: z
       .boolean()
@@ -1808,17 +1906,17 @@ export const v2ExecuteWorkflowBodySchema = z
       { input: { ticketId: 'ticket_123' } },
       { input: { ticketId: 'ticket_123' }, async: true },
       { input: { ticketId: 'ticket_123' }, stream: true },
-      { run: { source: 'manual' } },
-      { run: { source: 'manual' }, waitTimeoutSeconds: 240 },
+      { run: { source: 'draft' } },
+      { run: { source: 'draft' }, waitTimeoutSeconds: 240 },
       {
         run: {
-          source: 'manual',
+          source: 'draft',
           entry: { type: 'block', blockId: 'block_123', sourceRunId: 'run_123' },
         },
       },
       {
         run: {
-          source: 'manual',
+          source: 'draft',
           entry: { type: 'block', blockId: 'block_123', sourceRunId: 'run_123' },
           stopAfterBlockId: 'block_123',
         },
@@ -1838,6 +1936,257 @@ const v2AppliedExecutionTimeoutSchema = z
   .describe(
     "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
   )
+
+const v2PauseInputFieldSchema = z
+  .object({
+    name: z.string().describe('Key to supply this field under in the resume `input`.'),
+    label: z.string().describe('Display label for the field.'),
+    type: z.string().describe('Declared value type, such as `string`, `number`, or `boolean`.'),
+    description: z.string().optional().describe('Field help text, when configured.'),
+    placeholder: z.string().optional().describe('Placeholder text, when configured.'),
+    required: z.boolean().describe('Whether the field is marked required.'),
+    options: z
+      .array(z.unknown().describe('One selectable option.'))
+      .optional()
+      .describe('Selectable options, when the field offers a fixed set.'),
+  })
+  .meta({
+    id: 'WorkflowRunPauseInputField',
+    title: 'Pause input field',
+    description: 'One field a human pause asks the resumer to fill.',
+  })
+
+const v2WorkflowRunPausePointSchema = z
+  .object({
+    contextId: z
+      .string()
+      .describe('Pause context to name in `contextId` when resuming this point.'),
+    blockId: z.string().describe('Workflow block that paused.'),
+    blockName: z
+      .string()
+      .nullable()
+      .describe(
+        'Name of the block as the run executed it. Null only for a point paused before names were recorded whose run was manual or whose deployment version no longer exists.'
+      ),
+    kind: z
+      .enum(['human', 'time'])
+      .describe('`human` waits for a resume request; `time` resumes automatically at `resumeAt`.'),
+    status: z
+      .enum(['paused', 'queued', 'resuming', 'resumed', 'failed'])
+      .describe(
+        'Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt.'
+      ),
+    registeredAt: z
+      .string()
+      .nullable()
+      .describe(
+        'ISO 8601 timestamp when the run paused at this point, or null for a point recorded without one.'
+      )
+      .meta({ format: 'date-time' }),
+    resumeAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 automatic-resume timestamp for a time pause, otherwise null.')
+      .meta({ format: 'date-time' }),
+    parallel: z
+      .object({
+        parallelId: z.string().describe('Parallel block containing the pause.'),
+        branchIndex: z.number().int().describe('Zero-based branch that paused.'),
+        branchTotal: z
+          .number()
+          .int()
+          .nullable()
+          .describe('Number of branches, or null when unrecorded.'),
+      })
+      .nullable()
+      .describe('Parallel branch of the pause, or null outside a parallel.'),
+    loop: z
+      .object({
+        loopId: z.string().describe('Loop block containing the pause.'),
+        iteration: z.number().int().describe('Zero-based iteration that paused.'),
+      })
+      .nullable()
+      .describe('Loop iteration of the pause, or null outside a loop.'),
+    inputFields: z
+      .array(v2PauseInputFieldSchema)
+      .nullable()
+      .describe(
+        'Fields a human pause asks for, without default values. Labels and descriptions are resolved, so they are withheld when organization permission groups hide execution data. Null then, for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured.'
+      ),
+    display: z
+      .unknown()
+      .describe('Reviewer content value.')
+      .nullable()
+      .describe(
+        "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null unless `includeOutput=true`, when hidden by organization permission groups, for a time pause, for content over 64 KiB or not provably free of secrets, or for a pause recorded before pause details were captured."
+      ),
+    queuePosition: z
+      .number()
+      .int()
+      .nullable()
+      .describe('Position among pending resume requests for this run, or null when none waits.'),
+  })
+  .meta({
+    id: 'WorkflowRunPausePoint',
+    title: 'Workflow run pause point',
+    description: 'One point at which a paused run waits.',
+  })
+
+const sideEffectBlockFields = {
+  workflowId: z
+    .string()
+    .describe('Workflow whose block it was: the run workflow, or a child workflow it called.'),
+  blockId: z
+    .string()
+    .nullable()
+    .describe('Block id in that workflow; null when the call named no block.'),
+  block: z.string().nullable().describe('Block display name; null when the call named no block.'),
+}
+
+const mcpCallTargetSchema = z
+  .object({
+    server: z.string().describe('MCP server or managed connection id.'),
+    tool: z.string().describe('MCP tool name.'),
+  })
+  .optional()
+  .describe("The MCP server and tool an MCP block's call named; absent for any other call.")
+
+const overrideBlockFields = {
+  workflowId: z.string().describe('Workflow of the block.'),
+  blockId: z.string().describe('Block id in that workflow.'),
+  block: z.string().describe('Block display name.'),
+}
+
+const v2RunSideEffectsSchema = z
+  .object({
+    stubbed: z
+      .array(
+        z.object({
+          ...sideEffectBlockFields,
+          tool: z
+            .string()
+            .nullable()
+            .describe(
+              'Tool the block (or an Agent) called; null when the whole block was answered instead of run.'
+            ),
+          request: z
+            .record(z.string(), z.unknown().describe('Request field.'))
+            .nullable()
+            .describe(
+              "What the call would have sent: an in-process operation's input, an HTTP call's `method`, `url` and `body` (never header values; for code's `fetch`, header names, the URL capped with only query parameter names, the body capped, and the code's workspace and personal secrets masked, though a secret typed into the code itself is not), or a custom or MCP tool's `arguments`. For a block answered whole, its logged inputs. Credentials, secrets, password fields and (when the workspace redacts it) PII are redacted; null when the run could not prove none remain, or could not build the request once they were masked (such as a URL that is wholly a secret)."
+            ),
+          returned: z
+            .record(z.string(), z.unknown().describe('Placeholder field.'))
+            .describe('Placeholder output the block or tool call returned to the run instead.'),
+          mcp: mcpCallTargetSchema,
+          reason: z
+            .enum(['placeholder', 'mcp-read-only'])
+            .optional()
+            .describe(
+              "Why a call that is not a plain write was held back; absent for a plain write. `placeholder`: a read whose request holds a placeholder the run returned earlier (a `dry_run_<kind>_<n>` string or a number above 900000000, such as a placeholder row's id in a URL, or free text quoting one), so it depends on a call that was never sent. `mcp-read-only`: an MCP call whose server declares the tool read-only and not destructive (`readOnlyHint`, not `destructiveHint`), a claim Sim cannot verify; name its block in `run.allow` to send it."
+            ),
+        })
+      )
+      .describe(
+        "Calls that were not sent, in the order the run reached them, each answered with a placeholder (a table row insert, upsert or update echoes the data it would have written, secrets masked; placeholder ids and values the request cannot determine are `dry_run_<kind>_<n>` strings and numbers above 900000000): writes, every MCP call, and reads that would send a placeholder (`reason`). Code run in the isolate (JavaScript without imports: a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes) sends its GET, HEAD and OPTIONS `fetch` calls (an API that writes on a GET is not stubbed); any other request, or one carrying a method-override header, gets an empty 200 (header `x-sim-dry-run: stubbed`) and is listed here as tool `function_execute`."
+      ),
+    allowed: z
+      .array(
+        z.object({
+          ...sideEffectBlockFields,
+          tool: z.string().nullable().describe('Tool sent; null when the whole block ran.'),
+          mcp: mcpCallTargetSchema,
+        })
+      )
+      .describe(
+        "Writes sent for real because `run.allow` named their block, once per block and tool (an MCP block's per MCP tool)."
+      ),
+    unchecked: z
+      .array(
+        z.object({
+          ...sideEffectBlockFields,
+          reason: z.string().describe('Why the run cannot see what this code changed.'),
+        })
+      )
+      .describe(
+        "Blocks whose code ran for real in a remote sandbox (shell, Python, JavaScript with imports, a selected sandbox or files), once per block: a Function block's code, a Condition's expressions, or code an Agent's model wrote, whose network calls the run cannot see. Code run in the isolate is not listed: its network writes are stubbed."
+      ),
+    omitted: z
+      .object({
+        stubbed: z.number().int().nonnegative().describe('Writes left out of `stubbed`.'),
+        allowed: z.number().int().nonnegative().describe('Writes left out of `allowed`.'),
+        unchecked: z.number().int().nonnegative().describe('Blocks left out of `unchecked`.'),
+      })
+      .describe('Entries each list left out once it held 50.'),
+    unreached: z
+      .array(
+        z.object({
+          ...overrideBlockFields,
+          kind: z
+            .enum(['allow', 'mock'])
+            .describe(
+              '`allow` for a `run.allow` entry, `mock` for `run.mocks` or `run.mocksFrom`.'
+            ),
+        })
+      )
+      .optional()
+      .describe(
+        'Allowed and mocked blocks the run never reached: on a branch it did not take, upstream of a block entry, or in a child it never called. Absent when none.'
+      ),
+    mockFields: z
+      .array(
+        z.object({
+          ...overrideBlockFields,
+          undeclared: z
+            .array(z.string().describe('Output field.'))
+            .optional()
+            .describe(
+              'Top-level fields a passed mock sets that its block does not declare as outputs, likely misspelt. Agent and Function blocks, whose outputs the model or code decides, never have any.'
+            ),
+          dropped: z
+            .array(z.string().describe('Output field.'))
+            .optional()
+            .describe(
+              'Fields of an output read from a run (`run.mocksFrom`) that a mock cannot set (see `run.mocks`), so left out.'
+            ),
+        })
+      )
+      .optional()
+      .describe('Mocks with fields a block reading them gets nothing from. Absent when none.'),
+  })
+  .meta({
+    id: 'WorkflowRunSideEffects',
+    title: 'Workflow run side effects',
+    description:
+      'What a dry run did with each write it reached. `stubbed`, `allowed`, `unchecked` and `omitted` are always present; `unreached` and `mockFields` only when they hold an entry.',
+  })
+
+export const v2RunOverridesSchema = z
+  .object({
+    allow: z
+      .array(z.string().describe('Block selector.'))
+      .describe('Blocks whose writes the run sent (`run.allow`).'),
+    mocks: z
+      .array(z.string().describe('Block selector.'))
+      .describe(
+        'Blocks the run answered with outputs the caller passed (`run.mocks`). Only the blocks are recorded, so a rerun passes the outputs again.'
+      ),
+    mocksFrom: z
+      .object({
+        runId: z.string().describe('Run the outputs were read from.'),
+        blocks: z.array(z.string().describe('Block id.')).describe('Blocks answered, by id.'),
+      })
+      .optional()
+      .describe(
+        'Blocks the run answered with their outputs in another run (`run.mocksFrom`), which a rerun reads again. Absent when none.'
+      ),
+  })
+  .meta({
+    id: 'WorkflowRunOverrides',
+    title: 'Workflow run overrides',
+    description:
+      "A dry run's overrides as a rerun passes them again, never a mock output: each entry `<blockId>` for a block of this workflow, or `<workflowId>.<blockId>` for a block of a workflow it called.",
+  })
 
 /**
  * The run result resource. In-band run failures are `status: 'failed'`
@@ -1874,6 +2223,25 @@ export const v2ExecuteWorkflowDataSchema = z
       .meta({ format: 'date-time' }),
     durationMs: z.number().nonnegative().optional().describe('Execution duration in milliseconds.'),
     executionTimeoutSeconds: v2AppliedExecutionTimeoutSchema,
+    paused: z
+      .object({
+        runId: v2PausedRunIdSchema,
+        points: z
+          .array(v2WorkflowRunPausePointSchema.pick({ contextId: true, kind: true, status: true }))
+          .describe(
+            'Every point the run is paused at. Resume one with Resume workflow run, naming `runId` and its `contextId`.'
+          ),
+      })
+      .nullable()
+      .describe('Where the run waits when `status` is `paused`; null otherwise.'),
+    sideEffects: v2RunSideEffectsSchema
+      .optional()
+      .describe(
+        'What a dry run (`run.dry`) did with each write it reached, whatever its status; absent otherwise.'
+      ),
+    overrides: v2RunOverridesSchema
+      .optional()
+      .describe("A dry run's overrides (`run.dry`); absent for any other run."),
   })
   .meta({
     id: 'WorkflowRunResult',
@@ -1967,7 +2335,13 @@ export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema
 export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
 
 export const v2ResumeWorkflowDataSchema = v2ExecuteWorkflowDataSchema
-  .omit({ executionTimeoutSeconds: true })
+  .omit({ executionTimeoutSeconds: true, sideEffects: true, overrides: true })
+  .extend({
+    error: v2ExecutionErrorSchema
+      .omit({ rerunFromBlockId: true })
+      .nullable()
+      .describe('Structured execution failure, or null when none occurred.'),
+  })
   .meta({
     id: 'WorkflowResumeResult',
     title: 'Workflow resume result',
@@ -2166,101 +2540,6 @@ export const v2RunFileSchema = z
   })
 export type V2RunFile = z.output<typeof v2RunFileSchema>
 
-const v2PauseInputFieldSchema = z
-  .object({
-    name: z.string().describe('Key to supply this field under in the resume `input`.'),
-    label: z.string().describe('Display label for the field.'),
-    type: z.string().describe('Declared value type, such as `string`, `number`, or `boolean`.'),
-    description: z.string().optional().describe('Field help text, when configured.'),
-    placeholder: z.string().optional().describe('Placeholder text, when configured.'),
-    required: z.boolean().describe('Whether the field is marked required.'),
-    options: z
-      .array(z.unknown().describe('One selectable option.'))
-      .optional()
-      .describe('Selectable options, when the field offers a fixed set.'),
-  })
-  .meta({
-    id: 'WorkflowRunPauseInputField',
-    title: 'Pause input field',
-    description: 'One field a human pause asks the resumer to fill.',
-  })
-
-const v2WorkflowRunPausePointSchema = z
-  .object({
-    contextId: z
-      .string()
-      .describe('Pause context to name in `contextId` when resuming this point.'),
-    blockId: z.string().describe('Workflow block that paused.'),
-    blockName: z
-      .string()
-      .nullable()
-      .describe(
-        'Name of the block as the run executed it. Null only for a point paused before names were recorded whose run was manual or whose deployment version no longer exists.'
-      ),
-    kind: z
-      .enum(['human', 'time'])
-      .describe('`human` waits for a resume request; `time` resumes automatically at `resumeAt`.'),
-    status: z
-      .enum(['paused', 'queued', 'resuming', 'resumed', 'failed'])
-      .describe(
-        'Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt.'
-      ),
-    registeredAt: z
-      .string()
-      .nullable()
-      .describe(
-        'ISO 8601 timestamp when the run paused at this point, or null for a point recorded without one.'
-      )
-      .meta({ format: 'date-time' }),
-    resumeAt: z
-      .string()
-      .nullable()
-      .describe('ISO 8601 automatic-resume timestamp for a time pause, otherwise null.')
-      .meta({ format: 'date-time' }),
-    parallel: z
-      .object({
-        parallelId: z.string().describe('Parallel block containing the pause.'),
-        branchIndex: z.number().int().describe('Zero-based branch that paused.'),
-        branchTotal: z
-          .number()
-          .int()
-          .nullable()
-          .describe('Number of branches, or null when unrecorded.'),
-      })
-      .nullable()
-      .describe('Parallel branch of the pause, or null outside a parallel.'),
-    loop: z
-      .object({
-        loopId: z.string().describe('Loop block containing the pause.'),
-        iteration: z.number().int().describe('Zero-based iteration that paused.'),
-      })
-      .nullable()
-      .describe('Loop iteration of the pause, or null outside a loop.'),
-    inputFields: z
-      .array(v2PauseInputFieldSchema)
-      .nullable()
-      .describe(
-        'Fields a human pause asks for, without default values. Labels and descriptions are resolved, so they are withheld when organization permission groups hide execution data. Null then, for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured.'
-      ),
-    display: z
-      .unknown()
-      .describe('Reviewer content value.')
-      .nullable()
-      .describe(
-        "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null unless `includeOutput=true`, when hidden by organization permission groups, for a time pause, for content over 64 KiB or not provably free of secrets, or for a pause recorded before pause details were captured."
-      ),
-    queuePosition: z
-      .number()
-      .int()
-      .nullable()
-      .describe('Position among pending resume requests for this run, or null when none waits.'),
-  })
-  .meta({
-    id: 'WorkflowRunPausePoint',
-    title: 'Workflow run pause point',
-    description: 'One point at which a paused run waits.',
-  })
-
 /**
  * The polled run resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404
@@ -2314,6 +2593,7 @@ export const v2WorkflowRunStatusSchema = z
     paused: workflowExecutionPausedDetailSchema
       .omit({ pausedExecutionId: true })
       .extend({
+        runId: v2PausedRunIdSchema,
         points: z
           .array(v2WorkflowRunPausePointSchema)
           .describe(
@@ -2352,6 +2632,11 @@ export const v2WorkflowRunStatusSchema = z
       .nullable()
       .describe(
         'Run-produced files when `includeOutput=true`, or null when not requested or execution data is hidden by organization permission groups.'
+      ),
+    overrides: v2RunOverridesSchema
+      .nullable()
+      .describe(
+        "A failed dry run's overrides, which a rerun of it passes again; null for any other run, or when execution data is hidden by organization permission groups."
       ),
   })
   .meta({
@@ -3056,7 +3341,10 @@ export const v2ImportWorkflowContract = defineRouteContract({
  */
 export const MAX_WORKFLOW_GRAPH_BLOCKS = 2000
 export const MAX_WORKFLOW_GRAPH_EDGES = 10_000
-/** Ceiling on one `POST /operations` batch. */
+/**
+ * Ceiling on one `POST /operations` batch: a bound on the request, the one transaction and the
+ * report an atomic batch writes, not on a workflow's size. A larger edit splits into batches.
+ */
 export const MAX_WORKFLOW_EDIT_OPERATIONS = 200
 /** Ceiling on the complete tool list assigned to one Agent block. */
 export const MAX_AGENT_TOOLS_PER_BLOCK = 100
@@ -3451,9 +3739,9 @@ const v2WorkflowGraphWriteResultSchema = z
  * (`validateOnly`) both keep it outside the represented resource for the same
  * reason.
  */
-const v2GraphWriteDryRunQuerySchema = z
+const v2GraphWriteDryQuerySchema = z
   .object({
-    dryRun: booleanQueryFlagSchema
+    dry: booleanQueryFlagSchema
       .optional()
       .describe(
         'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.'
@@ -3464,7 +3752,7 @@ const v2GraphWriteDryRunQuerySchema = z
 export const v2ReplaceWorkflowStateDataSchema = v2WorkflowGraphWriteResultSchema
   .extend({
     lint: v2WorkflowLintSchema,
-    dryRun: z
+    dry: z
       .boolean()
       .describe(
         'Whether this request only validated. `true` means nothing was persisted; the findings describe what a committed write of the same body would produce.'
@@ -3566,7 +3854,7 @@ export const v2GetWorkflowOutlineContract = defineRouteContract({
 export const v2ReplaceWorkflowStateContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/workflows/[workflowId]/state',
-  query: v2GraphWriteDryRunQuerySchema,
+  query: v2GraphWriteDryQuerySchema,
   params: v2WorkflowIdParamsSchema,
   body: v2ReplaceWorkflowStateBodySchema,
   response: {
@@ -4001,48 +4289,59 @@ const v2WorkflowOperationBlockIdSchema = z
  * name, and `delete` accepts no parameters at all.
  */
 export const v2WorkflowOperationSchema = z
-  .discriminatedUnion('operation_type', [
-    z
-      .object({
-        operation_type: z.literal('add').describe('Create a new block.'),
-        block_id: v2WorkflowOperationBlockIdSchema,
-        params: v2AddWorkflowBlockParamsSchema,
-      })
-      .strict(),
-    z
-      .object({
-        operation_type: z
-          .literal('edit')
-          .describe('Change an existing block: its inputs, name, or connections.'),
-        block_id: v2WorkflowOperationBlockIdSchema,
-        params: v2WorkflowOperationParamsSchema,
-      })
-      .strict(),
-    z
-      .object({
-        operation_type: z.literal('delete').describe('Remove a block and every edge touching it.'),
-        block_id: v2WorkflowOperationBlockIdSchema,
-      })
-      .strict(),
-    z
-      .object({
-        operation_type: z
-          .literal('insert_into_subflow')
-          .describe('Create a block inside a loop or parallel container.'),
-        block_id: v2WorkflowOperationBlockIdSchema,
-        params: v2InsertIntoSubflowParamsSchema,
-      })
-      .strict(),
-    z
-      .object({
-        operation_type: z
-          .literal('extract_from_subflow')
-          .describe('Move a block out of its loop or parallel container.'),
-        block_id: v2WorkflowOperationBlockIdSchema,
-        params: v2SubflowMembershipParamsSchema,
-      })
-      .strict(),
-  ])
+  .discriminatedUnion(
+    'operation_type',
+    [
+      z
+        .object({
+          operation_type: z.literal('add').describe('Create a new block.'),
+          block_id: v2WorkflowOperationBlockIdSchema,
+          params: v2AddWorkflowBlockParamsSchema,
+        })
+        .strict(),
+      z
+        .object({
+          operation_type: z
+            .literal('edit')
+            .describe('Change an existing block: its inputs, name, or connections.'),
+          block_id: v2WorkflowOperationBlockIdSchema,
+          params: v2WorkflowOperationParamsSchema,
+        })
+        .strict(),
+      z
+        .object({
+          operation_type: z
+            .literal('delete')
+            .describe('Remove a block and every edge touching it.'),
+          block_id: v2WorkflowOperationBlockIdSchema,
+        })
+        .strict(),
+      z
+        .object({
+          operation_type: z
+            .literal('insert_into_subflow')
+            .describe('Create a block inside a loop or parallel container.'),
+          block_id: v2WorkflowOperationBlockIdSchema,
+          params: v2InsertIntoSubflowParamsSchema,
+        })
+        .strict(),
+      z
+        .object({
+          operation_type: z
+            .literal('extract_from_subflow')
+            .describe('Move a block out of its loop or parallel container.'),
+          block_id: v2WorkflowOperationBlockIdSchema,
+          params: v2SubflowMembershipParamsSchema,
+        })
+        .strict(),
+    ],
+    {
+      // A missing or unknown `operation_type` is `invalid_union`, whose default message is the
+      // unactionable `Invalid input`; a member's own failures keep theirs.
+      error: (issue) =>
+        issue.code === 'invalid_union' ? unknownOperationType(issue.input) : undefined,
+    }
+  )
   .meta({
     id: 'WorkflowEditOperation',
     title: 'Workflow edit operation',
@@ -4051,6 +4350,19 @@ export const v2WorkflowOperationSchema = z
 
 export type V2WorkflowOperation = z.input<typeof v2WorkflowOperationSchema>
 
+/**
+ * The refusal of an operation whose `operation_type` names no kind: the kinds there are, and the
+ * key itself when the operation spelled it another way (`type: 'add'`).
+ */
+function unknownOperationType(input: unknown): string {
+  const kinds = v2WorkflowOperationSchema.options.map((option) => option.shape.operation_type.value)
+  const named =
+    isRecordLike(input) && !('operation_type' in input)
+      ? ` Name each operation's kind in operation_type${'type' in input ? ', not type' : ''}.`
+      : ''
+  return `operation_type must be one of: ${kinds.join(', ')}.${named}`
+}
+
 export const v2ApplyWorkflowOperationsBodySchema = z
   .object({
     operations: z
@@ -4058,7 +4370,7 @@ export const v2ApplyWorkflowOperationsBodySchema = z
       .min(1, 'operations cannot be empty')
       .max(
         MAX_WORKFLOW_EDIT_OPERATIONS,
-        `operations cannot exceed ${MAX_WORKFLOW_EDIT_OPERATIONS} entries`
+        `operations cannot exceed ${MAX_WORKFLOW_EDIT_OPERATIONS} entries: split the edit into batches of at most ${MAX_WORKFLOW_EDIT_OPERATIONS}, applied in turn (atomic covers one batch); a later batch names a block an earlier one added by the id in that apply's mintedBlockIds`
       )
       .describe('Edits to apply, in a single batch.'),
     atomic: z
@@ -4172,7 +4484,7 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
       .describe(
         'Non-fatal notes about blocks and edges that were normalized or dropped before persistence and, when `lint` has findings, one line counting them by category, so a caller that reads only `warnings` still learns they exist. The findings themselves are in `lint`. Empty when there is nothing to report.'
       ),
-    dryRun: z
+    dry: z
       .boolean()
       .describe(
         'Whether this request only evaluated. `true` means nothing was persisted; the outcome describes what a committed apply of the same body would produce.'
@@ -4189,7 +4501,7 @@ export type V2ApplyWorkflowOperationsData = z.output<typeof v2ApplyWorkflowOpera
 export const v2ApplyWorkflowOperationsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[workflowId]/operations',
-  query: v2GraphWriteDryRunQuerySchema,
+  query: v2GraphWriteDryQuerySchema,
   params: v2WorkflowIdParamsSchema,
   body: v2ApplyWorkflowOperationsBodySchema,
   response: {

@@ -32,6 +32,7 @@ export const confluenceUpdateSpaceTool: InternalToolConfig<
   name: 'Confluence Update Space',
   description: 'Update a Confluence space name or description.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -13,6 +13,7 @@ export const cancelUpdateStackTool: InternalToolConfig<
   name: 'CloudFormation Cancel Update Stack',
   description: 'Cancel an in-progress stack update and roll back to the last known stable state',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

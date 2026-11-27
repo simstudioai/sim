@@ -23,10 +23,11 @@ export const listCommentsTool: ToolConfig<
   GoogleDriveListCommentsResponse
 > = {
   id: 'google_drive_list_comments',
-  assistant: { effect: 'read', version: 1 },
+  assistant: { version: 1 },
   name: 'List Google Drive Comments',
   description: 'List comments on a file in Google Drive',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

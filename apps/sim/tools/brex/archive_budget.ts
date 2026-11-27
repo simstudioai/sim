@@ -10,6 +10,7 @@ export const brexArchiveBudgetTool: ToolConfig<BrexArchiveBudgetParams, BrexArch
     description:
       'Archive a Brex budget, making any spend limits beneath it unusable for future expenses and removing it from the UI',
     version: '1.0.0',
+    effect: 'write',
     oauth: BREX_CREDENTIAL_OAUTH,
 
     params: {

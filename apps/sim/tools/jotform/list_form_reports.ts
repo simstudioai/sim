@@ -20,6 +20,7 @@ export const listFormReportsTool: ToolConfig<
   name: 'Jotform List Form Reports',
   description: 'List the reports built from one form, each with its shareable URL.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

@@ -9,6 +9,7 @@ export const pitchbookCreditNewsTool: ToolConfig<PitchbookProfileParams, Pitchbo
   description:
     'Retrieve one credit analysis article in full, including its body text, authors, topics, and the issuer, lender, and sponsor it covers',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
   params: {

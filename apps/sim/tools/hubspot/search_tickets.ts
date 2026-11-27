@@ -16,6 +16,7 @@ export const hubspotSearchTicketsTool: ToolConfig<
   name: 'Search Tickets in HubSpot',
   description: 'Search for tickets in HubSpot using filters, sorting, and queries',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

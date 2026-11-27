@@ -18,6 +18,7 @@ export const mintlifyGetAgentJobTool: ToolConfig<
   description:
     'Retrieve the current status and details of a Mintlify agent job, including the pull request link once the agent opens one.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     projectId: {

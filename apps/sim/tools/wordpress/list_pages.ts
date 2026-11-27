@@ -11,6 +11,7 @@ export const listPagesTool: ToolConfig<WordPressListPagesParams, WordPressListPa
   name: 'WordPress List Pages',
   description: 'List pages from WordPress.com with optional filters',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

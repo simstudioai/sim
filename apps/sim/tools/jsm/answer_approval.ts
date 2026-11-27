@@ -9,6 +9,7 @@ export const jsmAnswerApprovalTool: InternalToolConfig<
   name: 'JSM Answer Approval',
   description: 'Approve or decline an approval request in Jira Service Management',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -1,8 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, subscription } from '@sim/db/schema'
+import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql } from 'drizzle-orm'
+import { INVOICE_DAYS_UNTIL_DUE } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
@@ -13,9 +14,12 @@ import {
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { getPaymentMethodId } from '@/lib/billing/stripe-payment-method'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { getBilledOverageForSubscription } from '@/lib/billing/webhooks/invoices'
+import { sendPlanEndedEmail } from '@/lib/billing/webhooks/plan-notices'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
@@ -246,6 +250,179 @@ export async function handleSubscriptionCreated(
 }
 
 /**
+ * Spends an organization's prepaid credit on its final-period overage and returns the overage now
+ * covered: what threshold billing already collected this period plus the credit spent. The tracker
+ * ends holding exactly that sum, under the same row locks threshold billing takes, so a replayed
+ * deletion finds the credit already counted and spends nothing twice. When the tracker belongs to
+ * an elapsed, forgiven period (`trackerIsCurrent` false) its collections count for nothing here and
+ * are replaced, but the credit still covers the final period.
+ */
+async function spendFinalPrepaidCredit(
+  organizationId: string,
+  totalOverage: number,
+  trackerIsCurrent: boolean
+): Promise<number> {
+  return db.transaction(async (tx) => {
+    const [owner] = await tx
+      .select({ userId: member.userId })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+      .limit(1)
+    if (!owner) {
+      logger.warn('Organization has no owner when settling final overage', { organizationId })
+      return 0
+    }
+    const [tracker] = await tx
+      .select({ billedOverageThisPeriod: userStats.billedOverageThisPeriod })
+      .from(userStats)
+      .where(eq(userStats.userId, owner.userId))
+      .for('update')
+      .limit(1)
+    const [org] = await tx
+      .select({ creditBalance: organization.creditBalance })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .for('update')
+      .limit(1)
+    const collected = trackerIsCurrent ? toNumber(toDecimal(tracker?.billedOverageThisPeriod)) : 0
+    const credit = Math.min(
+      Math.max(0, totalOverage - collected),
+      toNumber(toDecimal(org?.creditBalance))
+    )
+    if (credit <= 0 || !tracker) return collected
+    await tx
+      .update(organization)
+      .set({ creditBalance: sql`GREATEST(0, ${organization.creditBalance} - ${credit})` })
+      .where(eq(organization.id, organizationId))
+    await tx
+      .update(userStats)
+      .set({ billedOverageThisPeriod: String(collected + credit) })
+      .where(eq(userStats.userId, owner.userId))
+    logger.info('Spent prepaid credit on final overage', { organizationId, credit })
+    return collected + credit
+  })
+}
+
+/**
+ * Invoices a cancelled subscription's final-period overage, net of what threshold billing already
+ * collected, and returns the amount invoiced. The invoice is collected the way the subscription
+ * was: charged to the method on file, or emailed when the customer pays by invoice.
+ */
+async function invoiceFinalOverage(params: {
+  subscription: { id: string; plan: string | null; referenceId: string }
+  stripeSubscriptionId: string
+  totalOverage: number
+  /**
+   * The tracker only ever holds collections for the period that began at the close marker — the
+   * threshold gate blocks settlement while the marker lags. If the marker was still lagging at
+   * claim time (the elapsed close deferred), the tracked amount belongs to that forgiven elapsed
+   * period, not the terminal window: subtracting it would under-bill the final invoice.
+   */
+  markerWasCurrent: boolean
+}): Promise<number> {
+  const { subscription, stripeSubscriptionId, totalOverage } = params
+  if (totalOverage <= 0) return 0
+
+  // An Enterprise contract's prepaid credit is part of what it already paid for, so it covers the
+  // final period's usage before anything is invoiced.
+  const billedOverage = isEnterprise(subscription.plan)
+    ? await spendFinalPrepaidCredit(subscription.referenceId, totalOverage, params.markerWasCurrent)
+    : params.markerWasCurrent
+      ? await getBilledOverageForSubscription(subscription)
+      : 0
+  const remainingOverage = Math.max(0, totalOverage - billedOverage)
+
+  logger.info('Subscription deleted overage calculation', {
+    subscriptionId: subscription.id,
+    totalOverage,
+    billedOverage,
+    remainingOverage,
+  })
+
+  if (remainingOverage <= 0 || !stripeSubscriptionId) return 0
+
+  const stripe = requireStripeClient()
+  const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+  const customerId = stripeSubscription.customer as string
+  const cents = Math.round(remainingOverage * 100)
+  const endedAt = stripeSubscription.ended_at || Math.floor(Date.now() / 1000)
+  const billingPeriod = new Date(endedAt * 1000).toISOString().slice(0, 7)
+  const sendInvoice = stripeSubscription.collection_method === 'send_invoice'
+  const subscriptionPaymentMethod = getPaymentMethodId(stripeSubscription.default_payment_method)
+
+  const itemIdemKey = `final-overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+  const invoiceIdemKey = `final-overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+  const finalizeIdemKey = `final-overage-finalize:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+  const sendIdemKey = `final-overage-send:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+
+  const overageInvoice = await stripe.invoices.create(
+    {
+      customer: customerId,
+      ...(sendInvoice
+        ? { collection_method: 'send_invoice', days_until_due: INVOICE_DAYS_UNTIL_DUE }
+        : {
+            collection_method: 'charge_automatically',
+            // An unlinked invoice otherwise falls back to the customer's default method only.
+            ...(subscriptionPaymentMethod
+              ? { default_payment_method: subscriptionPaymentMethod }
+              : {}),
+          }),
+      auto_advance: true,
+      description: `Final overage charges for ${subscription.plan} subscription (${billingPeriod})`,
+      metadata: {
+        type: 'final_overage_billing',
+        billingPeriod,
+        subscriptionId: stripeSubscriptionId,
+        cancelledAt: stripeSubscription.canceled_at?.toString() || '',
+      },
+    },
+    { idempotencyKey: invoiceIdemKey }
+  )
+
+  await stripe.invoiceItems.create(
+    {
+      customer: customerId,
+      invoice: overageInvoice.id,
+      amount: cents,
+      currency: 'usd',
+      description: `Usage overage for ${subscription.plan} plan (Final billing period)`,
+      metadata: {
+        type: 'final_usage_overage',
+        usage: remainingOverage.toFixed(2),
+        totalOverage: totalOverage.toFixed(2),
+        billedOverage: billedOverage.toFixed(2),
+        billingPeriod,
+      },
+    },
+    { idempotencyKey: itemIdemKey }
+  )
+
+  if (overageInvoice.id) {
+    const finalized = await stripe.invoices.finalizeInvoice(
+      overageInvoice.id,
+      {},
+      { idempotencyKey: finalizeIdemKey }
+    )
+    if (sendInvoice && finalized.status === 'open') {
+      await stripe.invoices.sendInvoice(overageInvoice.id, {}, { idempotencyKey: sendIdemKey })
+    }
+  }
+
+  logger.info('Created final overage invoice for cancelled subscription', {
+    subscriptionId: subscription.id,
+    stripeSubscriptionId,
+    invoiceId: overageInvoice.id,
+    totalOverage,
+    billedOverage,
+    remainingOverage,
+    cents,
+    billingPeriod,
+    collectionMethod: stripeSubscription.collection_method,
+  })
+  return remainingOverage
+}
+
+/**
  * Handles a subscription deletion (cancel) event. Bills any final-period
  * overages, resets usage, and transitions the organization to a dormant
  * state via `transitionOrganizationToDormantState` — the sole trigger for
@@ -263,6 +440,7 @@ export async function handleSubscriptionDeleted(
     billingInterval?: string | null
     periodStart?: Date | null
     periodEnd?: Date | null
+    trialEnd?: Date | null
     metadata?: unknown
   },
   stripeEventId?: string
@@ -311,12 +489,21 @@ export async function handleSubscriptionDeleted(
           periodStart: terminal.periodStart ?? subscription.periodStart ?? null,
           periodEnd: terminal.periodEnd ?? subscription.periodEnd ?? null,
         }
+        // Better Auth hands over only its own subscription fields; the contract terms that decide
+        // whether a self-serve Enterprise bills overage live in the row's metadata.
+        const metadata = terminal.metadata ?? subscription.metadata
 
         const totalOverage = await calculateSubscriptionOverage({
           ...subscription,
           ...settlementPeriod,
+          metadata,
         })
-        const stripe = requireStripeClient()
+        const remainingOverage = await invoiceFinalOverage({
+          subscription,
+          stripeSubscriptionId,
+          totalOverage,
+          markerWasCurrent: terminal.markerWasCurrent,
+        })
 
         if (isEnterprise(subscription.plan)) {
           await writeFinalPeriodBookkeeping({
@@ -325,7 +512,7 @@ export async function handleSubscriptionDeleted(
             referenceId: subscription.referenceId,
             billingInterval: subscription.billingInterval ?? null,
             ...settlementPeriod,
-            metadata: subscription.metadata,
+            metadata,
           })
 
           const dormantResult = await transitionOrganizationToDormantState(
@@ -358,95 +545,7 @@ export async function handleSubscriptionDeleted(
             reference_id: subscription.referenceId,
           })
 
-          return { totalOverage: 0, kind: 'enterprise' as const }
-        }
-
-        // The tracker only ever holds collections for the period that began
-        // at the close marker — the threshold gate blocks settlement while
-        // the marker lags. If the marker was still lagging at claim time
-        // (the elapsed close above deferred), the tracked amount belongs to
-        // that forgiven elapsed period, not the terminal window: subtracting
-        // it would under-bill the final invoice, so count nothing.
-        const billedOverage = terminal.markerWasCurrent
-          ? await getBilledOverageForSubscription(subscription)
-          : 0
-        const remainingOverage = Math.max(0, totalOverage - billedOverage)
-
-        logger.info('Subscription deleted overage calculation', {
-          subscriptionId: subscription.id,
-          totalOverage,
-          billedOverage,
-          remainingOverage,
-        })
-
-        if (remainingOverage > 0 && stripeSubscriptionId) {
-          const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
-          const customerId = stripeSubscription.customer as string
-          const cents = Math.round(remainingOverage * 100)
-          const endedAt = stripeSubscription.ended_at || Math.floor(Date.now() / 1000)
-          const billingPeriod = new Date(endedAt * 1000).toISOString().slice(0, 7)
-
-          const itemIdemKey = `final-overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-          const invoiceIdemKey = `final-overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-          const finalizeIdemKey = `final-overage-finalize:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-
-          const overageInvoice = await stripe.invoices.create(
-            {
-              customer: customerId,
-              collection_method: 'charge_automatically',
-              auto_advance: true,
-              description: `Final overage charges for ${subscription.plan} subscription (${billingPeriod})`,
-              metadata: {
-                type: 'final_overage_billing',
-                billingPeriod,
-                subscriptionId: stripeSubscriptionId,
-                cancelledAt: stripeSubscription.canceled_at?.toString() || '',
-              },
-            },
-            { idempotencyKey: invoiceIdemKey }
-          )
-
-          await stripe.invoiceItems.create(
-            {
-              customer: customerId,
-              invoice: overageInvoice.id,
-              amount: cents,
-              currency: 'usd',
-              description: `Usage overage for ${subscription.plan} plan (Final billing period)`,
-              metadata: {
-                type: 'final_usage_overage',
-                usage: remainingOverage.toFixed(2),
-                totalOverage: totalOverage.toFixed(2),
-                billedOverage: billedOverage.toFixed(2),
-                billingPeriod,
-              },
-            },
-            { idempotencyKey: itemIdemKey }
-          )
-
-          if (overageInvoice.id) {
-            await stripe.invoices.finalizeInvoice(
-              overageInvoice.id,
-              {},
-              { idempotencyKey: finalizeIdemKey }
-            )
-          }
-
-          logger.info('Created final overage invoice for cancelled subscription', {
-            subscriptionId: subscription.id,
-            stripeSubscriptionId,
-            invoiceId: overageInvoice.id,
-            totalOverage,
-            billedOverage,
-            remainingOverage,
-            cents,
-            billingPeriod,
-          })
-        } else {
-          logger.info('No overage to bill for cancelled subscription', {
-            subscriptionId: subscription.id,
-            plan: subscription.plan,
-          })
+          return { totalOverage, remainingOverage, kind: 'enterprise' as const }
         }
 
         await writeFinalPeriodBookkeeping({
@@ -455,7 +554,7 @@ export async function handleSubscriptionDeleted(
           referenceId: subscription.referenceId,
           billingInterval: subscription.billingInterval ?? null,
           ...settlementPeriod,
-          metadata: subscription.metadata,
+          metadata,
         })
 
         let restoredProCount = 0
@@ -504,6 +603,7 @@ export async function handleSubscriptionDeleted(
           plan: subscription.plan ?? 'unknown',
           reference_id: subscription.referenceId,
         })
+        await sendPlanEndedEmail(subscription, cancelActorId)
 
         return { totalOverage, remainingOverage, restoredProCount, workspacesDetached }
       }

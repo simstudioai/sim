@@ -19,6 +19,7 @@ export const affinityGetNoteTool: ToolConfig<
   name: 'Affinity Get Note',
   description: 'Read one note with its body, author, mentions, and attached records.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

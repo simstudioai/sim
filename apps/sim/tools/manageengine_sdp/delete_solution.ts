@@ -10,6 +10,7 @@ export const manageengineSdpDeleteSolutionTool: ToolConfig<SdpDeleteSolutionPara
   description:
     'Delete an article from the ManageEngine ServiceDesk Plus Cloud knowledge base, along with its comments and versions.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'manageengine-sdp' },
 

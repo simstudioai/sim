@@ -19,6 +19,7 @@ export const stopWarehouseTool: ToolConfig<
   name: 'Databricks Stop Warehouse',
   description: 'Stop a running SQL warehouse.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,

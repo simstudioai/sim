@@ -20,6 +20,7 @@ export const checkrAddReportTagTool: ToolConfig<CheckrReportTagParams, CheckrRep
   name: 'Checkr Add Report Tag',
   description: 'Add a tag to a report, keeping its existing tags.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

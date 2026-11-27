@@ -8,6 +8,7 @@ export const slackPublishViewTool: ToolConfig<SlackPublishViewParams, SlackPubli
   description:
     "Publish a static view to a user's Home tab in Slack. Used to create or update the app's Home tab experience.",
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -17,6 +17,7 @@ export const zoomListPastParticipantsTool: ToolConfig<
   name: 'Zoom List Past Participants',
   description: 'List participants from a past Zoom meeting',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

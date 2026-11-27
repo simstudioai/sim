@@ -18,6 +18,7 @@ export const actionsListTool: ToolConfig<
   description:
     'List actions from incident.io, optionally filtered by incident ID. Without page_size or after, follows pages automatically and returns up to 2,500 actions, oldest first; if more remain, pagination_meta.after is set. Pass page_size or after to fetch a single page.',
   version: '1.0.0',
+  effect: 'read',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {

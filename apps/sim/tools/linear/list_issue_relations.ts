@@ -13,6 +13,7 @@ export const linearListIssueRelationsTool: ToolConfig<
   name: 'Linear List Issue Relations',
   description: 'List all relations (dependencies) for an issue in Linear',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

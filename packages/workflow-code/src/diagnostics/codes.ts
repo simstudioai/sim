@@ -22,10 +22,8 @@ const COMPILE_SYNTAX_CODES = [
   'E_SYNTAX',
   /** The first line is not `// @sim-sdk N`. */
   'E_SDK_HEADER',
-  /** The header's major is above the server's supported major. */
+  /** The header's major is not the one the server reads. */
   'E_SDK_MAJOR',
-  /** The header's major is below the oldest major the server reads (`OLDEST_SDK_MAJOR`). */
-  'E_SDK_MAJOR_OLD',
   /** A construct outside the accepted grammar; `hint` names the supported form. */
   'E_UNSUPPORTED_SYNTAX',
   /** Not exactly one `export default workflow(...)`. */
@@ -273,7 +271,7 @@ const COMPILE_CATALOG_CODES = [
   'W_OUTPUT_PATH_UNDECLARED',
   /**
    * A bare reference in a JSON field literal whose output type nothing declares: it is stored bare
-   * (typed), so a string value would break the JSON (`json-fields.ts`).
+   * (typed), so text that reads as JSON would become that value, not text (`json-fields.ts`).
    */
   'W_JSON_REF_UNTYPED',
   /**
@@ -302,6 +300,14 @@ const CODE_FILE_CODES = [
    * round-trips; refused as `E_APPLY_CODE_FILE_REF_SYNTAX` in a file the edit changed.
    */
   'W_CODE_FILE_REF_SYNTAX',
+  /**
+   * A `<key.path>` tag a Python code file writes between quotes of its own (`"<start.country>"`):
+   * the run substitutes a tag as a Python literal (inside a string, as its JSON text), so a string
+   * value arrives with its quotes in it; a file's `.path`, spliced raw, is not reported. A warning:
+   * an object's JSON text is a reading someone may want, and stored code written in the editor
+   * may hold the form.
+   */
+  'W_CODE_FILE_REF_QUOTED',
 ] as const
 
 /** References and comments, shared by compile and print. */
@@ -565,6 +571,21 @@ const APPLY_DIAGNOSTIC_CODES = [
 export type ApplyDiagnosticCode = (typeof APPLY_DIAGNOSTIC_CODES)[number]
 
 /**
+ * The type check `sim workflows source check` and `sim workspaces source check` run after the
+ * compile: the pinned TypeScript release over the directory's `tsconfig.json`. The server never
+ * reports them.
+ */
+const TYPE_CHECK_CODES = [
+  /** TypeScript reported an error; the message starts with its `TS` code (`TS2322: …`). */
+  'E_TYPE',
+  /**
+   * The type check did not run: the pinned TypeScript release could not be installed (offline, or
+   * no `npm`) or did not start. The compile's findings still stand.
+   */
+  'W_TYPES_UNCHECKED',
+] as const
+
+/**
  * Every code, as a value: the wire contracts' enum, so a client matching on a code is checked
  * against the vocabulary.
  */
@@ -575,6 +596,7 @@ export const DIAGNOSTIC_CODES = [
   ...CANONICALIZE_DIAGNOSTIC_CODES,
   ...MATERIALIZE_DIAGNOSTIC_CODES,
   ...APPLY_DIAGNOSTIC_CODES,
+  ...TYPE_CHECK_CODES,
 ] as const
 
 /** Whether a tuple of codes lists one of them twice. */

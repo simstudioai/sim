@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getValueAtPath, isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { parseMcpToolTarget } from '@/lib/mcp/utils'
 import { getToolDisplayTitle } from '@/lib/mothership/tools/display'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import {
@@ -13,9 +14,10 @@ import {
   stopSlackAgentStream,
 } from '@/lib/webhooks/slack-agent-api'
 import { SlackDeliveryError } from '@/lib/webhooks/slack-delivery-error'
-import type {
-  SlackStreamOutputConfig,
-  SlackStreamResponseConfig,
+import {
+  SLACK_TIMELINE_SOURCE_PATH,
+  type SlackStreamBlockRef,
+  type SlackStreamResponseConfig,
 } from '@/lib/webhooks/slack-stream-config'
 import {
   registerSlackStreamSession,
@@ -23,6 +25,7 @@ import {
   unregisterSlackStreamSession,
 } from '@/lib/webhooks/slack-stream-sessions'
 import { formatOutputSelector, scopeOutputBlockId } from '@/lib/workflows/streaming/output-selector'
+import { isMcpTool } from '@/executor/constants'
 import type { BlockCompletionCallbackData, ExecutionCallbacks } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import type { AgentStreamEvent } from '@/providers/stream-events'
@@ -40,6 +43,8 @@ interface SlackMessageStream {
   textLength: number
   textComplete: boolean
   stopped: boolean
+  /** Settles after this message's latest append, so writers sharing it append in order. */
+  writes: Promise<void>
 }
 
 /** Prefer a nearby paragraph/sentence, then a whole word; only oversized words need hard cuts. */
@@ -126,6 +131,98 @@ export function resolveSlackReplyTarget(triggerInput: Record<string, unknown>): 
   }
 }
 
+/** An MCP tool's label may be keyed by its own name rather than the server-scoped one. */
+function mcpToolName(name: string): string | undefined {
+  if (!isMcpTool(name)) return undefined
+  try {
+    return parseMcpToolTarget(name).toolName
+  } catch {
+    return undefined
+  }
+}
+
+function toolTitle(name: string, labels: Record<string, string>): string {
+  const ownName = Object.hasOwn(labels, name) ? name : mcpToolName(name)
+  const label = ownName !== undefined && Object.hasOwn(labels, ownName) ? labels[ownName] : ''
+  return truncate(label || getToolDisplayTitle(name), TASK_TEXT_LIMIT)
+}
+
+/** Matches a configured block against the scoped block ID the executor reports. */
+function isBlock(blockId: string): (ref: SlackStreamBlockRef) => boolean {
+  return (ref) =>
+    (ref.workflowId ? scopeOutputBlockId(ref.workflowId, ref.blockId) : ref.blockId) === blockId
+}
+
+function markdownLength(chunks: SlackStreamChunk[]): number {
+  return chunks.reduce(
+    (length, chunk) => length + (chunk.type === 'markdown_text' ? chunk.text.length : 0),
+    0
+  )
+}
+
+async function openSlackMessage(
+  token: string,
+  target: SlackReplyTarget,
+  config: SlackStreamResponseConfig,
+  chunks: SlackStreamChunk[],
+  taskId: string | undefined,
+  signal?: AbortSignal
+): Promise<SlackMessageStream> {
+  const started = await startSlackAgentStream(token, target, chunks, config.taskDisplayMode, signal)
+  return {
+    ...started,
+    taskId,
+    textLength: markdownLength(chunks),
+    textComplete: false,
+    stopped: false,
+    writes: Promise.resolve(),
+  }
+}
+
+/** Stops one message, settling its task. Cleanup has its own deadline, so no abort signal. */
+async function stopMessage(
+  token: string,
+  message: SlackMessageStream,
+  title: string,
+  failed: boolean,
+  chunks: SlackStreamChunk[]
+): Promise<void> {
+  await stopSlackAgentStream(
+    token,
+    message.channel,
+    message.ts,
+    failed ? 'suspended' : 'processing',
+    undefined,
+    undefined,
+    message.taskId
+      ? [
+          ...chunks,
+          { type: 'task_update', id: message.taskId, title, status: failed ? 'error' : 'complete' },
+        ]
+      : chunks
+  )
+  message.stopped = true
+}
+
+/**
+ * The first message of an execution, owned and stopped by the controller. Timeline sources write
+ * their steps into it and the first answer invocation writes its text there too, so steps and
+ * answer read as one reply. A later answer starts its own message so two answers never interleave.
+ */
+interface SharedMessage {
+  message: Promise<SlackMessageStream>
+  hasAnswer: boolean
+  /** Only these invocations' outcomes decide how the shared message settles. */
+  writers: Set<SlackInvocationStream>
+}
+
+/** Returns the shared message, or undefined when another answer already writes to it. */
+type AcquireSharedMessage = (
+  writer: SlackInvocationStream,
+  forAnswer: boolean,
+  start: () => Promise<SlackMessageStream>
+) => Promise<SlackMessageStream> | undefined
+
 function formatOutput(value: unknown): string {
   if (typeof value === 'string') return value
   const serialized = JSON.stringify(value, null, 2)
@@ -134,7 +231,10 @@ function formatOutput(value: unknown): string {
 }
 
 class SlackInvocationStream {
+  /** Every message this invocation writes to. */
   private readonly messages: SlackMessageStream[] = []
+  /** The messages this invocation started, and so stops. */
+  private readonly ownedMessages = new Set<SlackMessageStream>()
   private answerBuffer = ''
   private acknowledgedAnswer = ''
   private thinking = ''
@@ -155,8 +255,10 @@ class SlackInvocationStream {
     private readonly target: SlackReplyTarget,
     private readonly config: SlackStreamResponseConfig,
     private readonly taskId: string,
-    private readonly title: string,
     private readonly projectLiveText: (text: string) => Promise<string | null>,
+    private readonly acquireSharedMessage: AcquireSharedMessage,
+    /** Shows tool steps and thinking only; the source's text never reaches Slack. */
+    private readonly timelineOnly: boolean,
     private readonly signal?: AbortSignal
   ) {}
 
@@ -171,40 +273,52 @@ class SlackInvocationStream {
   private async ensureStarted(): Promise<SlackMessageStream> {
     const current = this.messages.at(-1)
     if (current) return current
-    return this.startMessage(
-      [{ type: 'task_update', id: this.taskId, title: this.title, status: 'in_progress' }],
-      this.taskId
-    )
+    const start = () =>
+      openSlackMessage(
+        this.token,
+        this.target,
+        this.config,
+        [
+          {
+            type: 'task_update',
+            id: this.taskId,
+            title: this.config.taskTitle,
+            status: 'in_progress',
+          },
+        ],
+        this.taskId,
+        this.signal
+      )
+    const shared = this.acquireSharedMessage(this, !this.timelineOnly, start)
+    const message = shared ? await shared : await start()
+    if (!shared) this.ownedMessages.add(message)
+    this.messages.push(message)
+    return message
   }
 
-  private async startMessage(
-    chunks: SlackStreamChunk[],
-    taskId?: string
-  ): Promise<SlackMessageStream> {
-    const started = await startSlackAgentStream(
+  private async startMessage(chunks: SlackStreamChunk[]): Promise<SlackMessageStream> {
+    const message = await openSlackMessage(
       this.token,
       this.target,
+      this.config,
       chunks,
-      this.config.taskDisplayMode,
+      undefined,
       this.signal
     )
-    const textLength = chunks.reduce(
-      (length, chunk) => length + (chunk.type === 'markdown_text' ? chunk.text.length : 0),
-      0
-    )
-    const message = { ...started, taskId, textLength, textComplete: false, stopped: false }
+    this.ownedMessages.add(message)
     this.messages.push(message)
     return message
   }
 
   private async append(chunks: SlackStreamChunk[], message?: SlackMessageStream): Promise<void> {
     const target = message ?? (await this.ensureStarted())
-    const textLength = chunks.reduce(
-      (length, chunk) => length + (chunk.type === 'markdown_text' ? chunk.text.length : 0),
-      0
-    )
+    const textLength = markdownLength(chunks)
     try {
-      await appendSlackAgentStream(this.token, target.channel, target.ts, chunks, this.signal)
+      const write = target.writes.then(() =>
+        appendSlackAgentStream(this.token, target.channel, target.ts, chunks, this.signal)
+      )
+      target.writes = write.catch(() => {})
+      await write
       target.textLength += textLength
     } catch (error) {
       logger.warn('Slack stream append failed', {
@@ -366,7 +480,7 @@ class SlackInvocationStream {
     return {
       type: 'task_update',
       id: `${this.taskId}-tool-${id}`,
-      title: truncate(getToolDisplayTitle(tool.name), TASK_TEXT_LIMIT),
+      title: toolTitle(tool.name, this.config.toolLabels),
       status: tool.status,
     }
   }
@@ -399,11 +513,25 @@ class SlackInvocationStream {
     this.failure ??= formatSlackApiFailure(error)
   }
 
-  finish(success: boolean): Promise<void> {
+  get failed(): boolean {
+    return Boolean(this.failure)
+  }
+
+  /** Error steps for this invocation's tools still running on `message`. */
+  unfinishedToolChunks(message: SlackMessageStream): SlackStreamChunk[] {
+    return [...this.tools].flatMap(([id, tool]) =>
+      tool.message === message && (tool.status === 'pending' || tool.status === 'in_progress')
+        ? [this.toolChunk(id, { ...tool, status: 'error' })]
+        : []
+    )
+  }
+
+  /** Readies this response to stop: a successful empty answer still shows its settled task. */
+  settle(success: boolean): Promise<void> {
     return this.enqueue(async () => {
       if (this.stopAttempted) return
       if (this.messages.length === 0) {
-        if (this.failure || !success) return
+        if (this.failure || !success || this.timelineOnly) return
         await this.ensureStarted()
       }
       if (
@@ -414,34 +542,23 @@ class SlackInvocationStream {
       ) {
         this.failure ??= new Error('Slack delivery ended with unfinished tool calls')
       }
+    })
+  }
+
+  /** Stops the messages this invocation started; the controller stops the shared one. */
+  stop(success: boolean): Promise<void> {
+    return this.enqueue(async () => {
+      if (this.stopAttempted) return
       this.stopAttempted = true
-      for (const message of this.messages) {
-        const failed = Boolean(this.failure) || !success
-        const chunks: SlackStreamChunk[] = [...this.tools].flatMap(([id, tool]) =>
-          tool.message === message && (tool.status === 'pending' || tool.status === 'in_progress')
-            ? [this.toolChunk(id, { ...tool, status: 'error' })]
-            : []
-        )
-        if (message.taskId) {
-          chunks.push({
-            type: 'task_update',
-            id: message.taskId,
-            title: this.title,
-            status: failed ? 'error' : 'complete',
-          })
-        }
+      for (const message of this.ownedMessages) {
         try {
-          /** Cleanup has its own deadline and attempts every part even if an earlier stop failed. */
-          await stopSlackAgentStream(
+          await stopMessage(
             this.token,
-            message.channel,
-            message.ts,
-            failed ? 'suspended' : 'processing',
-            undefined,
-            undefined,
-            chunks
+            message,
+            this.config.taskTitle,
+            Boolean(this.failure) || !success,
+            this.unfinishedToolChunks(message)
           )
-          message.stopped = true
         } catch (error) {
           this.recordFailure(error)
         }
@@ -451,7 +568,7 @@ class SlackInvocationStream {
 
   assertSucceeded(): void {
     if (this.failure) throw this.failure
-    if (this.messages.some((message) => !message.stopped)) {
+    if ([...this.ownedMessages].some((message) => !message.stopped)) {
       throw new Error('Slack response stream was not stopped')
     }
   }
@@ -465,6 +582,7 @@ export class SlackExecutionStreamController {
   private readonly target: SlackReplyTarget
   private readonly token: string
   private readonly invocations = new Map<string, SlackInvocationStream>()
+  private sharedMessage?: SharedMessage
   private finalization?: Promise<void>
   private finalized = false
 
@@ -475,9 +593,14 @@ export class SlackExecutionStreamController {
   ) {
     this.token = token
     this.target = target
-    this.selectedOutputs = options.config.outputConfigs.map((output) =>
-      formatOutputSelector(output.blockId, output.path, output.workflowId)
-    )
+    this.selectedOutputs = [
+      ...options.config.outputConfigs.map((output) =>
+        formatOutputSelector(output.blockId, output.path, output.workflowId)
+      ),
+      ...options.config.timelineSources.map((source) =>
+        formatOutputSelector(source.blockId, SLACK_TIMELINE_SOURCE_PATH, source.workflowId)
+      ),
+    ]
     this.callbacks = {
       onStream: (stream) => this.onStream(stream),
       onBlockComplete: (blockId, _blockName, _blockType, data) =>
@@ -514,13 +637,35 @@ export class SlackExecutionStreamController {
     return controller
   }
 
-  private selectedForBlock(blockId: string): SlackStreamOutputConfig[] {
-    return this.options.config.outputConfigs.filter((output) => {
-      const selectedBlockId = output.workflowId
-        ? scopeOutputBlockId(output.workflowId, output.blockId)
-        : output.blockId
-      return selectedBlockId === blockId
-    })
+  private readonly acquireSharedMessage: AcquireSharedMessage = (writer, forAnswer, start) => {
+    if (!this.sharedMessage) {
+      this.sharedMessage = { message: start(), hasAnswer: forAnswer, writers: new Set([writer]) }
+      return this.sharedMessage.message
+    }
+    if (forAnswer) {
+      if (this.sharedMessage.hasAnswer) return undefined
+      this.sharedMessage.hasAnswer = true
+    }
+    this.sharedMessage.writers.add(writer)
+    return this.sharedMessage.message
+  }
+
+  private createInvocation(
+    executionOrder: number,
+    childWorkflowInstanceId: string | undefined,
+    projectLiveText: (text: string) => Promise<string | null>,
+    timelineOnly: boolean
+  ): SlackInvocationStream {
+    return new SlackInvocationStream(
+      this.token,
+      this.target,
+      this.options.config,
+      this.taskId(executionOrder, childWorkflowInstanceId),
+      projectLiveText,
+      this.acquireSharedMessage,
+      timelineOnly,
+      this.options.abortSignal
+    )
   }
 
   private invocationKey(
@@ -531,8 +676,12 @@ export class SlackExecutionStreamController {
     return `${blockId}:${childWorkflowInstanceId ?? executionOrder}`
   }
 
+  /** Unique per invocation: blocks of one child workflow instance share the shared message. */
   private taskId(executionOrder: number, childWorkflowInstanceId?: string): string {
-    return `sim-${this.options.executionId}-${childWorkflowInstanceId ?? executionOrder}`
+    const invocation = childWorkflowInstanceId
+      ? `${childWorkflowInstanceId}-${executionOrder}`
+      : executionOrder
+    return `sim-${this.options.executionId}-${invocation}`
   }
 
   private recordFailure(error: unknown): Error {
@@ -558,7 +707,9 @@ export class SlackExecutionStreamController {
       if (!stream.blockId || stream.executionOrder === undefined) {
         throw new Error('Slack streaming received a stream without invocation metadata')
       }
-      if (this.selectedForBlock(stream.blockId).length === 0) {
+      const { outputConfigs, timelineSources } = this.options.config
+      const timelineOnly = !outputConfigs.some(isBlock(stream.blockId))
+      if (timelineOnly && !timelineSources.some(isBlock(stream.blockId))) {
         throw new Error(`Slack streaming received an unselected block: ${stream.blockId}`)
       }
       const key = this.invocationKey(
@@ -569,18 +720,18 @@ export class SlackExecutionStreamController {
       if (this.invocations.has(key)) {
         throw new Error(`Duplicate Slack stream invocation: ${key}`)
       }
-      const invocation = new SlackInvocationStream(
-        this.token,
-        this.target,
-        this.options.config,
-        this.taskId(stream.executionOrder, stream.childWorkflowInstanceId),
-        this.options.config.taskTitle,
+      const invocation = this.createInvocation(
+        stream.executionOrder,
+        stream.childWorkflowInstanceId,
         (text) => this.projectLiveText(text, stream.displayResolvedSecretTraceProvenance),
-        this.options.abortSignal
+        timelineOnly
       )
       this.invocations.set(key, invocation)
 
-      const answerFromEventSink = Boolean(stream.subscribe) && !stream.clientStreamTransformed
+      // A timeline source's text is drained for the executor but never read into Slack.
+      const answerFromEventSink =
+        !timelineOnly && Boolean(stream.subscribe) && !stream.clientStreamTransformed
+      const answerFromBytes = !timelineOnly && !answerFromEventSink
       const unsubscribe = stream.subscribe?.({
         onEvent: async (event) => {
           if (!answerFromEventSink && event.type === 'text_delta') return
@@ -593,11 +744,11 @@ export class SlackExecutionStreamController {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          if (!answerFromEventSink) {
+          if (answerFromBytes) {
             await invocation.appendProjectedBytes(decoder.decode(value, { stream: true }))
           }
         }
-        if (!answerFromEventSink) {
+        if (answerFromBytes) {
           const remainder = decoder.decode()
           if (remainder) await invocation.appendProjectedBytes(remainder)
         }
@@ -617,7 +768,7 @@ export class SlackExecutionStreamController {
   private async onBlockComplete(blockId: string, data: BlockCompletionCallbackData): Promise<void> {
     try {
       const selectedOutputBlockId = data.outputBlockId ?? blockId
-      const selected = this.selectedForBlock(selectedOutputBlockId)
+      const selected = this.options.config.outputConfigs.filter(isBlock(selectedOutputBlockId))
       if (selected.length === 0) return
       const key = this.invocationKey(
         selectedOutputBlockId,
@@ -641,14 +792,11 @@ export class SlackExecutionStreamController {
           : values.map(({ path, value }) => `*${path}*\n${formatOutput(value)}`).join('\n\n')
       const invocation =
         this.invocations.get(key) ??
-        new SlackInvocationStream(
-          this.token,
-          this.target,
-          this.options.config,
-          this.taskId(data.executionOrder, data.childWorkflowInstanceId),
-          this.options.config.taskTitle,
+        this.createInvocation(
+          data.executionOrder,
+          data.childWorkflowInstanceId,
           async (value) => value,
-          this.options.abortSignal
+          false
         )
       this.invocations.set(key, invocation)
       await invocation.reconcileSettledOutput(text)
@@ -663,13 +811,22 @@ export class SlackExecutionStreamController {
   }
 
   private async finalizeOnce(result: ExecutionResult): Promise<void> {
-    for (const invocation of this.invocations.values()) {
-      await invocation.finish(
-        !this.failure &&
-          result.success &&
-          result.status !== 'cancelled' &&
-          result.status !== 'paused'
-      )
+    const succeeded = () =>
+      !this.failure && result.success && result.status !== 'cancelled' && result.status !== 'paused'
+    const invocations = [...this.invocations.values()]
+    // An invocation succeeds only if every one before it did, as when each settled in turn.
+    const successes = new Map<SlackInvocationStream, boolean>()
+    let earlierFailed = false
+    for (const invocation of invocations) {
+      const success = succeeded() && !earlierFailed
+      successes.set(invocation, success)
+      await invocation.settle(success)
+      earlierFailed ||= invocation.failed
+    }
+    // The shared message is the reply's first, so it settles before any continuation.
+    await this.stopSharedMessage(invocations, successes)
+    for (const invocation of invocations) {
+      await invocation.stop(successes.get(invocation) === true)
       try {
         invocation.assertSucceeded()
       } catch (error) {
@@ -696,6 +853,27 @@ export class SlackExecutionStreamController {
       this.recordFailure(error)
     }
     this.finalized = true
+  }
+
+  private async stopSharedMessage(
+    invocations: SlackInvocationStream[],
+    successes: ReadonlyMap<SlackInvocationStream, boolean>
+  ): Promise<void> {
+    if (!this.sharedMessage) return
+    try {
+      const message = await this.sharedMessage.message
+      await stopMessage(
+        this.token,
+        message,
+        this.options.config.taskTitle,
+        [...this.sharedMessage.writers].some(
+          (writer) => writer.failed || successes.get(writer) !== true
+        ),
+        invocations.flatMap((invocation) => invocation.unfinishedToolChunks(message))
+      )
+    } catch (error) {
+      this.recordFailure(error)
+    }
   }
 
   assertSucceeded(): void {

@@ -15,6 +15,7 @@ export const monacoGetAudienceTool: ToolConfig<MonacoGetAudienceParams, MonacoAu
   name: 'Monaco Get Audience',
   description: 'Get one Monaco audience by ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

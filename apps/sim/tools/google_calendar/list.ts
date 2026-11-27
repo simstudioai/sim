@@ -15,6 +15,7 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
   name: 'Google Calendar List Events',
   description: 'List events from Google Calendar',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -191,6 +192,7 @@ export const listV2Tool: ToolConfig<GoogleCalendarListParams, GoogleCalendarList
   name: 'Google Calendar List Events',
   description: 'List events from Google Calendar.',
   version: '2.0.0',
+  effect: 'read',
   oauth: listTool.oauth,
   params: listTool.params,
   request: listTool.request,

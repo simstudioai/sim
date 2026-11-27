@@ -10,6 +10,7 @@ export const getAccessKeyInfoTool: InternalToolConfig<
   name: 'STS Get Access Key Info',
   description: 'Get the AWS account ID associated with an access key',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

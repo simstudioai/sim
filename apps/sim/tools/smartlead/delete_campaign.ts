@@ -19,6 +19,7 @@ export const deleteCampaignTool: ToolConfig<SmartleadCampaignIdParams, Smartlead
   description:
     'Permanently deletes a Smartlead campaign along with its sequences, leads, and webhooks. This cannot be undone.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

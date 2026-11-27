@@ -22,6 +22,7 @@ export const listApplicationsTool: ToolConfig<
   description:
     'Lists all applications in an Ashby organization with pagination and optional filters for status, job, and creation date.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {

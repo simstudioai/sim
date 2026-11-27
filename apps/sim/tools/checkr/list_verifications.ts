@@ -23,6 +23,7 @@ export const checkrListVerificationsTool: ToolConfig<
   description:
     'List the verifications on a report, such as requests for the candidate to confirm their SSN or upload an ID.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

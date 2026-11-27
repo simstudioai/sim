@@ -29,6 +29,7 @@ export const replyReviewThreadTool: ToolConfig<ReplyReviewThreadParams, ReplyRev
     name: 'GitHub Reply To Review Thread',
     description: 'Post a reply comment on a pull request review thread.',
     version: '1.0.0',
+    effect: 'write',
     oauth: GITHUB_CREDENTIAL_OAUTH,
 
     params: {

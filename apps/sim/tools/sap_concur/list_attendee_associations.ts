@@ -15,6 +15,7 @@ export const listAttendeeAssociationsTool: InternalToolConfig<
   description:
     'List attendees associated with an expense (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/attendees).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

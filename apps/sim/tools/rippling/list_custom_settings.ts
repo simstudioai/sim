@@ -9,6 +9,7 @@ export const ripplingListCustomSettingsTool: ToolConfig<RipplingListCustomSettin
   name: 'Rippling List Custom Settings',
   description: 'List all custom settings',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

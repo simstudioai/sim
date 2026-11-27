@@ -41,6 +41,7 @@ export const listCohortsTool: ToolConfig<PostHogListCohortsParams, PostHogListCo
   description:
     'List all cohorts in a PostHog project. Returns cohort definitions, filters, and user counts.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

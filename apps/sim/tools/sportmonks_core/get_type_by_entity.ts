@@ -26,6 +26,7 @@ export const sportmonksCoreGetTypeByEntityTool: ToolConfig<
   name: 'Get Type by Entity',
   description: 'Retrieve the available types grouped per entity from the Sportmonks Core API',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

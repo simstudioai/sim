@@ -7,6 +7,7 @@ export const deleteTool: InternalToolConfig<DynamoDBDeleteParams, DynamoDBDelete
   name: 'DynamoDB Delete',
   description: 'Delete an item from a DynamoDB table',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

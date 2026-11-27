@@ -13,6 +13,7 @@ export const firefliesAddToLiveMeetingTool: ToolConfig<
   name: 'Fireflies Add to Live Meeting',
   description: 'Add the Fireflies.ai bot to an ongoing meeting to record and transcribe',
   version: '1.0.0',
+  effect: 'write',
   oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {

@@ -15,6 +15,7 @@ export const describeAddressesTool: InternalToolConfig<
   name: 'EC2 Describe Addresses',
   description: 'List Elastic IP addresses and what they are associated with',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -11,6 +11,7 @@ export const apolloEmailAccountsTool: ToolConfig<
   name: 'Apollo Get Email Accounts',
   description: "Get list of team's linked email accounts in Apollo",
   version: '1.0.0',
+  effect: 'read',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

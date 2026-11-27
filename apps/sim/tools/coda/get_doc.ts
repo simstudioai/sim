@@ -20,6 +20,7 @@ export const codaGetDocTool: ToolConfig<CodaDocParams, CodaDocResponse> = {
   description:
     'Get metadata for a Coda doc, including its owner, workspace, folder, size, and publishing settings',
   version: '1.0.0',
+  effect: 'read',
   oauth: codaOAuth,
   errorExtractor: ErrorExtractorId.CODA_ERRORS,
 

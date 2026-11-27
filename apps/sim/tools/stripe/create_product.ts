@@ -20,6 +20,7 @@ export const stripeCreateProductTool: ToolConfig<
   name: 'Stripe Create Product',
   description: 'Create a new product object',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

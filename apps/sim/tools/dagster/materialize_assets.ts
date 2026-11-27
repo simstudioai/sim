@@ -89,6 +89,7 @@ export const materializeAssetsTool: ToolConfig<
   name: 'Dagster Materialize Assets',
   description: 'Materialize selected assets by launching their asset job with an asset selection.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

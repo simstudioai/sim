@@ -14,6 +14,7 @@ export const instagramPublishReelTool: InternalToolConfig<
   name: 'Instagram Publish Reel',
   description: 'Create and publish a Reel from a Sim video file (polls until ready)',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

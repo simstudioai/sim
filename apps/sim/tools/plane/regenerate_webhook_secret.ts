@@ -26,6 +26,7 @@ export const planeRegenerateWebhookSecretTool: ToolConfig<
   name: 'Plane Regenerate a webhook secret',
   description: 'Regenerate a webhook secret in Plane. Requires API v2.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

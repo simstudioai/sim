@@ -153,9 +153,15 @@ describe('native-surface modal preparation', () => {
     expect(readyLayers.contentLayer.className).toContain('pointer-events-none')
     expect(readyLayers.dialog).not.toBeNull()
     expect(readyLayers.dialog?.style.visibility).not.toBe('hidden')
-    expect(document.activeElement).toBe(
-      document.querySelector<HTMLInputElement>('[aria-label="Modal field"]')
-    )
+    const modalField = document.querySelector<HTMLInputElement>('[aria-label="Modal field"]')
+    expect(document.activeElement).toBe(modalField)
+    // The control that now holds focus takes the very next key; no frame has to pass first.
+    const modalKeyDown = vi.fn()
+    modalField?.addEventListener('keydown', modalKeyDown)
+    const firstKey = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'x' })
+    modalField?.dispatchEvent(firstKey)
+    expect(firstKey.defaultPrevented).toBe(false)
+    expect(modalKeyDown).toHaveBeenCalledOnce()
   })
 
   it('fails closed when a registered preparation rejects', async () => {

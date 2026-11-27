@@ -10,6 +10,7 @@ export const attioDeleteNoteTool: ToolConfig<AttioDeleteNoteParams, AttioDeleteN
   name: 'Attio Delete Note',
   description: 'Delete a note from Attio',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

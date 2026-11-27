@@ -18,6 +18,7 @@ export const uptimeRobotListPspsTool: ToolConfig<
   name: 'UptimeRobot List Status Pages',
   description: 'List the public status pages in your UptimeRobot account',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {

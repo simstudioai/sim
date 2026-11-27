@@ -14,6 +14,7 @@ export const vercelDeleteEdgeConfigTool: ToolConfig<
   name: 'Vercel Delete Edge Config',
   description: 'Delete an Edge Config store by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

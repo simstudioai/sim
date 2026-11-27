@@ -16,6 +16,7 @@ export const hubspotCreateLineItemTool: ToolConfig<
   name: 'Create Line Item in HubSpot',
   description: 'Create a new line item in HubSpot. Requires at least a name property',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

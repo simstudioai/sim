@@ -26,6 +26,7 @@ export const monacoAddAudienceContactsTool: ToolConfig<
   description:
     'Add contacts to a Monaco audience by ID. Audiences can be attached to multiple campaigns, so adding a contact here enrolls them in every campaign that uses this audience, which can start real email and LinkedIn outreach.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

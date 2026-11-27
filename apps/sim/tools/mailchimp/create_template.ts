@@ -25,6 +25,7 @@ export const mailchimpCreateTemplateTool: ToolConfig<
   name: 'Create Template in Mailchimp',
   description: 'Create a new template in Mailchimp',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

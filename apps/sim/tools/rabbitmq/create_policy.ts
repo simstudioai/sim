@@ -30,6 +30,7 @@ export const rabbitmqCreatePolicyTool: ToolConfig<
   description:
     'Create or replace a RabbitMQ policy, applying settings such as dead-lettering, TTLs, or length limits to every queue or exchange whose name matches a pattern.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     ...RABBITMQ_CONNECTION_PARAMS,

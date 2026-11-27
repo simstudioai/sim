@@ -7,6 +7,7 @@ export const zoomDeleteMeetingTool: ToolConfig<ZoomDeleteMeetingParams, ZoomDele
     name: 'Zoom Delete Meeting',
     description: 'Delete or cancel a Zoom meeting',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

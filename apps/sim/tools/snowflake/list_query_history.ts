@@ -19,6 +19,7 @@ export const listQueryHistoryTool: ToolConfig<
 > = {
   id: 'snowflake_list_query_history',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Query History',
   description:

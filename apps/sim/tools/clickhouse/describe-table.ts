@@ -12,6 +12,7 @@ export const describeTableTool: InternalToolConfig<
   name: 'ClickHouse Describe Table',
   description: 'Describe the columns of a ClickHouse table',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

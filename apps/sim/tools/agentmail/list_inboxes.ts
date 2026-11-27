@@ -7,6 +7,7 @@ export const agentmailListInboxesTool: ToolConfig<ListInboxesParams, ListInboxes
   name: 'List Inboxes',
   description: 'List all email inboxes in AgentMail',
   version: '1.0.0',
+  effect: 'read',
   oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {

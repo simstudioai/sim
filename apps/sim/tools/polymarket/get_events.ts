@@ -24,6 +24,7 @@ export const polymarketGetEventsTool: ToolConfig<
   name: 'Get Events from Polymarket',
   description: 'Retrieve a list of events from Polymarket with optional filtering',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     closed: {

@@ -8,6 +8,7 @@ export const removeHeldAccountsTool: ToolConfig<GoogleVaultRemoveHeldAccountsPar
   name: 'Vault Remove Held Accounts',
   description: 'Remove accounts from an existing hold',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -16,6 +16,7 @@ export const gitlabGetMergeRequestTool: ToolConfig<
   name: 'GitLab Get Merge Request',
   description: 'Get details of a specific GitLab merge request',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const googleBigQueryQueryTool: ToolConfig<
   name: 'BigQuery Run Query',
   description: 'Run a SQL query against Google BigQuery and return the results',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

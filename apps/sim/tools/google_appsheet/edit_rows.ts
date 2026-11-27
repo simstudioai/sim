@@ -18,6 +18,7 @@ export const googleAppsheetEditRowsTool: ToolConfig<
   description:
     'Update existing rows in an AppSheet table. Each row must explicitly include the key column name and value, plus any columns to change.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     apiKey: {

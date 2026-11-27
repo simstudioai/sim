@@ -12,6 +12,7 @@ export const deleteMediaTool: ToolConfig<WordPressDeleteMediaParams, WordPressDe
     name: 'WordPress Delete Media',
     description: 'Delete a media item from WordPress.com',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

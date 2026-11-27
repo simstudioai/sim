@@ -10,6 +10,7 @@ export const listDocumentsTool: InternalToolConfig<
   name: 'SSM List Documents',
   description: 'List SSM documents and runbooks available to an AWS account',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

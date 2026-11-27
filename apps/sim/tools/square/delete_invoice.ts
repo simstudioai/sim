@@ -9,6 +9,7 @@ export const squareDeleteInvoiceTool: ToolConfig<DeleteInvoiceParams, InvoiceDel
   name: 'Square Delete Invoice',
   description: 'Delete a draft invoice',
   version: '1.0.0',
+  effect: 'write',
   oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 

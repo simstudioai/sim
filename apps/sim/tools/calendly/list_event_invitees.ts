@@ -14,6 +14,7 @@ export const listEventInviteesTool: ToolConfig<
   name: 'Calendly List Event Invitees',
   description: 'Retrieve a list of invitees for a scheduled event',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

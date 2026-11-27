@@ -21,6 +21,7 @@ export const listQuestionsTool: ToolConfig<
   description:
     'List every question on a form with its question ID, label, and field type. Question IDs are what submissions are keyed by.',
   version: '1.0.0',
+  effect: 'read',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

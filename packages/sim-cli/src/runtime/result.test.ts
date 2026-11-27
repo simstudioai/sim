@@ -14,6 +14,12 @@ beforeEach(() => {
   })
 })
 
+/** What a render wrote on stderr, where a person reads the CLI's notices. */
+function captureStderr(): () => string {
+  const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+  return () => stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
+}
+
 /** The table arrives as one string; its first line is the header. */
 function tableLines(): string[] {
   return logged.join('\n').split('\n')
@@ -212,12 +218,6 @@ describe('paginated JSON output', () => {
 })
 
 describe('a truncation the response states inside its payload', () => {
-  /** Every note goes to stderr; stdout is asserted to be untouched by it. */
-  function captureStderr(): () => string {
-    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
-    return () => stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
-  }
-
   it.each(['readFileText', 'readFileVersionText'] as const)(
     'preserves complete %s content in table output',
     (operation) => {
@@ -237,13 +237,165 @@ describe('a truncation the response states inside its payload', () => {
     }
   )
 
-  it('reports a clipped file body, which the envelope says nothing about', () => {
+  it('reports a clipped file body to a person, which the envelope says nothing about', () => {
     const read = captureStderr()
     const payload = { fileId: 'wf_probe', name: 'a.txt', text: 'abc', truncated: true }
 
-    renderResult('readFileText', 'json', payload, {}, {}, { data: payload })
+    renderResult('readFileText', 'table', payload, {}, {}, { data: payload })
 
-    expect(read()).toContain('the server clipped this result')
-    expect(JSON.parse(logged.join('\n'))).toEqual(payload)
+    expect(read()).toBe('truncated: the server clipped this result, so the answer is incomplete\n')
+  })
+
+  it('carries a clip stated on the envelope inside a JSON record, and says nothing on stderr', () => {
+    const read = captureStderr()
+    const payload = { id: 'src_1', tables: [] }
+
+    renderResult('getSourceResources', 'json', payload, {}, {}, { data: payload, truncated: true })
+
+    expect(JSON.parse(logged.join('\n'))).toEqual({ ...payload, truncated: true })
+    expect(read()).toBe('')
+  })
+})
+
+describe('notes the CLI adds, read by a person', () => {
+  it('states a page envelope fact above the rows and keeps it out of them', () => {
+    const read = captureStderr()
+    const page = { data: [{ id: 'log_1' }], nextCursor: null }
+
+    renderPage('text', page, CLI_CONTRACT.listBillingLogs ?? {}, { ...page, scope: 'user' })
+
+    expect(read()).toBe('scope: user\n')
+    expect(logged).toHaveLength(1)
+    expect(logged[0].split('\t')).not.toContain('user')
+  })
+
+  it('warns about a renamed spelling before the record and notes the result after it', () => {
+    const order: string[] = []
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      order.push(`stderr ${String(chunk)}`)
+      return true
+    })
+    vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      order.push(`stdout ${line}`)
+    })
+
+    renderResult(
+      'getBlock',
+      'text',
+      { id: 'table_v2' },
+      {},
+      { warnings: ['flag "--q" has been renamed to "--query".'], note: 'read as table_v2.' }
+    )
+
+    expect(order).toEqual([
+      'stderr warning: flag "--q" has been renamed to "--query".\n',
+      'stdout id\ttable_v2',
+      'stderr note: read as table_v2.\n',
+    ])
+  })
+})
+
+describe('a deploy result read by a person', () => {
+  const ref = (blockId: string, blockName: string, blockType: string) => ({
+    blockId,
+    blockName,
+    blockType,
+  })
+  /** A clean report as a real two-block workflow gets it: a source, a sink, no finding. */
+  const clean = {
+    sources: [ref('b-1', 'Start', 'start_trigger')],
+    sinks: [ref('b-2', 'Agent', 'agent')],
+    orphanBlocks: [],
+    emptyOutgoingPorts: [],
+    invalidBranchPorts: [],
+    invalidConnectionTargets: [],
+    fieldIssues: [],
+    unresolvedReferences: [],
+    tableFieldIssues: [],
+    manualRunIssue: null,
+    notes: [],
+  }
+  const deployed = (lint: Record<string, unknown> | null) => ({
+    id: 'wf-1',
+    isDeployed: true,
+    version: 7,
+    activeDeployment: {
+      deploymentVersionId: 'dv-7',
+      version: 7,
+      deployedAt: '2026-11-20T00:00:00Z',
+    },
+    latestDeploymentAttempt: null,
+    warnings: [],
+    lint,
+  })
+
+  it('ends with what is live, and keeps only the lint findings', () => {
+    const orphan = ref('b-3', 'Stray', 'function')
+    renderResult(
+      'deployWorkflow',
+      'text',
+      deployed({ ...clean, orphanBlocks: [orphan] }),
+      CLI_CONTRACT.deployWorkflow ?? {}
+    )
+    expect(logged.at(-1)).toBe('live\tversion 7, serving (this deploy)')
+    expect(logged).toContain(`lint\t${JSON.stringify({ orphanBlocks: [orphan] })}`)
+  })
+
+  it('drops a report whose only entries are the graph sources and sinks, for a machine too', () => {
+    renderResult('deployWorkflow', 'text', deployed(clean), CLI_CONTRACT.deployWorkflow ?? {})
+    expect(logged.some((line) => line.startsWith('lint\t'))).toBe(false)
+
+    logged = []
+    renderResult('deployWorkflow', 'json', deployed(clean), CLI_CONTRACT.deployWorkflow ?? {})
+    const shown = JSON.parse(logged.join('\n'))
+    expect(shown).not.toHaveProperty('lint')
+    expect(Object.keys(shown).at(-1)).toBe('live')
+
+    // A deploy that lints nothing answers `lint: null`: no report, so no field either.
+    logged = []
+    renderResult('deployWorkflow', 'json', deployed(null), CLI_CONTRACT.deployWorkflow ?? {})
+    expect(JSON.parse(logged.join('\n'))).not.toHaveProperty('lint')
+  })
+})
+
+describe('a run record read by a person', () => {
+  const spec = CLI_CONTRACT.getWorkflowRun ?? {}
+  const lineOf = (label: string) => logged.find((line) => line.startsWith(`${label}:`)) ?? ''
+
+  it('chains the resumes of several waiting points so a pasted line runs each', () => {
+    const point = (contextId: string) => ({ contextId, kind: 'human', status: 'paused' })
+    renderResult(
+      'getWorkflowRun',
+      'table',
+      {
+        runId: 'run_1',
+        workflowId: 'wf_1',
+        status: 'paused',
+        paused: { runId: 'run_1', points: [point('a'), point('b')] },
+      },
+      spec
+    )
+    expect(lineOf('next')).toContain(
+      '--context a && sim workflows runs resume run_1 --workflow wf_1 --context b  # '
+    )
+  })
+
+  it('prints the note naming the mocks a rerun leaves out whole', () => {
+    const child = (n: number) => `00000000-0000-4000-8000-00000000000${n}.block_${n}`
+    const mocks = [child(1), child(2), child(3)]
+    renderResult(
+      'getWorkflowRun',
+      'table',
+      {
+        runId: 'run_9',
+        workflowId: 'wf_1',
+        status: 'failed',
+        trigger: 'test',
+        overrides: { allow: [], mocks },
+        error: { message: 'boom', blockId: 'blk_3', rerunFromBlockId: 'blk_3' },
+      },
+      spec
+    )
+    expect(lineOf('next note')).toContain(mocks.join(', '))
   })
 })

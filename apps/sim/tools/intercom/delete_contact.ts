@@ -56,6 +56,7 @@ export const intercomDeleteContactTool: ToolConfig<
   name: 'Delete Contact from Intercom',
   description: 'Delete a contact from Intercom by ID',
   version: '1.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...intercomDeleteContactBase,
@@ -112,6 +113,7 @@ export const intercomDeleteContactV2Tool: ToolConfig<
   name: 'Delete Contact from Intercom',
   description: 'Delete a contact from Intercom by ID. Returns API-aligned fields only.',
   version: '2.0.0',
+  effect: 'write',
   oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {

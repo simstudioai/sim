@@ -4,13 +4,14 @@ import type { Command } from 'commander'
 import { CLI_CONTRACT } from '../../contract/commands'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
+import { heldAction } from '../../runtime/build'
 import {
   type Connection,
   callsOperations,
   type OperationClient,
 } from '../../runtime/called-operations'
 import { retypeApiError } from '../../runtime/naming'
-import { buildRequest, readListValues } from '../../runtime/request'
+import { buildRequest, flagSpecFor, readListFlag } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
 
@@ -215,13 +216,12 @@ async function readRunByName(
  */
 export function attachWorkflowRunGet(runs: Command): void {
   const get = runs.commands.find((command) => command.name() === 'get')
-  const held = (get as (Command & { _actionHandler?: unknown }) | undefined)?._actionHandler
-  if (!get || typeof held !== 'function') {
+  const previous = heldAction(get)
+  if (!get || !previous) {
     throw new Error(
       'workflows runs get must be registered before block names can be attached to it'
     )
   }
-  const previous = held as (args: unknown[]) => unknown
   const connectGet = callsOperations(get, ['getWorkflowRun', 'getWorkflowState'])
 
   get.action(async (runId: string, _options: unknown, command: Command): Promise<void> => {
@@ -232,7 +232,11 @@ export function attachWorkflowRunGet(runs: Command): void {
     }
     // Expanded here, once: a `@-` source cannot be read twice, and the
     // generated path would read it again if it still saw the `@`.
-    const typed = await readListValues(raw, SELECT_OUTPUT_FLAG)
+    const typed = await readListFlag(
+      raw,
+      flagSpecFor('getWorkflowRun', 'selectedOutputs'),
+      SELECT_OUTPUT_FLAG
+    )
     command.setOptionValue('selectOutput', typed)
     if (typed.every(isIdHeaded)) {
       await previous(command.processedArgs)

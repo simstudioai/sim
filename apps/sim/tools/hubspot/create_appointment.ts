@@ -16,6 +16,7 @@ export const hubspotCreateAppointmentTool: ToolConfig<
   name: 'Create Appointment in HubSpot',
   description: 'Create a new appointment in HubSpot',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

@@ -11,6 +11,7 @@ export const vercelPauseProjectTool: ToolConfig<
   name: 'Vercel Pause Project',
   description: 'Pause a Vercel project',
   version: '1.0.0',
+  effect: 'write',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

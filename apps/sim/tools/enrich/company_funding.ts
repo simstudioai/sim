@@ -11,6 +11,7 @@ export const companyFundingTool: ToolConfig<
   description:
     'Retrieve company funding history, traffic metrics, and executive information by domain.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {

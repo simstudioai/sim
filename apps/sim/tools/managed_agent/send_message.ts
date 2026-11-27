@@ -32,6 +32,7 @@ export const managedAgentSendMessageTool: InternalToolConfig<
   name: 'Managed Agent Send Message',
   description: 'Send a user message to an existing Claude Platform Managed Agent session.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {

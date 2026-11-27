@@ -36,6 +36,7 @@ export const bitbucketGetPipelineStepLogTool: InternalToolConfig<
   name: 'Bitbucket Get Pipeline Step Log',
   description: 'Read a bounded UTF-8 tail of a pipeline step log',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['pipeline'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

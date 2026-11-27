@@ -34,6 +34,7 @@ export const sportmonksGetRoundsTool: ToolConfig<
   name: 'Get Rounds',
   description: 'Retrieve all football rounds available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

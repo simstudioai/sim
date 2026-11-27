@@ -31,6 +31,7 @@ export const sportmonksMotorsportGetLatestPitstopsByFixtureTool: ToolConfig<
   description:
     'Retrieve the latest pitstops for a motorsport fixture (session) by fixture ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

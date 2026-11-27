@@ -11,6 +11,7 @@ export const sendBulkEmailTool: InternalToolConfig<
   name: 'SES Send Bulk Email',
   description: 'Send emails to multiple recipients using an SES template with per-recipient data',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

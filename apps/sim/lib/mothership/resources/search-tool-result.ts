@@ -33,8 +33,11 @@ export function searchResourceFromToolResult(
     topK,
     query: _query,
     nativeQueries,
+    involving,
     ...requestedFilters
   } = searchWorkspaceInputSchema.parse(params)
+  /** A Search tab cannot repeat a person filter, so refreshing it would drop the restriction. */
+  if (involving) return undefined
   const nativeProjection = nativeQueries
     ? context.resolvedSecretTraceRegistry &&
       projectResolvedSecretModelContent(nativeQueries, context.resolvedSecretTraceRegistry)

@@ -21,6 +21,7 @@ export const createScheduleTool: ToolConfig<
   name: 'Temporal Create Schedule',
   description: 'Create a Temporal schedule that starts a workflow on a cron or interval cadence.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     serverUrl: {

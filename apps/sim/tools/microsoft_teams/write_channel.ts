@@ -1,3 +1,4 @@
+import { placeholderTeamsMessage } from '@/tools/microsoft_teams/dry-run'
 import type {
   MicrosoftTeamsToolParams,
   MicrosoftTeamsWriteResponse,
@@ -12,8 +13,8 @@ export const writeChannelTool: InternalToolConfig<
   name: 'Write to Microsoft Teams Channel',
   description: 'Write or send a message to a Microsoft Teams channel',
   version: '1.0',
+  effect: 'write',
   assistant: {
-    effect: 'write',
     version: 1,
     reviewFields: [
       { name: 'teamId', label: 'Team', target: true },
@@ -68,6 +69,12 @@ export const writeChannelTool: InternalToolConfig<
         'Body format: "text" (default) or "html". Mentions and attachments always send HTML',
     },
   },
+
+  dryRunOutput: (params) => ({
+    ...placeholderTeamsMessage(params),
+    teamId: params.teamId?.trim(),
+    channelId: params.channelId?.trim(),
+  }),
 
   outputs: {
     success: { type: 'boolean', description: 'Teams channel message send success status' },

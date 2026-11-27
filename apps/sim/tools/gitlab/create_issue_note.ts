@@ -13,6 +13,7 @@ export const gitlabCreateIssueNoteTool: ToolConfig<
   name: 'GitLab Create Issue Comment',
   description: 'Add a comment to a GitLab issue',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {

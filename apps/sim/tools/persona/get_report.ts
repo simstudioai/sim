@@ -16,6 +16,7 @@ export const personaGetReportTool: ToolConfig<PersonaGetReportParams, PersonaRep
   description:
     'Retrieve a single screening report by ID, including its status, match results, and full type-specific attributes.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {

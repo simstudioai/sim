@@ -33,6 +33,7 @@ export const polymarketGetHoldersTool: ToolConfig<
   name: 'Get Market Holders from Polymarket',
   description: 'Retrieve top holders of a specific market token',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     market: {

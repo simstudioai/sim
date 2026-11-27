@@ -8,6 +8,7 @@ export const profoundBotLogsTool: ToolConfig<ProfoundBotLogsParams, ProfoundBotL
   description:
     'Get identified bot visit logs with filters for a domain in Profound. Profound retired this endpoint on 2026-06-10; use the Bots Report instead.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {

@@ -6,6 +6,7 @@ export const outlookMoveTool: InternalToolConfig<OutlookMoveParams, OutlookMoveR
   name: 'Outlook Move',
   description: 'Move emails between Outlook folders',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

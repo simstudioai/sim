@@ -66,6 +66,7 @@ export const getRunTool: ToolConfig<DagsterGetRunParams, DagsterGetRunResponse> 
   name: 'Dagster Get Run',
   description: 'Get the status and details of a Dagster run by its ID.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     host: {

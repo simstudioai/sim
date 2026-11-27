@@ -22,6 +22,7 @@ export const checkrCancelInvitationTool: ToolConfig<
   name: 'Checkr Cancel Invitation',
   description: 'Cancel a pending invitation so the candidate can no longer complete it.',
   version: '1.0.0',
+  effect: 'write',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

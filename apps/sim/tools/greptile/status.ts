@@ -7,6 +7,7 @@ export const statusTool: ToolConfig<GreptileStatusParams, GreptileStatusResponse
   description:
     'Check the indexing status of a repository. Use this to verify if a repository is ready to be queried or to monitor indexing progress.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     remote: {

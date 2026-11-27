@@ -21,6 +21,7 @@ export const monacoListCampaignsTool: ToolConfig<MonacoListParams, MonacoListCam
   name: 'Monaco List Campaigns',
   description: 'List Monaco campaigns with optional filters, sorting, and pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

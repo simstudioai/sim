@@ -8,6 +8,7 @@ export const listFoldersTool: ToolConfig<GranolaListFoldersParams, GranolaListFo
   name: 'Granola List Folders',
   description: 'Lists folders from Granola, sorted alphabetically, with pagination.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {

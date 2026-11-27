@@ -11,6 +11,7 @@ export const assemblyaiSttTool: InternalToolConfig<SttParams, SttResponse> = {
   name: 'AssemblyAI STT',
   description: 'Transcribe audio to text using AssemblyAI with advanced NLP features',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     provider: {

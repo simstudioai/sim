@@ -6,6 +6,7 @@ export const redisIncrTool: InternalToolConfig<RedisIncrParams, RedisIncrRespons
   name: 'Redis INCR',
   description: 'Increment the integer value of a key by one in Redis.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     url: {

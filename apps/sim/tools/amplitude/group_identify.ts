@@ -15,6 +15,7 @@ export const groupIdentifyTool: ToolConfig<
   description:
     'Set group-level properties in Amplitude. Supports $set, $setOnce, $add, $append, $unset operations.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AMPLITUDE_INGESTION_CREDENTIAL_OAUTH,
 
   params: {

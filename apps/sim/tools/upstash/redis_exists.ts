@@ -12,6 +12,7 @@ export const upstashRedisExistsTool: ToolConfig<
   description:
     'Check if a key exists in Upstash Redis. Returns true if the key exists, false otherwise.',
   version: '1.0.0',
+  effect: 'read',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

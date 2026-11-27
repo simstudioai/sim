@@ -27,6 +27,7 @@ export const clearRangeTool: ToolConfig<
   name: 'Clear Microsoft Excel Range',
   description: 'Clear the values and/or formatting of a range in a Microsoft Excel worksheet',
   version: '1.0',
+  effect: 'write',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {

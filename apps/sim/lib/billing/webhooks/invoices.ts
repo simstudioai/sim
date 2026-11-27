@@ -10,11 +10,13 @@ import {
   renderCreditPurchaseEmail,
   renderPaymentFailedEmail,
 } from '@/components/emails'
+import { hasBillingBlockFor } from '@/lib/billing/core/access'
 import { isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { getCustomerId } from '@/lib/billing/stripe-payment-method'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
@@ -67,6 +69,7 @@ const METADATA_SUBSCRIPTION_INVOICE_TYPES = new Set<string>([
   'overage_billing',
   'overage_threshold_billing',
   'overage_threshold_billing_org',
+  'enterprise_seat_true_up',
 ])
 
 type InvoiceSubscriptionResolutionSource =
@@ -477,7 +480,7 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
       if (subscription.length > 0) {
         const sub = subscription[0]
         const newCreditBalance = await getCreditBalanceForEntity(entityType, entityId)
-        await setUsageLimitForCredits(entityType, entityId, sub.plan, sub.seats, newCreditBalance)
+        await setUsageLimitForCredits(entityType, entityId, sub, sub.seats, newCreditBalance)
       }
     } catch (limitError) {
       // Limit bump is best-effort. Customer already got credits; if the
@@ -588,6 +591,34 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
 }
 
 /**
+ * Whether the same subscription still has another open, automatically charged invoice that failed:
+ * its renewals and its metadata-linked overage and seat true-up invoices. A Stripe customer can
+ * pay for several subscriptions, so invoices for any other one never hold this one's access.
+ */
+async function hasOtherFailedInvoice(
+  invoice: Stripe.Invoice,
+  stripeSubscriptionId: string
+): Promise<boolean> {
+  const customerId = getCustomerId(invoice.customer)
+  if (!customerId) return false
+  for await (const open of requireStripeClient().invoices.list({
+    customer: customerId,
+    status: 'open',
+    limit: 100,
+  })) {
+    if (
+      open.id !== invoice.id &&
+      open.collection_method === 'charge_automatically' &&
+      (open.attempt_count ?? 0) > 0 &&
+      resolveInvoiceSubscriptionContext(open).stripeSubscriptionId === stripeSubscriptionId
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
  * Handle invoice payment succeeded webhook.
  * Handles both credit purchases and subscription payments.
  */
@@ -616,9 +647,20 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
         const subIsOrgScoped = await isSubscriptionOrgScoped(sub)
 
         const isProrationInvoice = invoice.billing_reason === 'subscription_update'
-        const shouldUnblock = !isProrationInvoice || (invoice.amount_paid ?? 0) > 0
+        const billingBlocked = await hasBillingBlockFor(
+          { type: subIsOrgScoped ? 'organization' : 'user', id: sub.referenceId },
+          'payment_failed'
+        )
+        const paysSomething = !isProrationInvoice || (invoice.amount_paid ?? 0) > 0
+        // A paid invoice restores access only when no other charge is still failing: overage and
+        // seat true-up invoices are separate from renewals, so one can stay unpaid while another
+        // succeeds. An unblocked payer skips the Stripe invoice listing.
+        const otherInvoiceFailing =
+          billingBlocked &&
+          paysSomething &&
+          (await hasOtherFailedInvoice(invoice, resolvedInvoice.stripeSubscriptionId))
 
-        if (shouldUnblock) {
+        if (billingBlocked && paysSomething && !otherInvoiceFailing) {
           if (subIsOrgScoped) {
             await unblockOrgMembers(sub.referenceId, 'payment_failed')
           } else {
@@ -632,12 +674,17 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
                 )
               )
           }
-        } else {
-          logger.info('Skipping unblock for zero-amount proration invoice', {
-            invoiceId: invoice.id,
-            billingReason: invoice.billing_reason,
-            amountPaid: invoice.amount_paid,
-          })
+        } else if (billingBlocked) {
+          logger.info(
+            otherInvoiceFailing
+              ? 'Skipping unblock while another invoice is still failing'
+              : 'Skipping unblock for zero-amount proration invoice',
+            {
+              invoiceId: invoice.id,
+              billingReason: invoice.billing_reason,
+              amountPaid: invoice.amount_paid,
+            }
+          )
         }
 
         const entityType = subIsOrgScoped ? 'organization' : 'user'

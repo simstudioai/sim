@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, avg, count, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
+import { and, avg, count, desc, eq, gte, notInArray, type SQL, sql } from 'drizzle-orm'
 import { creditsToDollars } from '@/lib/billing/credits/conversion'
 import {
+  EVENTLESS_EXECUTION_TRIGGERS,
   SIM_MIN_EXECUTIONS_FOR_RATE_RULES,
-  SIM_TRIGGER_PROVIDER,
   type SimRuleEventType,
 } from '@/lib/workspace-events/constants'
 import type { ExecutionEventContext, SimSubscriptionConfig } from '@/lib/workspace-events/types'
@@ -13,19 +13,21 @@ import type { ExecutionEventContext, SimSubscriptionConfig } from '@/lib/workspa
 const logger = createLogger('WorkspaceEventRules')
 
 /**
- * Excludes executions started by the Sim trigger from rule statistics, so
- * side-effect runs never pollute failure/latency counts for workflows that
- * are both source and subscriber.
+ * Excludes runs that count toward no rule from rule statistics: Sim-trigger side-effect runs, so
+ * they never pollute failure/latency counts for workflows that are both source and subscriber,
+ * and test runs, which are not the workflow's real traffic.
  */
-export function excludeSimExecutionsCondition(): SQL {
-  return ne(workflowExecutionLogs.trigger, SIM_TRIGGER_PROVIDER)
+export function excludeEventlessExecutionsCondition(): SQL {
+  return notInArray(workflowExecutionLogs.trigger, [...EVENTLESS_EXECUTION_TRIGGERS])
 }
 
 async function checkConsecutiveFailures(workflowId: string, threshold: number): Promise<boolean> {
   const recentLogs = await db
     .select({ level: workflowExecutionLogs.level })
     .from(workflowExecutionLogs)
-    .where(and(eq(workflowExecutionLogs.workflowId, workflowId), excludeSimExecutionsCondition()))
+    .where(
+      and(eq(workflowExecutionLogs.workflowId, workflowId), excludeEventlessExecutionsCondition())
+    )
     .orderBy(desc(workflowExecutionLogs.startedAt))
     .limit(threshold)
 
@@ -61,7 +63,7 @@ async function checkFailureRate(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
         gte(workflowExecutionLogs.startedAt, windowStart),
-        excludeSimExecutionsCondition()
+        excludeEventlessExecutionsCondition()
       )
     )
 
@@ -92,7 +94,7 @@ async function checkLatencySpike(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
         gte(workflowExecutionLogs.startedAt, windowStart),
-        excludeSimExecutionsCondition()
+        excludeEventlessExecutionsCondition()
       )
     )
 
@@ -122,7 +124,7 @@ async function checkErrorCount(
         eq(workflowExecutionLogs.workflowId, workflowId),
         eq(workflowExecutionLogs.level, 'error'),
         gte(workflowExecutionLogs.startedAt, windowStart),
-        excludeSimExecutionsCondition()
+        excludeEventlessExecutionsCondition()
       )
     )
 

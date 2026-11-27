@@ -19,6 +19,7 @@ export const powerbiListReportsTool: ToolConfig<PowerBIGroupParams, PowerBIListR
   name: 'Power BI List Reports',
   description: 'List reports in a Power BI workspace, including paginated reports.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: { required: true, provider: 'microsoft-powerbi' },
   params: { accessToken: POWERBI_ACCESS_TOKEN_PARAM, groupId: POWERBI_GROUP_ID_PARAM },

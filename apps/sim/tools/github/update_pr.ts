@@ -8,6 +8,7 @@ export const updatePRTool: ToolConfig<UpdatePRParams, PRResponse> = {
   name: 'GitHub Update Pull Request',
   description: 'Update an existing pull request in a GitHub repository',
   version: '1.0.0',
+  effect: 'write',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -128,6 +129,7 @@ export const updatePRV2Tool: ToolConfig = {
   name: updatePRTool.name,
   description: updatePRTool.description,
   version: '2.0.0',
+  effect: 'write',
   params: updatePRTool.params,
   request: updatePRTool.request,
   oauth: updatePRTool.oauth,

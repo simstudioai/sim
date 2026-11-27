@@ -11,6 +11,7 @@ export const vercelListDnsRecordsTool: ToolConfig<
   name: 'Vercel List DNS Records',
   description: 'List all DNS records for a domain in a Vercel account',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

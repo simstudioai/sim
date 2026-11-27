@@ -7,6 +7,7 @@ export const insertTool: InternalToolConfig<MySQLInsertParams, MySQLResponse> = 
   name: 'MySQL Insert',
   description: 'Insert new record into MySQL database',
   version: '1.0',
+  effect: 'write',
   oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {
@@ -72,6 +73,13 @@ export const insertTool: InternalToolConfig<MySQLInsertParams, MySQLResponse> = 
       data: params.data,
     }),
   },
+
+  /** A dry run's placeholder counts the one row the call inserts; MySQL returns no rows for it. */
+  dryRunOutput: () => ({
+    message: 'Data inserted successfully. 1 row(s) affected.',
+    rows: [],
+    rowCount: 1,
+  }),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()

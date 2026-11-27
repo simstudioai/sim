@@ -9,6 +9,7 @@ export const ripplingListWorkersTool: ToolConfig<RipplingListWorkersParams> = {
   name: 'Rippling List Workers',
   description: 'List all workers with optional filtering and pagination',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

@@ -172,7 +172,11 @@ try {
     },
   },
   outputs: {
-    result: { type: 'json', description: 'Structured result emitted by the executed code' },
+    result: {
+      type: 'json',
+      description: 'Structured result emitted by the executed code',
+      mayBeText: true,
+    },
     stdout: {
       type: 'string',
       description: 'Console log output and debug messages from function execution',
@@ -180,6 +184,13 @@ try {
     files: {
       type: 'file[]',
       description: `Files the code wrote to ${SANDBOX_OUTPUT_DIR}, ready to attach or upload downstream`,
+    },
+  },
+  errorOutputs: {
+    errorMessage: {
+      type: 'string',
+      description:
+        'The thrown message alone, without the line and code that error leads with. Use it in a reply to a caller.',
     },
   },
 }

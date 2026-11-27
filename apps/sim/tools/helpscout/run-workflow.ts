@@ -32,6 +32,7 @@ export const helpScoutRunWorkflowTool: ToolConfig<
   description:
     'Run a manual Help Scout workflow on up to 50 conversations. The conversations must be in the same inbox as the workflow.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
   params: {

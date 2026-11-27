@@ -11,6 +11,7 @@ export const apolloAccountUpdateTool: ToolConfig<
   name: 'Apollo Update Account',
   description: 'Update an existing account in your Apollo database',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

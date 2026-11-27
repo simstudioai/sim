@@ -1,0 +1,192 @@
+---
+slug: greenhouse-ai-agent-recruiting-operations
+title: 'How Do You Build a Governed AI Agent for Greenhouse Recruiting Operations?'
+description: 'Build a governed Greenhouse AI agent for application summaries, stage alerts, scorecard reminders, scheduling handoffs, and approved Workday transfers.'
+seoTitle: 'Greenhouse AI Agent for Recruiting Operations'
+date: 2026-11-23
+updated: 2026-11-23
+authors:
+  - andrew
+readingTime: 8
+tags: [AI Agents, Greenhouse, Recruiting Operations, HR Automation, Sim]
+ogImage: /library/greenhouse-ai-agent-recruiting-operations/cover.jpg
+draft: false
+faq:
+  - q: "Can AI summarize resumes in Greenhouse?"
+    a: "Greenhouse data can be summarized by a Sim agent when the workflow retrieves only necessary job-related information, labels the result as a model-generated summary, and leaves hiring decisions with people."
+  - q: "Can Greenhouse send stage changes to Slack?"
+    a: "Greenhouse stage changes can reach Slack through a Sim workflow that receives a documented event or polls an approved endpoint, filters the event, and posts a minimal update to an authorized private channel."
+  - q: "Can Greenhouse sync accepted offers to Workday?"
+    a: "Greenhouse accepted offer data can be prepared for Workday by Sim, but a governed workflow should validate fields and require human approval before creating or changing an employee record."
+  - q: "How do you connect Greenhouse to Claude for a recruiting team?"
+    a: "Sim can connect approved Greenhouse data to a Claude model step by using a stored provider credential, minimizing candidate fields, and routing the model output through validation and human review before any consequential action."
+  - q: "Can an AI agent schedule Greenhouse interviews?"
+    a: "A Greenhouse agent can prepare scheduling options and internal handoffs, but candidate-facing invitations and material schedule changes should require recruiter approval unless the organization has separately validated and authorized autonomous scheduling."
+  - q: "Does the Greenhouse Harvest API contain candidate PII?"
+    a: "Greenhouse recruiting records can contain personal information, so Harvest API access should be treated as sensitive and limited by endpoint permission, field selection, purpose, retention policy, and authorized user access."
+  - q: "Should Greenhouse agents make hiring decisions?"
+    a: "Greenhouse agents should not make final hiring decisions because models can omit context, reproduce bias, and generate unsupported conclusions; Sim should support administrative work and human review instead."
+  - q: "Can n8n automate Greenhouse recruiting operations?"
+    a: "n8n can support Greenhouse automation through available integrations and HTTP-based API workflows, but recruiting teams must design their own least-privilege access, candidate data controls, approvals, and failure handling."
+  - q: "Is Sim open source?"
+    a: "Sim's core is open source under Apache 2.0, while apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
+  - q: "Do Sim Cloud workspaces support BYOK?"
+    a: "Sim Cloud supports workspace bring-your-own-key credentials on every cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise."
+---
+
+## TL;DR
+
+Greenhouse and Sim can support governed recruiting operations by summarizing new applications, routing internal scheduling handoffs, sending stage alerts to Slack, reminding interviewers about scorecards, and preparing accepted offer data for Workday with human approval before sensitive actions.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. The [Greenhouse integration](https://www.sim.ai/integrations/greenhouse) lets recruiting operations teams connect Greenhouse data to governed workflows without turning an AI model into an unsupervised hiring decision-maker.
+
+## What can an AI agent safely automate in Greenhouse?
+
+Greenhouse agents can safely automate administrative coordination and internal decision support when candidate-facing communication, hiring decisions, and sensitive record changes remain under human control.
+
+Good automation candidates include application summaries for recruiters, internal scheduling handoffs, stage change notifications, overdue scorecard reminders, and approved data transfers to an HR system. The agent should summarize evidence already present in Greenhouse rather than infer protected characteristics, rank people from hidden signals, or make final hiring decisions.
+
+A practical boundary is simple: let the agent collect, transform, and route information, but require a person to approve candidate-facing messages and consequential record changes. The [AI Agents for Recruiting guide](https://www.sim.ai/library/best-ai-agents-for-recruiting-teams) explains how this governed approach compares with broader recruiting tools.
+
+## What should recruiting operations teams know before connecting Greenhouse to an AI agent?
+
+Greenhouse access should be limited to the smallest set of objects and actions required for each workflow.
+
+As of November 2026, Greenhouse documents its Recruiting APIs, including the Harvest API and recruiting webhooks, in the [Greenhouse developer documentation](https://developers.greenhouse.io/). Greenhouse administrators should create a dedicated integration credential, grant only the required endpoint permissions, and keep that credential in the workflow platform credential store rather than in prompts or workflow text.
+
+Recruiting operations, People Ops, IT, security, and legal teams should agree on four controls before deployment:
+
+1. Define which Greenhouse fields the agent may read and which fields must never enter a model prompt.
+
+2. Define whether model providers may retain submitted data and select an approved provider configuration.
+
+3. Require human approval before candidate-facing communication, rejection, offer changes, or transfers into downstream systems.
+
+4. Define retention, access review, incident response, and audit requirements for workflow runs.
+
+[Sim's Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) pauses a run and collects form fields. An approval field must be evaluated by a downstream Condition before the workflow continues. [Sim Guardrails](https://docs.sim.ai/workflows/blocks/guardrails) report whether a check passed or failed, so a downstream Condition must also route the workflow based on that result.
+
+## Which Greenhouse API objects should the agent read or write?
+
+Greenhouse agents should read only the recruiting objects required for the task and should receive write access only when a reviewed workflow has a specific reason to change a record.
+
+The following access pattern is a conservative starting point based on the recruiting data available through the [Greenhouse developer resources](https://developers.greenhouse.io/) as of November 2026.
+
+| Greenhouse object | Typical workflow use | Recommended agent access |
+| --- | --- | --- |
+| Candidate | Identify the candidate associated with an application | Read only and limit retrieved fields |
+| Application | Read status, job association, and current stage | Read by default; allow stage changes only in a separately approved workflow |
+| Job | Provide role context for an application summary | Read only |
+| Scheduled interview | Prepare internal scheduling handoffs and reminders | Read only unless an approved scheduling workflow requires more |
+| Scorecard | Detect missing interview feedback | Read completion state without generating interviewer feedback |
+| Offer | Detect an accepted offer and prepare an HR system handoff | Read only for the handoff workflow |
+
+Field availability and endpoint permissions can vary by Greenhouse configuration. The production workflow should use the exact object names, events, and permissions shown in the organization's Greenhouse developer settings and current official documentation.
+
+## How do you build a new application summary for a Slack hiring channel?
+
+Sim can turn a new Greenhouse application into a concise internal summary and send it to an authorized Slack hiring channel without making a hiring decision.
+
+1. Start the workflow from a documented Greenhouse event or an approved polling process.
+
+2. Retrieve only the candidate, application, and job fields needed for the summary.
+
+3. Remove unnecessary contact details and other personal information before the model step.
+
+4. Ask the model to summarize job-related evidence, stated experience, open questions, and missing information without assigning a hiring score.
+
+5. Run the output through a Guardrails check, then use a Condition to stop or reroute failed output.
+
+6. Send the approved format to a private Slack channel with links back to the source record for recruiter review.
+
+The Slack message should distinguish candidate-supplied facts from model-generated summaries. The agent should not infer age, health, ethnicity, religion, family status, disability, or other protected characteristics from names, dates, addresses, photographs, or writing style.
+
+## How do you send Greenhouse stage change alerts to Slack?
+
+Sim can route documented Greenhouse stage changes to Slack so interview teams receive timely internal updates without exposing the entire candidate record.
+
+1. Configure a relevant Greenhouse event using the current [Greenhouse webhook documentation](https://docs.greenhouse.io/webhooks.html), or use an approved polling pattern when an event is unavailable.
+
+2. Retrieve the application identifier, job, previous stage, current stage, and responsible recruiting contact.
+
+3. Apply an allowlist so only approved jobs, departments, or stages can produce a message.
+
+4. Post a short update to the appropriate private Slack channel.
+
+5. Record the workflow result and route delivery failures to recruiting operations.
+
+A stage alert should include only the information the channel needs. Teams handling candidate information in Slack should also follow the access and retention controls in the [Slack AI Agent Security guide](https://www.sim.ai/library/slack-ai-agent-security-permissions-guide).
+
+## How do you automate Greenhouse scorecard reminders?
+
+Sim can identify incomplete Greenhouse scorecards and send internal reminders while leaving interview feedback entirely with the interviewer.
+
+1. Run the workflow on an approved schedule.
+
+2. Read recently completed interviews and their associated scorecard completion state.
+
+3. Compare the interview completion time with the organization's reminder policy.
+
+4. Notify only the responsible interviewer or recruiting coordinator through an approved Slack destination.
+
+5. Stop reminders when the scorecard is completed or when the application reaches an excluded state.
+
+The model may help produce a concise reminder, but it should never draft evaluative scorecard content on behalf of an interviewer. Interviewers must provide their own evidence and assessment.
+
+## How do you hand an accepted Greenhouse offer to Workday?
+
+Sim can prepare an accepted Greenhouse offer for Workday onboarding while requiring a person to approve the transfer before any employee record is created or changed.
+
+1. Start from the documented Greenhouse event or offer status used by the organization.
+
+2. Retrieve only the approved candidate, job, start date, location, manager, and offer fields required by the Workday process.
+
+3. Validate required fields and route incomplete records to People Ops.
+
+4. Pause the run with Human in the Loop and collect an explicit approval or rejection field.
+
+5. Use a Condition to continue only when the reviewer approved the transfer.
+
+6. Send the approved fields through a configured [Sim Workday action](https://docs.sim.ai/integrations/workday) and return the result to People Ops.
+
+The workflow should use a stable identifier to prevent duplicate employee creation when a run is retried. The [governed Workday AI agent guide](https://www.sim.ai/library/workday-ai-agent-employee-onboarding-offboarding) covers governance on the Workday side of this handoff.
+
+## How should Greenhouse agents handle permissions, PII, and auditability?
+
+Greenhouse agents should combine least-privilege credentials, data minimization, human approval, and reviewable execution records.
+
+[Greenhouse recruiting data](https://developers.greenhouse.io/) can include candidate, application, interview, scorecard, offer, and attachment information that teams should treat as sensitive. A workflow should retrieve only the fields needed for its declared purpose and should avoid placing complete resumes or complete candidate profiles into prompts when a smaller field set will work.
+
+Use separate credentials for development and production. Restrict Slack destinations to private channels with approved membership. Review Greenhouse, Slack, Workday, model provider, and Sim access whenever a recruiter, coordinator, administrator, or integration owner changes roles. The [agentic AI security controls guide](https://www.sim.ai/library/agentic-ai-security-risks-controls) provides a broader framework for permissions, approvals, and incident handling.
+
+As of November 2026, [Sim's core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Enterprise capabilities such as audit logs, access control, data retention, and credential groups are located in `apps/sim/ee`, and production use of that code requires an active Sim Enterprise subscription.
+
+## Should recruiting teams use Sim or n8n for Greenhouse automation?
+
+Sim fits recruiting teams that want a visual agent workflow with model steps, governed human review, and explicit routing around AI output. n8n fits teams centered on general-purpose workflow automation.
+
+As of November 2026, Sim's core uses the OSI-approved Apache 2.0 license, while enterprise code uses the separate Sim Enterprise License. Sim Cloud workspaces can use [their own model provider keys](https://docs.sim.ai/platform/costs) on any cloud plan.
+
+As of November 2026, n8n is self-hostable under the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source-available rather than OSI-approved open source. n8n's hosted plans use workflow executions as a billing measure according to the vendor's [pricing page](https://n8n.io/pricing/).
+
+The choice should follow the operating model. Sim is designed for teams building, deploying, and managing AI agents. n8n is established for broad integration automation and can connect services through its [HTTP Request node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest), but the recruiting team must still design its approval, PII, and hiring governance controls.
+
+## What should teams test before deploying a Greenhouse agent?
+
+Sim Greenhouse workflows should pass functional, privacy, security, and failure recovery tests before production deployment.
+
+1. Test records with missing resumes, missing job data, multiple applications, withdrawn applications, and duplicate webhook delivery.
+
+2. Confirm that prompts receive only approved fields and that logs do not expose secrets or unnecessary candidate data.
+
+3. Confirm that Guardrails failures reach a downstream Condition and cannot continue through the success path.
+
+4. Confirm that Human in the Loop rejection reaches a downstream Condition and prevents the Workday or candidate-facing action.
+
+5. Test expired Greenhouse credentials, Slack permission failures, model timeouts, Workday validation errors, and workflow retries.
+
+6. Compare summaries with source records and measure unsupported claims, omitted qualifications, and prohibited inferences.
+
+7. Assign an owner who reviews failures, credential permissions, model changes, and access at a defined interval.
+
+A production agent should fail closed for sensitive writes. If approval, identity, or required data is missing, the workflow should stop and route the case to a person.

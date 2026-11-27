@@ -1,6 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
+import type { OutputFieldDefinition } from '@sim/workflow-types/blocks'
 import type { JevAnswer } from '@/providers/typesafe/types'
-import type { OutputProperty } from '@/tools/types'
 
 const ANSWER_FIELDS = {
   choice: {
@@ -21,16 +21,17 @@ const ANSWER_FIELDS = {
     type: { type: 'string' },
   },
 } satisfies {
-  [Type in JevAnswer['type']]: Record<keyof Extract<JevAnswer, { type: Type }>, OutputProperty>
+  [Type in JevAnswer['type']]: Record<
+    keyof Extract<JevAnswer, { type: Type }>,
+    OutputFieldDefinition
+  >
 }
 
 /**
  * Describes answers known from the editor's questions without requiring resolved inputs.
  * Keys containing reference syntax remain accessible through the whole answers object.
  */
-export function getJevAnswerOutput(
-  questions: unknown
-): (OutputProperty & { type: 'json' }) | undefined {
+export function getJevAnswerOutput(questions: unknown): OutputFieldDefinition | undefined {
   if (typeof questions === 'string') {
     try {
       questions = JSON.parse(questions)
@@ -40,7 +41,7 @@ export function getJevAnswerOutput(
   }
   if (!isRecordLike(questions)) return undefined
 
-  const entries: Array<[string, OutputProperty]> = []
+  const entries: Array<[string, OutputFieldDefinition]> = []
   for (const [id, question] of Object.entries(questions)) {
     if (!/^[\w-]+$/.test(id) || !isRecordLike(question)) continue
     const { type } = question

@@ -9,6 +9,7 @@ export const sendGridGetTemplateTool: ToolConfig<GetTemplateParams, TemplateResu
   name: 'SendGrid Get Template',
   description: 'Get a specific template by ID from SendGrid',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

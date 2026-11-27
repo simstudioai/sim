@@ -36,6 +36,7 @@ export const confluenceListSpacePermissionsTool: InternalToolConfig<
   name: 'Confluence List Space Permissions',
   description: 'List permissions for a Confluence space.',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

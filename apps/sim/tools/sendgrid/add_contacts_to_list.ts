@@ -9,6 +9,7 @@ export const sendGridAddContactsToListTool: ToolConfig<AddContactsToListParams, 
   description:
     'Add or update contacts and assign them to a list in SendGrid (uses PUT /v3/marketing/contacts)',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

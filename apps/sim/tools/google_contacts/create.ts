@@ -16,6 +16,7 @@ export const createTool: ToolConfig<GoogleContactsCreateParams, GoogleContactsCr
   name: 'Google Contacts Create',
   description: 'Create a new contact in Google Contacts',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

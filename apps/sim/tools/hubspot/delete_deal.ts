@@ -11,6 +11,7 @@ export const hubspotDeleteDealTool: ToolConfig<HubSpotDeleteDealParams, HubSpotD
     name: 'Delete Deal from HubSpot',
     description: 'Archive a deal in HubSpot by ID (moves it to the recycling bin)',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

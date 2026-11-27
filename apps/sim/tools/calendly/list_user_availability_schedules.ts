@@ -14,6 +14,7 @@ export const listUserAvailabilitySchedulesTool: ToolConfig<
   name: 'Calendly List User Availability Schedules',
   description: "Retrieve a user's availability schedules, working hours, and date overrides",
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

@@ -21,6 +21,7 @@ export const stripeCreateSubscriptionTool: ToolConfig<
   name: 'Stripe Create Subscription',
   description: 'Create a new subscription for a customer',
   version: '1.0.0',
+  effect: 'write',
   oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {

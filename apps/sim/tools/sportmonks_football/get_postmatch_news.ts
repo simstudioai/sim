@@ -35,6 +35,7 @@ export const sportmonksGetPostmatchNewsTool: ToolConfig<
   description:
     'Retrieve all post-match news articles available within your Sportmonks subscription',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

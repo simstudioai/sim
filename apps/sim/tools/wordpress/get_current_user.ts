@@ -14,6 +14,7 @@ export const getCurrentUserTool: ToolConfig<
   name: 'WordPress Get Current User',
   description: 'Get information about the currently authenticated WordPress.com user',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

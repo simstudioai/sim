@@ -31,6 +31,7 @@ export const sportmonksMotorsportGetLapsByFixtureAndLapTool: ToolConfig<
   name: 'Get Laps by Fixture and Lap Number',
   description: 'Retrieve all laps for a motorsport fixture and lap number from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

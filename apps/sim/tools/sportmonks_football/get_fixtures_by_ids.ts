@@ -30,6 +30,7 @@ export const sportmonksGetFixturesByIdsTool: ToolConfig<
   name: 'Get Fixtures by Multiple IDs',
   description: 'Retrieve multiple football fixtures by a comma-separated list of IDs (max 50)',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

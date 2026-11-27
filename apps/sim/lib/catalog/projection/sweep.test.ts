@@ -33,6 +33,7 @@ import { projectBlockSummary } from '@/lib/catalog/projection/block-summary'
 import { projectConnectorType } from '@/lib/catalog/projection/connector-type'
 import type { CatalogDeployment } from '@/lib/catalog/projection/tool'
 import { projectToolDetail, projectToolSummaryById } from '@/lib/catalog/projection/tool'
+import { projectBlock } from '@/lib/workflows/code/catalog/project'
 import { buildCustomBlockConfig } from '@/blocks/custom/build-config'
 import { getBlockRegistry } from '@/blocks/registry'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
@@ -119,6 +120,27 @@ it('preserves credential gates in the Slack trigger contract sent to clients', (
     trigger.configFields.eventType.options?.find(({ id }) => id === 'assistant_thread_started')
   ).toMatchObject({
     reactiveCondition: { watchFields: ['customBotCredential'], requiredType: 'oauth' },
+  })
+})
+
+describe("a block detail's effect", () => {
+  const registry = getBlockRegistry()
+  const effectOf = (type: string) =>
+    v2BlockDetailSchema.parse(projectBlockDetail(registry[type], { deployment: HOSTED })).effect
+
+  it('is write for a block running tools its user chooses, read for a model-only one, absent without tools', () => {
+    expect(effectOf('agent')).toBe('write')
+    expect(effectOf('human_in_the_loop_v2')).toBe('write')
+    expect(effectOf('router')).toBe('read')
+    expect(effectOf('condition')).toBeUndefined()
+  })
+
+  it('is the effect the workflow-code catalog gives every block', () => {
+    for (const block of Object.values(registry)) {
+      expect(projectBlockDetail(block, { deployment: HOSTED }).effect, block.type).toBe(
+        projectBlock(block).effect
+      )
+    }
   })
 })
 

@@ -12,6 +12,7 @@ export const cbinsightsGetOrgBusinessRelationshipsTool: InternalToolConfig<
   description:
     "Retrieve one organization's partnerships, client/vendor relationships, and licensing activity, with AI-generated insights on each.",
   version: '1.0.0',
+  effect: 'read',
   oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {

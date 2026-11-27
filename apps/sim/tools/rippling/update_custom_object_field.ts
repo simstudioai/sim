@@ -9,6 +9,7 @@ export const ripplingUpdateCustomObjectFieldTool: ToolConfig<RipplingUpdateCusto
     name: 'Rippling Update Custom Object Field',
     description: 'Update a field on a custom object',
     version: '1.0.0',
+    effect: 'write',
     oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {

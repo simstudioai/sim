@@ -24,6 +24,7 @@ export const otterListConversationsTool: ToolConfig<
   description:
     'List Otter conversations for the authenticated user, most recent first, optionally including shared conversations or filtering by channel.',
   version: '1.0.0',
+  effect: 'read',
   oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {

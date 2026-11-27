@@ -38,6 +38,7 @@ export const deleteRunTool: ToolConfig<DagsterDeleteRunParams, DagsterDeleteRunR
   name: 'Dagster Delete Run',
   description: 'Permanently delete a Dagster run record.',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

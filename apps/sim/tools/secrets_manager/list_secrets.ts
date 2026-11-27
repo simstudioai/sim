@@ -14,6 +14,7 @@ export const listSecretsTool: InternalToolConfig<
   name: 'Secrets Manager List Secrets',
   description: 'List secrets stored in AWS Secrets Manager',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

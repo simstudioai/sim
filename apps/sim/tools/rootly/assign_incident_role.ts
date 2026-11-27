@@ -15,6 +15,7 @@ export const rootlyAssignIncidentRoleTool: ToolConfig<
   name: 'Rootly Assign Incident Role',
   description: 'Assign an incident role (e.g. commander) to a user on a Rootly incident.',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {

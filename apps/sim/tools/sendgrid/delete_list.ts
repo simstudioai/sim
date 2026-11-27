@@ -9,6 +9,7 @@ export const sendGridDeleteListTool: ToolConfig<DeleteListParams, ToolResponse> 
   name: 'SendGrid Delete List',
   description: 'Delete a contact list from SendGrid',
   version: '1.0.0',
+  effect: 'write',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

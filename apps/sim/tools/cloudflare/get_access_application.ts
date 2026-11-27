@@ -23,6 +23,7 @@ export const getAccessApplicationTool: ToolConfig<
   description:
     'Reads a single Cloudflare Access (Zero Trust) application, including its attached policies. Requires an API token with Account Access: Apps and Policies Read.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

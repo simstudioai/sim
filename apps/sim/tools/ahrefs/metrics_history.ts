@@ -13,6 +13,7 @@ export const metricsHistoryTool: ToolConfig<
   description:
     'Get the historical organic and paid traffic trend for a target domain or URL over a date range: organic traffic/cost and paid traffic/cost at each point in time.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,6 +13,7 @@ export const oracleDeleteTool: InternalToolConfig<OracleDeleteParams, OracleDele
   name: 'Oracle Database Delete',
   description: 'Delete Oracle Database rows selected by a required WHERE expression',
   version: '1.0.0',
+  effect: 'write',
   oauth: oracleDatabaseOAuth,
   params: {
     ...ORACLE_CONNECTION_PARAMS,

@@ -16,6 +16,7 @@ export const describeInternetGatewaysTool: InternalToolConfig<
   name: 'EC2 Describe Internet Gateways',
   description: 'List internet gateways and the VPCs they are attached to',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

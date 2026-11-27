@@ -5,6 +5,8 @@ import {
   DEFAULT_FREE_CREDITS,
   MAX_CREDIT_TIER,
   PRO_CREDIT_TIER,
+  PRO_TRIAL_DAYS,
+  PRO_TRIAL_USAGE_LIMIT_DOLLARS,
 } from '@/lib/billing/constants'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
@@ -20,11 +22,15 @@ const formatCredits = (credits: number) => credits.toLocaleString('en-US')
 const PRICING_FAQS = [
   {
     question: 'Is Sim free?',
-    answer: `Yes. The Free plan costs $0 and includes ${formatCredits(DEFAULT_FREE_CREDITS * CREDITS_PER_DOLLAR)} one-time credits, one workspace, and all ${INTEGRATION_COUNT_LABEL} integrations, with no credit card required. On Free, models and tools run on your own provider keys; Sim-hosted keys come with paid plans. Sim is also open source, so you can self-host it for free.`,
+    answer: `Yes. The Free plan costs $0 and includes ${formatCredits(DEFAULT_FREE_CREDITS * CREDITS_PER_DOLLAR)} one-time credits, one workspace, and all ${INTEGRATION_COUNT_LABEL} integrations, with no credit card required. On Free, models and tools run on your own provider keys, and the credits cover runs, code execution, knowledge base indexing, and AI-assisted editing. Sim-hosted models and tools, and Chat with Sim, come with paid plans. Sim is also open source, so you can self-host it for free.`,
+  },
+  {
+    question: 'Does Sim have a free trial?',
+    answer: `Yes. New Pro subscribers get a ${PRO_TRIAL_DAYS}-day free trial with ${formatCredits(PRO_TRIAL_USAGE_LIMIT_DOLLARS * CREDITS_PER_DOLLAR)} credits, including Sim-hosted models and tools. A card is required at checkout and is charged for Pro when the trial ends unless you cancel first. Each account and card can start one trial.`,
   },
   {
     question: 'How much does Sim cost?',
-    answer: `Pro is $${PRO_CREDIT_TIER.dollars} per user per month with ${formatCredits(PRO_CREDIT_TIER.credits)} credits a month and a weekly refresh of ${formatCredits(PRO_CREDIT_TIER.weeklyRefreshCredits)} more. Max is $${MAX_CREDIT_TIER.dollars} per user per month with ${formatCredits(MAX_CREDIT_TIER.credits)} credits a month and a weekly refresh of ${formatCredits(MAX_CREDIT_TIER.weeklyRefreshCredits)}. Annual billing costs ${ANNUAL_DISCOUNT_RATE * 100}% less for the same credits. Enterprise pricing is custom.`,
+    answer: `Pro is $${PRO_CREDIT_TIER.dollars} per user per month with ${formatCredits(PRO_CREDIT_TIER.credits)} credits a month and a weekly refresh of ${formatCredits(PRO_CREDIT_TIER.weeklyRefreshCredits)} more. Max is $${MAX_CREDIT_TIER.dollars} per user per month with ${formatCredits(MAX_CREDIT_TIER.credits)} credits a month and a weekly refresh of ${formatCredits(MAX_CREDIT_TIER.weeklyRefreshCredits)}. Annual billing costs ${ANNUAL_DISCOUNT_RATE * 100}% less for the same credits, and includes all twelve months of credits up front to use any time during the year. Enterprise pricing is custom.`,
   },
   {
     question: 'What is a credit, and what does an agent run cost?',

@@ -10,6 +10,7 @@ export const linearCreateCycleTool: ToolConfig<LinearCreateCycleParams, LinearCr
     description:
       'Deprecated: Linear no longer supports creating cycles through its API (they are generated from the team cycle settings), so this always returns an error from Linear.',
     version: '1.0.0',
+    effect: 'write',
 
     oauth: {
       required: true,

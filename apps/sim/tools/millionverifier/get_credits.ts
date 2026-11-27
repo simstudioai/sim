@@ -12,6 +12,7 @@ export const getCreditsTool: ToolConfig<
   name: 'MillionVerifier Get Credits',
   description: 'Retrieve the remaining verification credits for the authenticated account.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

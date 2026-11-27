@@ -34,6 +34,7 @@ export const cortexAnalystAskTool: ToolConfig<
 > = {
   id: 'snowflake_cortex_analyst_ask',
   version: '1.0.0',
+  effect: 'read',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Cortex Analyst Ask',
   description:

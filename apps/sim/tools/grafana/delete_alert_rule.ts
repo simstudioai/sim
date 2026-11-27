@@ -13,6 +13,7 @@ export const deleteAlertRuleTool: ToolConfig<
   name: 'Grafana Delete Alert Rule',
   description: 'Delete an alert rule by its UID',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {

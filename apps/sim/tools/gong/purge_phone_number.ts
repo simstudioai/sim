@@ -12,6 +12,7 @@ export const purgePhoneNumberTool: ToolConfig<
   description:
     'Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchronous and irreversible.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {

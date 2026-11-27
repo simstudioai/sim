@@ -14,6 +14,7 @@ export const linearCreateAttachmentTool: ToolConfig<
   name: 'Linear Create Attachment',
   description: 'Add an attachment to an issue in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

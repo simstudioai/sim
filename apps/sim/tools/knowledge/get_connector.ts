@@ -7,6 +7,7 @@ export const knowledgeGetConnectorTool: InternalToolConfig<any, KnowledgeGetConn
   description:
     'Get detailed connector information including recent sync logs for monitoring sync health',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     knowledgeBaseId: {

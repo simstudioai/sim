@@ -96,6 +96,11 @@ export class EdgeCollector {
     this.ctx.reporter.report(code, message, rangeOf(this.ctx, node), { hint, blockKey })
   }
 
+  /** Each accepted edge with the node it was written at. */
+  written(): Array<{ edge: CanonicalEdge; node: Node }> {
+    return this.edges.map((edge, index) => ({ edge, node: this.nodes[index] }))
+  }
+
   /** Validates and records one edge; `false` when it was rejected. */
   add(
     from: BlockDecl,

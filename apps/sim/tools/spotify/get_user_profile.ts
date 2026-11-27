@@ -23,6 +23,7 @@ export const spotifyGetUserProfileTool: ToolConfig<
   name: 'Spotify Get User Profile',
   description: "Get a user's public profile.",
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

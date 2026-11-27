@@ -23,6 +23,7 @@ export const listRulesetsTool: ToolConfig<
   description:
     'Lists every ruleset defined on a zone across all phases (WAF custom rules, managed rules, rate limiting, transform rules, and more). The list response deliberately omits the rules inside each ruleset — use "Get Ruleset" to read them. Requires an API token with Zone WAF Read (or another matching ruleset Read permission).',
   version: '1.0.0',
+  effect: 'read',
   oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {

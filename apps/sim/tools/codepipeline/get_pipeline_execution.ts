@@ -14,6 +14,7 @@ export const getPipelineExecutionTool: InternalToolConfig<
   description:
     'Get details of a CodePipeline execution, including status, trigger, source revisions, and resolved variables',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

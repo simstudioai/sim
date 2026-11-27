@@ -14,6 +14,7 @@ export const listOrganizationMembershipsTool: ToolConfig<
   name: 'Calendly List Organization Memberships',
   description: 'Retrieve the members of an organization, including each member profile and role',
   version: '1.0.0',
+  effect: 'read',
   oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {

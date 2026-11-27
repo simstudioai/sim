@@ -8,6 +8,7 @@ export const deleteRecordTool: ToolConfig<AlgoliaDeleteRecordParams, AlgoliaDele
     name: 'Algolia Delete Record',
     description: 'Delete a record by objectID from an Algolia index',
     version: '1.0',
+    effect: 'write',
     oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
     params: {

@@ -19,6 +19,7 @@ export const azureDataExplorerShowTableDetailsTool: InternalToolConfig<
   description:
     'Read size, row count, hot-cache footprint, and effective policies for a table — or for every table in the database when no table is given. Use it to see how much data a table actually holds before querying it.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {

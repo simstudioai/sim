@@ -13,6 +13,7 @@ export const similarwebBounceRateTool: ToolConfig<
   name: 'SimilarWeb Bounce Rate',
   description: 'Get website bounce rate over time (desktop and mobile combined)',
   version: '1.0.0',
+  effect: 'read',
   oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {

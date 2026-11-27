@@ -25,6 +25,7 @@ export const quickbooksCreateSalesReceiptTool: ToolConfig<
   name: 'QuickBooks Create Sales Receipt',
   description: 'Create a sales receipt for a completed customer sale',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

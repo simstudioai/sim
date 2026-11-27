@@ -17,6 +17,7 @@ export const planeDeleteLabelTool: ToolConfig<PlaneDeleteLabelParams, PlaneDelet
   name: 'Plane Delete a label',
   description: 'Delete a label in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  effect: 'write',
   oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,

@@ -17,6 +17,7 @@ export const crowdstrikeGetRtrCommandStatusTool: InternalToolConfig<
   description:
     'Get the status and output of a Real Time Response command by cloud request ID (GET /real-time-response/entities/command/v1). Long output is chunked across sequences, so increment the sequence ID to read the next chunk. Requires the "Real time response: Read" API scope.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {

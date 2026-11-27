@@ -14,6 +14,7 @@ export const rampListUsersTool: ToolConfig<RampListUsersParams, RampListUsersRes
   name: 'Ramp List Users',
   description: 'List users in one page in Ramp',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'ramp' },
   params: {
     accessToken: {

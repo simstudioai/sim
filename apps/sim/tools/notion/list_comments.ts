@@ -20,6 +20,7 @@ export const notionListCommentsTool: ToolConfig<
   name: 'Notion List Comments',
   description: 'List unresolved comments on a Notion page or block',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,
@@ -103,6 +104,7 @@ export const notionListCommentsV2Tool: ToolConfig<
   name: 'Notion List Comments',
   description: 'List unresolved comments on a Notion page or block',
   version: '2.0.0',
+  effect: 'read',
   oauth: notionListCommentsTool.oauth,
   params: notionListCommentsTool.params,
   request: notionListCommentsTool.request,

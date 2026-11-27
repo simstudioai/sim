@@ -22,6 +22,7 @@ export const affinityListCoworkerConnectionsTool: ToolConfig<
   description:
     'Find warm paths into a company through shared work history: who in your Affinity data once worked alongside the people you want to reach. Grouped by target, strongest first.',
   version: '1.0.0',
+  effect: 'read',
   oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 

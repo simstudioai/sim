@@ -16,6 +16,7 @@ export const listSignInsTool: ToolConfig<
   description:
     'List sign-in events from the Microsoft Entra ID sign-in logs, newest first. Requires a Microsoft Entra ID P1 or P2 license. Apply a date filter to keep large queries from timing out.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

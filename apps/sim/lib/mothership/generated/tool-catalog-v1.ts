@@ -7,10 +7,11 @@ export interface ToolCatalogEntry {
   clientExecutable?: boolean
   description?:
     | 'Create a workspace in the conversation’s organization under the current user’s workspace-creation policy. Returns its ID for subsequent explicitly workspace-scoped commands. Includes a starter workflow unless skipDefaultWorkflow is true.'
-    | 'Create and run the selected workspace’s workflow tests. create takes a name, a one-line title for the concern, and an optional description, and returns tests/<name>.test.js; write the cases into that file with the file tools. A test file is plain vitest: import { describe, it, expect, vi } from "vitest" and { runWorkflow, mockBlock, mockTool, spyOnBlock } from "sim:test", one top-level describe, an it per case. runWorkflow(name, input) runs a workflow and returns { output } (pass { trigger: "Trigger block name" } as a third argument when it has several triggers); mockBlock(blockName) returns a vi.fn whose value replaces that block’s output and records its inputs; mockTool(toolId) or mockTool(agentBlockName, toolId) answers an Agent’s calls to that tool the same way while the model still runs, naming built-in tools by id (slack_message), MCP tools by server as mockTool({ mcp: "Server name", tool: "tool_name" }), and custom tools by title as mockTool({ customTool: "Title" }); .mockSampleOutput({ ...overrides }) on either mock makes it answer with a placeholder output shaped like the real one, with your fields merged in; await expect(value).toMatchRubric(rubric) asks a model judge for pass or fail. Every write is checked and refused if the file does not load. run takes a version (draft while editing, deployed before shipping), waits, and returns each file’s failures with line numbers and messages. list and get report status; update changes title or description.'
+    | 'Create and run the selected workspace’s workflow tests. create takes a name, a one-line title for the concern, and an optional description, and returns tests/<name>.test.js; write the cases into that file with the file tools. A test file is plain vitest: import { describe, it, expect, vi } from "vitest" and { runWorkflow, mockBlock, mockTool, spyOnBlock } from "sim:test", one top-level describe, an it per case. runWorkflow(name, input) runs a workflow and returns { output } (pass { trigger: "Trigger block name" } as a third argument when it has several triggers); mockBlock(blockName) returns a vi.fn whose value replaces that block’s output and records its inputs (data only: no cost, tokens, model, providerTiming, toolCalls or field starting with _, which the run’s trace and billing read); mockTool(toolId) or mockTool(agentBlockName, toolId) answers an Agent’s calls to that tool the same way while the model still runs, naming built-in tools by id (slack_message), MCP tools by server as mockTool({ mcp: "Server name", tool: "tool_name" }), and custom tools by title as mockTool({ customTool: "Title" }); .mockSampleOutput({ ...overrides }) on either mock makes it answer with a placeholder output shaped like the real one, with your fields merged in; a write tool call no mock answers is not sent but answered with such a placeholder, as in a dry run (a custom block no mock answers is answered whole), and a fetch a Function or Condition makes with any method but GET, HEAD or OPTIONS, or with a method-override header, gets an empty 200 response, while reads run for real; await expect(value).toMatchRubric(rubric) asks a model judge for pass or fail. Every write is checked and refused if the file does not load. run takes a version (draft while editing, deployed before shipping), waits, and returns each file’s failures with line numbers and messages. list and get report status; update changes title or description.'
     | 'Discover and configure organization Search sources. list/get return accessible sources and indexing status; providers returns available integration approvals; approve changes a provider approval when authorized; setup returns the existing connection UI for the user to complete. Put the returned setupUrl in a clickable Markdown link at the end of the reply. Setup does not mean connected or indexed. Use search_workspace and read_document to retrieve source content.'
     | 'List accessible Projects within this conversation, with visible environments and current capabilities. Follow nextCursor for more results; discovery does not grant file write access.'
     | 'List currently accessible workspaces with roles and explicit capability restrictions. Bulk results report copilotAllowed and deniedCapabilities; exact workspaceId returns the full capability map. Omitted restrictions never authorize an operation.'
+    | 'Look up people in this organization’s directory by name, email, title, department, or location. Returns each person’s title, department, location, email, and manager. When exactly one person matches, or with a personId, returns that person with managerChain (direct manager first) and directReports. Covers only this organization’s people; use search_workspace for customers, vendors, and other outside contacts.'
     | 'Publish and edit the selected workspace’s changelog. publish takes a title, a markdown body, the changes (one line each, with the workflowId, deploymentVersionId, and chatId they came from when known), and bump: major, minor, or patch for how significant the release is, with a one-line bumpReason. The server computes the version from the workspace’s highest one; never write a version number on publish. It returns the release with its revision and changelog/<id>.md, the body file: edit the body there with the file tools, for example to add impact charts once there is data. update changes the title, bumpReason, version label, or the whole change list, and requires expectedRevision from get, list, or publish so a concurrent edit is never overwritten. A deployment ships in one release: a deploymentVersionId already in another release is rejected. list pages newest first; get returns one release with its revision and its changelog/<id>.md path.'
     | 'Read and manage account, organization, and workspace settings. list finds sections; get returns current values, updateSchema and operation names; describe returns one operation’s exact input schema; update changes narrow preferences; execute performs a listed operation; open returns the existing user setup flow. When user setup is needed, put the returned setupUrl in a clickable Markdown link at the end of the reply. Workspace resources retain their CLI commands. Account is the acting user; organization is the conversation’s organization. Every operation checks current permissions and entitlements.'
     | 'Read and save the selected workspace’s single dashboard, validated YAML over live tables. Load the create-dashboard skill for the schema. get returns content and revision, or nulls when the workspace has no dashboard yet; set with no revision creates it. Replacing an existing dashboard requires expectedRevision from get, so a concurrent edit is never overwritten. Use open_resource with type dashboard to show the result.'
@@ -133,6 +134,7 @@ export interface ToolCatalogEntry {
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
+    | 'search_people'
     | 'search_sources'
     | 'search_workspace'
     | 'set_block_enabled'
@@ -5775,7 +5777,12 @@ export const RunWorkflow: ToolCatalogEntry = {
       inputFromExecutionId: {
         type: 'string',
         description:
-          'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input — handy for replaying a run without retyping inputs. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and useMockPayload.',
+          'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input — handy for replaying a run without retyping inputs. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and sample.',
+      },
+      sample: {
+        type: 'boolean',
+        description:
+          "When true, run with the trigger's sample payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
       },
       triggerBlockId: {
         type: 'string',
@@ -5786,11 +5793,6 @@ export const RunWorkflow: ToolCatalogEntry = {
         type: 'boolean',
         description:
           'When true, runs the deployed version instead of the live draft. Default: false (draft).',
-      },
-      useMockPayload: {
-        type: 'boolean',
-        description:
-          "When true, run with the trigger's generated mock payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
       },
       workflowId: {
         type: 'string',
@@ -5820,7 +5822,12 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
       inputFromExecutionId: {
         type: 'string',
         description:
-          'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and useMockPayload.',
+          'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and sample.',
+      },
+      sample: {
+        type: 'boolean',
+        description:
+          "When true, run with the trigger's sample payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
       },
       stopAfterBlockId: {
         type: 'string',
@@ -5835,11 +5842,6 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
         type: 'boolean',
         description:
           'When true, runs the deployed version instead of the live draft. Default: false (draft).',
-      },
-      useMockPayload: {
-        type: 'boolean',
-        description:
-          "When true, run with the trigger's generated mock payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
       },
       workflowId: {
         type: 'string',
@@ -6163,6 +6165,13 @@ export const SearchWorkspace: ToolCatalogEntry = {
           'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported, or use an explicit native browse mode. Notion date-only search depends on plan capabilities.',
         type: 'string',
         maxLength: 2000,
+      },
+      involving: {
+        description:
+          'Only items this person acted on: "me" (you) or a colleague\'s email address, never a name. Each source applies its own meaning (sent, authored, owns, assigned, attended; your own mail means mail you sent) and skips sources that cannot filter by person. Use it for what someone did or is assigned, not for your exchanges with others, which it would cut to one side; with an empty query and a date range it lists that person\'s activity.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 254,
       },
       topK: {
         default: 20,
@@ -7749,6 +7758,40 @@ export const ListWorkspaces: ToolCatalogEntry = {
   },
 }
 
+export const SearchPeople: ToolCatalogEntry = {
+  id: 'search_people',
+  description:
+    'Look up people in this organization’s directory by name, email, title, department, or location. Returns each person’s title, department, location, email, and manager. When exactly one person matches, or with a personId, returns that person with managerChain (direct manager first) and directReports. Covers only this organization’s people; use search_workspace for customers, vendors, and other outside contacts.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      query: {
+        description:
+          'Up to 8 words from a name, email, title, department, or location; a person matches when every word appears in one of them.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 200,
+      },
+      personId: {
+        description:
+          'A personId from an earlier result, to show that person with their managers and direct reports. Used instead of query.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 255,
+      },
+      cursor: {
+        description: 'nextCursor from the previous page of the same query.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 1024,
+      },
+    },
+    additionalProperties: false,
+  },
+}
+
 export const Dashboards: ToolCatalogEntry = {
   id: 'dashboards',
   description:
@@ -7787,7 +7830,7 @@ export const Dashboards: ToolCatalogEntry = {
 export const Tests: ToolCatalogEntry = {
   id: 'tests',
   description:
-    'Create and run the selected workspace’s workflow tests. create takes a name, a one-line title for the concern, and an optional description, and returns tests/<name>.test.js; write the cases into that file with the file tools. A test file is plain vitest: import { describe, it, expect, vi } from "vitest" and { runWorkflow, mockBlock, mockTool, spyOnBlock } from "sim:test", one top-level describe, an it per case. runWorkflow(name, input) runs a workflow and returns { output } (pass { trigger: "Trigger block name" } as a third argument when it has several triggers); mockBlock(blockName) returns a vi.fn whose value replaces that block’s output and records its inputs; mockTool(toolId) or mockTool(agentBlockName, toolId) answers an Agent’s calls to that tool the same way while the model still runs, naming built-in tools by id (slack_message), MCP tools by server as mockTool({ mcp: "Server name", tool: "tool_name" }), and custom tools by title as mockTool({ customTool: "Title" }); .mockSampleOutput({ ...overrides }) on either mock makes it answer with a placeholder output shaped like the real one, with your fields merged in; await expect(value).toMatchRubric(rubric) asks a model judge for pass or fail. Every write is checked and refused if the file does not load. run takes a version (draft while editing, deployed before shipping), waits, and returns each file’s failures with line numbers and messages. list and get report status; update changes title or description.',
+    'Create and run the selected workspace’s workflow tests. create takes a name, a one-line title for the concern, and an optional description, and returns tests/<name>.test.js; write the cases into that file with the file tools. A test file is plain vitest: import { describe, it, expect, vi } from "vitest" and { runWorkflow, mockBlock, mockTool, spyOnBlock } from "sim:test", one top-level describe, an it per case. runWorkflow(name, input) runs a workflow and returns { output } (pass { trigger: "Trigger block name" } as a third argument when it has several triggers); mockBlock(blockName) returns a vi.fn whose value replaces that block’s output and records its inputs (data only: no cost, tokens, model, providerTiming, toolCalls or field starting with _, which the run’s trace and billing read); mockTool(toolId) or mockTool(agentBlockName, toolId) answers an Agent’s calls to that tool the same way while the model still runs, naming built-in tools by id (slack_message), MCP tools by server as mockTool({ mcp: "Server name", tool: "tool_name" }), and custom tools by title as mockTool({ customTool: "Title" }); .mockSampleOutput({ ...overrides }) on either mock makes it answer with a placeholder output shaped like the real one, with your fields merged in; a write tool call no mock answers is not sent but answered with such a placeholder, as in a dry run (a custom block no mock answers is answered whole), and a fetch a Function or Condition makes with any method but GET, HEAD or OPTIONS, or with a method-override header, gets an empty 200 response, while reads run for real; await expect(value).toMatchRubric(rubric) asks a model judge for pass or fail. Every write is checked and refused if the file does not load. run takes a version (draft while editing, deployed before shipping), waits, and returns each file’s failures with line numbers and messages. list and get report status; update changes title or description.',
   route: 'sim',
   parameters: {
     $schema: 'http://json-schema.org/draft-07/schema#',
@@ -8758,6 +8801,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Workflow.id]: Workflow,
   [ListUserProjects.id]: ListUserProjects,
   [ListWorkspaces.id]: ListWorkspaces,
+  [SearchPeople.id]: SearchPeople,
   [Dashboards.id]: Dashboards,
   [Tests.id]: Tests,
   [Changelog.id]: Changelog,

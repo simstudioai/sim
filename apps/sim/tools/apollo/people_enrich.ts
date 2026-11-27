@@ -11,6 +11,7 @@ export const apolloPeopleEnrichTool: ToolConfig<
   name: 'Apollo People Enrichment',
   description: 'Enrich data for a single person using Apollo',
   version: '1.0.0',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

@@ -24,6 +24,7 @@ export const searchJobsTool: ToolConfig<Params, Response> = {
   description:
     'Searches Ashby jobs by title and/or requisition ID. Provide at least one of these filters.',
   version: '1.0.0',
+  effect: 'read',
   oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

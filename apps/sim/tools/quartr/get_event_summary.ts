@@ -24,6 +24,7 @@ export const quartrGetEventSummaryTool: ToolConfig<
   description:
     'Retrieve the AI-generated summary of a corporate event from Quartr, with selectable length and optional plain-text formatting.',
   version: '1.0.0',
+  effect: 'read',
   oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {

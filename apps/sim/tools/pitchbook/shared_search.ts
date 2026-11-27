@@ -15,6 +15,7 @@ export const pitchbookSharedSearchTool: ToolConfig<PitchbookSharedSearchParams, 
     description:
       'Extract the names and PitchBook IDs behind an Advanced Search shared from the PitchBook platform, using the search ID and hash from the shared link',
     version: '1.0.0',
+    effect: 'read',
     errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
     params: {

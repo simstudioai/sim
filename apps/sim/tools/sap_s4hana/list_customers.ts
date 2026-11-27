@@ -8,6 +8,7 @@ export const listCustomersTool: InternalToolConfig<ListCustomersParams, SapS4Han
   description:
     'List customers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer) with optional OData $filter, $top, $skip, $orderby, $select, $expand.',
   version: '1.0.0',
+  effect: 'read',
   params: {
     subdomain: {
       type: 'string',

@@ -12,6 +12,7 @@ export const wizaCompanyEnrichmentTool: ToolConfig<
   description:
     'Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed firmographic data',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: ErrorExtractorId.WIZA_ERRORS,
 
   hosting: wizaHosting<WizaCompanyEnrichmentParams>((_params, output) => {

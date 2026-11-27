@@ -17,6 +17,7 @@ export const createReportTool: ToolConfig<JotformCreateReportParams, JotformRepo
   description:
     'Create a shareable report of a form, choosing the report type and which submission fields it shows.',
   version: '1.0.0',
+  effect: 'write',
   oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {

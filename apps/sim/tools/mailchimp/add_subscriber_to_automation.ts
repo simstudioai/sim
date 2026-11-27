@@ -27,6 +27,7 @@ export const mailchimpAddSubscriberToAutomationTool: ToolConfig<
   name: 'Add Subscriber to Automation in Mailchimp',
   description: 'Manually add a subscriber to a workflow email queue',
   version: '1.0.0',
+  effect: 'write',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {

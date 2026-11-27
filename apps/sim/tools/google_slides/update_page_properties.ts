@@ -40,6 +40,7 @@ export const updatePagePropertiesTool: ToolConfig<
   description:
     'Update slide/page background — solid color or stretched picture — and other page properties.',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: { required: true, provider: 'google-drive' },
 

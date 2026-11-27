@@ -12,6 +12,7 @@ export const createDatabaseTool: InternalToolConfig<
   name: 'ClickHouse Create Database',
   description: 'Create a new database on a ClickHouse server',
   version: '1.0.0',
+  effect: 'write',
 
   params: {
     host: {

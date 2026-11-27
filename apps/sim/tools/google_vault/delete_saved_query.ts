@@ -8,6 +8,7 @@ export const deleteSavedQueryTool: ToolConfig<GoogleVaultDeleteSavedQueryParams>
   name: 'Vault Delete Saved Query',
   description: 'Delete a saved query from a matter',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

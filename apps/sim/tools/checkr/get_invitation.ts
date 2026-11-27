@@ -22,6 +22,7 @@ export const checkrGetInvitationTool: ToolConfig<
   name: 'Checkr Get Invitation',
   description: 'Retrieve an invitation by ID, including its status and invitation URL.',
   version: '1.0.0',
+  effect: 'read',
   oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 

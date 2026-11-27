@@ -8,6 +8,7 @@ export const ripplingGetJobFunctionTool: ToolConfig<RipplingGetJobFunctionParams
   name: 'Rippling Get Job Function',
   description: 'Get a specific job function by ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

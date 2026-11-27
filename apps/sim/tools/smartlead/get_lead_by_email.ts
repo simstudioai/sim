@@ -21,6 +21,7 @@ export const getLeadByEmailTool: ToolConfig<GetLeadByEmailParams, SmartleadLeadD
   description:
     'Looks up a Smartlead lead by email address and returns the lead record plus every campaign it belongs to.',
   version: '1.0.0',
+  effect: 'read',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

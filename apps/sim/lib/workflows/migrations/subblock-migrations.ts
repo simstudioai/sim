@@ -644,7 +644,7 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
  * typed a reference has both — and `resolveCanonicalMode` prefers basic, which
  * would silently swap which value the run uses.
  */
-export interface CanonicalIdMigration {
+interface CanonicalIdMigration {
   /** The canonical id a legacy saved state stores the mode under. */
   from: string
   /** The canonical id the block definition declares now. */
@@ -652,7 +652,7 @@ export interface CanonicalIdMigration {
 }
 
 /** Canonical-id renames per block type. */
-export const CANONICAL_ID_MIGRATIONS: Record<string, readonly CanonicalIdMigration[]> = {
+const CANONICAL_ID_MIGRATIONS: Record<string, readonly CanonicalIdMigration[]> = {
   /**
    * The tool parameter is `file`, and `check-block-registry.ts` requires the
    * canonical id to match it once the parameter is `user-only` — which it

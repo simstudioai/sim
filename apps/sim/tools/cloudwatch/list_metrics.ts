@@ -13,6 +13,7 @@ export const listMetricsTool: InternalToolConfig<
   name: 'CloudWatch List Metrics',
   description: 'List available CloudWatch metrics',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

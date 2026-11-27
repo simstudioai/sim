@@ -33,6 +33,7 @@ export const quickbooksCreateEmployeeTool: ToolConfig<
   name: 'QuickBooks Create Employee',
   description: 'Create a non-payroll employee profile in the connected QuickBooks Online company',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

@@ -14,6 +14,7 @@ export const listReleasesTool: ToolConfig<ListReleasesParams, ListReleasesRespon
   description:
     'List all releases for a GitHub repository. Returns release information including tags, names, and download URLs.',
   version: '1.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
@@ -151,6 +152,7 @@ export const listReleasesV2Tool: ToolConfig<ListReleasesParams, any> = {
   name: listReleasesTool.name,
   description: listReleasesTool.description,
   version: '2.0.0',
+  effect: 'read',
   oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listReleasesTool.params,
   request: listReleasesTool.request,

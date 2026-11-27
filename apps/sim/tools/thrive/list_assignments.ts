@@ -20,6 +20,7 @@ export const listAssignmentsTool: ToolConfig<
   name: 'Thrive List Assignments',
   description: 'List compliance assignments in Thrive, optionally filtered by audience.',
   version: '1.0.0',
+  effect: 'read',
   oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {

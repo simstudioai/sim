@@ -12,6 +12,7 @@ export const refreshSessionTool: ToolConfig<ExcelSessionParams, ExcelRefreshSess
   name: 'Microsoft Excel Refresh Session',
   description: 'Refresh Session in a Microsoft Excel workbook.',
   version: '1.0.0',
+  effect: 'write',
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: {

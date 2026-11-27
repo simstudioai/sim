@@ -25,6 +25,7 @@ export const unsubscribeLeadGloballyTool: ToolConfig<
   description:
     'Unsubscribes a lead across every Smartlead campaign and adds it to the account-wide unsubscribe list.',
   version: '1.0.0',
+  effect: 'write',
   oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {

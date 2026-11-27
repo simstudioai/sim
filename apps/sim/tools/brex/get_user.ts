@@ -8,6 +8,7 @@ export const brexGetUserTool: ToolConfig<BrexGetUserParams, BrexGetUserResponse>
   name: 'Brex Get User',
   description: 'Get a Brex user by their ID',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

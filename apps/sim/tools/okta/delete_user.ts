@@ -14,6 +14,7 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
   description:
     'Permanently delete a user from your Okta organization. Can only be performed on DEPROVISIONED users. If the user is active, this will first deactivate them and a second call is needed to delete.',
   version: '1.0.0',
+  effect: 'write',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {

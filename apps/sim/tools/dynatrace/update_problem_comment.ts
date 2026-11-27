@@ -15,6 +15,7 @@ export const updateProblemCommentTool: ToolConfig<
   name: 'Dynatrace Update Problem Comment',
   description: 'Replace the text of an existing comment on a Dynatrace problem.',
   version: '1.0.0',
+  effect: 'write',
   oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 

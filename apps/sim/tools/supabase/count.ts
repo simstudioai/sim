@@ -9,6 +9,7 @@ export const countTool: ToolConfig<SupabaseCountParams, SupabaseCountResponse> =
   name: 'Supabase Count',
   description: 'Count rows in a Supabase table',
   version: '1.0.0',
+  effect: 'read',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {

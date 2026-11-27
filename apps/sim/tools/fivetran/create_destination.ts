@@ -28,6 +28,7 @@ export const fivetranCreateDestinationTool: ToolConfig<
   description:
     'Create the destination for a Fivetran group, such as a Databricks workspace. The config object holds the destination-specific connection settings.',
   version: '1.0.0',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

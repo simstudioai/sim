@@ -29,6 +29,7 @@ export const quickbooksCreateBillTool: ToolConfig<
   name: 'QuickBooks Create Bill',
   description: 'Create a vendor bill with optional Purchase Order line links without paying it',
   version: '1.0.0',
+  effect: 'write',
   params: {
     accessToken: {
       type: 'string',

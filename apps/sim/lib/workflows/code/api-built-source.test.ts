@@ -4,6 +4,9 @@
  * unnamed input row) and a function block added through the operations route.
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { isRecordLike } from '@sim/utils/object'
 import {
   canonicalize,
@@ -14,7 +17,7 @@ import {
   sourceFingerprint,
 } from '@sim/workflow-code'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/metadata-outputs')
@@ -22,6 +25,7 @@ vi.unmock('@/tools/registry')
 
 import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
+import { typeCheckAgainstSdk, writeSdkTypes } from '@/lib/workflows/code/sdk-typecheck.test-helpers'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { createBlockFromParams } from '@/lib/workflows/editing/builders'
 
@@ -124,5 +128,66 @@ describe('a workflow built by the editor and the API', () => {
     expect(run.text).toContain("inputFormat: { '': 'string', email: 'string' }")
     expect(run.noop).toBe(true)
     expect(JSON.stringify(run.state)).toBe(JSON.stringify(stored))
+  })
+})
+
+describe('a child workflow call whose input mapping the operations route stored as JSON text', () => {
+  const MAPPING = '{"ticketId":"<start.input>","source":"api"}'
+  const workDir = mkdtempSync(path.join(tmpdir(), 'api-built-source-'))
+  afterAll(() => rmSync(workDir, { recursive: true, force: true }))
+
+  function callWorkflow(): WorkflowState {
+    const stored = builtWorkflow()
+    const call = createBlockFromParams('call-block', {
+      type: 'workflow_input',
+      name: 'Record Audit',
+      inputs: { workflowId: 'child-workflow', inputMapping: MAPPING },
+    })
+    return {
+      ...stored,
+      blocks: { ...stored.blocks, [call.id]: { ...call, position: { x: 800, y: 0 } } },
+    }
+  }
+
+  it('prints source that type-checks after an edit, and stores the mapping as text as before', () => {
+    const stored = callWorkflow()
+    const untouched = getThenApply(stored)
+    expect(untouched.noop).toBe(true)
+    expect(untouched.state.blocks['call-block']?.subBlocks.inputMapping?.value).toBe(MAPPING)
+
+    const renamed = (text: string) => text.replace("fn('Score'", "fn('Final Score'")
+    const remapped = (text: string) => text.replace("source: 'api'", "source: 'ops'")
+    const edited = getThenApply(stored, (text) => remapped(renamed(text)))
+    expect(edited.errors).toEqual([])
+    expect(edited.state.blocks['call-block']?.subBlocks.inputMapping?.value).toBe(
+      MAPPING.replace('"api"', '"ops"')
+    )
+    writeSdkTypes(workDir, catalog)
+    const file = path.join(workDir, 'workflow.ts')
+    writeFileSync(file, remapped(renamed(edited.text)))
+    expect(typeCheckAgainstSdk(workDir, 'edited', [file])).toBe('')
+  }, 120_000)
+})
+
+describe('a child workflow call whose input mapping is one whole reference', () => {
+  it('stores an object written over the reference natively, not as JSON text', () => {
+    const stored = builtWorkflow()
+    const call = createBlockFromParams('call-block', {
+      type: 'workflow_input',
+      name: 'Record Audit',
+      inputs: { workflowId: 'child-workflow', inputMapping: '<start.input>' },
+    })
+    stored.blocks[call.id] = { ...call, position: { x: 800, y: 0 } }
+    const written = getThenApply(stored, (text) =>
+      text.replace(
+        'inputMapping: start.input,',
+        "inputMapping: { ticketId: start.input, source: 'api' },"
+      )
+    )
+    expect(written.errors).toEqual([])
+    expect(written.state.blocks['call-block']?.subBlocks.inputMapping?.value).toEqual({
+      ticketId: '<start.input>',
+      source: 'api',
+    })
   })
 })

@@ -19,6 +19,7 @@ export const rescheduleBookingTool: ToolConfig<
   name: 'Cal.com Reschedule Booking',
   description: 'Reschedule an existing booking to a new time',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

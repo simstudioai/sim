@@ -16,6 +16,7 @@ export const describeVolumesTool: InternalToolConfig<
   name: 'EC2 Describe Volumes',
   description: 'List EBS volumes with their size, type, state, and attachments',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

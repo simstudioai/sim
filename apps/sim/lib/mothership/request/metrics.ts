@@ -11,6 +11,7 @@ import { TOOL_CATALOG } from '@/lib/mothership/generated/tool-catalog-v1'
 import { Metric } from '@/lib/mothership/observability/metric-names'
 import {
   type CopilotDegradedReasonValue,
+  type CopilotStreamContractDirectionValue,
   ToolExecutor,
 } from '@/lib/mothership/observability/trace-attribute-values'
 import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
@@ -25,6 +26,7 @@ interface CopilotMeterInstruments {
   toolDuration: Histogram
   toolCalls: Counter
   degradedCount: Counter
+  streamContractDisagreements: Counter
 }
 
 let cached: CopilotMeterInstruments | undefined
@@ -42,6 +44,7 @@ function instruments(): CopilotMeterInstruments {
     }),
     toolCalls: meter.createCounter(Metric.CopilotToolCalls),
     degradedCount: meter.createCounter(Metric.CopilotDegradedCount),
+    streamContractDisagreements: meter.createCounter(Metric.CopilotStreamContractDisagreements),
   }
   return cached
 }
@@ -90,5 +93,22 @@ export function recordSimToolMetric(
 export function recordDegraded(reason: CopilotDegradedReasonValue): void {
   instruments().degradedCount.add(1, {
     [TraceAttr.CopilotDegradedReason]: reason,
+  })
+}
+
+/**
+ * Counts one worker frame on which Sim's ingest validator and the generated contract schema
+ * disagree. `eventType` and `variant` must already be capped to the contract's own
+ * vocabularies (else "other").
+ */
+export function recordStreamContractDisagreement(
+  direction: CopilotStreamContractDirectionValue,
+  eventType: string,
+  variant: string
+): void {
+  instruments().streamContractDisagreements.add(1, {
+    [TraceAttr.CopilotStreamContractDirection]: direction,
+    [TraceAttr.CopilotStreamContractEventType]: eventType,
+    [TraceAttr.CopilotStreamContractVariant]: variant,
   })
 }

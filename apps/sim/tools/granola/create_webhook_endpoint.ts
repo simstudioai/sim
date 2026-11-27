@@ -21,6 +21,7 @@ export const createWebhookEndpointTool: ToolConfig<
   description:
     'Registers an HTTPS URL in Granola to receive note event deliveries. The signing secret is returned only by this operation and cannot be retrieved later.',
   version: '1.0.0',
+  effect: 'write',
   oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {

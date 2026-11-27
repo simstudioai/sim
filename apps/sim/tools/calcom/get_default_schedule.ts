@@ -13,6 +13,7 @@ export const getDefaultScheduleTool: ToolConfig<
   name: 'Cal.com Get Default Schedule',
   description: 'Get the default availability schedule from Cal.com',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

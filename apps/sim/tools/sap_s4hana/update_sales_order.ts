@@ -8,6 +8,7 @@ export const updateSalesOrderTool: InternalToolConfig<UpdateSalesOrderParams, Sa
   description:
     'Update fields on an A_SalesOrder header in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Header-only — deep updates to to_Item / to_Partner / to_PricingElement navigations are not supported (see SAP KBA 2833338); use A_SalesOrderItem operations for line-level changes. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
+  effect: 'write',
   params: {
     subdomain: {
       type: 'string',

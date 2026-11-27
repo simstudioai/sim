@@ -16,6 +16,7 @@ export const greenhouseListJobStagesTool: ToolConfig<
   name: 'Greenhouse List Job Stages',
   description: 'Lists all interview stages for a specific job in Greenhouse',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

@@ -15,6 +15,7 @@ export const agentphoneUpdateConversationTool: ToolConfig<
   name: 'Update Conversation',
   description: 'Update conversation metadata (stored state). Pass null to clear existing metadata.',
   version: '1.0.0',
+  effect: 'write',
   oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {

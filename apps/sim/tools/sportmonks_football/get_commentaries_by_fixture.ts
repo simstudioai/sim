@@ -30,6 +30,7 @@ export const sportmonksGetCommentariesByFixtureTool: ToolConfig<
   name: 'Get Commentaries by Fixture',
   description: 'Retrieve textual commentary for a fixture by fixture ID from Sportmonks',
   version: '1.0.0',
+  effect: 'read',
   oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {

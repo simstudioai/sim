@@ -12,6 +12,7 @@ export const netsuiteGetGovernanceLimitsTool: InternalToolConfig<
   description:
     'Retrieve REST web-services concurrency limits for the NetSuite account and integration; NetSuite requires an Administrator role.',
   version: '1.0.0',
+  effect: 'read',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

@@ -15,6 +15,7 @@ export const vantaGetVulnerableAssetTool: InternalToolConfig<
   description:
     'Get a vulnerable asset in Vanta by ID, including the scanners reporting it and per-scanner asset details',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

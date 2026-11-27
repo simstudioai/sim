@@ -8,6 +8,7 @@ export const boxGetFileInfoTool: ToolConfig<BoxGetFileInfoParams, BoxFileInfoRes
   name: 'Box Get File Info',
   description: 'Get detailed information about a file in Box',
   version: '1.0.0',
+  effect: 'read',
 
   oauth: {
     required: true,

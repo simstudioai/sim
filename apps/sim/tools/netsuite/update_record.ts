@@ -11,6 +11,7 @@ export const netsuiteUpdateRecordTool: InternalToolConfig<
   name: 'NetSuite Update Record',
   description: 'Update fields on an existing NetSuite record with PATCH.',
   version: '1.0.0',
+  effect: 'write',
   oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,

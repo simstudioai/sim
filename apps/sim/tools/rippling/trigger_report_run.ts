@@ -7,6 +7,7 @@ export const ripplingTriggerReportRunTool: ToolConfig<RipplingTriggerReportRunPa
   name: 'Rippling Trigger Report Run',
   description: 'Trigger a new report run',
   version: '1.0.0',
+  effect: 'write',
   oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {

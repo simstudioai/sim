@@ -14,6 +14,7 @@ export const validateEmailTool: ToolConfig<
   description:
     'Verify an email address for deliverability. Charges 0.25 credits for definitive SMTP results (valid/invalid); unknown and RFC-invalid results are free.',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: leadmagicHosting<LeadMagicValidateEmailParams>((_params, output) => {
     // 0.25 credits for valid or SMTP-verified-invalid; free for unknown/syntax failures.

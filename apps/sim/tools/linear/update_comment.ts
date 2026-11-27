@@ -11,6 +11,7 @@ export const linearUpdateCommentTool: ToolConfig<
   name: 'Linear Update Comment',
   description: 'Edit a comment in Linear',
   version: '1.0.0',
+  effect: 'write',
 
   oauth: {
     required: true,

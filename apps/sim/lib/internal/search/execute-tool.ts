@@ -1,5 +1,9 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
+import {
+  HostedKeyRequiresPaidPlanError,
+  mayUseHostedKey,
+} from '@/lib/billing/core/hosted-key-access'
 import { executeSearchOperation } from '@/lib/internal/search/operations'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 
@@ -22,6 +26,12 @@ export const executeSearchTool: InternalToolOperationHandler = async ({
   const parsed = searchInputSchema.safeParse(input)
   if (!parsed.success) {
     return Response.json({ success: false, error: 'Invalid request data' }, { status: 400 })
+  }
+
+  // Search always runs on Sim's own key, so it is reserved for paid payers like every hosted tool.
+  if (!(await mayUseHostedKey(context.workspaceId, context.billingAttribution))) {
+    const refusal = new HostedKeyRequiresPaidPlanError('Web Search', { byok: false })
+    return Response.json({ success: false, error: refusal.message }, { status: refusal.statusCode })
   }
 
   try {

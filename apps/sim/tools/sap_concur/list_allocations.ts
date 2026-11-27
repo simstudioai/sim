@@ -12,6 +12,7 @@ export const listAllocationsTool: InternalToolConfig<ListAllocationsParams, SapC
   description:
     'List allocations on an expense (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/allocations).',
   version: '1.0.0',
+  effect: 'read',
   params: {
     datacenter: {
       type: 'string',

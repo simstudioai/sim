@@ -9,6 +9,7 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
   description:
     'List email templates from SendGrid. Returns legacy templates only unless generations includes dynamic',
   version: '1.0.0',
+  effect: 'read',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {

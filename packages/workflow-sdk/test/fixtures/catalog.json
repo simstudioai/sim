@@ -6631,16 +6631,11 @@
         "container": null,
         "annotationOnly": false
       },
+      "effect": "write",
       "dynamicOutputs": {
         "source": "responseFormat",
         "param": "responseFormat"
-      },
-      "legacyIds": [
-        {
-          "from": "previousInteractionId",
-          "to": null
-        }
-      ]
+      }
     },
     "api": {
       "type": "api",
@@ -6736,7 +6731,7 @@
           "valueKind": "string",
           "storage": "native",
           "acceptsNumber": true,
-          "title": "Retries",
+          "title": "Request retries",
           "mode": "advanced"
         },
         {
@@ -6745,7 +6740,7 @@
           "valueKind": "string",
           "storage": "native",
           "acceptsNumber": true,
-          "title": "Retry delay (ms)",
+          "title": "Request retry delay (ms)",
           "mode": "advanced"
         },
         {
@@ -6754,7 +6749,7 @@
           "valueKind": "string",
           "storage": "native",
           "acceptsNumber": true,
-          "title": "Max retry delay (ms)",
+          "title": "Max request retry delay (ms)",
           "mode": "advanced"
         },
         {
@@ -6805,7 +6800,8 @@
       "outputs": {
         "data": {
           "type": "json",
-          "description": "API response data (JSON, text, or other formats)"
+          "description": "API response data (JSON, text, or other formats)",
+          "mayBeText": true
         },
         "status": {
           "type": "number",
@@ -6821,7 +6817,8 @@
         "errorPort": true,
         "container": null,
         "annotationOnly": false
-      }
+      },
+      "effect": "write"
     },
     "condition": {
       "type": "condition",
@@ -6972,7 +6969,8 @@
       "outputs": {
         "result": {
           "type": "json",
-          "description": "Structured result emitted by the executed code"
+          "description": "Structured result emitted by the executed code",
+          "mayBeText": true
         },
         "stdout": {
           "type": "string",
@@ -6988,7 +6986,11 @@
         "errorPort": true,
         "container": null,
         "annotationOnly": false
-      }
+      },
+      "effect": "write",
+      "errorOutputs": [
+        "errorMessage"
+      ]
     },
     "generic_webhook": {
       "type": "generic_webhook",
@@ -8775,6 +8777,16 @@
           ]
         }
       },
+      "effect": "write",
+      "operationEffects": {
+        "read_gmail": "read",
+        "search_gmail": "read",
+        "list_labels_gmail": "read",
+        "list_drafts_gmail": "read",
+        "get_draft_gmail": "read",
+        "list_threads_gmail": "read",
+        "get_thread_gmail": "read"
+      },
       "triggerAllowed": true,
       "triggers": {
         "enabled": true,
@@ -10135,6 +10147,12 @@
           ]
         }
       },
+      "effect": "write",
+      "operationEffects": {
+        "read": "read",
+        "get_info": "read",
+        "batch_get": "read"
+      },
       "triggers": {
         "enabled": true,
         "available": [
@@ -10219,6 +10237,7 @@
         "container": null,
         "annotationOnly": false
       },
+      "effect": "write",
       "dynamicOutputs": {
         "source": "humanForm",
         "param": "inputFormat"
@@ -10881,12 +10900,16 @@
           "names": []
         }
       },
-      "legacyIds": [
-        {
-          "from": "knowledgeBaseId",
-          "to": "knowledgeBaseSelector"
-        }
-      ]
+      "effect": "write",
+      "operationEffects": {
+        "search": "read",
+        "list_documents": "read",
+        "get_document": "read",
+        "list_chunks": "read",
+        "list_tags": "read",
+        "list_connectors": "read",
+        "get_connector": "read"
+      }
     },
     "loop": {
       "type": "loop",
@@ -15650,7 +15673,8 @@
           "subBlockId": "routes",
           "kind": "router"
         }
-      }
+      },
+      "effect": "read"
     },
     "schedule": {
       "type": "schedule",
@@ -30202,6 +30226,54 @@
           }
         },
         {
+          "id": "streamTimelineSources",
+          "type": "workflow-output-selector",
+          "valueKind": "array",
+          "storage": "native",
+          "title": "Show progress from",
+          "mode": "trigger",
+          "surface": "trigger",
+          "condition": {
+            "field": "streamResponse",
+            "value": true,
+            "and": {
+              "field": "eventType",
+              "value": [
+                "message",
+                "app_mention"
+              ]
+            }
+          },
+          "required": false
+        },
+        {
+          "id": "streamToolLabels",
+          "type": "table",
+          "valueKind": "array",
+          "storage": "native",
+          "structured": "tableRows",
+          "title": "Tool step labels",
+          "mode": "trigger",
+          "surface": "trigger",
+          "condition": {
+            "field": "streamResponse",
+            "value": true,
+            "and": {
+              "field": "eventType",
+              "value": [
+                "message",
+                "app_mention"
+              ]
+            }
+          },
+          "required": false,
+          "valueShape": "json",
+          "columns": [
+            "Tool",
+            "Label"
+          ]
+        },
+        {
           "id": "streamTaskTitle",
           "type": "short-input",
           "valueKind": "string",
@@ -31482,6 +31554,44 @@
           ]
         }
       },
+      "effect": "write",
+      "operationEffects": {
+        "get_message": "read",
+        "get_thread": "read",
+        "get_thread_replies": "read",
+        "get_channel_history": "read",
+        "get_permalink": "read",
+        "list_channels": "read",
+        "list_members": "read",
+        "list_users": "read",
+        "get_user": "read",
+        "download": "read",
+        "get_channel_info": "read",
+        "get_user_presence": "read",
+        "get_canvas": "read",
+        "list_canvases": "read",
+        "lookup_canvas_sections": "read",
+        "list_items": "read",
+        "get_list_item": "read",
+        "list_scheduled_messages": "read",
+        "get_list_export": "read",
+        "lookup_user_by_email": "read",
+        "list_user_conversations": "read",
+        "get_user_profile": "read",
+        "get_file_info": "read",
+        "list_files": "read",
+        "get_reactions": "read",
+        "list_reactions": "read",
+        "list_pins": "read",
+        "list_bookmarks": "read",
+        "list_user_groups": "read",
+        "list_user_group_members": "read",
+        "get_dnd_info": "read",
+        "get_team_dnd_info": "read",
+        "list_emoji": "read",
+        "get_team_info": "read",
+        "get_team_profile": "read"
+      },
       "triggerAllowed": true,
       "triggers": {
         "enabled": true,
@@ -31489,12 +31599,6 @@
           "slack_oauth"
         ]
       },
-      "legacyIds": [
-        {
-          "from": "channelMaxPages",
-          "to": null
-        }
-      ],
       "paramAliases": {
         "action": {
           "oauthCredential": "credential"
@@ -31996,7 +32100,7 @@
         },
         "row": {
           "type": "json",
-          "description": "Single row data",
+          "description": "The row: its cells are row.data.<column name>",
           "condition": {
             "field": "operation",
             "value": [
@@ -32005,6 +32109,36 @@
               "upsert_row",
               "update_row"
             ]
+          },
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Row ID"
+            },
+            "data": {
+              "type": "json",
+              "description": "The row’s cells, keyed by column name"
+            },
+            "position": {
+              "type": "number",
+              "description": "Row position in the table"
+            },
+            "orderKey": {
+              "type": "string",
+              "description": "Sort key (query and insert results only)"
+            },
+            "executions": {
+              "type": "json",
+              "description": "Workflow run state per column group (query and insert results only)"
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "ISO timestamp when the row was created"
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "ISO timestamp when the row was last updated"
+            }
           }
         },
         "operation": {
@@ -32017,13 +32151,46 @@
         },
         "rows": {
           "type": "array",
-          "description": "Array of rows",
+          "description": "The rows: a cell is rows[i].data.<column name>",
           "condition": {
             "field": "operation",
             "value": [
               "query_rows",
               "batch_insert_rows"
             ]
+          },
+          "items": {
+            "type": "json",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Row ID"
+              },
+              "data": {
+                "type": "json",
+                "description": "The row’s cells, keyed by column name"
+              },
+              "position": {
+                "type": "number",
+                "description": "Row position in the table"
+              },
+              "orderKey": {
+                "type": "string",
+                "description": "Sort key (query and insert results only)"
+              },
+              "executions": {
+                "type": "json",
+                "description": "Workflow run state per column group (query and insert results only)"
+              },
+              "createdAt": {
+                "type": "string",
+                "description": "ISO timestamp when the row was created"
+              },
+              "updatedAt": {
+                "type": "string",
+                "description": "ISO timestamp when the row was last updated"
+              }
+            }
           }
         },
         "rowCount": {
@@ -32128,6 +32295,20 @@
             "value": "get_schema"
           }
         },
+        "ignoredColumns": {
+          "type": "array",
+          "description": "Keys of the written data that name no column of the table, which the write dropped. Empty when every key matched a column.",
+          "condition": {
+            "field": "operation",
+            "value": [
+              "insert_row",
+              "batch_insert_rows",
+              "upsert_row",
+              "update_row",
+              "update_rows_by_filter"
+            ]
+          }
+        },
         "message": {
           "type": "string",
           "description": "Operation status message"
@@ -32156,6 +32337,7 @@
           "names": [
             "success",
             "row",
+            "ignoredColumns",
             "message"
           ]
         },
@@ -32164,6 +32346,7 @@
             "success",
             "row",
             "operation",
+            "ignoredColumns",
             "message"
           ]
         },
@@ -32172,6 +32355,7 @@
             "success",
             "rows",
             "insertedCount",
+            "ignoredColumns",
             "message"
           ]
         },
@@ -32180,6 +32364,7 @@
             "success",
             "updatedCount",
             "updatedRowIds",
+            "ignoredColumns",
             "message"
           ]
         },
@@ -32195,6 +32380,7 @@
           "names": [
             "success",
             "row",
+            "ignoredColumns",
             "message"
           ]
         },
@@ -32223,6 +32409,12 @@
             "message"
           ]
         }
+      },
+      "effect": "write",
+      "operationEffects": {
+        "query_rows": "read",
+        "get_row": "read",
+        "get_schema": "read"
       },
       "triggers": {
         "enabled": true,
@@ -32345,7 +32537,8 @@
         "errorPort": true,
         "container": null,
         "annotationOnly": false
-      }
+      },
+      "effect": "write"
     }
   },
   "triggers": {
@@ -33235,6 +33428,52 @@
               ]
             }
           }
+        },
+        {
+          "id": "streamTimelineSources",
+          "type": "workflow-output-selector",
+          "valueKind": "array",
+          "storage": "native",
+          "title": "Show progress from",
+          "mode": "trigger",
+          "condition": {
+            "field": "streamResponse",
+            "value": true,
+            "and": {
+              "field": "eventType",
+              "value": [
+                "message",
+                "app_mention"
+              ]
+            }
+          },
+          "required": false
+        },
+        {
+          "id": "streamToolLabels",
+          "type": "table",
+          "valueKind": "array",
+          "storage": "native",
+          "structured": "tableRows",
+          "title": "Tool step labels",
+          "mode": "trigger",
+          "condition": {
+            "field": "streamResponse",
+            "value": true,
+            "and": {
+              "field": "eventType",
+              "value": [
+                "message",
+                "app_mention"
+              ]
+            }
+          },
+          "required": false,
+          "valueShape": "json",
+          "columns": [
+            "Tool",
+            "Label"
+          ]
         },
         {
           "id": "streamTaskTitle",

@@ -12,6 +12,7 @@ export const createTagsTool: InternalToolConfig<Ec2CreateTagsParams, Ec2CreateTa
   name: 'EC2 Create Tags',
   description: 'Add or overwrite tags on one or more EC2 resources',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

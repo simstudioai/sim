@@ -21,6 +21,7 @@ export const semrushDomainOrganicCompetitorsTool: ToolConfig<
   name: 'Semrush Organic Competitors',
   description: 'List the domains competing with a target domain in Google organic search results.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     apiKey: {

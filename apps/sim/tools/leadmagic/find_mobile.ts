@@ -11,6 +11,7 @@ export const findMobileTool: ToolConfig<LeadMagicFindMobileParams, LeadMagicFind
   description:
     "Find a person's direct mobile number from their LinkedIn profile URL or email. Charges 5 credits when a number is found; free when no result.",
   version: '1.0.0',
+  effect: 'write',
 
   hosting: leadmagicHosting<LeadMagicFindMobileParams>((_params, output) => {
     // 5 credits per mobile number found, 0 when not found.

@@ -50,6 +50,7 @@ export const getOrganizationTool: ToolConfig<
   description:
     'Get a PostHog organization by ID, including its settings, features, usage, and teams.',
   version: '1.0.0',
+  effect: 'read',
   errorExtractor: 'posthog-errors',
 
   params: {

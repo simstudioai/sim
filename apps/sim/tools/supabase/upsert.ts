@@ -1,7 +1,12 @@
 import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SupabaseUpsertParams, SupabaseUpsertResponse } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import {
+  supabaseBaseUrl,
+  supabaseWriteMessage,
+  supabaseWritePlaceholder,
+  supabaseWriteRows,
+} from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse> = {
@@ -9,6 +14,7 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
   name: 'Supabase Upsert',
   description: 'Insert or update data in a Supabase table (upsert operation)',
   version: '1.0.0',
+  effect: 'write',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
@@ -75,14 +81,10 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
       }
       return headers
     },
-    body: (params) => {
-      // Prepare the data - if it's an object but not an array, wrap it in an array
-      const dataToSend =
-        typeof params.data === 'object' && !Array.isArray(params.data) ? [params.data] : params.data
-
-      return dataToSend
-    },
+    body: (params) => supabaseWriteRows(params.data),
   },
+
+  dryRunOutput: (params) => supabaseWritePlaceholder(params.data, 'upserted'),
 
   transformResponse: async (response: Response) => {
     const text = await response.text()
@@ -125,7 +127,7 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
     return {
       success: true,
       output: {
-        message: `Successfully upserted ${upsertedCount} row${upsertedCount === 1 ? '' : 's'} into Supabase`,
+        message: supabaseWriteMessage('upserted', upsertedCount),
         results: data,
       },
       error: undefined,

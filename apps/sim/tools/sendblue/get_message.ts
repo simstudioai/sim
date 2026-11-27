@@ -14,6 +14,7 @@ export const sendblueGetMessageTool: ToolConfig<
   name: 'Sendblue Get Message',
   description: 'Retrieve a single message and its current status by message handle/ID.',
   version: '1.0.0',
+  effect: 'read',
 
   params: {
     ...sendblueBaseParamFields,

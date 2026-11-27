@@ -18,6 +18,7 @@ export const rocketlaneRemoveTaskDependenciesTool: ToolConfig<
   name: 'Rocketlane Remove Task Dependencies',
   description: 'Remove dependencies from a Rocketlane task',
   version: '1.0.0',
+  effect: 'write',
   oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {

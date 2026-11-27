@@ -21,6 +21,12 @@ const hoisted = vi.hoisted(() => ({
   rateLimit: vi.fn(),
   afterResponse: vi.fn<(task: () => Promise<void>) => void>(),
   recordActivity: vi.fn(),
+  listPeople: vi.fn(),
+  getPerson: vi.fn(),
+}))
+vi.mock('@/lib/people/application/use-cases', () => ({
+  listPeople: { operation: { id: 'organization.people.list' }, execute: hoisted.listPeople },
+  getPerson: { execute: hoisted.getPerson },
 }))
 vi.mock('@/lib/core/utils/after-response', () => ({ afterResponse: hoisted.afterResponse }))
 vi.mock('@/lib/knowledge/mcp/activity', () => ({
@@ -56,6 +62,7 @@ vi.mock('@/lib/knowledge/application/chat', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
+import { NO_PEOPLE_MATCH_NOTE } from '@/lib/people/directory-lookup'
 import {
   LIVE_DATE_ORDER_MESSAGE,
   LIVE_MORE_RANKED_BELOW_MESSAGE,
@@ -542,5 +549,60 @@ describe('MCP tool completion records', () => {
         durationMs: expect.any(Number),
       }
     )
+  })
+})
+
+describe('people lookup', () => {
+  const person = (memberId: string, name: string, title: string | null) => ({
+    memberId,
+    userId: null,
+    name,
+    email: `${memberId}@example.test`,
+    image: null,
+    title,
+    department: null,
+    location: null,
+    startDate: null,
+    manager: null,
+    managerMemberId: null,
+    directorySource: null,
+    joinedAt: null,
+  })
+  async function lookUp(input: Record<string, unknown>) {
+    createKnowledgeMcpServer({ organizationId: 'org-1', request, auth, searchPeople: true })
+    const [part] = (await call('search_people', input)).content
+    if (part?.type !== 'text') throw new Error('Expected text content')
+    return JSON.parse(part.text) as Record<string, unknown>
+  }
+
+  it('answers a query that finds one person with their reporting line in the same call', async () => {
+    mocks.listPeople.mockResolvedValueOnce({
+      data: [person('report', 'Ada Report', 'Engineer')],
+      nextCursorKeys: null,
+    })
+    mocks.getPerson.mockResolvedValueOnce({
+      person: person('report', 'Ada Report', 'Engineer'),
+      chain: [person('lead', 'Grace Lead', 'Director')],
+      reports: [],
+      totalReports: 0,
+    })
+    expect(await lookUp({ query: 'ada' })).toEqual({
+      person: {
+        personId: 'report',
+        name: 'Ada Report',
+        title: 'Engineer',
+        email: 'report@example.test',
+        managerChain: [{ personId: 'lead', name: 'Grace Lead', title: 'Director' }],
+        totalDirectReports: 0,
+      },
+    })
+  })
+
+  it('points a query that matches no one at search for people outside the organization', async () => {
+    mocks.listPeople.mockResolvedValueOnce({ data: [], nextCursorKeys: null })
+    expect(await lookUp({ query: 'outside contact' })).toEqual({
+      people: [],
+      note: NO_PEOPLE_MATCH_NOTE,
+    })
   })
 })

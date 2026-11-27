@@ -14,6 +14,7 @@ export const putRuntimeManagementConfigTool: InternalToolConfig<
   name: 'Lambda Set Runtime Management Config',
   description: 'Set how and when Lambda applies runtime updates to a function version',
   version: '1.0.0',
+  effect: 'write',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

@@ -8,6 +8,7 @@ export const slackDisableUserGroupTool = createSlackWebApiTool({
   name: 'Slack Disable User Group',
   description:
     'Disable a Slack user group and remove its members. Requires permission to manage user groups.',
+  effect: 'write',
   endpoint: 'usergroups.disable',
   method: 'POST',
   oauth: {

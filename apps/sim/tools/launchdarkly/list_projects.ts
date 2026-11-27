@@ -15,6 +15,7 @@ export const launchDarklyListProjectsTool: ToolConfig<
   name: 'LaunchDarkly List Projects',
   description: 'List all projects in your LaunchDarkly account.',
   version: '1.0.0',
+  effect: 'read',
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {

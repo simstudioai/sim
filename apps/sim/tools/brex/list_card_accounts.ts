@@ -10,6 +10,7 @@ export const brexListCardAccountsTool: ToolConfig<BrexApiKeyParams, BrexListCard
     name: 'Brex List Card Accounts',
     description: 'List all Brex card accounts with balances and limits',
     version: '1.0.0',
+    effect: 'read',
     oauth: BREX_CREDENTIAL_OAUTH,
 
     params: {

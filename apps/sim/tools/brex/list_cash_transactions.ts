@@ -21,6 +21,7 @@ export const brexListCashTransactionsTool: ToolConfig<
   name: 'Brex List Cash Transactions',
   description: 'List transactions for a Brex cash account',
   version: '1.0.0',
+  effect: 'read',
   oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {

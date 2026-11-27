@@ -9,6 +9,7 @@ export const cleanSchoolTool: ToolConfig<PdlCleanSchoolParams, PdlCleanSchoolRes
   description:
     'Normalize a school string into a canonical school record. Provide at least one of name, website, or profile (LinkedIn URL).',
   version: '1.0.0',
+  effect: 'read',
 
   hosting: {
     envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,

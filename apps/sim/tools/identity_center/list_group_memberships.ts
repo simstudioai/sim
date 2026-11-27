@@ -13,6 +13,7 @@ export const listGroupMembershipsTool: InternalToolConfig<
   name: 'Identity Center List Group Memberships',
   description: 'List the users who belong to an Identity Store group',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {

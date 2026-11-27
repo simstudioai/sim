@@ -12,6 +12,7 @@ export const monacoDeleteAccountTool: ToolConfig<MonacoDeleteAccountParams, Mona
     description:
       'Permanently delete a Monaco account. This cannot be undone. Its contacts and opportunities are not deleted but may become unlinked.',
     version: '1.0.0',
+    effect: 'write',
     oauth: { required: true, provider: 'monaco', credentialKind: 'service-account' },
     errorExtractor: ErrorExtractorId.NESTED_ERROR_OBJECT,
 

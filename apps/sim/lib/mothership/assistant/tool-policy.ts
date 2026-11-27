@@ -5,6 +5,7 @@ import type { ToolMetadata } from '@/tools/metadata'
 export const ASSISTANT_TOOLS = new Set([
   'search_workspace',
   'read_document',
+  'search_people',
   'oauth_get_auth_link',
   'run_function',
 ])
@@ -82,5 +83,5 @@ export function assertAssistantIntegrationCall(
       'Select one of your connected accounts for this integration.'
     )
   }
-  return { credentialId, operation: tool.assistant }
+  return { credentialId, operation: { effect: tool.effect, version: tool.assistant.version } }
 }

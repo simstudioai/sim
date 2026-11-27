@@ -642,6 +642,8 @@ describe('workspace source files', () => {
 
       const refused = await refusal(apply(workspaceId, dropped, { base: read.base }))
       expect(codes(refused.diagnostics)).toEqual(['E_APPLY_DELETE_NOT_ALLOWED'])
+      expect(refused.diagnostics[0].message).toContain('missing from the directory is a delete')
+      expect(refused.diagnostics[0].message).toContain('--allow-delete')
       expect((await storedFiles(workspaceId)).map((file) => file.id)).toContain(id)
 
       const deleted = await apply(workspaceId, dropped, { base: read.base, allowDelete: true })

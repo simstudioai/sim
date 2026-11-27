@@ -14,6 +14,7 @@ export const listServicesTool: ToolConfig<
   name: 'PagerDuty List Services',
   description: 'List services from PagerDuty with optional name filter.',
   version: '1.0.0',
+  effect: 'read',
   oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {

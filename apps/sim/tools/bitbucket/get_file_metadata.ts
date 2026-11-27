@@ -27,6 +27,7 @@ export const bitbucketGetFileMetadataTool: ToolConfig<
   name: 'Bitbucket Get File Metadata',
   description: 'Inspect file size and attributes at a full repository commit SHA-1',
   version: '1.0.0',
+  effect: 'read',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository'] },
   params: {
     ...BITBUCKET_REPOSITORY_PARAMS,

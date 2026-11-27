@@ -33,6 +33,7 @@ import {
 } from '@sim/testing/mocks/uploads-setup.mock'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
+import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import { WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import type { WorkspaceBaseV1, WorkspaceKind } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
@@ -74,8 +75,10 @@ import { setSecretUseCase } from '@/lib/secrets/application/use-cases'
 import { createSkillUseCase } from '@/lib/skills/application/use-cases'
 import { createTableUseCase, deleteTableUseCase } from '@/lib/table/application/tables'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
+import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { duplicateWorkflow } from '@/lib/workflows/application/duplicate-workflow'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { withBoundWorkspaceFindings } from '@/lib/workspace-source/api/route-policies'
@@ -1429,6 +1432,207 @@ export default workflow('Secret', {}, () => {
   })
 
   check(
+    "types a call's result.data fields by the child's Response data, as submitted or as stored",
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        'workflows/parent/workflow.ts': PHONE_PARENT,
+        'workflows/normalize/workflow.ts': PHONE_CHILD,
+      }
+
+      const dryRun = await apply(workspaceId, { files, blobs: {} }, { dryRun: true })
+      expect(codes(dryRun.diagnostics, 'warning')).not.toContain('W_JSON_REF_UNTYPED')
+      const created = await apply(workspaceId, { files, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const parentId = created.base.resources['workflow:parent']?.id
+      if (!parentId) throw new Error('The parent was not created')
+      expect(await responseData(parentId)).toEqual({
+        mobile: '"<run.result.data.mobile>"',
+        digits: '<run.result.data.digits>',
+      })
+
+      const read = await get(workspaceId)
+      const printed = read.files['workflows/parent/workflow.ts']
+      expect(printed).toContain(
+        'body: { mobile: t`${run.result.data.mobile}`, digits: run.result.data.digits }'
+      )
+      const single = await withPermissionGroupScope(() =>
+        readWorkflowSource.execute({ principal: owner, input: { workflowId: parentId } })
+      )
+      expect(single.files['workflow.ts']).toBe(printed)
+
+      // A single-workflow apply types the call by the child as stored.
+      const edited = await withPermissionGroupScope(() =>
+        applyWorkflowSource.execute({
+          principal: owner,
+          input: {
+            workflowId: parentId,
+            files: {
+              ...single.files,
+              'workflow.ts': printed.replace(
+                'digits: run.result.data.digits',
+                'digits: run.result.data.digits, again: run.result.data.mobile'
+              ),
+            },
+            lock: single.lock,
+            base: single.base,
+          },
+        })
+      )
+      expect(codes(edited.diagnostics, 'warning')).not.toContain('W_JSON_REF_UNTYPED')
+      expect(await responseData(parentId)).toEqual({
+        mobile: '"<run.result.data.mobile>"',
+        digits: '<run.result.data.digits>',
+        again: '"<run.result.data.mobile>"',
+      })
+      expect(edited.files['workflow.ts']).toContain('again: t`${run.result.data.mobile}`,')
+    }
+  )
+
+  check(
+    'types a call by a field its child forwards from a grandchild, on apply, get and reapply alike',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        'workflows/a/workflow.ts': forwarder('A', 'b'),
+        'workflows/b/workflow.ts': forwarder('B', 'c'),
+        'workflows/c/workflow.ts': TEXT_CHILD,
+      }
+      const typed = { text: '"<call.result.data.text>"', n: '<call.result.data.n>' }
+
+      const dryRun = await apply(workspaceId, { files, blobs: {} }, { dryRun: true })
+      expect(codes(dryRun.diagnostics, 'warning')).not.toContain('W_JSON_REF_UNTYPED')
+      const created = await apply(workspaceId, { files, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const id = (key: string) => {
+        const entry = created.base.resources[`workflow:${key}`]
+        if (!entry) throw new Error(`${key} was not created`)
+        return entry.id
+      }
+      expect(await responseData(id('a'))).toEqual(typed)
+      expect(await responseData(id('b'))).toEqual(typed)
+
+      const read = await get(workspaceId)
+      const printed = read.files['workflows/a/workflow.ts']
+      expect(printed).toContain(
+        'body: { text: t`${call.result.data.text}`, n: call.result.data.n }'
+      )
+      const single = await withPermissionGroupScope(() =>
+        readWorkflowSource.execute({ principal: owner, input: { workflowId: id('a') } })
+      )
+      expect(single.files['workflow.ts']).toBe(printed)
+
+      // Every folder sent with its files, so each child is typed as submitted, through the chain.
+      const reapplied = await apply(
+        workspaceId,
+        { files: read.files, blobs: {} },
+        { base: read.base }
+      )
+      expect(reapplied.failed).toBeUndefined()
+      expect(codes(reapplied.diagnostics, 'warning')).not.toContain('W_JSON_REF_UNTYPED')
+      expect(await responseData(id('a'))).toEqual(typed)
+    }
+  )
+
+  check(
+    'types a call by a child sent with a stored() secret, as the directory check types it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        'workflows/parent/workflow.ts': PHONE_PARENT,
+        'workflows/normalize/workflow.ts': SECRET_PHONE_CHILD,
+      }
+      const created = await apply(workspaceId, { files, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const parentId = created.base.resources['workflow:parent']?.id
+      if (!parentId) throw new Error('The parent was not created')
+      const typed = { mobile: '"<run.result.data.mobile>"', digits: '<run.result.data.digits>' }
+      expect(await responseData(parentId)).toEqual(typed)
+
+      const read = await get(workspaceId)
+      expect(read.files['workflows/normalize/workflow.ts']).toContain('apiKey: stored()')
+      const reapplied = await apply(
+        workspaceId,
+        { files: read.files, blobs: {} },
+        { base: read.base }
+      )
+      expect(reapplied.failed).toBeUndefined()
+      expect(codes(reapplied.diagnostics, 'warning')).not.toContain('W_JSON_REF_UNTYPED')
+      expect(await responseData(parentId)).toEqual(typed)
+    }
+  )
+
+  check(
+    'types a call by a child sent holding a block type the workspace catalog no longer offers',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        'workflows/a/workflow.ts': forwarder('A', 'c'),
+        'workflows/c/workflow.ts': TEXT_CHILD,
+      }
+      const created = await apply(workspaceId, { files, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const parentId = created.base.resources['workflow:a']?.id
+      const childId = created.base.resources['workflow:c']?.id
+      if (!parentId || !childId) throw new Error('The workflows were not created')
+
+      // `thinking` is hidden from the toolbar, so only the child's own catalog declares it.
+      const child = await loadWorkflowFromNormalizedTables(childId)
+      const blockOf = (type: string) =>
+        Object.values(child?.blocks ?? {}).find((block) => block.type === type)?.id
+      const startId = blockOf('start_trigger')
+      const replyId = blockOf('response')
+      if (!child || !startId || !replyId) throw new Error('The child was not stored')
+      const thinkingId = generateId()
+      const saved = await saveWorkflowToNormalizedTables(childId, {
+        ...child,
+        edges: [
+          ...child.edges,
+          { id: generateId(), source: startId, target: thinkingId },
+          { id: generateId(), source: thinkingId, target: replyId },
+        ],
+        blocks: {
+          ...child.blocks,
+          [thinkingId]: {
+            id: thinkingId,
+            type: 'thinking',
+            name: 'Ponder',
+            position: { x: 0, y: 200 },
+            subBlocks: { thought: { id: 'thought', type: 'long-input', value: 'Think first' } },
+            outputs: {},
+            enabled: true,
+          },
+        },
+      })
+      if (!saved.success) throw new Error(`Seeding the child failed: ${saved.error}`)
+
+      const read = await get(workspaceId)
+      expect(read.files['workflows/c/workflow.ts']).toContain('Ponder')
+      const reapplied = await apply(
+        workspaceId,
+        {
+          files: {
+            ...read.files,
+            'workflows/a/workflow.ts': read.files['workflows/a/workflow.ts'].replace(
+              'n: call.result.data.n',
+              'n: call.result.data.n, again: call.result.data.text'
+            ),
+          },
+          blobs: {},
+        },
+        { base: read.base }
+      )
+      expect(reapplied.failed).toBeUndefined()
+      expect(codes(reapplied.diagnostics, 'warning')).not.toContain('W_JSON_REF_UNTYPED')
+      expect(await responseData(parentId)).toEqual({
+        text: '"<call.result.data.text>"',
+        n: '<call.result.data.n>',
+        again: '"<call.result.data.text>"',
+      })
+    }
+  )
+
+  check(
     'renaming the key of a table or a tool is reported as a key rename, not a taken name',
     async () => {
       const { workspaceId, dir, base } = await setUp()
@@ -1483,6 +1687,93 @@ export default workflow('Child', {}, () => {
 })
 `,
   'workflows/keep/workflow.ts': TEXT['workflows/keep/workflow.ts'],
+}
+
+/** A child that always responds with a text `mobile` and a number `digits`. */
+const PHONE_CHILD = `// @sim-sdk 1
+import { response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Normalize', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })
+  const reply = response('Reply', { body: { mobile: start.phone, digits: start.n } })
+  start.to(reply)
+})
+`
+
+/** A parent that responds with the fields of what `normalize` responds with. */
+const PHONE_PARENT = `// @sim-sdk 1
+import { childWorkflow, response, runWorkflow, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Parent', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { phone: 'string' } })
+  const run = runWorkflow('Run', {
+    workflowId: childWorkflow('normalize'),
+    inputMapping: { phone: start.phone },
+  })
+  const reply = response('Reply', {
+    body: { mobile: run.result.data.mobile, digits: run.result.data.digits },
+  })
+  start.to(run)
+  run.to(reply)
+})
+`
+
+/** A child that always responds with a text `text` and a number `n`. */
+const TEXT_CHILD = `// @sim-sdk 1
+import { response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('C', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })
+  const reply = response('Reply', { body: { text: start.phone, n: start.n } })
+  start.to(reply)
+})
+`
+
+/** A workflow that responds with the `text` and `n` the workflow under `child` responds with. */
+function forwarder(name: string, child: string): string {
+  return `// @sim-sdk 1
+import { childWorkflow, response, runWorkflow, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('${name}', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { phone: 'string' } })
+  const call = runWorkflow('Call', {
+    workflowId: childWorkflow('${child}'),
+    inputMapping: { phone: start.phone },
+  })
+  const reply = response('Reply', {
+    body: { text: call.result.data.text, n: call.result.data.n },
+  })
+  start.to(call)
+  call.to(reply)
+})
+`
+}
+
+/** {@link PHONE_CHILD} with an Agent on the way to its Response, holding a literal secret. */
+const SECRET_PHONE_CHILD = `// @sim-sdk 1
+import { agent, response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Normalize', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })
+  const answer = agent('Answer', { model: 'gpt-4o', messages: [], apiKey: 'placeholder-not-a-real-key' })
+  const reply = response('Reply', { body: { mobile: start.phone, digits: start.n } })
+  start.to(answer)
+  answer.to(reply)
+})
+`
+
+/**
+ * The Response data workflow `workflowId` stores, each field's raw JSON text by key: a quoted
+ * reference keeps its quotes, a bare one is the reference alone.
+ */
+async function responseData(workflowId: string): Promise<Record<string, string>> {
+  const loaded = await loadWorkflowFromNormalizedTables(workflowId)
+  const reply = Object.values(loaded?.blocks ?? {}).find((block) => block.type === 'response')
+  const data = reply?.subBlocks.data?.value
+  if (typeof data !== 'string') throw new Error('The Response block stores no data')
+  return Object.fromEntries(
+    [...data.matchAll(/"(\w+)": ("?<[^>]+>"?)/g)].map(([, key, value]) => [key, value])
+  )
 }
 
 /** The workflow ids the Run Workflow blocks of workflow `workflowId` store. */

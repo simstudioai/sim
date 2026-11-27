@@ -14,6 +14,7 @@ export const vercelGetDomainConfigTool: ToolConfig<
   name: 'Vercel Get Domain Config',
   description: 'Get the configuration for a domain in a Vercel account',
   version: '1.0.0',
+  effect: 'read',
   oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {

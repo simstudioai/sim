@@ -14,6 +14,7 @@ export const jupyterRestartKernelTool: InternalToolConfig<
   name: 'Jupyter Restart Kernel',
   description: 'Restart a running kernel on a Jupyter server',
   version: '1.0.0',
+  effect: 'write',
   oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {

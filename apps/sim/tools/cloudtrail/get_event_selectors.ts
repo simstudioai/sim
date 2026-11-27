@@ -14,6 +14,7 @@ export const getEventSelectorsTool: InternalToolConfig<
   description:
     'Read which management, data, and network activity events a CloudTrail trail is configured to log',
   version: '1.0.0',
+  effect: 'read',
   oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
