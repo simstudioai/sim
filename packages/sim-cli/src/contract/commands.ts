@@ -315,7 +315,7 @@ export const CLI_CONTRACT: CliContract = {
     // Which ledger answered: a user credential reports only the calling user's
     // events, a workspace key the whole workspace. The difference was silent —
     // same workspace, same window, same flags, a strictly smaller result.
-    pageNote: { path: 'scope', label: 'scope' },
+    pageNote: { field: 'scope', label: 'scope' },
     columns: [
       { header: 'at', path: 'createdAt', format: 'timestamp' },
       { header: 'workspace', path: 'workspaceId' },

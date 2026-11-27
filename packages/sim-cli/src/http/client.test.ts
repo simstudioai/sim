@@ -33,7 +33,7 @@ function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
   })
 }
 
-function _stubStderr(isTTY: boolean): { writes: string[]; restore: () => void } {
+function stubStderr(isTTY: boolean): { writes: string[]; restore: () => void } {
   const writes: string[] = []
   const originalTTY = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY')
   const originalWrite = process.stderr.write
@@ -474,13 +474,9 @@ describe('rate limiting', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('says on stderr how long it waits before resending a request answered 429', async () => {
+  it('resends a request answered 429 without a word when stderr is not a terminal, so a 2>&1 capture stays the result', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const written: string[] = []
-    const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
-      written.push(String(chunk))
-      return true
-    })
+    const stderr = stubStderr(false)
     vi.stubGlobal(
       'fetch',
       vi
@@ -490,20 +486,15 @@ describe('rate limiting', () => {
     )
 
     await settle(client().request('/api/v2/tables/tbl_1'))
-    write.mockRestore()
+    stderr.restore()
 
-    expect(written.join('')).toMatch(/Rate limited \(HTTP 429\); retrying in 7s \(retry 1 of 6\)/)
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(stderr.writes.join('')).toBe('')
   })
 
-  it('clears a terminal progress line before saying it waits on a 429', async () => {
+  it('says at a terminal how long it waits on a 429, clearing a progress line first', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const written: string[] = []
-    const tty = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY')
-    Object.defineProperty(process.stderr, 'isTTY', { value: true, configurable: true })
-    const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
-      written.push(String(chunk))
-      return true
-    })
+    const stderr = stubStderr(true)
     vi.stubGlobal(
       'fetch',
       vi
@@ -513,11 +504,11 @@ describe('rate limiting', () => {
     )
 
     await settle(client().request('/api/v2/tables/tbl_1'))
-    write.mockRestore()
-    if (tty) Object.defineProperty(process.stderr, 'isTTY', tty)
-    else Reflect.deleteProperty(process.stderr, 'isTTY')
+    stderr.restore()
 
-    expect(written.join('')).toMatch(/^\r\u001b\[K.*Rate limited \(HTTP 429\)/)
+    expect(stderr.writes.join('')).toMatch(
+      /^\r\u001b\[K.*Rate limited \(HTTP 429\); retrying in 7s \(retry 1 of 6\)/
+    )
   })
 
   it('resends a GET answered 429 even when that response body is lost', async () => {

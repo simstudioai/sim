@@ -1,3 +1,4 @@
+import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
 
 /**
@@ -6,36 +7,43 @@ import { writeStderr } from '#sim-cli/output/io'
  * A rename is not an alias. {@link CommandSpec.aliases} are ergonomic shorthands
  * — `ls`, `mv` — that the CLI wants people to use, so they appear in help. A
  * renamed spelling is kept only so a script written against the old name keeps
- * working: it stays out of help and out of the generated docs, and says once,
- * on stderr, what to write instead.
+ * working: it stays out of help and out of the generated docs, and says what to
+ * write instead.
  *
- * Warnings go to stderr rather than stdout because the old name is most likely
- * to survive inside exactly the kind of script that pipes stdout into `jq`, and
- * a deprecation notice in the middle of a JSON document is a worse bug than the
- * one it reports.
+ * The old name is most likely to survive inside exactly the kind of script that
+ * reads the result as JSON, often with stderr merged in (`2>&1`), so the warning
+ * is owed to the invocation and delivered with its result: inside a JSON or YAML
+ * result as its `note`, and on stderr for a person (`renderResult`). A command
+ * that ends without a result to carry it says it on stderr ({@link writeRenameWarnings}).
  */
 
-/** Reported spellings, so a loop over many rows warns once rather than per row. */
-const warned = new Set<string>()
+/** The warnings each invoked command owes, until its result or its failure delivers them. */
+const OWED = new WeakMap<Command, string[]>()
 
-function warn(kind: string, from: string, to: string): void {
-  const key = `${kind}:${from}`
-  if (warned.has(key)) return
-  warned.add(key)
-  writeStderr(`warning: ${kind} "${from}" has been renamed to "${to}". The old name still works.\n`)
+function owe(command: Command, kind: string, from: string, to: string): void {
+  const warnings = OWED.get(command) ?? []
+  warnings.push(`${kind} "${from}" has been renamed to "${to}". The old name still works.`)
+  OWED.set(command, warnings)
 }
 
-/** Announces a command path that has been renamed, naming its current spelling. */
-export function warnRenamedCommand(from: string, to: string): void {
-  warn('command', `sim ${from}`, `sim ${to}`)
+/** Owes `command` the warning that it was invoked by a path it has been renamed from. */
+export function warnRenamedCommand(command: Command, from: string, to: string): void {
+  owe(command, 'command', `sim ${from}`, `sim ${to}`)
 }
 
-/** Announces a flag that has been renamed, naming its current spelling. */
-export function warnRenamedFlag(from: string, to: string): void {
-  warn('flag', `--${from}`, `--${to}`)
+/** Owes `command` the warning that it was passed a flag by a name it has been renamed from. */
+export function warnRenamedFlag(command: Command, from: string, to: string): void {
+  owe(command, 'flag', `--${from}`, `--${to}`)
 }
 
-/** Test seam: renames warn once per process, and each test needs a clean slate. */
-export function resetRenameWarnings(): void {
-  warned.clear()
+/** Takes the rename warnings `command` owes, for its result to carry. */
+export function takeRenameWarnings(command: Command): string[] {
+  const warnings = OWED.get(command) ?? []
+  OWED.delete(command)
+  return warnings
+}
+
+/** Writes on stderr the rename warnings no result took. */
+export function writeRenameWarnings(command: Command): void {
+  for (const warning of takeRenameWarnings(command)) writeStderr(`warning: ${warning}\n`)
 }

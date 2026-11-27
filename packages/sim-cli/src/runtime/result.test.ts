@@ -14,6 +14,12 @@ beforeEach(() => {
   })
 })
 
+/** What a render wrote on stderr, where a person reads the CLI's notices. */
+function captureStderr(): () => string {
+  const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+  return () => stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
+}
+
 /** The table arrives as one string; its first line is the header. */
 function tableLines(): string[] {
   return logged.join('\n').split('\n')
@@ -212,12 +218,6 @@ describe('paginated JSON output', () => {
 })
 
 describe('a truncation the response states inside its payload', () => {
-  /** Every note goes to stderr; stdout is asserted to be untouched by it. */
-  function captureStderr(): () => string {
-    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
-    return () => stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
-  }
-
   it.each(['readFileText', 'readFileVersionText'] as const)(
     'preserves complete %s content in table output',
     (operation) => {
@@ -237,14 +237,61 @@ describe('a truncation the response states inside its payload', () => {
     }
   )
 
-  it('reports a clipped file body, which the envelope says nothing about', () => {
+  it('reports a clipped file body to a person, which the envelope says nothing about', () => {
     const read = captureStderr()
     const payload = { fileId: 'wf_probe', name: 'a.txt', text: 'abc', truncated: true }
 
-    renderResult('readFileText', 'json', payload, {}, {}, { data: payload })
+    renderResult('readFileText', 'table', payload, {}, {}, { data: payload })
 
-    expect(read()).toContain('the server clipped this result')
-    expect(JSON.parse(logged.join('\n'))).toEqual(payload)
+    expect(read()).toBe('truncated: the server clipped this result, so the answer is incomplete\n')
+  })
+
+  it('carries a clip stated on the envelope inside a JSON record, and says nothing on stderr', () => {
+    const read = captureStderr()
+    const payload = { id: 'src_1', tables: [] }
+
+    renderResult('getSourceResources', 'json', payload, {}, {}, { data: payload, truncated: true })
+
+    expect(JSON.parse(logged.join('\n'))).toEqual({ ...payload, truncated: true })
+    expect(read()).toBe('')
+  })
+})
+
+describe('notes the CLI adds, read by a person', () => {
+  it('states a page envelope fact above the rows and keeps it out of them', () => {
+    const read = captureStderr()
+    const page = { data: [{ id: 'log_1' }], nextCursor: null }
+
+    renderPage('text', page, CLI_CONTRACT.listBillingLogs ?? {}, { ...page, scope: 'user' })
+
+    expect(read()).toBe('scope: user\n')
+    expect(logged).toHaveLength(1)
+    expect(logged[0].split('\t')).not.toContain('user')
+  })
+
+  it('warns about a renamed spelling before the record and notes the result after it', () => {
+    const order: string[] = []
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      order.push(`stderr ${String(chunk)}`)
+      return true
+    })
+    vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      order.push(`stdout ${line}`)
+    })
+
+    renderResult(
+      'getBlock',
+      'text',
+      { id: 'table_v2' },
+      {},
+      { warnings: ['flag "--q" has been renamed to "--query".'], note: 'read as table_v2.' }
+    )
+
+    expect(order).toEqual([
+      'stderr warning: flag "--q" has been renamed to "--query".\n',
+      'stdout id\ttable_v2',
+      'stderr note: read as table_v2.\n',
+    ])
   })
 })
 

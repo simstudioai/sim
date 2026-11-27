@@ -34,7 +34,7 @@ Machine formats preserve API values: a duration remains `1500`, rather than the 
 
 Read rows with `jq '.data[]'` and check `.nextCursor` for continuation. A null cursor means pagination is finished; inspect any command-specific truncation flags or notices too. See [Pagination](/cli/scripting#pagination) for limits and memory behavior.
 
-When the CLI adds a note to a single result, such as `sim blocks get table` reading as `table_v2`, JSON and YAML carry it in the result as `note`, so output captured with `2>&1` still parses. Tables and text print it on stderr.
+What the CLI states about a successful result travels inside it in JSON and YAML, so output captured with `2>&1` still parses: a server-side clip as the response's truncation flag (`truncated`, `toolNamesTruncated`), a fact about a whole list as its envelope field beside `data` and `nextCursor` (`sim billing logs` carries `scope`), and the CLI's own notes as `note`, one per line, such as `sim blocks get table` reading as `table_v2` or a renamed command or flag. Tables and text print each on stderr. A result that is not an object, or a document such as `sim workflows export`, keeps them on stderr.
 
 ### Tables and text
 
@@ -52,7 +52,7 @@ An absent value displays as an em dash in a table and an empty field in text. Us
 
 ## Separate results and diagnostics
 
-Results go to stdout. Errors, progress, update notices, and operational notes go to stderr, so this pipe receives only the result:
+Results go to stdout. Errors, progress, and update notices go to stderr, so this pipe receives only the result. Progress, including a rate-limit retry, is shown only when stderr is a terminal:
 
 ```bash
 sim logs list --output json | jq '.data[]'

@@ -326,19 +326,17 @@ export interface CommandSpec {
   /** Dot path to a nested result array rendered as the command's human list. */
   itemsPath?: string
   /**
-   * A page-envelope field that qualifies the whole list, stated once for the
-   * human formats.
+   * A top-level page-envelope field that qualifies the whole list.
    *
    * `billing logs` answers a different question depending on the credential —
    * an OAuth login or personal key sees the caller's own events, while a
    * workspace key sees the whole workspace ledger. The response says which. The value
-   * belongs to the query rather than to any row, so it is not a column; it goes
-   * to stderr so that a `--output text` consumer cutting tab-separated fields
-   * still reads only rows. `json` and `yaml` print the unwrapped `data` array
-   * and so drop the field too, which is why the note is not limited to the
-   * human formats — see `runtime/result`.
+   * belongs to the query rather than to any row, so it is not a column: `json` and
+   * `yaml` carry it beside `data` and `nextCursor` under its wire name, and the human
+   * formats state it once on stderr as `label`, so a `--output text` consumer cutting
+   * tab-separated fields still reads only rows — see `runtime/result`.
    */
-  pageNote?: { path: string; label: string }
+  pageNote?: { field: string; label: string }
   /** Allow an optional workspaceId field to omit the configured workspace filter. */
   allWorkspaces?: boolean
   /**

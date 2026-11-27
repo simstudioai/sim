@@ -15,7 +15,7 @@ import { safeOneLine } from '../output/render'
 import { connect } from './called-operations'
 import { camel } from './derive'
 import { DEFAULT_PAGE_SIZE, defaultListLimit } from './options'
-import { warnRenamedFlag } from './renamed'
+import { takeRenameWarnings, warnRenamedFlag } from './renamed'
 import {
   type BuiltRequest,
   buildRequest,
@@ -375,6 +375,7 @@ function assertSelectorIsUsable(operation: V2OperationName, flags: Record<string
  * reading of "the documented one wins" is more likely to be the intended one.
  */
 function foldOtherSpellings(
+  host: Command,
   operation: V2OperationName,
   commandSpec: CommandSpec,
   flags: Record<string, unknown>
@@ -390,7 +391,7 @@ function foldOtherSpellings(
           0
         )
       }
-      if (renamed) warnRenamedFlag(name, current)
+      if (renamed) warnRenamedFlag(host, name, current)
       flags[camel(current)] = supplied
     }
   }
@@ -459,7 +460,7 @@ export async function executeOperation(
     requestFlags[camel(name)] = trailingValues
   }
 
-  foldOtherSpellings(operation, commandSpec, requestFlags)
+  foldOtherSpellings(host, operation, commandSpec, requestFlags)
   assertCapIsUsable(operation, requestFlags)
   assertSelectorIsUsable(operation, requestFlags)
 
@@ -588,7 +589,9 @@ export async function executeOperation(
     } finally {
       progress.finish()
     }
-    renderPage(profile.output, { data: rows, nextCursor: cursor }, commandSpec, envelope)
+    renderPage(profile.output, { data: rows, nextCursor: cursor }, commandSpec, envelope, {
+      warnings: takeRenameWarnings(host),
+    })
     return
   }
 
@@ -669,7 +672,9 @@ export async function executeOperation(
         report
       ))
     payload = report
-    renderResult(operation, profile.output, payload, commandSpec)
+    renderResult(operation, profile.output, payload, commandSpec, {
+      warnings: takeRenameWarnings(host),
+    })
     assertWorkspaceOperationOutcome(report, timedOut)
     return
   }
@@ -681,6 +686,7 @@ export async function executeOperation(
     {
       expandedTrace: requestFlags.trace === true,
       note: resultNote(operation, payload, request),
+      warnings: takeRenameWarnings(host),
     },
     // The envelope, not just the payload: a list that does not paginate states
     // its own truncation there, and unwrapping `data` discarded it.
