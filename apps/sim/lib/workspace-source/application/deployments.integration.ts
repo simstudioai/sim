@@ -661,6 +661,36 @@ describe('workspace source: deployments', () => {
   )
 
   check(
+    'refuses to deploy a draft an earlier apply left with no block of the name a kept chat declares',
+    async () => {
+      const deployed = await deployedWorkspace(answerChat('dropped-earlier-chat'))
+      const { workspaceId, id, base } = deployed
+      const files: Files = deployed.files
+      const before = await deployState(id)
+
+      // The workflow alone first: the Answer block is renamed away, so no block has the name.
+      const workflowOnly = await apply(
+        workspaceId,
+        { ...files, [WORKFLOW]: files[WORKFLOW].replace("agent('Answer'", "agent('Responder'") },
+        { base, kinds: ['workflow'], only: ['workflow'] }
+      )
+      expect(workflowOnly.failed).toBeUndefined()
+
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          { ...files, ...workflowOnly.files, [DEPLOYMENT]: files[DEPLOYMENT] },
+          { base: workflowOnly.base }
+        )
+      )
+      expect(deploymentCodes(refused.diagnostics, 'error')).toEqual(['E_DEPLOY_CHAT_OUTPUT'])
+      const after = await deployState(id)
+      expect(after.versions).toBe(before.versions)
+      expect(after.chat?.outputConfigs).toEqual(before.chat?.outputConfigs)
+    }
+  )
+
+  check(
     'renames a chat output block and the chat naming it in one apply, keeping the block id',
     async () => {
       const deployed = await deployedWorkspace(answerChat('renamed-chat'))

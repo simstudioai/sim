@@ -639,9 +639,9 @@ async function planDeployment(
       }),
     }
   }
-  // A chat the apply keeps goes live with the edited draft all the same.
-  const publishesEditedDraft = detail.deploy && draftEdited
-  if (decl.chat && (writesChat || publishesEditedDraft)) {
+  // A chat the apply keeps goes live with the published draft all the same, edited by this apply
+  // or an earlier one: its outputs must name blocks that draft has.
+  if (decl.chat && (writesChat || detail.deploy)) {
     await checkChat(next, decl.chat, ctx, {
       workflowId,
       writesChat,
