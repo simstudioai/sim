@@ -5,6 +5,7 @@ import type { ToolMetadata } from '@/tools/metadata'
 export const ASSISTANT_TOOLS = new Set([
   'search_workspace',
   'read_document',
+  'search_people',
   'oauth_get_auth_link',
   'run_function',
 ])

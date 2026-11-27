@@ -48,6 +48,11 @@ describe('Search resource addresses', () => {
     expect(mothershipResourceSchema.parse(resource)).toEqual(resource)
     expect(sanitizeChatResources([resource])).toEqual([resource])
   })
+  it('publishes no Search tab for a person-filtered search it could not repeat', () => {
+    expect(
+      searchResourceFromToolResult({ query: 'roadmap', involving: 'me' }, output, context)
+    ).toBeUndefined()
+  })
   it('keeps date-only and native search addresses for an exact result-panel refresh', () => {
     const nativeQueries = [
       { provider: 'github' as const, query: 'repo:simstudioai/sim deployment' },

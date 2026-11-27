@@ -11,11 +11,6 @@ import {
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import {
-  PEOPLE_ID_MAX_LENGTH,
-  PEOPLE_SEARCH_MAX_LENGTH,
-  PEOPLE_SEARCH_MAX_TERMS,
-} from '@/lib/people/validation'
 
 export const organizationKnowledgeMcpContract = defineRouteContract({
   method: 'POST',
@@ -58,9 +53,7 @@ export const liveSearchMcpSchema = searchWorkspaceInputFieldsSchema
     ...mcpDateFilterFields,
     involving: liveSearchInvolvingSchema
       .optional()
-      .describe(
-        'Only items this person acted on: "me" (you) or a colleague\'s email address, never a name. Each source applies its own meaning (sent, authored, owns, assigned, attended; your own mail means mail you sent) and skips sources that cannot filter by person. Use it for what someone did or is assigned, not for your exchanges with others, which it would cut to one side; with an empty query and a date range it lists that person\'s activity.'
-      ),
+      .describe(searchWorkspaceInputFieldsSchema.shape.involving.description ?? ''),
     topK: searchWorkspaceInputFieldsSchema.shape.topK
       .unwrap()
       .optional()
@@ -138,35 +131,3 @@ export const chatSearchMcpSchema = workspaceSearchFiltersSchema
       .describe('The chatId of an earlier chat answer, to ask a follow-up in that conversation.'),
   })
   .strict()
-
-export const searchPeopleMcpSchema = z
-  .object({
-    query: z
-      .string()
-      .trim()
-      .min(1)
-      .max(PEOPLE_SEARCH_MAX_LENGTH)
-      .optional()
-      .describe(
-        `Up to ${PEOPLE_SEARCH_MAX_TERMS} words from a name, email, title, department, or location; a person matches when every word appears in one of them.`
-      ),
-    personId: z
-      .string()
-      .min(1)
-      .max(PEOPLE_ID_MAX_LENGTH)
-      .optional()
-      .describe(
-        'A personId from an earlier result, to show that person with their managers and direct reports. Used instead of query.'
-      ),
-    cursor: z
-      .string()
-      .min(1)
-      .max(1024)
-      .optional()
-      .describe('nextCursor from the previous page of the same query.'),
-  })
-  .strict()
-  .refine((input) => !input.personId || (input.query === undefined && !input.cursor), {
-    path: ['personId'],
-    message: 'Pass either personId or a query with its cursor, not both.',
-  })

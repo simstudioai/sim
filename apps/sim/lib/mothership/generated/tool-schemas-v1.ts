@@ -6103,6 +6103,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           maxLength: 2000,
         },
+        involving: {
+          description:
+            'Only items this person acted on: "me" (you) or a colleague\'s email address, never a name. Each source applies its own meaning (sent, authored, owns, assigned, attended; your own mail means mail you sent) and skips sources that cannot filter by person. Use it for what someone did or is assigned, not for your exchanges with others, which it would cut to one side; with an empty query and a date range it lists that person\'s activity.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 254,
+        },
         topK: {
           default: 20,
           description:
@@ -7832,6 +7839,36 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
         },
       },
+    },
+    resultSchema: undefined,
+  },
+  search_people: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        query: {
+          description:
+            'Up to 8 words from a name, email, title, department, or location; a person matches when every word appears in one of them.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 200,
+        },
+        personId: {
+          description:
+            'A personId from an earlier result, to show that person with their managers and direct reports. Used instead of query.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 255,
+        },
+        cursor: {
+          description: 'nextCursor from the previous page of the same query.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 1024,
+        },
+      },
+      additionalProperties: false,
     },
     resultSchema: undefined,
   },

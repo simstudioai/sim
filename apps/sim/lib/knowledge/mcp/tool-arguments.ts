@@ -4,10 +4,12 @@ import {
   chatSearchMcpSchema,
   liveSearchMcpSchema,
   readLiveDocumentMcpSchema,
-  searchPeopleMcpSchema,
 } from '@/lib/api/contracts/knowledge/mcp'
 import { mcpToolCallParamsSchema } from '@/lib/api/contracts/mcp'
-import { liveSearchProviderSchema } from '@/lib/api/contracts/mothership-assistant-tools'
+import {
+  liveSearchProviderSchema,
+  searchPeopleInputSchema,
+} from '@/lib/api/contracts/mothership-assistant-tools'
 
 /** Search filters a client sometimes writes on each native query instead of on the search. */
 const SEARCH_FILTERS_ON_NATIVE_QUERIES = [
@@ -24,7 +26,7 @@ const TOOL_INPUT_SCHEMAS = new Map<string, z.ZodType>([
   ['search', liveSearchMcpSchema],
   ['read_document', readLiveDocumentMcpSchema],
   ['chat', chatSearchMcpSchema],
-  ['search_people', searchPeopleMcpSchema],
+  ['search_people', searchPeopleInputSchema],
 ])
 
 function readToolCall(message: Record<string, unknown>) {

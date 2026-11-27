@@ -19,6 +19,7 @@ import {
 import type { BaseServerTool, ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
+import { parseDocumentLinks } from '@/lib/sim-search/live/links'
 import { LiveReadError } from '@/lib/sim-search/live/read-error'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
@@ -42,7 +43,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
       async () => {
         try {
           const scope = requireCopilotKnowledgeScope(context)
-          const { query, topK, nativeQueries, ...requestedFilters } =
+          const { query, topK, nativeQueries, involving, ...requestedFilters } =
             searchWorkspaceInputSchema.parse(raw)
           const registry = context?.resolvedSecretTraceRegistry
           if (!registry) throw new Error('Knowledge result provenance is unavailable')
@@ -71,6 +72,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
             }
           const liveInput = {
             ...input,
+            involving,
             nativeQueries: searchWorkspaceInputSchema.shape.nativeQueries.parse(
               nativeQueries ? nativeProjection.value : undefined
             ),
@@ -140,10 +142,11 @@ export const readDocumentServerTool: BaseServerTool = {
           const input = readDocumentInputSchema.parse(raw)
           const registry = context?.resolvedSecretTraceRegistry
           if (!registry) throw new Error('Knowledge result provenance is unavailable')
+          /** A pasted link names no document ID until it resolves, so only the selected scope filters it. */
           const liveInput = {
             ...input,
             filters: intersectWorkspaceSearchFilters(
-              { documentIds: [input.documentId] },
+              parseDocumentLinks(input.documentId) ? {} : { documentIds: [input.documentId] },
               context?.assistantSearch
             ),
             resultSecretRegistry: registry,

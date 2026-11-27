@@ -15,10 +15,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { readSearchIndex } from '@/lib/knowledge/application/sim-search'
 import { withSearchMcpAuthChallenge } from '@/lib/knowledge/mcp/oauth-metadata'
-import { canSearchPeople } from '@/lib/knowledge/mcp/people'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
 import { repairToolCallMessage, toolCallInputIssues } from '@/lib/knowledge/mcp/tool-arguments'
 import { getSearchMcpUrl } from '@/lib/knowledge/mcp/urls'
+import { canLookUpPeople } from '@/lib/people/directory-lookup'
 import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
 
 const logger = createLogger('KnowledgeMcp')
@@ -34,7 +34,7 @@ async function offersSearchPeople(
 ) {
   if (message.method === 'tools/call')
     return isRecordLike(message.params) && message.params.name === 'search_people'
-  return message.method === 'tools/list' && canSearchPeople(principal, organizationId)
+  return message.method === 'tools/list' && canLookUpPeople(principal, organizationId)
 }
 
 function mcpAuth(resource: string) {
