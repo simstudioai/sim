@@ -30,9 +30,10 @@ function statusLine(group: string, dir: string): string {
 export function workflowSourceScopeHelp(surface: PrimerSurface): string {
   const tables =
     surface === 'chat'
-      ? `change a table's columns with
-\`sim tables columns create|update\` before the get (the table types it writes miss a later
-change), its rows with \`sim tables rows\``
+      ? `change a table's columns before the get, whose
+table types miss a later change: \`sim tables columns create <table> --column '{…}'\` or \`sim
+tables columns update <table> --column-name <column> --updates '{…}'\`; its rows with \`sim tables
+rows update <table> <row> --data '{…}'\``
       : `edit a table's columns and rows with
 \`sim workspaces source get --dir <dir>\` (tables/<key>.ts), read rows with \`sim tables rows
 list <table>\``
