@@ -219,6 +219,18 @@ describe('a dry run’s placeholder for an unsent write', () => {
     expect(returned).toMatchObject({ data: { chat: { id: -1001234 } } })
   })
 
+  it('echoes a Confluence space named by a numeric id given as a number', async () => {
+    const returned = await placeholderFor('confluence_create_page', {
+      accessToken: SECRET,
+      domain: 'acme.atlassian.net',
+      spaceId: 12345,
+      title: 'Notes',
+      content: '<p>x</p>',
+    })
+
+    expect(returned.spaceId).toBe('12345')
+  })
+
   it('samples a file list a placeholder cannot hold as empty', async () => {
     const returned = await placeholderFor('slack_message', {
       accessToken: SECRET,
