@@ -6,7 +6,7 @@ import { callsOperations } from './called-operations'
 import { deriveCommandPath } from './derive'
 import { executeOperation } from './execute'
 import { retypeApiError } from './naming'
-import { addOperationOptions } from './options'
+import { addOperationOptions, JSON_PLACEHOLDER } from './options'
 import { warnRenamedCommand } from './renamed'
 import {
   flagNameFor,
@@ -16,6 +16,7 @@ import {
   RESERVED_PROGRAM_FLAGS,
   trailingListField,
 } from './request'
+import { shellArgument, typedCommandLine } from './run-next'
 import type { OperationSpec } from './types'
 
 const GROUP_ALIASES: Readonly<Record<string, string>> = {
@@ -145,6 +146,54 @@ function misplacedFlagValue(command: Command): { option: Option; value: string }
 }
 
 /**
+ * Each option of this command or a group above it (the root's `--workspace` too) that took a flag
+ * as its value, with what the option is for: `run <id> --allow --input '{…}'` gives `--allow` the value `--input` and
+ * leaves the JSON over as a positional, so the excess is a symptom of the missing value and the
+ * JSON is not misplaced.
+ */
+function swallowedFlags(command: Command): string[] {
+  const owned: { owner: Command; option: Option }[] = []
+  for (let owner: Command | null = command; owner; owner = owner.parent) {
+    for (const option of owner.options) owned.push({ owner, option })
+  }
+  return owned.flatMap(({ owner, option }) => {
+    const value = owner.getOptionValue(option.attributeName())
+    const taken = (Array.isArray(value) ? value : [value]).find(
+      (given) =>
+        typeof given === 'string' &&
+        owned.some(({ option: other }) =>
+          [other.long, other.short].includes(given.split('=', 1)[0])
+        )
+    )
+    if (taken === undefined) return []
+    const purpose = option.description.split(/[;(]/, 1)[0].trim()
+    return [
+      `${option.long ?? option.short} took ${taken} as its value; write ${option.flags}: ${purpose}.`,
+    ]
+  })
+}
+
+/**
+ * A JSON operand typed where one of the command's JSON flags (`--input <json|@file>`) was meant,
+ * as the line that moves it there with the positionals and the options typed kept. Null when no operand opens like
+ * JSON or names a source (`@file`, `@-`), or the command has no such flag or several to choose between.
+ */
+function misplacedJson(command: Command): string[] | null {
+  const extra = command.args.slice(command.registeredArguments.length)
+  const json = extra.find((operand) => /^\s*[[{]|^@./.test(operand))
+  const owners = command.options.filter(
+    (option) => !option.hidden && option.long && option.flags.endsWith(` ${JSON_PLACEHOLDER}`)
+  )
+  if (json === undefined || owners.length !== 1 || !owners[0].long) return null
+  const flag = owners[0].long
+  const positionals = command.args.slice(0, command.registeredArguments.length)
+  return [
+    `The JSON was passed as a positional; pass it with ${flag} '<json>' (or ${flag} @file).`,
+    `Example: ${typedCommandLine(command, positionals)} ${flag} ${shellArgument(json)}`,
+  ]
+}
+
+/**
  * The visible commands beside this one, or in a group beside it, that answer to a flag this one
  * does not, by any spelling (a hidden alias such as `--row-ids` too), each with its description,
  * so a read never picks a sibling that deletes. Looking one group down is what reaches `tables
@@ -170,7 +219,8 @@ function siblingsDeclaring(command: Command, flag: string): string[] {
  * - A missing positional or required flag gets the full command line, and a
  *   value typed as a positional where the flag was wanted is named against
  *   that flag when nothing else could have put it there.
- * - Too many positionals get the same command line and the flag list.
+ * - Too many positionals get the same command line and the flag list; an option that took
+ *   another flag as its value is named, and a JSON operand is moved to the JSON flag it belongs to.
  * - An unknown option gets the command's own flags, and the sibling commands
  *   that do take it: `tables rows list --filter` belongs to `tables rows
  *   query`, which commander's near-spelling suggestion never reaches.
@@ -190,8 +240,15 @@ function parseErrorGuidance(command: Command, code: string | undefined): string[
         : []
       return [...moved, `Example: ${usageExample(command)}`]
     }
-    case 'commander.excessArguments':
-      return [`Example: ${usageExample(command)}`, optionList(command)]
+    case 'commander.excessArguments': {
+      const swallowed = swallowedFlags(command)
+      const moved = swallowed.length === 0 ? misplacedJson(command) : null
+      return [
+        ...swallowed,
+        ...(moved ?? [`Example: ${usageExample(command)}`]),
+        optionList(command),
+      ]
+    }
     case 'commander.unknownOption': {
       const token = unknownOptionToken(command)
       if (!token) return []

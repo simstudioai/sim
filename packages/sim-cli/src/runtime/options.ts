@@ -14,6 +14,9 @@ import {
 } from './request'
 import type { OperationSpec } from './types'
 
+/** The value placeholder of a flag that takes JSON inline or from a file. */
+export const JSON_PLACEHOLDER = '<json|@file>'
+
 /** Collects every use of a repeatable option, in order. */
 export function collectRepeated(value: string, previous: string[] = []): string[] {
   return [...previous, value]
@@ -222,7 +225,7 @@ function addFieldOption(
     : flag.rowCap
       ? '<n>'
       : wantsJson
-        ? '<json|@file>'
+        ? JSON_PLACEHOLDER
         : flag.textSource
           ? '<value|@file>'
           : descriptor.nullable
@@ -325,13 +328,13 @@ export function addOperationOptions(
     if (commandSpec.bodyVariants) {
       for (const variant of commandSpec.bodyVariants) {
         command.option(
-          `--${variant.name} <json|@file>`,
+          `--${variant.name} ${JSON_PLACEHOLDER}`,
           `${variant.describe} (JSON, or @path / @-; choose exactly one body flag)`
         )
       }
     } else {
       command.requiredOption(
-        '--body <json|@file>',
+        `--body ${JSON_PLACEHOLDER}`,
         'Request body as JSON (or @path / @- to read a file or stdin) (required)'
       )
     }

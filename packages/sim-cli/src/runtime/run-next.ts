@@ -1,4 +1,5 @@
 import { isRecordLike, toArray, toRecordOrNull } from '@sim/utils/object'
+import type { Command } from 'commander'
 import type { V2OperationName } from '../generated/v2-api'
 import type { NextStep } from '../output/next-step'
 
@@ -17,6 +18,40 @@ const SAFE_ARGUMENT = /^[A-Za-z0-9_.:-]+$/
 /** `value` as one shell word: as it is when it needs no quoting, else single-quoted. */
 export function shellArgument(value: string): string {
   return SAFE_ARGUMENT.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`
+}
+
+/**
+ * The command line that reaches `command` as the caller typed it: each command name from the root
+ * down with the options typed on it (the root's `--workspace` or `--endpoint` too), `operands` after
+ * the leaf's name, and none of the leaf's options `omit` names by attribute (`draft`), so a
+ * corrected command a refusal prints keeps everything the caller chose.
+ */
+export function typedCommandLine(
+  command: Command,
+  operands: readonly string[],
+  omit: ReadonlySet<string> = new Set()
+): string {
+  const path: Command[] = []
+  for (let current: Command | null = command; current; current = current.parent) {
+    path.unshift(current)
+  }
+  const words: string[] = []
+  for (const step of path) {
+    words.push(step.name(), ...(step === command ? operands.map(shellArgument) : []))
+    for (const option of step.options) {
+      const key = option.attributeName()
+      if (!option.long || step.getOptionValueSource(key) !== 'cli') continue
+      if (step === command && omit.has(key)) continue
+      const value = step.getOptionValue(key)
+      for (const given of Array.isArray(value) ? value : [value]) {
+        if (typeof given === 'string') words.push(option.long, shellArgument(given))
+        else if ((given === true && !option.negate) || (given === false && option.negate)) {
+          words.push(option.long)
+        }
+      }
+    }
+  }
+  return words.join(' ')
 }
 
 function resumeCommand(runId: string, workflowId: string, contextId: string): string {

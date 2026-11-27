@@ -22,6 +22,7 @@ import {
   buildRequest,
   cursorSlot,
   flagNameFor,
+  inlineShapeRefusal,
   isProfileWorkspacePath,
   otherSpellings,
   PROFILE_INJECTED_FIELD,
@@ -482,9 +483,18 @@ export async function executeOperation(
    * exactly the habit the gate depends on not forming. `dry` is a v2-wide
    * contract flag meaning "persist nothing", so this holds for every command
    * that accepts it rather than being a per-command exemption.
+   *
+   * A JSON flag typed inline with the wrong shape is named in the same refusal,
+   * so one retry fixes both.
    */
   if (commandSpec.confirm && !requestFlags.yes && requestFlags.dry !== true) {
-    throw new SimApiError(`${commandSpec.confirm} Re-run with --yes to confirm.`, 0)
+    const misshapen = inlineShapeRefusal(operation, requestFlags)
+    throw new SimApiError(
+      misshapen
+        ? `${misshapen} Also pass --yes: ${commandSpec.confirm}`
+        : `${commandSpec.confirm} Re-run with --yes to confirm.`,
+      0
+    )
   }
 
   if (commandSpec.allWorkspaces && requestFlags.allWorkspaces && requestFlags.workspace) {

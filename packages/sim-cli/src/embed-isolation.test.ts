@@ -174,6 +174,174 @@ describe('embedded CLI output ownership', () => {
     expect(handWritten.stderr).toContain('Options for sim files upload:')
   })
 
+  it('answers a JSON positional with its flag, and an option that took another flag as its value', async () => {
+    const transport = async () => {
+      throw new Error('a parse error must not reach the API')
+    }
+    const [positionalInput, swallowed, rootSwallowed, negated, fromFile] = await Promise.all([
+      runEmbeddedCli(['workflows', 'run', 'wf_1', '--dry', '{"email":"a@b.co"}'], {
+        ...identity,
+        transport,
+      }),
+      runEmbeddedCli(
+        ['workflows', 'run', 'wf_1', '--draft', '--allow', '--input', '{"email":"a@b.co"}'],
+        { ...identity, transport }
+      ),
+      runEmbeddedCli(['workflows', 'run', 'wf_1', '--workspace', '--input', '{"a":1}'], {
+        ...identity,
+        transport,
+      }),
+      runEmbeddedCli(['workflows', 'run', 'wf_1', '--dry', '--include-file-base64', '{"a":1}'], {
+        ...identity,
+        transport,
+      }),
+      runEmbeddedCli(['workflows', 'run', 'wf_1', '@input.json'], { ...identity, transport }),
+    ])
+    expect(positionalInput.exitCode).toBe(1)
+    expect(positionalInput.stderr).toContain(
+      `Example: sim workflows run wf_1 --dry --input '{"email":"a@b.co"}'`
+    )
+    expect(swallowed.exitCode).toBe(1)
+    expect(swallowed.stderr).toContain('--allow took --input as its value; write --allow <block>:')
+    expect(swallowed.stderr).not.toContain('--input \'{"email"')
+    expect(rootSwallowed.stderr).toContain('--workspace took --input as its value')
+    expect(fromFile.stderr).toContain("Example: sim workflows run wf_1 --input '@input.json'")
+    expect(negated.stderr).toContain(
+      `Example: sim workflows run wf_1 --include-file-base64 --dry --input '{"a":1}'`
+    )
+  })
+
+  it('refuses --allow beside --draft with the dry run it meant, and runs --allow alone dry', async () => {
+    const bodies: unknown[] = []
+    const transport = async (_url: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)))
+      return new Response(JSON.stringify({ data: { runId: 'run_1', status: 'completed' } }), {
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    const [draftAllow, draftMock, allowOnly] = await Promise.all([
+      runEmbeddedCli(
+        [
+          '--workspace',
+          'ws_9',
+          'workflows',
+          'run',
+          'wf_1',
+          '--draft',
+          '--allow',
+          'Save Lead',
+          '--input',
+          '{"a":1}',
+        ],
+        { ...identity, transport }
+      ),
+      runEmbeddedCli(['workflows', 'run', 'wf_1', '--draft', '--mock', 'Score={"s":1}'], {
+        ...identity,
+        transport,
+      }),
+      runEmbeddedCli(['workflows', 'run', 'wf_1', '--allow', 'Save Lead'], {
+        ...identity,
+        transport,
+      }),
+    ])
+    expect(draftAllow.exitCode).toBe(1)
+    expect(draftAllow.stderr).toContain('--draft runs every block and sends every write')
+    expect(draftAllow.stderr).toContain(
+      `Next: sim --workspace ws_9 workflows run wf_1 --dry --input '{"a":1}' --allow 'Save Lead'`
+    )
+    expect(draftMock.exitCode).toBe(1)
+    expect(draftMock.stderr).toContain(`Next: sim workflows run wf_1 --dry --mock 'Score={"s":1}'`)
+    expect(allowOnly.exitCode, allowOnly.stderr).toBe(0)
+    expect(bodies).toEqual([
+      expect.objectContaining({ run: { source: 'draft', dry: true, allow: ['Save Lead'] } }),
+    ])
+  })
+
+  it('names the shape a JSON flag takes, beside the --yes it also lacks', async () => {
+    const transport = async () => {
+      throw new Error('a shape error must not reach the API')
+    }
+    const [wrapped, unconfirmed, confirmed] = await Promise.all([
+      runEmbeddedCli(
+        [
+          'workflows',
+          'operations',
+          'apply',
+          'wf_1',
+          '--operations',
+          '{"operations":[{"operation_type":"delete","block_id":"b1"}]}',
+        ],
+        { ...identity, transport }
+      ),
+      runEmbeddedCli(['workflows', 'operations', 'apply', 'wf_1', '--operations', '[]'], {
+        ...identity,
+        transport,
+      }),
+      runEmbeddedCli(
+        [
+          'workflows',
+          'operations',
+          'apply',
+          'wf_1',
+          '--yes',
+          '--operations',
+          '{"operation_type":"delete","block_id":"b1"}',
+        ],
+        { ...identity, transport }
+      ),
+    ])
+    expect(wrapped.exitCode).toBe(1)
+    expect(wrapped.stderr).toContain(
+      `--operations must be a JSON array, e.g. --operations '[{"operation_type":"edit"`
+    )
+    expect(wrapped.stderr).toContain('Pass the array under its "operations" key itself')
+    expect(wrapped.stderr).toContain('Also pass --yes: This edits the draft graph')
+    expect(unconfirmed.stderr).toContain('Re-run with --yes to confirm.')
+    expect(confirmed.exitCode).toBe(1)
+    expect(confirmed.stderr).toContain('--operations must be a JSON array')
+    expect(confirmed.stderr).not.toContain('Pass the array under')
+  })
+
+  it('names the wrapping object the server refused under a JSON flag', async () => {
+    const result = await runEmbeddedCli(
+      [
+        'tables',
+        'columns',
+        'update',
+        'tbl_1',
+        '--column-name',
+        'phone',
+        '--updates',
+        '{"updates":{"name":"mobile"}}',
+      ],
+      {
+        ...identity,
+        transport: async () =>
+          new Response(
+            JSON.stringify({
+              error: {
+                code: 'BAD_REQUEST',
+                message: 'body.updates: Unrecognized key: "updates"',
+                details: [
+                  {
+                    code: 'unrecognized_keys',
+                    keys: ['updates'],
+                    path: ['updates'],
+                    message: 'Unrecognized key: "updates"',
+                  },
+                ],
+              },
+            }),
+            { status: 400, headers: { 'content-type': 'application/json' } }
+          ),
+      }
+    )
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain(
+      '--updates takes the object itself: pass the value under its "updates" key'
+    )
+  })
+
   it('names the shape a body variant received and the flag that takes it', async () => {
     const transport = async () => {
       throw new Error('a shape error must not reach the API')
@@ -195,6 +363,7 @@ describe('embedded CLI output ownership', () => {
     expect(wrapped.exitCode).toBe(1)
     expect(wrapped.stderr).toContain(`e.g. --rows '[{"key":"value"}]'; got a JSON object`)
     expect(wrapped.stderr).toContain('Pass the array under its "rows" key itself')
+    expect(wrapped.stderr).not.toContain('For that shape')
     expect(oneRow.stderr).toContain('For that shape use --data.')
     expect(rowList.stderr).toContain('--data must be a JSON object')
     expect(rowList.stderr).toContain('For that shape use --rows.')

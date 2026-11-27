@@ -9,38 +9,99 @@ import { embeddedFileContent } from '../transfer/local-file'
 import { camel, kebab } from './derive'
 import type { OperationSpec } from './types'
 
-const BODY_VARIANT_EXAMPLES: Readonly<Record<BodyVariantSpec['kind'], string>> = {
+type JsonShape = 'object' | 'array'
+
+const JSON_SHAPE_EXAMPLES: Readonly<Record<JsonShape, string>> = {
   array: `'[{"key":"value"}]'`,
   object: `'{"key":"value"}'`,
 }
 
-function jsonShape(value: unknown): BodyVariantSpec['kind'] | undefined {
+function jsonShape(value: unknown): JsonShape | undefined {
   if (Array.isArray(value)) return 'array'
   if (isRecordLike(value)) return 'object'
   return undefined
 }
 
 /**
- * The refusal for a body variant given the wrong JSON shape, stating what came
- * in and the spelling that takes it. Neither `--rows '{"rows":[...]}'` nor a
- * single-row `--rows` is reshaped, because guessing which part the caller
+ * The refusal for a JSON flag given the wrong shape, stating what came in and a value of the
+ * right one. An object wrapping the value under the field's own name (`--operations
+ * '{"operations":[…]}'`) is named as such, but never unwrapped: guessing which part the caller
  * meant is the server's write to make.
+ */
+function wrongJsonShape(
+  flag: string,
+  kind: JsonShape,
+  property: string,
+  parsed: unknown,
+  example = JSON_SHAPE_EXAMPLES[kind]
+): string {
+  const shape = jsonShape(parsed)
+  const got = shape ? `a JSON ${shape}` : parsed === null ? 'null' : `a JSON ${typeof parsed}`
+  const base = `${flag} must be a JSON ${kind}, e.g. ${flag} ${example}; got ${got}.`
+  return isRecordLike(parsed) && jsonShape(parsed[property]) === kind
+    ? `${base} Pass the ${kind} under its "${property}" key itself, not the object wrapping it.`
+    : base
+}
+
+/**
+ * The refusal for a body variant given the wrong JSON shape, naming the variant that takes the
+ * shape that came in. Neither `--rows '{"rows":[...]}'` nor a single-row `--rows` is reshaped.
  */
 function bodyVariantShapeError(
   variant: BodyVariantSpec,
   parsed: unknown,
-  shape: BodyVariantSpec['kind'] | undefined,
   variants: readonly BodyVariantSpec[]
 ): string {
-  const flag = `--${variant.name}`
-  const got = shape ? `a JSON ${shape}` : parsed === null ? 'null' : `a JSON ${typeof parsed}`
-  const base = `${flag} must be a JSON ${variant.kind}, e.g. ${flag} ${BODY_VARIANT_EXAMPLES[variant.kind]}; got ${got}.`
-  if (variant.kind === 'array' && isRecordLike(parsed) && Array.isArray(parsed[variant.property])) {
-    return `${base} Pass the array under its "${variant.property}" key itself, not the object wrapping it.`
-  }
+  const base = wrongJsonShape(`--${variant.name}`, variant.kind, variant.property, parsed)
+  if (isRecordLike(parsed) && jsonShape(parsed[variant.property]) === variant.kind) return base
+  const shape = jsonShape(parsed)
   const other =
     shape && variants.find((candidate) => candidate !== variant && candidate.kind === shape)
   return other ? `${base} For that shape use --${other.name}.` : base
+}
+
+/**
+ * The refusal for an array field given an object, or an object field given an array, with the
+ * shape it takes, so the server's `expected array, received object` does not cost a round trip
+ * without saying what to send. Null for any other value, which is the server's to judge.
+ */
+function shapeRefusal(
+  field: FieldSpec,
+  flag: FlagSpec,
+  flagName: string,
+  property: string,
+  value: unknown
+): string | null {
+  if ((field.kind !== 'array' && field.kind !== 'object') || flag.list) return null
+  const shape = jsonShape(value)
+  if (shape === undefined || shape === field.kind) return null
+  return wrongJsonShape(`--${flagName}`, field.kind, property, value, flag.example)
+}
+
+/**
+ * The shape refusal of the first body field typed inline as JSON (`--operations '{…}'`, not
+ * `@file` or `@-`, which are read only once the command is confirmed), so a refusal for a missing
+ * `--yes` names the shape mistake beside it and one retry fixes both.
+ */
+export function inlineShapeRefusal(
+  operation: V2OperationName,
+  flags: Record<string, unknown>
+): string | null {
+  const { body } = V2_OPERATIONS[operation] as OperationSpec
+  for (const [field, descriptor] of Object.entries(body ?? {})) {
+    const flagName = flagNameFor(operation, field)
+    const raw = flags[camel(flagName)]
+    if (typeof raw !== 'string' || raw.startsWith('@')) continue
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      continue
+    }
+    const refusal = shapeRefusal(descriptor, flagSpecFor(operation, field), flagName, field, parsed)
+    if (refusal) return refusal
+  }
+  return null
 }
 
 /** One request field, as the generator describes it. */
@@ -813,6 +874,9 @@ export async function buildRequest(
 
       const value = await coerce(raw ?? undefined, descriptor, flag, flagName)
 
+      const misshapen = shapeRefusal(descriptor, flag, flagName, field, value)
+      if (misshapen) throw new SimApiError(misshapen, 0)
+
       /**
        * A non-paginated `limit` is a row cap the route bounds at `1`, which is
        * what `--help` already tells the caller ("note 0 is not accepted") — so
@@ -874,12 +938,8 @@ export async function buildRequest(
       const raw = flags[camel(variant.name)]
       if (typeof raw !== 'string') throw new SimApiError(`--${variant.name} is required`, 0)
       const parsed = await coerce(raw, { kind: variant.kind }, { json: true }, variant.name)
-      const shape = jsonShape(parsed)
-      if (shape !== variant.kind) {
-        throw new SimApiError(
-          bodyVariantShapeError(variant, parsed, shape, commandSpec.bodyVariants),
-          0
-        )
+      if (jsonShape(parsed) !== variant.kind) {
+        throw new SimApiError(bodyVariantShapeError(variant, parsed, commandSpec.bodyVariants), 0)
       }
       return boundedRequest({
         params,

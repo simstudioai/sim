@@ -1,3 +1,4 @@
+import { isRecordLike, toArray } from '@sim/utils/object'
 import type { CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
@@ -153,6 +154,23 @@ function retypeDetails(details: unknown, spellings: Map<string, string>): unknow
 }
 
 /**
+ * What to send instead when the server refused a JSON flag's object for a key named like the flag's
+ * own field (`--updates '{"updates":{…}}'`): the value under that key, not the object wrapping it.
+ * The CLI cannot tell this apart from a real key before sending, since an object field may hold
+ * any key; the server's `unrecognized_keys` says which it was.
+ */
+function wrappedObjectHint(details: unknown, spellings: Map<string, string>): string | null {
+  for (const issue of Array.isArray(details) ? details : []) {
+    if (!isRecordLike(issue) || issue.code !== 'unrecognized_keys') continue
+    const [field, ...rest] = Array.isArray(issue.path) ? issue.path.map(String) : []
+    const flag = field === undefined ? undefined : spellings.get(field)
+    if (rest.length > 0 || !flag?.startsWith('--') || !toArray(issue.keys).includes(field)) continue
+    return `${flag} takes the object itself: pass the value under its "${field}" key, not the object wrapping it.`
+  }
+  return null
+}
+
+/**
  * Restates a server validation error in the spellings the terminal accepts.
  *
  * The API names its own fields, correctly — `drop includeJobRuns` is right for
@@ -175,8 +193,10 @@ export function retypeApiError(
   const spellings = typeableFields(operation, commandSpec, operationSpec)
   if (spellings.size === 0) return error
 
+  const hint = wrappedObjectHint(error.details, spellings)
+  const message = retypeLocatedMessage(error.message, spellings)
   return new SimApiError(
-    retypeLocatedMessage(error.message, spellings),
+    hint ? `${message} ${hint}` : message,
     error.status,
     error.code,
     error.details === undefined ? undefined : retypeDetails(error.details, spellings),

@@ -760,7 +760,11 @@ export const CLI_CONTRACT: CliContract = {
     confirm:
       'This edits the draft graph: the batch adds, edits, or deletes blocks and their edges as written.',
     flags: {
-      operations: { json: true, describe: WORKFLOW_OPERATIONS_HELP },
+      operations: {
+        json: true,
+        describe: WORKFLOW_OPERATIONS_HELP,
+        example: `'[{"operation_type":"edit","block_id":"<id>","params":{"name":"New name"}}]'`,
+      },
       setBlockEnabled: { json: true, describe: WORKFLOW_SET_BLOCK_ENABLED_HELP },
     },
   },
