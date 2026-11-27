@@ -2314,8 +2314,29 @@ describe('workspaces source apply', () => {
       })
 
       await expect(apply('--yes', '--run', 'ingest={}')).rejects.toThrow(
-        /workflows\/ingest\/workflow\.ts changed in .* while they ran, so deployments\/ was not applied/
+        /workflows\/ingest\/workflow\.ts changed in .* since the apply read it, so deployments\/ was not applied/
       )
+      expect(applies()).toHaveLength(1)
+    })
+
+    it('applies no deployments when a workflow file changed between the first write and the runs', async () => {
+      serveApplies()
+      // The first write's plan prints after its save and before the read ahead of the runs: the
+      // edit lands in that window.
+      let edited = false
+      vi.mocked(console.error).mockImplementation((line: unknown) => {
+        if (edited || !String(line).startsWith('workflows:')) return
+        edited = true
+        write('workflows/ingest/workflow.ts', `${INGEST}// edited after the save\n`)
+      })
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: {} })
+      )
+
+      await expect(apply('--yes', '--run', 'ingest={}')).rejects.toThrow(
+        /workflows\/ingest\/workflow\.ts changed in .* since the apply read it/
+      )
+      expect(edited).toBe(true)
       expect(applies()).toHaveLength(1)
     })
 

@@ -1069,7 +1069,17 @@ export function attachWorkspaceSourceApply(source: Command): void {
           }
           if (!before) return finish(data)
           const deployed = await afterWrite(async () => {
-            assertUnchangedSinceRuns(options.dir, before.read, (await readDeploymentWrite()).read)
+            const after = (await readDeploymentWrite()).read
+            const tested = before.read.files
+            assertUnchangedSinceRuns(options.dir, [
+              // The read ahead of the runs against what the first write saved (else read); its
+              // pruned workflow folders were never sent whole, so only its own paths count.
+              ...changedPaths({ ...submission.files, ...data.files }, tested, Object.keys(tested)),
+              ...changedPaths(tested, after.files, [
+                ...Object.keys(tested),
+                ...Object.keys(after.files),
+              ]),
+            ])
             return runSourceWrite<ApplyData>({
               ...writeFlow(before.read, before.saved),
               mode: 'write',
@@ -1173,23 +1183,24 @@ async function readRunInputs(runs: readonly RunRequest[]): Promise<RunRequest[]>
   )
 }
 
+/** The `paths` whose text in `actual` is not the text in `expected`. */
+function changedPaths(
+  expected: Readonly<Record<string, string>>,
+  actual: Readonly<Record<string, string>>,
+  paths: readonly string[]
+): string[] {
+  return paths.filter((path) => expected[path] !== actual[path])
+}
+
 /**
- * Refuses the deployments write of a `--run` apply when its workflow or deployment files changed
- * while the runs ran (`before` was read ahead of them, `after` once they completed): deploying
- * then would publish a draft, or settings, no run tested.
+ * Refuses the deployments write of a `--run` apply when a workflow or deployment file it sends
+ * `changed` since the apply read it: deploying then would publish a draft, or settings, no run
+ * tested.
  */
-function assertUnchangedSinceRuns(
-  dir: string,
-  before: WorkspaceSubmission,
-  after: WorkspaceSubmission
-): void {
-  const paths = new Set([...Object.keys(before.files), ...Object.keys(after.files)])
-  const changed = [...paths]
-    .filter((path) => before.files[path] !== after.files[path])
-    .sort(compareStrings)
+function assertUnchangedSinceRuns(dir: string, changed: readonly string[]): void {
   if (changed.length === 0) return
   throw new SourceDirError(
-    `The apply was written and every test run completed, but ${changed.join(', ')} changed in ${dir} while they ran, so ${KIND_DIRS.deployment}/ was not applied: apply again to test and deploy what is there now.`
+    `The apply was written and every test run completed, but ${[...new Set(changed)].sort(compareStrings).join(', ')} changed in ${dir} since the apply read it, so ${KIND_DIRS.deployment}/ was not applied: apply again to test and deploy what is there now.`
   )
 }
 
