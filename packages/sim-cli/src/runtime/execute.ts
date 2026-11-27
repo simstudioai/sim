@@ -1,7 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import type { Command } from 'commander'
-import { writeStderr } from '#sim-cli/output/io'
-import { styles } from '#sim-cli/output/presentation'
 import {
   assertWorkspaceOperationOutcome,
   readWorkspaceOperation,
@@ -215,16 +214,13 @@ function lengthOf(value: unknown): number {
 }
 
 /**
- * One line of context a successful result deserves, on stderr, in every format.
+ * One line of context a successful result deserves, placed by {@link renderResult}.
  *
  * `workflows chat publish` defaults `authType` to `public`, so a caller who
  * never typed `--auth-type` has just put a chat on the open internet, and the
  * result — `authType: public` among a dozen other fields of the record — does
- * not make that leap out. The note is printed whether the default or an
+ * not make that leap out. The note is given whether the default or an
  * explicit `--auth-type public` chose it: the exposure is the same either way.
- * stderr, so `sim workflows chat publish … --output json | jq` still reads
- * exactly the record; every format gets it because a JSON consumer is the one
- * least likely to look at the record.
  *
  * Judged on the response first and the request second: the server states what
  * it stored, and a body that omitted the field landed on the server's default.
@@ -233,15 +229,15 @@ const RESULT_NOTES: Readonly<
   Partial<
     Record<
       V2OperationName,
-      (payload: Record<string, unknown>, request: BuiltRequest) => string | null
+      (payload: Record<string, unknown>, request: BuiltRequest) => string | undefined
     >
   >
 > = {
   replaceWorkflowChatDeployment: (payload, { body }) => {
     const authType = payload.authType ?? body?.authType ?? 'public'
     return authType === 'public'
-      ? 'note: auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
-      : null
+      ? 'auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
+      : undefined
   },
   /**
    * `blocks get table` answers with `table_v2`, the type an add takes, and an add of the base
@@ -251,25 +247,18 @@ const RESULT_NOTES: Readonly<
   getBlock: (payload, { params }) => {
     const requested = params.blockId
     return typeof payload.id === 'string' && requested !== undefined && payload.id !== requested
-      ? `note: "${requested}" reads as "${payload.id}", its current version; add it as {"type":"${payload.id}"}.`
-      : null
+      ? `"${requested}" reads as "${payload.id}", its current version; add it as {"type":"${payload.id}"}.`
+      : undefined
   },
 }
 
-/** Writes the operation's result note to stderr, when it has one and the result calls for it. */
-function writeResultNote(
+/** The operation's result note, when it has one and the result calls for it. */
+function resultNote(
   operation: V2OperationName,
   payload: unknown,
   request: BuiltRequest
-): void {
-  const note = RESULT_NOTES[operation]
-  if (!note) return
-  const record =
-    payload && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : {}
-  const message = note(record, request)
-  if (message) writeStderr(styles().dim(`${message}\n`))
+): string | undefined {
+  return RESULT_NOTES[operation]?.(toRecord(payload), request)
 }
 
 /** The one-line explanation of a bulk call that changed nothing, or `null`. */
@@ -679,12 +668,14 @@ export async function executeOperation(
     profile.output,
     payload,
     commandSpec,
-    { expandedTrace: requestFlags.trace === true },
+    {
+      expandedTrace: requestFlags.trace === true,
+      note: resultNote(operation, payload, request),
+    },
     // The envelope, not just the payload: a list that does not paginate states
     // its own truncation there, and unwrapping `data` discarded it.
     result
   )
-  writeResultNote(operation, payload, request)
 
   // Printed first, then failed, for the reason `followRun` gives: the envelope
   // carries the block outputs that explain *why* the run failed, and exiting

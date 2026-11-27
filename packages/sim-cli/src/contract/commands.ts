@@ -128,7 +128,7 @@ Run logs:
 const BLOCK_DETAIL_GUIDE = `
 Reading it for \`sim workflows operations apply\`:
   id                    the type to add: \`blocks get table\` answers table_v2 (an add of legacy
-                        table is refused)
+                        table is refused); \`note\` says so when it is not the type asked for
   inputSchema           the field ids inputs takes; operationInputSchema, an operation's own
   inputDefinitions      the block's inputs by name; one a pair of fields shares (tableId for
                         tableSelector and manualTableId) is accepted in place of the pair

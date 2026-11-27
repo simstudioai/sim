@@ -30,6 +30,8 @@ const RUN_COMMAND_FIELDS: ReadonlySet<string> = new Set(['next', 'next note'])
 
 interface RenderResultOptions {
   expandedTrace?: boolean
+  /** One line of context the CLI adds to a successful result (see {@link renderResult}). */
+  note?: string
 }
 
 function countTraceSpans(value: unknown): number {
@@ -448,6 +450,11 @@ function writeEnvelopeTruncation(envelope: unknown): void {
   }
 }
 
+/** Whether `format` prints one parseable document rather than lines for a person. */
+function isMachineFormat(format: OutputFormat): boolean {
+  return format === 'json' || format === 'yaml'
+}
+
 /** A result whose `next` a person reads: its command, then why ({@link nextStepText}). */
 function withNextText(data: unknown): unknown {
   if (!isRecordLike(data)) return data
@@ -455,7 +462,13 @@ function withNextText(data: unknown): unknown {
   return step === null ? data : { ...data, next: step }
 }
 
-/** Renders one non-paginated operation result according to its CLI contract. */
+/**
+ * Renders one non-paginated operation result according to its CLI contract.
+ *
+ * `options.note` joins a machine-format result as `note`, so `--output json 2>&1` stays one
+ * document; a display format, a document, a non-record payload, or one with its own `note` gets
+ * it on stderr after the record.
+ */
 export function renderResult(
   operation: V2OperationName,
   format: OutputFormat,
@@ -467,7 +480,26 @@ export function renderResult(
   // Before any branch: the flag lives on the envelope `execute` unwraps one
   // line before rendering, and states a fact about the payload below it.
   writeEnvelopeTruncation(envelope)
+  const { note } = options
+  const noted =
+    note !== undefined &&
+    isMachineFormat(format) &&
+    !spec.document &&
+    isRecordLike(raw) &&
+    !('note' in raw)
+      ? { ...raw, note }
+      : null
+  printResult(operation, format, noted ?? raw, spec, options)
+  if (note !== undefined && !noted) writeStderr(styles().dim(`note: ${note}\n`))
+}
 
+function printResult(
+  operation: V2OperationName,
+  format: OutputFormat,
+  raw: unknown,
+  spec: CommandSpec,
+  options: RenderResultOptions
+): void {
   if (spec.document) {
     printDocument(format, raw)
     return
@@ -477,8 +509,8 @@ export function renderResult(
   // printed nothing. Machine formats print the API's data as the OpenAPI shape the docs and the
   // agent reference card are generated from, except a lint report's graph facts, plus the fields
   // the CLI adds for a run or deploy: `live`, and `next` with `{ command, reason }` (a person
-  // reads it as the command, then why).
-  const machine = format === 'json' || format === 'yaml'
+  // reads it as the command, then why), and a result's `note` ({@link renderResult}).
+  const machine = isMachineFormat(format)
   const added = withRunNext(
     operation,
     withDeploymentLive(operation, withLintFindingsOnly(machine ? raw : unwrapResource(raw)))
