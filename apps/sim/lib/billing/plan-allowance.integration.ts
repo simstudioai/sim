@@ -11,7 +11,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
-import { isSwitchBasisCurrent, recordPlanSwitch } from '@/lib/billing/core/plan-switch'
+import { readSwitchBasis, recordPlanSwitch } from '@/lib/billing/core/plan-switch'
 import { getOrgUsageLimit, syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { closeElapsedBillingPeriod } from '@/lib/billing/cycle-close'
 import { syncAnnualPlanUsageLimits } from '@/lib/billing/organization'
@@ -491,11 +491,11 @@ describe('recordPlanSwitch', () => {
   })
 })
 
-describe('isSwitchBasisCurrent', () => {
+describe('readSwitchBasis', () => {
   it('refuses a switch computed from a plan another switch has since moved', async () => {
     const userId = await createUser(PRO_MONTHLY_DOLLARS)
     const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
-    expect(await isSwitchBasisCurrent(sub)).toBe(true)
+    expect(await readSwitchBasis(sub, { type: 'user', id: userId })).not.toBeNull()
 
     // A concurrent request switched to Max after this one read the subscription.
     await recordPlanSwitch({
@@ -505,7 +505,7 @@ describe('isSwitchBasisCurrent', () => {
       orgScoped: false,
     })
 
-    expect(await isSwitchBasisCurrent(sub)).toBe(false)
+    expect(await readSwitchBasis(sub, { type: 'user', id: userId })).toBeNull()
   })
 
   it('refuses a switch computed from an interval another switch has since moved', async () => {
@@ -519,6 +519,90 @@ describe('isSwitchBasisCurrent', () => {
       orgScoped: false,
     })
 
-    expect(await isSwitchBasisCurrent(sub)).toBe(false)
+    expect(await readSwitchBasis(sub, { type: 'user', id: userId })).toBeNull()
+  })
+
+  it('reads the old allowance from the plan the request switched from on a retry', async () => {
+    // Untouched Max limit; a retry finds Stripe on Pro and the webhook already recorded Pro.
+    const userId = await createUser(MAX_MONTHLY_DOLLARS)
+    const sub = await addSubscription(userId, { plan: 'pro_25000', billingInterval: 'month' })
+    await db.update(subscription).set({ plan: 'pro_6000' }).where(eq(subscription.id, sub.id))
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'month',
+      orgScoped: false,
+    })
+
+    expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS)
+  })
+
+  it('computes a Team switch from seats a sync added after the request read the plan', async () => {
+    const organizationId = await createOrganization()
+    const sub = await addSubscription(organizationId, {
+      plan: 'team_6000',
+      billingInterval: 'month',
+      seats: 5,
+    })
+    // After the request read five seats, a seat sync added a sixth and raised the limit with it,
+    // keeping $50 of headroom the admin chose.
+    await db.update(subscription).set({ seats: 6 }).where(eq(subscription.id, sub.id))
+    await db
+      .update(organization)
+      .set({ orgUsageLimit: String(PRO_MONTHLY_DOLLARS * 6 + 50) })
+      .where(eq(organization.id, organizationId))
+
+    const basis = await readSwitchBasis(sub, { type: 'organization', id: organizationId })
+    if (!basis) throw new Error('expected the switch basis to still match')
+    await recordPlanSwitch({
+      subscription: basis.subscription,
+      targetPlanName: 'team_25000',
+      targetInterval: 'month',
+      orgScoped: true,
+      previous: basis.pool,
+    })
+
+    const [org] = await db
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+    expect(Number(org?.orgUsageLimit)).toBe(MAX_MONTHLY_DOLLARS * 6 + 50)
+  })
+
+  it('prices a Team switch for a seat a sync added while Stripe applied it', async () => {
+    const organizationId = await createOrganization()
+    await db
+      .update(organization)
+      .set({ orgUsageLimit: String(PRO_MONTHLY_DOLLARS * 5 + 50) })
+      .where(eq(organization.id, organizationId))
+    const sub = await addSubscription(organizationId, {
+      plan: 'team_6000',
+      billingInterval: 'month',
+      seats: 5,
+    })
+    const basis = await readSwitchBasis(sub, { type: 'organization', id: organizationId })
+    if (!basis) throw new Error('expected the switch basis to match')
+
+    // Between that read and recording the switch, a seat sync added a sixth seat.
+    await db.update(subscription).set({ seats: 6 }).where(eq(subscription.id, sub.id))
+    await db
+      .update(organization)
+      .set({ orgUsageLimit: String(PRO_MONTHLY_DOLLARS * 6 + 50) })
+      .where(eq(organization.id, organizationId))
+
+    await recordPlanSwitch({
+      subscription: basis.subscription,
+      targetPlanName: 'team_25000',
+      targetInterval: 'month',
+      orgScoped: true,
+      previous: basis.pool,
+    })
+
+    const [org] = await db
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+    expect(Number(org?.orgUsageLimit)).toBe(MAX_MONTHLY_DOLLARS * 6 + 50)
   })
 })

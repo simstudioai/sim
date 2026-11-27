@@ -68,6 +68,38 @@ export async function getBillingEntityBlockStatus(
 }
 
 /**
+ * Whether any account a payer's unblock clears is still marked blocked for `reason`: the user's
+ * own row, or any member's row of an organization. Unlike {@link getBillingEntityBlockStatus},
+ * which reads an organization through its owner, this sees members a fan-out blocked while the
+ * owner's row was cleared some other way (by another organization's recovery, or an ownership
+ * transfer to an unmarked member).
+ */
+export async function hasBillingBlockFor(
+  payer: { type: 'user' | 'organization'; id: string },
+  reason: NonNullable<BillingEntityBlockStatus['billingBlockedReason']>,
+  executor: DbOrTx = db
+): Promise<boolean> {
+  const blockedFor = and(
+    eq(userStats.billingBlocked, true),
+    eq(userStats.billingBlockedReason, reason)
+  )
+  const [row] =
+    payer.type === 'user'
+      ? await executor
+          .select({ userId: userStats.userId })
+          .from(userStats)
+          .where(and(eq(userStats.userId, payer.id), blockedFor))
+          .limit(1)
+      : await executor
+          .select({ userId: userStats.userId })
+          .from(member)
+          .innerJoin(userStats, eq(userStats.userId, member.userId))
+          .where(and(eq(member.organizationId, payer.id), blockedFor))
+          .limit(1)
+  return row !== undefined
+}
+
+/**
  * Gets the effective billing blocked status for a user.
  * If the user belongs to an organization, also checks whether the org owner is blocked.
  */

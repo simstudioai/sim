@@ -18,11 +18,7 @@ import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import {
-  isSwitchBasisCurrent,
-  readPoolUsageSnapshot,
-  recordPlanSwitch,
-} from '@/lib/billing/core/plan-switch'
+import { readSwitchBasis, recordPlanSwitch } from '@/lib/billing/core/plan-switch'
 import { getPlanTierCredits, getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -142,7 +138,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 409 }
       )
     }
-    if (!(await isSwitchBasisCurrent(sub))) {
+    const orgScoped = await isSubscriptionOrgScoped(sub)
+    const basis = await readSwitchBasis(sub, {
+      type: orgScoped ? 'organization' : 'user',
+      id: sub.referenceId,
+    })
+    if (!basis) {
       return NextResponse.json(
         { error: 'Your plan just changed. Refresh the page and try again.' },
         { status: 409 }
@@ -207,15 +208,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       targetPriceId,
     })
 
-    const orgScoped = await isSubscriptionOrgScoped(sub)
-    // Read before Stripe applies the switch, since its webhook can move the live limit first. A
-    // retry finds Stripe already switched, so it has no pre-switch reading to take.
-    const previous = alreadyOnStripePrice
-      ? undefined
-      : await readPoolUsageSnapshot({
-          type: orgScoped ? 'organization' : 'user',
-          id: sub.referenceId,
-        })
+    // The pool was read before the Stripe update, since its webhook can move the live limit first.
+    // A retry finds Stripe already switched, so that read is not from before the switch.
+    const previous = alreadyOnStripePrice ? undefined : basis.pool
     // The item's period after the switch: Stripe's response, or the retrieved item on a retry
     // that finds Stripe already on the target price.
     let switchedItem: typeof subscriptionItem | undefined = subscriptionItem
@@ -242,7 +237,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       : undefined
 
     await recordPlanSwitch({
-      subscription: sub,
+      subscription: basis.subscription,
       targetPlanName,
       targetInterval: targetInterval as 'month' | 'year',
       orgScoped,

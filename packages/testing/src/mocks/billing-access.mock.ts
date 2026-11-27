@@ -18,6 +18,7 @@ export const billingAccessMockFns = {
   mockGetBillingEntityBlockStatus: vi.fn(),
   mockGetEffectiveBillingStatus: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
+  mockHasBillingBlockFor: vi.fn(),
 }
 
 /**
@@ -32,4 +33,5 @@ export const billingAccessMock = {
   getBillingEntityBlockStatus: billingAccessMockFns.mockGetBillingEntityBlockStatus,
   getEffectiveBillingStatus: billingAccessMockFns.mockGetEffectiveBillingStatus,
   isOrganizationBillingBlocked: billingAccessMockFns.mockIsOrganizationBillingBlocked,
+  hasBillingBlockFor: billingAccessMockFns.mockHasBillingBlockFor,
 }

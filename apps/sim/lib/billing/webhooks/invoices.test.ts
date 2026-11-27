@@ -145,10 +145,7 @@ describe('invoice billing recovery', () => {
     urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
     mockBlockOrgMembers.mockResolvedValue(2)
     mockUnblockOrgMembers.mockResolvedValue(2)
-    billingAccessMockFns.mockGetBillingEntityBlockStatus.mockResolvedValue({
-      billingBlocked: true,
-      billingBlockedReason: 'payment_failed',
-    })
+    billingAccessMockFns.mockHasBillingBlockFor.mockResolvedValue(true)
   })
 
   it('blocks org members when a metadata-backed invoice payment fails', async () => {

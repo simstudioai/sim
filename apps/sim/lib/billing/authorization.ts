@@ -85,7 +85,7 @@ async function assertNoPersonalTrial(userId: string): Promise<void> {
   logger.warn('Blocking team upgrade - personal plan is in its free trial', { userId })
   throw new APIError('CONFLICT', {
     message:
-      'Your Pro free trial has to end before you can move to a Team plan. End the trial now from Settings > Billing, then upgrade.',
+      'Your Pro free trial has to end before you can move to a Team plan. End it from Settings > Billing (restore it first if you canceled it), or wait for it to end, then upgrade.',
   })
 }
 
