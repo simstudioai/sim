@@ -63,7 +63,7 @@ faq:
 
 ## TL;DR
 
-AI agent orchestration coordinates multiple specialized agents, tools, and deterministic workflow steps so that each part of a task runs in the right order with the right context. Multi agent orchestration adds explicit control over routing, parallel work, handoffs, shared state, failure handling, and human review instead of asking one agent to complete every step.
+AI agent orchestration coordinates one or more agents, tools, and deterministic workflow steps so that each part of a task runs in the right order with the right context. Multi agent orchestration adds explicit control over routing, parallel work, handoffs, shared state, failure handling, and human review instead of asking one agent to complete every step.
 
 This guide explains the core architecture patterns, the difference between single-agent and multi-agent systems, the capabilities an orchestration layer needs, and the criteria teams can use to choose an implementation.
 
@@ -113,7 +113,7 @@ Multi-agent orchestration is useful when specialization, isolation, parallelism,
 
 ## what does multi-agent orchestration actually mean
 
-AI agent orchestration means coordinating specialized agents and workflow logic as one controlled system rather than relying on one agent to plan and execute an entire task.
+Multi agent orchestration means coordinating multiple specialized agents and workflow logic as one controlled system rather than relying on one agent to plan and execute an entire task.
 
 The orchestrator decides which agent acts, what context it receives, when tasks run, and where the output goes next. Teams evaluating multi-agent designs should also define how agents exchange structured state, a topic covered in [AI Agent Communication: Can AI Agents Talk to Each Other?](https://www.sim.ai/library/can-ai-agents-talk-to-each-other-multi-agent-communication-explained).
 
