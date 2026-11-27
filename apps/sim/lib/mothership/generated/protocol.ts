@@ -148,6 +148,7 @@ export const ENTITLEMENTS = {
   tests: "tests",
   changelog: "changelog",
   workflowCode: "workflow-code",
+  people: "people",
 } as const;
 export type Entitlement = (typeof ENTITLEMENTS)[keyof typeof ENTITLEMENTS];
 export const Entitlements = z.array(z.string().min(1).max(64)).max(32);

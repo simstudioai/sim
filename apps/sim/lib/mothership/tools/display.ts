@@ -601,6 +601,7 @@ const TOOL_TITLES: Record<string, string> = {
   search_workspace: 'Searching documents',
   list_workspaces: 'Listing workspaces',
   read_document: 'Reading document',
+  search_people: 'Looking up people',
   open_resource: 'Opening resource',
 
   ffmpeg: 'Processing media',

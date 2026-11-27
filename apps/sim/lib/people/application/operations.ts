@@ -1,10 +1,16 @@
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 
 const session = { principalKinds: ['session'] } as const
-/** The People page, and Search MCP clients finding a person, under the scope that admits Search. */
+/**
+ * The People page, Search MCP clients finding a person under the scope that admits Search, and
+ * the organization Assistant under its Search delegation, bound to the member's private chat.
+ */
 const directoryReaders = {
-  principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
   oauthScope: 'search:read',
+  delegationAudience: 'sim:knowledge',
+  delegatedServices: ['copilot'],
+  contentDelivery: 'none',
 } as const
 
 /**

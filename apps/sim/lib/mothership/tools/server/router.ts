@@ -25,6 +25,7 @@ import { editContentServerTool } from '@/lib/mothership/tools/server/files/edit-
 import { workspaceFileServerTool } from '@/lib/mothership/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/mothership/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/mothership/tools/server/image/generate-image'
+import { searchPeopleServerTool } from '@/lib/mothership/tools/server/knowledge/people'
 import {
   readDocumentServerTool,
   searchWorkspaceServerTool,
@@ -79,6 +80,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [settingsServerTool.name]: settingsServerTool,
   [openResourceServerTool.name]: openResourceServerTool,
   [readDocumentServerTool.name]: readDocumentServerTool,
+  [searchPeopleServerTool.name]: searchPeopleServerTool,
   // The streamed file-writing pair: prepare opens the write (live preview),
   // apply continues it. The preview machinery keys off these exact names.
   [workspaceFileServerTool.name]: withFileTabFlag(workspaceFileServerTool),

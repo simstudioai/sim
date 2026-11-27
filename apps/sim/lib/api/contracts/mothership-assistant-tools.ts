@@ -235,6 +235,15 @@ export const searchWorkspaceInputFieldsSchema = workspaceSearchFiltersSchema.ext
     .describe(
       'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported, or use an explicit native browse mode. Notion date-only search depends on plan capabilities.'
     ),
+  involving: z
+    .string()
+    .trim()
+    .min(1)
+    .max(254)
+    .optional()
+    .describe(
+      'Only items this person acted on: "me" (you) or a colleague\'s email address, never a name. Each source applies its own meaning (sent, authored, owns, assigned, attended; your own mail means mail you sent) and skips sources that cannot filter by person. Use it for what someone did or is assigned, not for your exchanges with others, which it would cut to one side; with an empty query and a date range it lists that person\'s activity.'
+    ),
   topK: z
     .number()
     .int()
@@ -323,6 +332,42 @@ export const readDocumentInputSchema = z.object({
     ),
 })
 
+/**
+ * Organization directory lookups. The bounds mirror the People page's search limits
+ * (`lib/people/validation`) as literals, so the worker's generated copy stays standalone.
+ */
+export const searchPeopleInputSchema = z
+  .object({
+    query: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe(
+        'Up to 8 words from a name, email, title, department, or location; a person matches when every word appears in one of them.'
+      ),
+    personId: z
+      .string()
+      .min(1)
+      .max(255)
+      .optional()
+      .describe(
+        'A personId from an earlier result, to show that person with their managers and direct reports. Used instead of query.'
+      ),
+    cursor: z
+      .string()
+      .min(1)
+      .max(1024)
+      .optional()
+      .describe('nextCursor from the previous page of the same query.'),
+  })
+  .strict()
+  .refine((input) => !input.personId || (input.query === undefined && !input.cursor), {
+    path: ['personId'],
+    message: 'Pass either personId or a query with its cursor, not both.',
+  })
+
 /** Connection requests name a provider and optionally an owned account to repair. */
 export const oauthGetAuthLinkInputSchema = z.object({
   providerName: z
@@ -385,6 +430,13 @@ export const assistantToolContracts = [
     route: 'sim',
     description: 'Read more context from an accessible connected-source document.',
     inputSchema: readDocumentInputSchema,
+  },
+  {
+    id: 'search_people',
+    route: 'sim',
+    description:
+      'Look up people in this organization’s directory by name, email, title, department, or location. Returns each person’s title, department, location, email, and manager. When exactly one person matches, or with a personId, returns that person with managerChain (direct manager first) and directReports. Covers only this organization’s people; use search_workspace for customers, vendors, and other outside contacts.',
+    inputSchema: searchPeopleInputSchema,
   },
   {
     id: 'oauth_get_auth_link',

@@ -510,13 +510,12 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
     !isAssistant && params.principal && params.workspaceId
       ? await buildWorkspaceInventory(params.principal, params.workspaceId)
       : undefined
-  const entitlements = isAssistant
-    ? []
-    : await computeEntitlements({
-        principal: params.principal,
-        workspaceId: params.workspaceId,
-        organizationId: params.organizationId,
-      })
+  const entitlements = await computeEntitlements({
+    principal: params.principal,
+    workspaceId: params.workspaceId,
+    organizationId: params.organizationId,
+    assistant: isAssistant,
+  })
   return {
     entitlements,
     message,

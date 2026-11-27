@@ -61,8 +61,8 @@ vi.mock('@/lib/knowledge/application/chat', () => ({
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { NO_PEOPLE_MATCH_NOTE } from '@/lib/knowledge/mcp/people'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
+import { NO_PEOPLE_MATCH_NOTE } from '@/lib/people/directory-lookup'
 import {
   LIVE_DATE_ORDER_MESSAGE,
   LIVE_MORE_RANKED_BELOW_MESSAGE,

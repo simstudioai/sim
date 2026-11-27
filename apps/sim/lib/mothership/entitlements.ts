@@ -4,6 +4,7 @@ import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { readDashboardAvailability } from '@/lib/dashboards/application/availability'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { ENTITLEMENTS, type Entitlement } from '@/lib/mothership/generated/protocol'
+import { canLookUpPeople } from '@/lib/people/directory-lookup'
 import { readWorkflowTestAvailability } from '@/lib/workflow-tests/application/availability'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { readWorkflowCodeAvailability } from '@/lib/workflows/application/code-availability'
@@ -14,6 +15,8 @@ export interface EntitlementOwner {
   principal?: Principal
   workspaceId?: string
   organizationId?: string
+  /** An Assistant turn, granted only the entitlements with an `assistant` evaluator. */
+  assistant?: boolean
 }
 
 interface WorkspaceOwner {
@@ -30,11 +33,13 @@ interface OrganizationOwner {
  * Each entitlement declares the chat scopes it exists in; a scope it does not declare is never
  * granted. An organization chat in Build or Plan works in the organization's workspaces, so a
  * workspace capability exists there whenever the organization has it rolled out. The operation
- * behind it still checks the workspace it runs against.
+ * behind it still checks the workspace it runs against. An Assistant turn in an organization
+ * chat is a scope of its own: only `assistant` evaluators are asked there.
  */
 interface EntitlementEvaluator {
   workspace?: (owner: WorkspaceOwner) => Promise<boolean>
   organization?: (owner: OrganizationOwner) => Promise<boolean>
+  assistant?: (owner: OrganizationOwner) => Promise<boolean>
 }
 
 /**
@@ -77,12 +82,22 @@ const EVALUATORS: Record<Entitlement, EntitlementEvaluator> = {
         userId: principal ? resolvePrincipalSubjectUserId(principal) : undefined,
       }),
   },
+  /** The organization Assistant's `search_people`; the People use cases re-check it. */
+  [ENTITLEMENTS.people]: {
+    assistant: ({ principal, organizationId }) =>
+      principal ? canLookUpPeople(principal, organizationId) : Promise.resolve(false),
+  },
 }
 
 function evaluate(evaluator: EntitlementEvaluator, owner: EntitlementOwner): Promise<boolean> {
-  const { principal, workspaceId, organizationId } = owner
+  const { principal, workspaceId, organizationId, assistant } = owner
   if (workspaceId && organizationId) {
     throw new Error('Entitlement owner must be a workspace or an organization, not both')
+  }
+  if (assistant) {
+    return organizationId && evaluator.assistant
+      ? evaluator.assistant({ principal, organizationId })
+      : Promise.resolve(false)
   }
   if (organizationId) {
     return evaluator.organization?.({ principal, organizationId }) ?? Promise.resolve(false)
