@@ -268,7 +268,7 @@ const ADVANCED_TEST_AND_DEPLOY: Record<
       "Batch it: write every file first, then run steps 2 and 4 as one chained command in run_code's shell, `sim workflows source check --dir . && sim workflows source apply --dir . --yes`, and fix what it reports in the next step.",
     testRun: "sim_cli's `workflows run <workflowId> --dry --input '{…}' --dir <dir>`",
     applyStep:
-      "Then test it with sim_cli, as the shell refuses runs: `workflows run <workflowId> --dry --input '{…}' --dir <dir>` (`--dir` maps a failure to file:line), and deploy only the draft that run tested with `workflows deploy <id> --expected-draft-fingerprint <fingerprint>` (the fingerprint in `.sim/base.json`).",
+      "Then test it with sim_cli, as the shell refuses runs: `workflows run <workflowId> --dry --input '{…}' --dir <dir>` (`--dir` maps a failure to file:line), and only if that run completed, deploy the draft it tested with `workflows deploy <id> --expected-draft-fingerprint <fingerprint>` (the fingerprint in `.sim/base.json`).",
   },
 }
 

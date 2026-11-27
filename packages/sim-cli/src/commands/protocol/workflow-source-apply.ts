@@ -327,9 +327,8 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
       verb,
       machine: findings.machine,
       // Read only without --deploy: an untested draft's next names the tested deploy too.
-      // Mothership's shell refuses runs: its chat tests through sim_cli, then deploys by fingerprint.
       testedDeploy:
-        run === undefined && !creating && primerSurface() === 'cli'
+        run === undefined && !creating
           ? `${args.savedCommand} --yes --run '{…}' --deploy`
           : undefined,
     })
@@ -462,7 +461,10 @@ async function deployStep(
     return {
       next: {
         command: deployCommand,
-        reason: `The workflow is deployed and its draft now differs from the live version: deploy to make the change live (or ${options.verb} with --deploy).${options.testedDeploy ? ` The draft is untested: \`${options.testedDeploy}\` tests and deploys it in one step.` : ''}`,
+        reason:
+          primerSurface() === 'chat'
+            ? `The workflow is deployed and its draft now differs from the live version: test the draft with sim_cli (\`workflows run ${data.workflowId} --dry --input '{…}'\`), then deploy it if that run completed.`
+            : `The workflow is deployed and its draft now differs from the live version: deploy to make the change live (or ${options.verb} with --deploy).${options.testedDeploy ? ` The draft is untested: \`${options.testedDeploy}\` tests and deploys it in one step.` : ''}`,
       },
     }
   }

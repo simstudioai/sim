@@ -1270,6 +1270,18 @@ describe('sim workflows source apply', () => {
       )
     })
 
+    it('inside Mothership, names the test run through sim_cli, never --run or --deploy, in the reason', async () => {
+      setTerminal(false)
+      vi.stubEnv('SIM_CLI_HOST', 'mothership')
+      request.mockResolvedValue(outcome())
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+
+      const reason = String(toRecord(stdoutJson().next).reason)
+      expect(reason).toContain(`sim_cli (\`workflows run ${WORKFLOW_ID} --dry`)
+      expect(reason).not.toMatch(/--run|--deploy/)
+    })
+
     it.each([
       [null, false, 'not deployed'],
       [3, false, 'version 3, matches the draft'],
