@@ -285,6 +285,15 @@ describe('sim workflows source get <name>', () => {
 
     expect(callsTo(LIST_PATH)[0][1].query?.search).toBe(long.slice(0, 200))
   })
+
+  it('never cuts the search inside a character a long name holds', async () => {
+    const long = `${'a'.repeat(199)}😀 scorer`
+    serve({ [LIST_PATH]: listed({ id: WORKFLOW_ID, name: long }) })
+
+    expect(await getNamed(long)).toBeNull()
+
+    expect(callsTo(LIST_PATH)[0][1].query?.search).toBe('a'.repeat(199))
+  })
 })
 
 describe('sim workflows source get --dir', () => {

@@ -80,7 +80,11 @@ async function resolveWorkflow(
   inWorkspace?: string
 ): Promise<string> {
   if (isValidUuid(workflow)) return workflow
-  const search = workflow.trim().slice(0, SEARCH_MAX_LENGTH)
+  // Cut on a character boundary: half an emoji would search for a name no workflow holds.
+  const search = workflow
+    .trim()
+    .slice(0, SEARCH_MAX_LENGTH)
+    .replace(/[\uD800-\uDBFF]$/, '')
   if (search === '') {
     throw new CliUsageError('Name a workflow: its id or exact name.', {
       code: 'WORKFLOW_NOT_FOUND',

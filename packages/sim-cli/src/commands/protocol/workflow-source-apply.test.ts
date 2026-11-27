@@ -1748,6 +1748,17 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     await program().parseAsync(['node', 'sim', 'workflows', 'source', 'create', ...argv])
   }
 
+  it('refuses a --run input that is not JSON before writing a starter', async () => {
+    const empty = join(dir, 'new')
+
+    await expect(create('--dir', empty, '--run', '{bad')).rejects.toThrow(
+      /--run: its input is not JSON/
+    )
+
+    expect(existsSync(join(empty, 'workflow.ts'))).toBe(false)
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('writes a starter workflow.ts, the types, tsconfig and the guide, and creates nothing', async () => {
     setTerminal(false)
     vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))

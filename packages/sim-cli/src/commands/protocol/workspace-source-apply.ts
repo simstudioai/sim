@@ -1198,8 +1198,8 @@ async function readRunInputs(runs: readonly RunRequest[]): Promise<RunRequest[]>
 }
 
 /**
- * The workflow keys whose draft the deployments write `preview` would publish (a first deploy, or
- * `live: 'draft'` taking a differing draft live) without a completed test run: `--run` deploys
+ * The workflow keys whose draft the deployments write `preview` would publish (a deployment
+ * created: a first deploy, or `live: 'draft'` taking a differing draft live) without a completed test run: `--run` deploys
  * only drafts it tested, so these hold the whole deployments write back.
  */
 function untestedPublishes(preview: ApplyData, tested: readonly WorkflowTestRun[]): string[] {
@@ -1211,7 +1211,8 @@ function untestedPublishes(preview: ApplyData, tested: readonly WorkflowTestRun[
       (change) =>
         isDeployment(change) &&
         !testedKeys.has(change.key) &&
-        (change.fields ?? []).some((field) => field === 'deploy' || field === 'live version')
+        (change.action === 'create' ||
+          (change.fields ?? []).some((field) => field === 'deploy' || field === 'live version'))
     )
     .map((change) => change.key)
     .sort(compareStrings)

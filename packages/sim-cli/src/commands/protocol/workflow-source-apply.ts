@@ -735,6 +735,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
         options.dir,
         async () => {
           await assertSourceDirKind(options.dir, 'workflow')
+          const checked = await checkedWriteOptions(options)
           if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
             if (options.dry || options.yes) {
               throw new SourceDirError(
@@ -758,7 +759,6 @@ export function attachWorkflowSourceCreate(source: Command): void {
             })
             return
           }
-          const checked = await checkedWriteOptions(options)
           const { client, profile } = connectCreate()
           // A directory is bound to the workspace it records: a starter to the one its types were
           // written for (--workspace still chooses another), a workspace folder to its workspace.
