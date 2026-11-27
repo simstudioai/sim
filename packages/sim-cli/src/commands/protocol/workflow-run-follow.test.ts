@@ -798,9 +798,11 @@ describe('sim workflows run --dry', () => {
   })
 
   it('refuses combinations a dry run cannot honour before sending anything', async () => {
-    await expect(run(WORKFLOW_ID, '--allow', 'Save lead')).rejects.toThrow('add --dry')
-    await expect(run(WORKFLOW_ID, '--mock', 'Score={"content":"spam"}')).rejects.toThrow(
-      'add --dry'
+    await expect(run(WORKFLOW_ID, '--draft', '--allow', 'Save lead')).rejects.toThrow(
+      'use --dry in place of --draft'
+    )
+    await expect(run(WORKFLOW_ID, '--draft', '--mock', 'Score={"content":"spam"}')).rejects.toThrow(
+      'use --dry in place of --draft'
     )
     await expect(run(WORKFLOW_ID, '--dry', '--follow')).rejects.toThrow('drop --follow')
     await expect(run(WORKFLOW_ID, '--dry', '--wait-timeout', '30')).rejects.toThrow(
@@ -816,9 +818,9 @@ describe('sim workflows run --dry', () => {
     await expect(run(WORKFLOW_ID, '--dry', '--mock-from', 'run_1')).rejects.toThrow(
       'name at least one'
     )
-    await expect(run(WORKFLOW_ID, '--mock-from', 'run_1', '--mock', 'Score')).rejects.toThrow(
-      '--mock-from answers a block during a dry run'
-    )
+    await expect(
+      run(WORKFLOW_ID, '--draft', '--mock-from', 'run_1', '--mock', 'Score')
+    ).rejects.toThrow('use --dry in place of --draft')
     await expect(run(WORKFLOW_ID, '--dry', '--mock', 'Score=spam')).rejects.toThrow(
       'is not valid JSON'
     )

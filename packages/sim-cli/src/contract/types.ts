@@ -112,6 +112,11 @@ export interface FlagSpec {
   /** Overrides the help text otherwise taken from the OpenAPI description. */
   describe?: string
   /**
+   * A minimal valid value of a JSON flag, quoted for a shell, which the refusal of a value of the
+   * wrong shape shows in place of a generic `'[{"key":"value"}]'`.
+   */
+  example?: string
+  /**
    * Value sent when the caller passes nothing, in place of the server's default.
    *
    * For a command whose declared `columns` read a field the API only sends at a
