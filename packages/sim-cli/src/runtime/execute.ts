@@ -591,8 +591,8 @@ export async function executeOperation(
     }
     renderPage(profile.output, { data: rows, nextCursor: cursor }, commandSpec, envelope, {
       warnings: owedRenameWarnings(host),
+      warningsDelivered: () => deliveredRenameWarnings(host),
     })
-    deliveredRenameWarnings(host)
     return
   }
 
@@ -675,8 +675,8 @@ export async function executeOperation(
     payload = report
     renderResult(operation, profile.output, payload, commandSpec, {
       warnings: owedRenameWarnings(host),
+      warningsDelivered: () => deliveredRenameWarnings(host),
     })
-    deliveredRenameWarnings(host)
     assertWorkspaceOperationOutcome(report, timedOut)
     return
   }
@@ -689,12 +689,12 @@ export async function executeOperation(
       expandedTrace: requestFlags.trace === true,
       note: resultNote(operation, payload, request),
       warnings: owedRenameWarnings(host),
+      warningsDelivered: () => deliveredRenameWarnings(host),
     },
     // The envelope, not just the payload: a list that does not paginate states
     // its own truncation there, and unwrapping `data` discarded it.
     result
   )
-  deliveredRenameWarnings(host)
 
   // Printed first, then failed, for the reason `followRun` gives: the envelope
   // carries the block outputs that explain *why* the run failed, and exiting

@@ -42,8 +42,8 @@ export function owedRenameWarnings(command: Command): readonly string[] {
 }
 
 /**
- * Settles what `command` owed once its result has been printed with it: a render that throws
- * first leaves the warnings owed, for {@link writeRenameWarnings}.
+ * Settles what `command` owed once its warnings have reached the reader: a render that throws
+ * first leaves them owed, for {@link writeRenameWarnings}.
  */
 export function deliveredRenameWarnings(command: Command): void {
   OWED.delete(command)

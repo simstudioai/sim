@@ -34,6 +34,11 @@ interface RenderResultOptions {
   note?: string
   /** What the invocation itself deserves a warning about, such as a renamed flag. */
   warnings?: readonly string[]
+  /**
+   * Called once `warnings` have reached the reader: written on stderr, or printed inside the
+   * result. A render that throws before then leaves them for the caller to write.
+   */
+  warningsDelivered?: () => void
 }
 
 /**
@@ -60,22 +65,39 @@ function placeNotices(
   result: unknown,
   notices: readonly ResultNotice[],
   document = false
-): { result: unknown; before: string[]; after: string[] } {
+): { result: unknown; before: string[]; after: string[]; carried: Set<string> } {
   const record = isMachineFormat(format) ? toRecordOrNull(result) : null
   let carried: Record<string, unknown> | null = null
   const before: string[] = []
   const after: string[] = []
+  const fields = new Set<string>()
   for (const notice of notices) {
     const held: Record<string, unknown> | null = carried ?? record
-    if (held && notice.field in held && held[notice.field] === notice.value) continue
+    if (held && notice.field in held && held[notice.field] === notice.value) {
+      fields.add(notice.field)
+      continue
+    }
     if (held && !document && !(notice.field in held)) {
       carried = { ...held, [notice.field]: notice.value }
+      fields.add(notice.field)
       continue
     }
     before.push(...(notice.before ?? []))
     after.push(...(notice.after ?? []))
   }
-  return { result: carried ?? result, before, after }
+  return { result: carried ?? result, before, after, carried: fields }
+}
+
+/**
+ * Writes the lines placed before a result, and reports the invocation's warnings delivered once
+ * they are on stderr; carried in the result, they are delivered when it has printed.
+ */
+function writeLeadingNotices(
+  placed: ReturnType<typeof placeNotices>,
+  options: RenderResultOptions
+): void {
+  writeNoticeLines(placed.before)
+  if (!placed.carried.has('note')) options.warningsDelivered?.()
 }
 
 function writeNoticeLines(lines: readonly string[]): void {
@@ -411,20 +433,21 @@ export function renderPage(
   page: { data: unknown[]; nextCursor: string | null },
   spec: CommandSpec,
   envelope?: unknown,
-  options: Pick<RenderResultOptions, 'warnings'> = {}
+  options: Pick<RenderResultOptions, 'warnings' | 'warningsDelivered'> = {}
 ): void {
   const placed = placeNotices(format, page, [
     ...noteNotice(options),
     ...pageNotice(spec, envelope),
     ...truncationNotices(envelope),
   ])
-  writeNoticeLines(placed.before)
+  writeLeadingNotices(placed, options)
   printList(
     format,
     page.data,
     spec.columns ? columnsFrom(spec.columns) : inferColumns(page.data, spec.expand),
     placed.result
   )
+  options.warningsDelivered?.()
 }
 
 /**
@@ -542,9 +565,10 @@ export function renderResult(
     [...noteNotice(options), ...truncationNotices(envelope)],
     spec.document
   )
-  writeNoticeLines(placed.before)
+  writeLeadingNotices(placed, options)
   printResult(operation, format, placed.result, spec, options)
   writeNoticeLines(placed.after)
+  options.warningsDelivered?.()
 }
 
 function printResult(

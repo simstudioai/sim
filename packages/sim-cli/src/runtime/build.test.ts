@@ -847,6 +847,14 @@ describe('spellings the CLI has retired', () => {
     expect(written.join('')).toContain('"--q" has been renamed to "--query"')
   })
 
+  it('warns once when a successful answer cannot be printed after the warning was written', async () => {
+    const written = warnings()
+    await expect(
+      run(['tables', 'rows', 'find', 'tbl_1', '--q', 'needle'], { data: { matches: 'not a list' } })
+    ).rejects.toThrow('expected an array')
+    expect(written.join('').match(/"--q" has been renamed/g)).toHaveLength(1)
+  })
+
   it('refuses both spellings of one flag rather than picking a winner', async () => {
     await expect(
       run([
