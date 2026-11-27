@@ -16,7 +16,7 @@ import {
   RESERVED_PROGRAM_FLAGS,
   trailingListField,
 } from './request'
-import { shellArgument, typedCommandLine } from './run-next'
+import { runInvoked, shellArgument, typedCommandLine } from './run-next'
 import type { OperationSpec } from './types'
 
 const GROUP_ALIASES: Readonly<Record<string, string>> = {
@@ -100,9 +100,26 @@ function looksLikeAnId(token: string): boolean {
  */
 export function heldAction(
   command: Command | undefined
-): ((args: unknown[]) => unknown) | undefined {
+): ((args: unknown[]) => void | Promise<void>) | undefined {
   const held = (command as (Command & { _actionHandler?: unknown }) | undefined)?._actionHandler
-  return typeof held === 'function' ? (held as (args: unknown[]) => unknown) : undefined
+  return typeof held === 'function'
+    ? (held as (args: unknown[]) => void | Promise<void>)
+    : undefined
+}
+
+/**
+ * Runs every action of the assembled program as its command's (`runInvoked`), so a hint printed
+ * deep below one (a directory reader's refusal) keeps the root options the caller typed.
+ */
+export function runActionsInvoked(program: Command): void {
+  const walk = (command: Command): void => {
+    const held = heldAction(command)
+    // Commander hands the wrapper the positionals, options and command it hands the action; the
+    // held handler reads the positionals from the front of that list as it does from argv's.
+    if (held) command.action((...args: unknown[]) => runInvoked(command, () => held(args)))
+    for (const child of command.commands) walk(child)
+  }
+  walk(program)
 }
 
 /** Whether the command runs an action of its own rather than only dispatching to subcommands. */

@@ -140,6 +140,11 @@ describe('embedded CLI output ownership', () => {
       { ...identity, transport }
     )
     expect(asJson.stderr).toContain('This deletes these 3 rows and cannot be undone.')
+    const escaped = await runEmbeddedCli(
+      ['tables', 'rows', 'batch-delete', 'tbl_1', '--row', '@@row_1'],
+      { ...identity, transport }
+    )
+    expect(escaped.stderr).toContain('This deletes this row and cannot be undone.')
 
     const missing = await runEmbeddedCli(
       ['tables', 'rows', 'batch-delete', 'tbl_1', '--row', 'row_1', 'row_2', '--yes'],

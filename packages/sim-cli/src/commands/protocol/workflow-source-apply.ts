@@ -748,6 +748,9 @@ export function attachWorkflowSourceCreate(source: Command): void {
       ) => {
         const mode = writeMode(options)
         const sim = simInvocation(invoked)
+        /** This create in `workspaceId` as a command, without `--yes`: every flag the caller chose. */
+        const createLine = (workspaceId: string) =>
+          `${createCommand(options.dir, workspaceId, sim)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`
         await withSourceCommandLock(
           options.dir,
           async () => {
@@ -763,7 +766,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
               const workspaceId = client.requireWorkspace()
               const tree = await writeSourceScaffold(client, options.dir, workspaceId)
               const next: NextStep = {
-                command: `${createCommand(options.dir, workspaceId, sim)} --yes${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
+                command: `${createLine(workspaceId)} --yes`,
                 reason: `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, check it, then create it.`,
               }
               const machine = isMachineFormat(profile.output)
@@ -798,7 +801,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
               mode,
               creating: true,
               question: 'Create this workflow?',
-              command: `${createCommand(options.dir, workspaceId, sim)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
+              command: createLine(workspaceId),
               savedCommand: applyCommand(options, sim),
               output: profile.output,
               client,

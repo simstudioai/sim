@@ -21,6 +21,7 @@ import { SDK_GUIDE_FILE, SOURCE_COMPILER_OPTIONS } from '@sim/workflow-sdk/codeg
 import { SOURCE_PLANNED_EXIT_CODE, SOURCE_STALE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkflowSourceBody, GetWorkflowSourceResponse } from '../../generated/v2-api'
 import type { OperationClient } from '../../runtime/called-operations'
+import { invokedSim } from '../../runtime/run-next'
 import { SourceDirError } from './local-errors'
 import {
   assertSourceDirKind,
@@ -183,9 +184,9 @@ export async function readSourceFiles(
 
 /**
  * The create command for `dir` in `workspaceId`, as the next step a starter prints; `sim` carries
- * the server options the caller typed.
+ * the server options the caller typed (by default, those of the running command's invocation).
  */
-export function createCommand(dir: string, workspaceId: string, sim = 'sim'): string {
+export function createCommand(dir: string, workspaceId: string, sim = invokedSim()): string {
   return `${sim} workflows source create --dir ${shellWord(dir)} --workspace ${workspaceId}`
 }
 

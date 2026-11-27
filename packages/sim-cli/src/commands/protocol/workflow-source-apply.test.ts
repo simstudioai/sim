@@ -1929,6 +1929,24 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     expect(printed.files).toBeGreaterThan(0)
   })
 
+  it("names a starter's create with the --name and --folder the caller chose", async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'new')
+    request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
+      if (path.endsWith('/workflows/source/resources')) return MANIFEST
+      throw new Error(`unexpected request ${path}`)
+    })
+
+    await create('--dir', empty, '--name', 'Lead Router', '--folder', 'Sales/Q4', '--run', '{}')
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed.next.command).toBe(
+      `sim workflows source create --dir ${empty} --workspace ${WORKSPACE_ID} --name 'Lead Router' --folder Sales/Q4 --run '{}' --yes`
+    )
+  })
+
   /** Answers the starter's catalog and manifest reads, and a create with a stored workflow. */
   function answerStarterAndCreate() {
     request.mockImplementation(async (path: string, init: { query?: { dry?: boolean } }) => {

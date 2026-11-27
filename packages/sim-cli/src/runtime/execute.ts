@@ -24,6 +24,7 @@ import {
   flagSpecFor,
   inlineShapeRefusal,
   isProfileWorkspacePath,
+  namesFile,
   otherSpellings,
   PROFILE_INJECTED_FIELD,
   readListFlag,
@@ -271,7 +272,7 @@ async function confirmText(
   const raw = flagName ? flags[camel(flagName)] : undefined
   if (!listed || !flagName || raw === undefined) return spec.confirm
   const values = Array.isArray(raw) ? raw : [raw]
-  if (values.some((value) => typeof value === 'string' && value.startsWith('@'))) {
+  if (values.some((value) => typeof value === 'string' && namesFile(value))) {
     return listed.text(null)
   }
   try {

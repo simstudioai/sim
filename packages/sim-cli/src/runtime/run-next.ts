@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { isRecordLike, toArray, toRecordOrNull } from '@sim/utils/object'
 import type { Command } from 'commander'
 import type { V2OperationName } from '../generated/v2-api'
@@ -52,6 +53,23 @@ export function typedCommandLine(
     }
   }
   return words.join(' ')
+}
+
+/** The command whose action is running, for code below it that holds no `Command`. */
+const invoked = new AsyncLocalStorage<Command>()
+
+/** Runs `work` as `command`'s action, so {@link invokedSim} reads the options it was given. */
+export function runInvoked<T>(command: Command, work: () => T): T {
+  return invoked.run(command, work)
+}
+
+/**
+ * {@link simInvocation} of the command whose action is running, for a hint printed far from it
+ * (a directory reader's refusal); bare `sim` outside one.
+ */
+export function invokedSim(): string {
+  const command = invoked.getStore()
+  return command ? simInvocation(command) : 'sim'
 }
 
 /** The root options that choose the server, which a command printed to run next keeps. */

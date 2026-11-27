@@ -5,6 +5,7 @@ import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
 import { REQUEST_CANCELLED, SimApiError } from '../../http/client'
+import { runActionsInvoked } from '../../runtime/build'
 import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
 import { digest } from './source-dir'
 import { attachWorkflowSourceDiff, attachWorkflowSourceStatus } from './workflow-source-status'
@@ -130,6 +131,34 @@ describe('workflows source status', () => {
       expect(mockRequest).not.toHaveBeenCalled()
     }
   )
+
+  it("names the starter's create with the root --profile the caller typed", async () => {
+    const starter = join(root, 'starter')
+    write(starter, 'workflow.ts', GOT['workflow.ts'])
+    write(starter, '.sim/starter.json', JSON.stringify({ workspaceId: WORKSPACE_ID }))
+    const program = new Command('sim').option('-P, --profile <name>').option('--endpoint <url>')
+    const source = new Command('source')
+    attachWorkflowSourceStatus(source)
+    program.addCommand(source)
+    runActionsInvoked(program)
+    program.exitOverride()
+    for (const each of source.commands) each.exitOverride()
+
+    await expect(
+      program.parseAsync([
+        'node',
+        'sim',
+        '--profile',
+        'staging',
+        'source',
+        'status',
+        '--dir',
+        starter,
+      ])
+    ).rejects.toThrow(
+      `run \`sim --profile staging workflows source create --dir ${starter} --workspace ${WORKSPACE_ID} --dry\``
+    )
+  })
 
   it('refuses while another command holds the directory, asking the server nothing', async () => {
     mkdirSync(join(root, '.sim/command.lock'))
