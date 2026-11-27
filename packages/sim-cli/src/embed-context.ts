@@ -36,6 +36,11 @@ export interface EmbedContext {
   identity: EmbeddedCliIdentity
   /** Absolute caller filesystem working directory; never inherited from the embedding server. */
   workingDirectory?: string
+  /**
+   * Who embeds the CLI, as `SIM_CLI_HOST` names it for an installed one (`host.ts`); an embedded
+   * run never reads the host process env.
+   */
+  host?: string
   stdout: EmbeddedOutput
   stderr: EmbeddedOutput
   /**

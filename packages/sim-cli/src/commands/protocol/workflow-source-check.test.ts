@@ -376,7 +376,7 @@ describe('sim workflows source check', () => {
     })
   })
 
-  it('with --output json, prints each finding in the JSON only, not again as a frame on stderr', async () => {
+  it('with --output json, prints each finding in the JSON, ending stderr with the first error on one line and no frame', async () => {
     cacheCatalog()
     writeFileSync(
       join(dir, 'workflow.ts'),
@@ -386,7 +386,34 @@ describe('sim workflows source check', () => {
     await check()
 
     expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'E_UNKNOWN_PARAM' }] })
-    expect(vi.mocked(console.error)).not.toHaveBeenCalled()
+    const stderr = vi.mocked(console.error).mock.calls.map((call) => call.join(' '))
+    expect(stderr).toEqual([
+      expect.stringMatching(/^Error: workflow\.ts:6:\d+ error E_UNKNOWN_PARAM: /),
+    ])
+  })
+
+  it('ends stderr with the first error, not a warning printed after it', async () => {
+    cacheCatalog()
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: 'ws_other',
+      output: 'table',
+    })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      UNKNOWN_METHOD.replace(
+        '{ body: { received: start.message } }',
+        '{ bdy: { received: start.message } }'
+      )
+    )
+    writeLock(['start', 'done', 'call'])
+
+    await check()
+
+    const stderr = vi.mocked(console.error).mock.calls.map((call) => call.join(' '))
+    expect(stderr.some((line) => / warning W_/.test(line))).toBe(true)
+    expect(stderr.at(-1)).toMatch(/^Error: workflow\.ts:6:\d+ error E_UNKNOWN_PARAM: /)
+    expect(process.exitCode).toBe(1)
   })
 
   it('with --output json in a GitHub Actions job, still annotates each finding on stderr, as a workflow command only', async () => {
@@ -401,7 +428,10 @@ describe('sim workflows source check', () => {
 
     expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'E_UNKNOWN_PARAM' }] })
     const stderr = vi.mocked(console.error).mock.calls.map((call) => call.join(' '))
-    expect(stderr).toEqual([expect.stringMatching(/^::error file=.*,title=E_UNKNOWN_PARAM::/)])
+    expect(stderr).toEqual([
+      expect.stringMatching(/^::error file=.*,title=E_UNKNOWN_PARAM::/),
+      expect.stringMatching(/^Error: workflow\.ts:6:\d+ error E_UNKNOWN_PARAM: /),
+    ])
   })
 
   it('leaves stored() to the server, which holds the stored values', async () => {

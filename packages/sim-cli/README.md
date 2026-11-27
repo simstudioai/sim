@@ -385,6 +385,7 @@ The main environment variables are:
 | `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely |
 | `SIM_DEBUG` | Print request diagnostics to stderr |
 | `SIM_NO_UPDATE_CHECK` | Turn off update notices |
+| `SIM_TYPESCRIPT_DIR` | Pre-installed TypeScript releases (`<dir>/<version>/node_modules/typescript`) that `source check` reads before installing one |
 | `SIM_TELEMETRY_DISABLED` | Turn off anonymous usage reporting (`DO_NOT_TRACK=1` also works) |
 
 On eligible interactive invocations, `sim` uses a daily cache before asking

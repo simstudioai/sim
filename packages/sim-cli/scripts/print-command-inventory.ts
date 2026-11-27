@@ -6,7 +6,8 @@
  * read — so the model's card can never describe a command the CLI does not have. Each
  * leaf carries its positionals and options as commander declares them, plus the top-level
  * shape of its JSON response resolved from the v2 OpenAPI documents,
- * `mothershipUnavailable` when Sim refuses a Mothership caller any operation it calls, and
+ * `mothershipUnavailable` when Sim refuses a Mothership caller any operation it calls (or the
+ * get that writes the directory it works on), and
  * `entitlement` when an operation it calls exists only where a rollout flag is on.
  *
  *   bun run packages/sim-cli/scripts/print-command-inventory.ts > inventory.json
@@ -55,8 +56,8 @@ interface InventoryCommand extends CommandReference {
   args: InventoryArgument[]
   options: InventoryOption[]
   /**
-   * Sim refuses Mothership for an operation this command calls, so chat cannot run it.
-   * Absent when every call is admitted or the command calls no known operation.
+   * Sim refuses Mothership for an operation this command calls, or for the `get` that writes the
+   * directory it works on, so chat cannot run it. Absent otherwise.
    */
   mothershipUnavailable?: true
   /** In a group hidden from `--help` until launch; the worker exposes it only when Sim enables it. */
@@ -245,6 +246,23 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
     }
   }
 )
+
+const groupOf = (entry: InventoryCommand) => entry.path.slice(0, -1).join(' ')
+const takesDir = (entry: InventoryCommand) => entry.options.some((option) => option.name === 'dir')
+const refusedDirectoryGroups = new Set(
+  inventory
+    .filter(
+      (entry) => entry.path.at(-1) === 'get' && entry.mothershipUnavailable && takesDir(entry)
+    )
+    .map(groupOf)
+)
+// A --dir command works only on what its group's get writes, so a refused get refuses it too
+// (`workspaces source check` calls no refused operation but checks a refused get's directory).
+for (const entry of inventory) {
+  if (takesDir(entry) && refusedDirectoryGroups.has(groupOf(entry))) {
+    entry.mothershipUnavailable = true
+  }
+}
 
 const gatedGroups = new Map(
   inventory.flatMap((entry) =>

@@ -85,6 +85,13 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
   return lines.join('\n')
 }
 
+/** A finding as one line, without its frame or hint: where it is, its code and its message. */
+export function findingLine(diagnostic: Diagnostic): string {
+  return safeOneLine(
+    formatDiagnostic({ ...boundFindingText(diagnostic), frame: undefined, hint: undefined })
+  )
+}
+
 /** How many other locations a collapsed line lists before counting the rest. */
 const COLLAPSED_LOCATIONS = 8
 

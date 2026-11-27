@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
+import { CLI_HOST_ENV, MOTHERSHIP_CLI_HOST } from 'sim/host'
 import { env } from '@/lib/core/config/env'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -179,8 +180,8 @@ async function sandboxEntitlements(args: {
  * Builds the session request for a Mothership chat's persistent sandbox: the
  * per-chat identity, the sim-CLI bootstrap, and the CLI's headless auth
  * environment (`SIM_API_KEY`/`SIM_WORKSPACE`/`SIM_ENDPOINT`, the CLI's
- * documented CI path), plus the owner's `SIM_ENTITLEMENTS` so entitlement-gated
- * CLI commands are visible. Only an opaque callback credential enters the workbench;
+ * documented CI path), `SIM_CLI_HOST` so the CLI gives its chat primer and help,
+ * plus the owner's `SIM_ENTITLEMENTS` so entitlement-gated CLI commands are visible. Only an opaque callback credential enters the workbench;
  * the active tool lease resolves the real user credential on the server. The
  * opaque credential cannot authenticate directly to ordinary v2 routes.
  *
@@ -231,6 +232,7 @@ export async function buildMothershipSandboxSession(args: {
           ? { SIM_ORGANIZATION_ID: args.organizationId }
           : { SIM_WORKSPACE: args.workspaceId! }),
         SIM_ENDPOINT: scopedEndpoint,
+        [CLI_HOST_ENV]: MOTHERSHIP_CLI_HOST,
         ...(activeSandboxFileOwnerProtocol() === 1 ? { SIM_FILE_OWNER_PROTOCOL: '1' } : {}),
         ...(activeSandboxWorkspaceFileCopy() ? { SIM_WORKSPACE_FILE_COPY: '1' } : {}),
         ...(entitlements ? { SIM_ENTITLEMENTS: entitlements } : {}),

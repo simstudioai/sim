@@ -14,6 +14,7 @@ import { escapeRegExp } from '@sim/utils/string'
 import { COOKBOOK_EXAMPLES, WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runEmbeddedCli } from '../../embed'
 import { SimApiError } from '../../http/client'
 import { buildProgram } from '../../program'
 import { buildGeneratedCommands } from '../../runtime/build'
@@ -431,18 +432,29 @@ describe('sim workflows source get --dir', () => {
     expect(existsSync(join(outDir, '.sim/AGENTS.md'))).toBe(true)
   })
 
-  it.each(['workflow', 'workspace'] as const)(
-    'names in the %s primer only commands and flags this CLI has',
-    (kind) => {
+  /** Each primer there is: the workspace directory has the `cli` one alone. */
+  const PRIMERS = [
+    ['workflow', 'cli'],
+    ['workflow', 'chat'],
+    ['workspace', 'cli'],
+  ] as const
+
+  it.each(PRIMERS)(
+    'names in the %s %s primer only commands and flags this CLI has',
+    (kind, surface) => {
       const program = buildProgram()
+      const roots = new Set(program.commands.map((command) => command.name()))
+      // A `sim_cli` command is named without `sim`, as that tool takes it.
       const named = [
-        ...`${sourcePrimer(kind)}${agentsPointer(kind)}`.matchAll(/`(sim [^`]+)`/g),
-      ].flatMap((match) => match[1].split(' && '))
+        ...`${sourcePrimer(kind, surface)}${agentsPointer(kind, surface)}`.matchAll(/`([^`]+)`/g),
+      ]
+        .flatMap((match) => match[1].split(' && '))
+        .map((line) => line.replace(/^sim /, ''))
+        .filter((line) => roots.has(line.split(' ')[0]) && line.includes(' '))
       expect(named.length).toBeGreaterThan(0)
       for (const line of named) {
         let command: Command = program
-        const words = line.split(/\s+/).slice(1)
-        for (const word of words) {
+        for (const word of line.split(/\s+/)) {
           if (word.startsWith('-') || word.startsWith('<') || /^['"{.]/.test(word)) break
           const next = command.commands.find(
             (child) => child.name() === word || child.aliases().includes(word)
@@ -466,20 +478,35 @@ describe('sim workflows source get --dir', () => {
     }
   )
 
-  it('keeps the primer without snippets within its byte budget for both directory kinds', () => {
-    for (const kind of ['workflow', 'workspace'] as const) {
-      expect(Buffer.byteLength(sourcePrimer(kind))).toBeLessThanOrEqual(PRIMER_MAX_BYTES)
+  it('keeps every primer without snippets within its byte budget', () => {
+    for (const [kind, surface] of PRIMERS) {
+      expect(
+        Buffer.byteLength(sourcePrimer(kind, surface)),
+        `${kind} ${surface}`
+      ).toBeLessThanOrEqual(PRIMER_MAX_BYTES)
     }
   })
 
-  it.each(['workflow', 'workspace'] as const)(
-    'quotes in the %s primer patterns only code the type-checked examples hold',
-    (kind) => {
+  it('teaches the chat no command its workbench or Sim refuses it, and the test run through sim_cli', () => {
+    const chat = `${sourcePrimer('workflow', 'chat')}${agentsPointer('workflow', 'chat')}`
+    expect(chat).not.toMatch(/workspaces source/)
+    expect(chat).not.toMatch(/ --run(?![\w-])/)
+    expect(chat).not.toMatch(/&& sim workflows run\b/)
+    expect(chat).toMatch(/sim_cli[^\n]*`workflows run <workflowId> --dry\b/)
+    expect(chat).toContain(
+      '`workflows deploy <workflowId> --expected-draft-fingerprint <fingerprint>`'
+    )
+    expect(sourcePrimer('workflow', 'cli')).toContain("--run '{…}' --deploy")
+  })
+
+  it.each(PRIMERS)(
+    'quotes in the %s %s primer patterns only code the type-checked examples hold',
+    (kind, surface) => {
       const examples = [
         ...Object.values(COOKBOOK_EXAMPLES),
         ...Object.values(WORKSPACE_COOKBOOK),
       ].join('\n')
-      const lines = sourcePrimer(kind).split('\n')
+      const lines = sourcePrimer(kind, surface).split('\n')
       const start = lines.findIndex((line) => line.startsWith(PATTERNS_HEADING))
       const end = lines.findIndex((line, index) => index > start && !line.startsWith('  - '))
       const spans = lines
@@ -492,6 +519,53 @@ describe('sim workflows source get --dir', () => {
       expect(missing).toEqual([])
     }
   )
+
+  it('writes the chat primer and pointer inside Mothership, and the coding-agent ones elsewhere', async () => {
+    const guides = () =>
+      ['.sim/AGENTS.md', 'AGENTS.md'].map((file) => readFileSync(join(outDir, file), 'utf8'))
+    serve()
+    await get('--dir', outDir)
+    for (const guide of guides()) {
+      expect(guide).toContain("--yes --run '{…}' --deploy")
+      expect(guide).not.toContain('sim_cli')
+    }
+
+    vi.stubEnv('SIM_CLI_HOST', 'mothership')
+    await get('--dir', outDir, '--force')
+
+    for (const guide of guides()) {
+      expect(guide).not.toMatch(/ --run(?![\w-])/)
+      expect(guide).toContain('with sim_cli')
+    }
+  })
+
+  it('gives the chat loop in the source help inside Mothership and to an embedded run', async () => {
+    const render = () => {
+      const source = buildProgram()
+        .commands.find((command) => command.name() === 'workflows')
+        ?.commands.find((command) => command.name() === 'source')
+      let text = ''
+      source?.configureOutput({ writeOut: (chunk) => (text += chunk) })
+      source?.outputHelp()
+      return text
+    }
+    expect(render()).toContain("--yes --run '{…}' --deploy")
+    expect(render()).toContain('sim workspaces source get')
+
+    const embedded = (host?: string) =>
+      runEmbeddedCli(
+        ['workflows', 'source', '--help'],
+        { endpoint: 'https://sim.test', apiKey: 'key' },
+        { host }
+      )
+    expect((await embedded()).stdout).toContain("--yes --run '{…}' --deploy")
+    const mothership = (await embedded('mothership')).stdout
+    vi.stubEnv('SIM_CLI_HOST', 'mothership')
+    for (const chat of [mothership, render()]) {
+      expect(chat).not.toMatch(/ --run(?![\w-])|workspaces source/)
+      expect(chat).toContain("workflows run <workflowId> --dry --input '{…}' --dir ./wf")
+    }
+  })
 
   it('type-checks a builder of a block the directory does not hold: through the cache at once, and locally after a check', async () => {
     const workflow = [

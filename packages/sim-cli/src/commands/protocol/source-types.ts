@@ -4,13 +4,14 @@
  * declarations are built for) over the directory's `tsconfig.json`, each error a finding.
  *
  * A source directory has no `package.json`, so the release is installed once with `npm` into the
- * CLI's cache and reused from there. When it cannot be installed (offline, no `npm`) or does not
- * start, the check reports `W_TYPES_UNCHECKED` and the compile's findings still decide the exit.
+ * CLI's cache and reused from there, unless {@link TYPESCRIPT_DIR_ENV} names a directory that
+ * already holds it. When it cannot be installed (offline, no `npm`) or does not start, the check
+ * reports `W_TYPES_UNCHECKED` and the compile's findings still decide the exit.
  */
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname, join, posix } from 'node:path'
+import { dirname, join, posix, resolve } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -45,8 +46,9 @@ declarations are built for) over tsconfig.json. Each type error is an E_TYPE err
 starting with TypeScript's code. One is left out on a line the compile already reports an error
 on, and in a file still as the last get or apply wrote it when that file had the same error then
 (against the declarations as that get or apply left them). The first check installs that release
-with npm into the CLI's cache, once; when it cannot (offline, no npm), the check warns
-W_TYPES_UNCHECKED and passes or fails on the compile alone. --no-types skips the type check.`
+with npm into the CLI's cache, once (none when SIM_TYPESCRIPT_DIR already holds it); when it
+cannot (offline, no npm), the check warns W_TYPES_UNCHECKED and passes or fails on the compile
+alone. --no-types skips the type check.`
 
 /** Adds `--no-types` to a check command. */
 export function typesFlag(command: Command): Command {
@@ -72,9 +74,22 @@ const PROCESS_TIMEOUT_MS = 5 * 60_000
 /** At most this much of a process's output is kept: tsc's findings, npm's error lines. */
 const MAX_OUTPUT_BYTES = 1024 * 1024
 
+/**
+ * Names a directory of TypeScript releases installed ahead of time, one per version as the cache
+ * lays them out (`<dir>/<version>/node_modules/typescript`), such as a sandbox image bakes in
+ * with `npm install --prefix <dir>/<version> typescript@<version>`. A check reads the pinned
+ * release there before the cache and never writes there; without it, the cache installs as usual.
+ */
+const TYPESCRIPT_DIR_ENV = 'SIM_TYPESCRIPT_DIR'
+
+/** The pinned release's folder in `releases`, a directory laid out one folder per version. */
+function releaseRoot(releases: string): string {
+  return join(releases, SOURCE_TYPESCRIPT_VERSION)
+}
+
 /** Where the pinned release is installed: cache, safe to delete, so it follows `SIM_CONFIG_DIR`. */
 function typescriptRoot(): string {
-  return join(configDir(), 'cache', 'typescript', SOURCE_TYPESCRIPT_VERSION)
+  return releaseRoot(join(configDir(), 'cache', 'typescript'))
 }
 
 function tscPath(root: string): string {
@@ -143,11 +158,18 @@ function npmReason(stderr: string): string {
 }
 
 /**
- * The pinned release's `tsc`, installed on first use: into a fresh folder beside its place, then
- * renamed there, so a check interrupted mid-install or two checks installing at once never leave
- * a partial install behind. The install reads the person's npm configuration (registry, proxy).
+ * The pinned release's `tsc`: the one {@link TYPESCRIPT_DIR_ENV} holds, else the cache's, installed
+ * on first use into a fresh folder beside its place, then renamed there, so a check interrupted
+ * mid-install or two checks installing at once never leave a partial install behind. The install
+ * reads the person's npm configuration (registry, proxy).
  */
 async function installedTsc(): Promise<string> {
+  const preinstalled = process.env[TYPESCRIPT_DIR_ENV]?.trim()
+  if (preinstalled) {
+    // Resolved here: tsc runs from the source directory, not the caller's.
+    const tsc = tscPath(releaseRoot(resolve(preinstalled)))
+    if (existsSync(tsc)) return tsc
+  }
   const root = typescriptRoot()
   const tsc = tscPath(root)
   if (existsSync(tsc)) return tsc
