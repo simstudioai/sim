@@ -43,13 +43,16 @@ type Reference = Pick<
 >
 
 /**
- * Whether a failed link lookup is an answer about the project itself (not found, or on another
- * branch) rather than an outage, rate limit, or credential failure that says nothing about it.
+ * Whether a failed link lookup is an answer about the project itself (not found, forbidden, or on
+ * another branch) rather than an outage, rate limit, spent request budget, or invalid credential
+ * that says nothing about it.
  */
 function isProjectAnswer(error: unknown): boolean {
+  if (!(error instanceof NativeSearchError)) return false
+  if (error.status === 'reconnect') return error.httpStatus === 403
   return (
-    error instanceof NativeSearchError &&
     error.status === 'unavailable' &&
+    error.diagnosticCode !== 'request_budget_exceeded' &&
     (error.httpStatus === undefined || error.httpStatus < 500)
   )
 }
