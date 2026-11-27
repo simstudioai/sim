@@ -36,14 +36,21 @@ export function warnRenamedFlag(command: Command, from: string, to: string): voi
   owe(command, 'flag', `--${from}`, `--${to}`)
 }
 
-/** Takes the rename warnings `command` owes, for its result to carry. */
-export function takeRenameWarnings(command: Command): string[] {
-  const warnings = OWED.get(command) ?? []
-  OWED.delete(command)
-  return warnings
+/** The rename warnings `command` owes, for its result to carry. */
+export function owedRenameWarnings(command: Command): readonly string[] {
+  return OWED.get(command) ?? []
 }
 
-/** Writes on stderr the rename warnings no result took. */
+/**
+ * Settles what `command` owed once its result has been printed with it: a render that throws
+ * first leaves the warnings owed, for {@link writeRenameWarnings}.
+ */
+export function deliveredRenameWarnings(command: Command): void {
+  OWED.delete(command)
+}
+
+/** Writes on stderr the rename warnings no printed result delivered. */
 export function writeRenameWarnings(command: Command): void {
-  for (const warning of takeRenameWarnings(command)) writeStderr(`warning: ${warning}\n`)
+  for (const warning of owedRenameWarnings(command)) writeStderr(`warning: ${warning}\n`)
+  OWED.delete(command)
 }

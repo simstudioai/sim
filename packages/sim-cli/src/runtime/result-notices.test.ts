@@ -63,6 +63,12 @@ describe('a command reached by its renamed spellings', () => {
     })
   })
 
+  it('still warns on stderr when a successful answer cannot be printed', async () => {
+    const result = await run([...argv, '--output', 'json'], { data: { matches: 'not a list' } })
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stderr).toContain(`warning: ${COMMAND_RENAMED}\nwarning: ${FLAG_RENAMED}\n`)
+  })
+
   it('still warns on stderr when the command fails before it has a result', async () => {
     const result = await runEmbeddedCli([...argv, '--output', 'json'], {
       ...identity,

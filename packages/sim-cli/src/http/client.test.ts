@@ -15,7 +15,9 @@ afterEach(() => {
   // SIM_DEBUG set for one test would otherwise configure every test after it.
 })
 
-function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
+function client(
+  options: { apiKey?: string; output?: 'json' | 'table' } = { apiKey: 'key' }
+): SimClient {
   return new SimClient({
     name: 'default',
     endpoint: 'https://sim.example',
@@ -23,7 +25,7 @@ function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
     apiKey: options.apiKey ?? null,
     oauth: null,
     workspaceId: 'ws_1',
-    output: 'json',
+    output: options.output ?? 'json',
     sources: {
       endpoint: 'default',
       credential: 'env',
@@ -474,23 +476,31 @@ describe('rate limiting', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('resends a request answered 429 without a word when stderr is not a terminal, so a 2>&1 capture stays the result', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const stderr = stubStderr(false)
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(limited('7'))
-        .mockResolvedValueOnce(Response.json({ data: {} }))
-    )
+  it.each([
+    { output: 'json', said: false },
+    { output: 'table', said: true },
+  ] as const)(
+    'off a terminal, says it waits on a 429 for $output output only when that is not a document a 2>&1 capture parses',
+    async ({ output, said }) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      const stderr = stubStderr(false)
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(limited('7'))
+          .mockResolvedValueOnce(Response.json({ data: {} }))
+      )
 
-    await settle(client().request('/api/v2/tables/tbl_1'))
-    stderr.restore()
+      await settle(client({ apiKey: 'key', output }).request('/api/v2/tables/tbl_1'))
+      stderr.restore()
 
-    expect(fetch).toHaveBeenCalledTimes(2)
-    expect(stderr.writes.join('')).toBe('')
-  })
+      expect(fetch).toHaveBeenCalledTimes(2)
+      expect(stderr.writes.join('')).toBe(
+        said ? 'Rate limited (HTTP 429); retrying in 7s (retry 1 of 6).\n' : ''
+      )
+    }
+  )
 
   it('says at a terminal how long it waits on a 429, clearing a progress line first', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

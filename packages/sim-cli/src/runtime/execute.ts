@@ -15,7 +15,7 @@ import { safeOneLine } from '../output/render'
 import { connect } from './called-operations'
 import { camel } from './derive'
 import { DEFAULT_PAGE_SIZE, defaultListLimit } from './options'
-import { takeRenameWarnings, warnRenamedFlag } from './renamed'
+import { deliveredRenameWarnings, owedRenameWarnings, warnRenamedFlag } from './renamed'
 import {
   type BuiltRequest,
   buildRequest,
@@ -590,8 +590,9 @@ export async function executeOperation(
       progress.finish()
     }
     renderPage(profile.output, { data: rows, nextCursor: cursor }, commandSpec, envelope, {
-      warnings: takeRenameWarnings(host),
+      warnings: owedRenameWarnings(host),
     })
+    deliveredRenameWarnings(host)
     return
   }
 
@@ -673,8 +674,9 @@ export async function executeOperation(
       ))
     payload = report
     renderResult(operation, profile.output, payload, commandSpec, {
-      warnings: takeRenameWarnings(host),
+      warnings: owedRenameWarnings(host),
     })
+    deliveredRenameWarnings(host)
     assertWorkspaceOperationOutcome(report, timedOut)
     return
   }
@@ -686,12 +688,13 @@ export async function executeOperation(
     {
       expandedTrace: requestFlags.trace === true,
       note: resultNote(operation, payload, request),
-      warnings: takeRenameWarnings(host),
+      warnings: owedRenameWarnings(host),
     },
     // The envelope, not just the payload: a list that does not paginate states
     // its own truncation there, and unwrapping `data` discarded it.
     result
   )
+  deliveredRenameWarnings(host)
 
   // Printed first, then failed, for the reason `followRun` gives: the envelope
   // carries the block outputs that explain *why* the run failed, and exiting

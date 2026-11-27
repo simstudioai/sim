@@ -52,7 +52,7 @@ An absent value displays as an em dash in a table and an empty field in text. Us
 
 ## Separate results and diagnostics
 
-Results go to stdout. Errors, progress, and update notices go to stderr, so this pipe receives only the result. Progress, including a rate-limit retry, is shown only when stderr is a terminal:
+Results go to stdout. Errors, progress, and update notices go to stderr, so this pipe receives only the result. In JSON and YAML output, a rate-limit retry notice is shown only when stderr is a terminal:
 
 ```bash
 sim logs list --output json | jq '.data[]'
