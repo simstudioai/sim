@@ -30,7 +30,7 @@ Point the agent at `.sim/AGENTS.md` before it edits.
 
    The dry run (also `sim workflows run <workflowId> --dry`) tests the saved draft without sending its writes: each write returns a placeholder and is listed under `sideEffects` with the request it would have sent, so the agent checks payloads instead of cleaning up rows or messages. `--allow <block>` sends one block's writes for real against a test resource, and `--draft` runs everything for real.
 
-For a whole workspace, use `sim workspaces source` with the same steps; see [Manage a workspace as code](/workflows/code/workspace).
+For a whole workspace, use `sim workspaces source` with the same steps: its chained command is `sim workspaces source check --dir <dir> && sim workspaces source apply --dir <dir> --yes --run <key>='{...}'`, one `--run` per workflow folder (`workflows/<key>/`) to test, and `deployments/` is applied only if every run completed. See [Test workflows on apply](/workflows/code/workspace#test-workflows-on-apply).
 
 ## Look things up
 

@@ -159,12 +159,12 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Edit loop in detail
 
-Batch it: write every file first, then run steps 2 and 4 (and any test run) as one chained command, \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes\`, and fix what it reports in the next step. Each non-zero exit stops the chain. Step 3 (with its \`apply --dry\`, which only plans) is for a person, CI, or a change you want reviewed first.
+Batch it: write every file first, then run steps 2 and 4 (with a test run of each workflow you changed) as one chained command, \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes --run <key>='{…}'\`, and fix what it reports in the next step. Each non-zero exit stops the chain. Step 3 (with its \`apply --dry\`, which only plans) is for a person, CI, or a change you want reviewed first.
 
 1. Edit the files.
 2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key (skills included) or table column, a child workflow's inputs, and an env name \`${KIND_DIRS.secret}\` lacks (a warning); and checks each \`${KIND_DIRS.table}/<key>.rows.jsonl\` line against its table as the apply would. It fails (exit 1) on errors and on ${STRICT_FINDINGS_CLAUSE} in a block you added (\`--strict\`: in every block), regenerates \`.sim/sdk/workspace.d.ts\` from the files (so a resource or workflow input added since the get is typed) and adds the blocks the workflows now use to \`tsconfig.json\`, then type-checks every file with it, using the TypeScript release the declarations are built for (installed once into the CLI's cache, on the first check; \`E_TYPE\` findings): that catches what the compile and the dry run do not, such as a reference to a start input the trigger does not declare. Offline before that install, it warns \`W_TYPES_UNCHECKED\` and passes on the compile alone; \`--no-types\` skips it. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
 3. \`sim workspaces source status --dir .\` before applying: your changes by resource (\`sim workspaces source diff --dir .\` shows the edits), what changed on the server since the get (a workflow edited in the editor included), the conflicts, and the command to run next. Exit 0 nothing changed, ${SOURCE_LOCAL_CHANGES_EXIT_CODE} only your edits, ${SOURCE_DRIFT_EXIT_CODE} the server changed since (\`--offline\`: skip the server). Then \`sim workspaces source apply --dir . --dry\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
-4. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored; it prints the plan it applied (without \`--yes\` and a terminal it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}, writing nothing).
+4. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored; it prints the plan it applied (without \`--yes\` and a terminal it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}, writing nothing). \`--run <key>='{…}'\` (one per workflow, \`<key>\` its \`${KIND_DIRS.workflow}/<key>/\` folder; the input is JSON or \`@file\`, as \`sim workflows run --dry --input\` takes it) then dry-runs that workflow's saved draft as that command does: \`runs\` in the result holds each run's status, output and side effects, and a run that does not complete exits 1, names its failing block's file:line and leaves the applied drafts in place. With \`--run\`, \`${KIND_DIRS.deployment}/\` is applied after the runs, and only when every one completed, so a deployment with \`live: 'draft'\` publishes only a tested draft; without \`--run\` it is applied with everything else.
 
 ## Good to know
 
@@ -293,7 +293,7 @@ export async function writtenLocalDeclarations(
  * folder's paths group into. `null` for a root file that is absent or does not read, whose keys
  * are unknown.
  */
-function declaredKeys(
+export function declaredKeys(
   kind: WorkspaceKind,
   files: Readonly<Record<string, string>>
 ): string[] | null {

@@ -51,7 +51,7 @@ The table for the kind of directory you work in. Both are built from the table `
     | Code | Meaning | What to do |
     | --- | --- | --- |
     | `0` | Applied or created, a dry run or check with no errors, or a clean status | Go on |
-    | `1` | The source has errors (each printed as `file:line:column` with a hint), a locked block (`E_APPLY_LOCKED_BLOCK`), a name another resource holds (`E_NAME_TAKEN`), a cancelled prompt, or the command failed | Fix what it printed and run it again |
+    | `1` | The source has errors (each printed as `file:line:column` with a hint), a locked block (`E_APPLY_LOCKED_BLOCK`), a name another resource holds (`E_NAME_TAKEN`), a `--run` test run that did not complete, a cancelled prompt, or the command failed | Fix what it printed and run it again |
     | `5` | Stale (`SOURCE_STALE`, or `E_APPLY_STALE` on a dry run): the server changed what this directory was read from, and nothing was written | `sim workspaces source get --dir <fresh dir>`, reapply your edit there, dry-run, apply |
     | `6` | A resource is locked (`E_APPLY_LOCKED`): a workflow or its folder, or a table; a locked block exits 1 instead | Ask someone to unlock it: a workflow in the workflow builder, a table in its settings (the finding's hint names which) |
     | `7` | The source is over the size limits (on a get, status or diff too) | Split function code, or remove blocks or resources |

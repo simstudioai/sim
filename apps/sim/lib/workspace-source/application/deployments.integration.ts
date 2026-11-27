@@ -625,6 +625,72 @@ describe('workspace source: deployments', () => {
   )
 
   check(
+    'rewrites a kept chat whose output block an earlier apply re-created, when its draft goes live',
+    async () => {
+      const deployed = await deployedWorkspace(answerChat('recreated-earlier-chat'))
+      const { workspaceId, id, base } = deployed
+      const files: Files = deployed.files
+      const [oldOutput] = toArray((await deployState(id)).chat?.outputConfigs)
+
+      // The workflow alone first, as `apply --run` writes it before its test runs: the retyped
+      // Answer block gets a new id while the chat still answers from the old one.
+      const workflowOnly = await apply(
+        workspaceId,
+        { ...files, [WORKFLOW]: RETYPED },
+        { base, allowDelete: true, kinds: ['workflow'], only: ['workflow'] }
+      )
+      expect(workflowOnly.failed).toBeUndefined()
+      const newId = await answerBlockId(id)
+      expect(newId).not.toEqual(toRecord(oldOutput).blockId)
+
+      // Then the deployment beside the unchanged workflow: its draft goes live, chat repaired.
+      const deploying = await apply(
+        workspaceId,
+        { ...files, ...workflowOnly.files, [DEPLOYMENT]: files[DEPLOYMENT] },
+        { base: workflowOnly.base }
+      )
+      expect(deploymentCodes(deploying.diagnostics, 'error')).toEqual([])
+      expect(deploying.plan.find((change) => change.kind === 'deployment')?.fields).toContain(
+        'chat outputs'
+      )
+      expect(deploying.failed).toBeUndefined()
+      const after = await deployState(id)
+      expect(after.versions).toBe(2)
+      expect(after.chat?.outputConfigs).toEqual([{ blockId: newId, path: 'content' }])
+    }
+  )
+
+  check(
+    'refuses to deploy a draft an earlier apply left with no block of the name a kept chat declares',
+    async () => {
+      const deployed = await deployedWorkspace(answerChat('dropped-earlier-chat'))
+      const { workspaceId, id, base } = deployed
+      const files: Files = deployed.files
+      const before = await deployState(id)
+
+      // The workflow alone first: the Answer block is renamed away, so no block has the name.
+      const workflowOnly = await apply(
+        workspaceId,
+        { ...files, [WORKFLOW]: files[WORKFLOW].replace("agent('Answer'", "agent('Responder'") },
+        { base, kinds: ['workflow'], only: ['workflow'] }
+      )
+      expect(workflowOnly.failed).toBeUndefined()
+
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          { ...files, ...workflowOnly.files, [DEPLOYMENT]: files[DEPLOYMENT] },
+          { base: workflowOnly.base }
+        )
+      )
+      expect(deploymentCodes(refused.diagnostics, 'error')).toEqual(['E_DEPLOY_CHAT_OUTPUT'])
+      const after = await deployState(id)
+      expect(after.versions).toBe(before.versions)
+      expect(after.chat?.outputConfigs).toEqual(before.chat?.outputConfigs)
+    }
+  )
+
+  check(
     'renames a chat output block and the chat naming it in one apply, keeping the block id',
     async () => {
       const deployed = await deployedWorkspace(answerChat('renamed-chat'))

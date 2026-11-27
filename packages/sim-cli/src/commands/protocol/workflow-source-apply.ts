@@ -21,7 +21,6 @@ import {
   liveDeploymentStatus,
 } from '../../runtime/deployment-live'
 import { runFailureMessage } from '../../runtime/execute'
-import { withRunNext } from '../../runtime/run-next'
 import { searchTasks } from '../search'
 import {
   type DeployedUrl,
@@ -81,7 +80,7 @@ import {
   writeSourceDirectory,
   writeSourceScaffold,
 } from './workflow-dir'
-import { dryRunDraft, printSideEffects } from './workflow-run-follow'
+import { dryRunDraft, printSideEffects, type TestRun, testRunResult } from './workflow-run-follow'
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 
@@ -333,33 +332,6 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
     })
   )
   report(data, deployment, run)
-}
-
-/** What a write's result shows of its `--run` test run. */
-interface TestRun {
-  runId: unknown
-  status: unknown
-  error?: unknown
-  output: unknown
-  sideEffects?: unknown
-  next?: unknown
-}
-
-/**
- * A `--run` record as the write's result shows it: the run id, status, error message, the
- * workflow's output, the side effects the dry run held back and, for a run that failed in a
- * block, the dry rerun from where the server says a rerun can start (none when it names none).
- */
-function testRunResult(record: Record<string, unknown>): TestRun {
-  const { next } = toRecord(withRunNext('executeWorkflow', record))
-  return {
-    runId: record.runId,
-    status: record.status,
-    ...(record.error ? { error: toRecord(record.error).message ?? record.error } : {}),
-    output: record.output,
-    ...(record.sideEffects ? { sideEffects: record.sideEffects } : {}),
-    ...(next ? { next } : {}),
-  }
 }
 
 /** How many of a write's findings have `severity`. */

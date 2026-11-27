@@ -100,7 +100,7 @@ export function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRo
     },
     {
       code: 1,
-      meaning: `The source has errors (each printed as \`file:line:column\` with a hint), a locked block (\`E_APPLY_LOCKED_BLOCK\`), ${prefix === 'sim workspaces source' ? 'a name another resource holds (`E_NAME_TAKEN`)' : 'a name another workflow holds (`SOURCE_NAME_TAKEN`), a `--run` test run that did not complete'}, a cancelled prompt, or the command failed`,
+      meaning: `The source has errors (each printed as \`file:line:column\` with a hint), a locked block (\`E_APPLY_LOCKED_BLOCK\`), ${prefix === 'sim workspaces source' ? 'a name another resource holds (`E_NAME_TAKEN`)' : 'a name another workflow holds (`SOURCE_NAME_TAKEN`)'}, a \`--run\` test run that did not complete, a cancelled prompt, or the command failed`,
       next: 'Fix what it printed and run it again',
       help: {
         'workflows source apply':
@@ -111,7 +111,7 @@ export function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRo
           "the command failed, no workflow or several are named exactly the name given (WORKFLOW_NOT_FOUND, WORKFLOW_NAME_AMBIGUOUS: each candidate is listed with its id), the directory is a workspace source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force)",
         'workflows source status': 'the command failed',
         'workspaces source apply':
-          'the source has errors (each printed as file:line:column with its frame and hint), or every change it would write was held back because it uses a declared secret the workspace has no value for or a declared credential key nothing binds to (nothing was written; a dry run of such an apply exits 1 too), the directory was read from another workspace than the one --workspace or SIM_WORKSPACE names (SOURCE_OTHER_WORKSPACE: drop it, or promote it with --to; without either an apply targets the workspace the directory was read from), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed',
+          'the source has errors (each printed as file:line:column with its frame and hint), or every change it would write was held back because it uses a declared secret the workspace has no value for or a declared credential key nothing binds to (nothing was written; a dry run of such an apply exits 1 too), the directory was read from another workspace than the one --workspace or SIM_WORKSPACE names (SOURCE_OTHER_WORKSPACE: drop it, or promote it with --to; without either an apply targets the workspace the directory was read from), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), a --run test run did not complete (the apply is written; deployments/ was not applied), or the command failed',
         'workspaces source get':
           'the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace or SIM_WORKSPACE names another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), the directory is a workflow source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written)',
         'workspaces source status': 'the command failed',
