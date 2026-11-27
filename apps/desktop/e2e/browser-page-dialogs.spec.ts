@@ -209,11 +209,16 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
         String((snapshot as { outline?: string }).outline)
       )?.[1]
       expect(ref, 'snapshot lists the Delete button').toBeTruthy()
-      await execute('browser_click', { elementId: Number(ref) })
+      const dismissed = await execute('browser_click', { elementId: Number(ref) })
+      expect(JSON.stringify(dismissed)).toContain('which was dismissed')
       await expect.poll(formTitle).toBe('confirm:false')
       expect(await pageDialog()).toBeNull()
       await inPage(app, form, "document.title = 'form'")
-      await execute('browser_click', { elementId: Number(ref), dialog: { accept: true } })
+      const accepted = await execute('browser_click', {
+        elementId: Number(ref),
+        dialog: { accept: true },
+      })
+      expect(JSON.stringify(accepted)).toContain('accepted as requested')
       await expect.poll(formTitle).toBe('confirm:true')
       expect(await pageDialog()).toBeNull()
     })

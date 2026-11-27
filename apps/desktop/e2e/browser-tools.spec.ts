@@ -1389,4 +1389,48 @@ test.describe('browser tools', () => {
     expect(fill.result).toMatchObject({ completed: false, completedCount: 0 })
     expect(await formState(tools, origin)).toMatchObject({ name: '', password: '' })
   })
+
+  test('runs the command Sim authorized in the native terminal, not the one the page passed', async ({
+    tools,
+    toolsSite,
+  }) => {
+    const { shell, scope } = tools
+    await shell.evaluate(async (scope) => {
+      const { terminal } = (globalThis as DesktopBridge).simDesktop
+      await terminal.activateScope(scope)
+      await terminal.openTerminal(undefined, scope)
+    }, scope)
+    const execute = (toolCallId: string, operation: 'cwd' | 'run', args: Record<string, unknown>) =>
+      shell.evaluate(
+        ({ toolCallId, operation, args, scope }) =>
+          (globalThis as DesktopBridge).simDesktop.terminal.executeTool(
+            toolCallId,
+            operation,
+            args,
+            scope
+          ),
+        { toolCallId, operation, args, scope }
+      )
+    toolsSite.authorizer.calls.set('terminal-cwd', {
+      chatId: scope,
+      toolName: 'terminal',
+      args: { operation: 'cwd', args: {} },
+    })
+    const cwd = await execute('terminal-cwd', 'cwd', {})
+    expect(cwd.ok, JSON.stringify(cwd)).toBe(true)
+    toolsSite.authorizer.calls.set('terminal-run', {
+      chatId: scope,
+      toolName: 'terminal',
+      args: { operation: 'run', args: { command: "printf 'SIM_AUTHORIZED_%s\\n' COMMAND" } },
+    })
+    const run = await execute('terminal-run', 'run', {
+      command: "printf 'SIM_RENDERER_%s\\n' COMMAND",
+    })
+    expect(run.ok, JSON.stringify(run)).toBe(true)
+    expect(JSON.stringify(run)).toContain('SIM_AUTHORIZED_COMMAND')
+    expect(JSON.stringify(run)).not.toContain('SIM_RENDERER_COMMAND')
+    expect(await execute('terminal-unissued', 'run', { command: 'true' })).toMatchObject({
+      ok: false,
+    })
+  })
 })
