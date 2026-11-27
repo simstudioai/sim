@@ -1765,6 +1765,44 @@ describe('child deployment version on spans', () => {
     }
   )
 
+  it('never gives the workflow tool a version from a streamed custom tool titled like it', () => {
+    const call = (name: string, childDeploymentVersionId: string, start: number) => ({
+      name,
+      arguments: {},
+      result: { success: true, result: {}, childDeploymentVersionId },
+      startTime: new Date(Date.parse(baseLog.startedAt) + start).toISOString(),
+      endTime: new Date(Date.parse(baseLog.startedAt) + start + 100).toISOString(),
+      duration: 100,
+    })
+    const custom = call('custom_workflow_executor', 'forged', 0)
+    const real = call('workflow_executor', 'dv-real', 200)
+    const agent = spanFor({
+      blockId: 'agent-1',
+      blockName: 'Agent 1',
+      blockType: 'agent',
+      success: true,
+      output: {
+        content: 'done',
+        toolCalls: { list: [custom, real], count: 2 },
+        providerTiming: {
+          duration: 2000,
+          startTime: baseLog.startedAt,
+          endTime: baseLog.endedAt,
+          timeSegments: [real, custom].map((tc) => ({
+            type: 'tool',
+            name: tc.name,
+            startTime: Date.parse(tc.startTime),
+            endTime: Date.parse(tc.endTime),
+            duration: tc.duration,
+          })),
+        },
+      },
+    })
+
+    const versions = (agent.children ?? []).map((child) => child.childDeploymentVersionId)
+    expect(versions).not.toContain('forged')
+  })
+
   it.each([true, false])(
     'ignores the key on any other Agent tool (time segments: %s)',
     (withSegments) => {

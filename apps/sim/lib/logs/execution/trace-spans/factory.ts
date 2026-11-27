@@ -306,7 +306,11 @@ function buildChildrenFromTimeSegments(
       const match = callsForName[currentIndex]
       toolCallIndices.set(normalizedName, currentIndex + 1)
       const lifted = liftChildTraceHandle(normalizeTraceOutput(match?.result ?? match?.output))
-      const { output, ...version } = liftWorkflowToolVersion(segment.name, lifted.output)
+      /** Calls group by stripped name, so the matched call must also be the workflow tool. */
+      const { output, ...version } = liftWorkflowToolVersion(
+        match?.name === segment.name ? segment.name : undefined,
+        lifted.output
+      )
 
       const toolChild: TraceSpan = {
         id: `${span.id}-segment-${index}`,

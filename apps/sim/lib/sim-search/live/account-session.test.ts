@@ -84,4 +84,26 @@ describe('administrator GitLab link location', () => {
     const session = await adminSession()
     await expect(session.locate(fileLink)).rejects.toThrow('GitLab is unavailable.')
   })
+
+  it('reads a project the administrator token is forbidden from as unreachable', async () => {
+    projectLookup.mockRejectedValue(
+      new NativeSearchError('reconnect', 'The provider denied access.', undefined, 403)
+    )
+    const session = await adminSession()
+    await expect(session.locate(fileLink)).resolves.toBeUndefined()
+  })
+
+  it('still reports a spent request budget instead of calling the link unreachable', async () => {
+    projectLookup.mockRejectedValue(
+      new NativeSearchError(
+        'unavailable',
+        'Request budget reached. Narrow the query.',
+        undefined,
+        undefined,
+        'request_budget_exceeded'
+      )
+    )
+    const session = await adminSession()
+    await expect(session.locate(fileLink)).rejects.toThrow('Request budget reached.')
+  })
 })
