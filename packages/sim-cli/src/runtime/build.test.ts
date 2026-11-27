@@ -9,7 +9,6 @@ import {
   buildGeneratedCommands,
 } from './build'
 import { kebab } from './derive'
-import { resetRenameWarnings } from './renamed'
 import type { OperationSpec } from './types'
 
 /**
@@ -824,7 +823,10 @@ describe('bodies and fields the generator cannot flatten', () => {
 
 describe('spellings the CLI has retired', () => {
   beforeEach(() => {
-    resetRenameWarnings()
+    output.format = 'table'
+    return () => {
+      output.format = 'json'
+    }
   })
 
   function warnings(): string[] {
@@ -843,6 +845,14 @@ describe('spellings the CLI has retired', () => {
     })
     expect(options.body).toMatchObject({ q: 'needle' })
     expect(written.join('')).toContain('"--q" has been renamed to "--query"')
+  })
+
+  it('warns once when a successful answer cannot be printed after the warning was written', async () => {
+    const written = warnings()
+    await expect(
+      run(['tables', 'rows', 'find', 'tbl_1', '--q', 'needle'], { data: { matches: 'not a list' } })
+    ).rejects.toThrow('expected an array')
+    expect(written.join('').match(/"--q" has been renamed/g)).toHaveLength(1)
   })
 
   it('refuses both spellings of one flag rather than picking a winner', async () => {
@@ -1007,17 +1017,18 @@ describe('a list that is not the whole answer', () => {
   /**
    * The server clips an inventory itself and says so on the envelope, which the
    * CLI reports separately from data and nextCursor so a reconciling caller
-   * can distinguish a clipped inventory from a complete one.
+   * can distinguish a clipped inventory from a complete one. JSON carries the
+   * flag beside them (`result-notices.test.ts`); a person reads it on stderr.
    */
-  it('carries a truncation the server stated on the envelope', async () => {
-    const paged = await noteFor('json', ['workflow-mcp-servers', 'list'], {
+  it('tells a person about a truncation the server stated on the envelope', async () => {
+    const paged = await noteFor('table', ['workflow-mcp-servers', 'list'], {
       data: [{ id: 'srv_1' }],
       nextCursor: null,
       toolNamesTruncated: true,
     })
     expect(paged).toContain('tool names truncated')
 
-    const unpaged = await noteFor('json', ['workflow-mcp-servers', 'tools', 'list', 'srv_1'], {
+    const unpaged = await noteFor('table', ['workflow-mcp-servers', 'tools', 'list', 'srv_1'], {
       data: [{ toolName: 't' }],
       nextCursor: null,
       truncated: true,
@@ -1026,7 +1037,7 @@ describe('a list that is not the whole answer', () => {
   })
 
   /** A flag raised on a later page is the same fact, and used to be lost. */
-  it('carries a truncation stated on a page after the first', async () => {
+  it('tells a person about a truncation stated on a page after the first', async () => {
     mockRequest.mockReset()
     mockRequest
       .mockResolvedValueOnce({ data: [{ id: 'a' }], nextCursor: 'c1', toolNamesTruncated: false })
@@ -1040,9 +1051,11 @@ describe('a list that is not the whole answer', () => {
         return true
       })
 
+    output.format = 'table'
     try {
       await program().parseAsync(['node', 'sim', 'workflow-mcp-servers', 'list', '--limit', '0'])
     } finally {
+      output.format = 'json'
       written.mockRestore()
     }
 

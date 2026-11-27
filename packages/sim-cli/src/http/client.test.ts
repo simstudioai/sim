@@ -15,7 +15,9 @@ afterEach(() => {
   // SIM_DEBUG set for one test would otherwise configure every test after it.
 })
 
-function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
+function client(
+  options: { apiKey?: string; output?: 'json' | 'table' } = { apiKey: 'key' }
+): SimClient {
   return new SimClient({
     name: 'default',
     endpoint: 'https://sim.example',
@@ -23,7 +25,7 @@ function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
     apiKey: options.apiKey ?? null,
     oauth: null,
     workspaceId: 'ws_1',
-    output: 'json',
+    output: options.output ?? 'json',
     sources: {
       endpoint: 'default',
       credential: 'env',
@@ -33,7 +35,7 @@ function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
   })
 }
 
-function _stubStderr(isTTY: boolean): { writes: string[]; restore: () => void } {
+function stubStderr(isTTY: boolean): { writes: string[]; restore: () => void } {
   const writes: string[] = []
   const originalTTY = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY')
   const originalWrite = process.stderr.write
@@ -474,13 +476,35 @@ describe('rate limiting', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('says on stderr how long it waits before resending a request answered 429', async () => {
+  it.each([
+    { output: 'json', said: false },
+    { output: 'table', said: true },
+  ] as const)(
+    'off a terminal, says it waits on a 429 for $output output only when that is not a document a 2>&1 capture parses',
+    async ({ output, said }) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      const stderr = stubStderr(false)
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(limited('7'))
+          .mockResolvedValueOnce(Response.json({ data: {} }))
+      )
+
+      await settle(client({ apiKey: 'key', output }).request('/api/v2/tables/tbl_1'))
+      stderr.restore()
+
+      expect(fetch).toHaveBeenCalledTimes(2)
+      expect(stderr.writes.join('')).toBe(
+        said ? 'Rate limited (HTTP 429); retrying in 7s (retry 1 of 6).\n' : ''
+      )
+    }
+  )
+
+  it('says at a terminal how long it waits on a 429, clearing a progress line first', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const written: string[] = []
-    const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
-      written.push(String(chunk))
-      return true
-    })
+    const stderr = stubStderr(true)
     vi.stubGlobal(
       'fetch',
       vi
@@ -490,34 +514,11 @@ describe('rate limiting', () => {
     )
 
     await settle(client().request('/api/v2/tables/tbl_1'))
-    write.mockRestore()
+    stderr.restore()
 
-    expect(written.join('')).toMatch(/Rate limited \(HTTP 429\); retrying in 7s \(retry 1 of 6\)/)
-  })
-
-  it('clears a terminal progress line before saying it waits on a 429', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const written: string[] = []
-    const tty = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY')
-    Object.defineProperty(process.stderr, 'isTTY', { value: true, configurable: true })
-    const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
-      written.push(String(chunk))
-      return true
-    })
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(limited('7'))
-        .mockResolvedValueOnce(Response.json({ data: {} }))
+    expect(stderr.writes.join('')).toMatch(
+      /^\r\u001b\[K.*Rate limited \(HTTP 429\); retrying in 7s \(retry 1 of 6\)/
     )
-
-    await settle(client().request('/api/v2/tables/tbl_1'))
-    write.mockRestore()
-    if (tty) Object.defineProperty(process.stderr, 'isTTY', tty)
-    else Reflect.deleteProperty(process.stderr, 'isTTY')
-
-    expect(written.join('')).toMatch(/^\r\u001b\[K.*Rate limited \(HTTP 429\)/)
   })
 
   it('resends a GET answered 429 even when that response body is lost', async () => {

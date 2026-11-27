@@ -786,10 +786,16 @@ export class SimClient {
       )
       const backoffMs = backoffWithJitter(rateLimitResends + 1, null, RATE_LIMIT_BACKOFF)
       const waitMs = Math.max(retryAfterMs ?? 0, backoffMs)
-      // On a terminal, clear a `fetched N…` paging line first, so the notice starts its own line.
-      writeStderr(
-        `${hasProgressTerminal() ? '\r\u001b[K' : ''}${styles().dim(`Rate limited (HTTP 429); retrying in ${Math.ceil(waitMs / 1000)}s (retry ${rateLimitResends + 1} of ${RATE_LIMIT_RETRIES}).`)}\n`
-      )
+      // Explains a wait of up to minutes, at a terminal or in a CI log of human output. Not in a
+      // JSON or YAML run off a terminal: there it would land inside a `--output json 2>&1`
+      // capture of a request that then succeeds, and one whose retries run out is its error.
+      // On a terminal, a `fetched N…` paging line is cleared first.
+      const terminal = hasProgressTerminal()
+      if (terminal || (this.profile.output !== 'json' && this.profile.output !== 'yaml')) {
+        writeStderr(
+          `${terminal ? '\r\u001b[K' : ''}${styles().dim(`Rate limited (HTTP 429); retrying in ${Math.ceil(waitMs / 1000)}s (retry ${rateLimitResends + 1} of ${RATE_LIMIT_RETRIES}).`)}\n`
+        )
+      }
       await interruptibleSleep(waitMs, caller)
       if (caller?.aborted) throw new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED)
       return this.send(path, options, retriedAfterRefresh, rateLimitResends + 1)

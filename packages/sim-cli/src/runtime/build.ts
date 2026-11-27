@@ -7,7 +7,7 @@ import { deriveCommandPath } from './derive'
 import { executeOperation } from './execute'
 import { retypeApiError } from './naming'
 import { addOperationOptions, JSON_PLACEHOLDER } from './options'
-import { warnRenamedCommand } from './renamed'
+import { warnRenamedCommand, writeRenameWarnings } from './renamed'
 import {
   flagNameFor,
   flagSpecFor,
@@ -524,9 +524,14 @@ function configureOperation(
   // The last frame that still knows which operation ran, and so the only one
   // that can say `--include-job-runs` where the server said `includeJobRuns`.
   command.action((...invocation: unknown[]) =>
-    executeOperation(operation, spec, operationSpec, invocation).catch((error) => {
-      throw retypeApiError(error, operation, spec, operationSpec)
-    })
+    // A rename warning no result took (a failure, or a path that prints none) still reaches stderr.
+    executeOperation(operation, spec, operationSpec, invocation).then(
+      () => writeRenameWarnings(command),
+      (error) => {
+        writeRenameWarnings(command)
+        throw retypeApiError(error, operation, spec, operationSpec)
+      }
+    )
   )
   return command
 }
@@ -562,7 +567,7 @@ function addRenamedCommand(
   }
 
   const leaf = configureOperation(new Command(rest[rest.length - 1]), operation, spec)
-  leaf.hook('preAction', () => warnRenamedCommand(from, to))
+  leaf.hook('preAction', () => warnRenamedCommand(leaf, from, to))
   addSubcommand(parent, leaf, { hidden: true })
 }
 
