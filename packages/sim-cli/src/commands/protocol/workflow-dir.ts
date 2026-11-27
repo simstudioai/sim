@@ -21,6 +21,7 @@ import { SDK_GUIDE_FILE, SOURCE_COMPILER_OPTIONS } from '@sim/workflow-sdk/codeg
 import { SOURCE_PLANNED_EXIT_CODE, SOURCE_STALE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkflowSourceBody, GetWorkflowSourceResponse } from '../../generated/v2-api'
 import type { OperationClient } from '../../runtime/called-operations'
+import { invokedSim } from '../../runtime/run-next'
 import { SourceDirError } from './local-errors'
 import {
   assertSourceDirKind,
@@ -52,7 +53,7 @@ import {
   WORKSPACE_TYPES_FILE,
   type WorkspaceTypes,
 } from './source-tree'
-import type { Diagnostic } from './source-ui'
+import { type Diagnostic, shellWord } from './source-ui'
 import { compilePrinted, runFailingFindings, storedEdgesOf } from './stored-edges'
 
 type SourceBase = ApplyWorkflowSourceBody['base']
@@ -181,9 +182,12 @@ export async function readSourceFiles(
   return files
 }
 
-/** The create command for `dir` in `workspaceId`, as the next step a starter prints. */
-export function createCommand(dir: string, workspaceId: string): string {
-  return `sim workflows source create --dir ${dir} --workspace ${workspaceId}`
+/**
+ * The create command for `dir` in `workspaceId`, as the next step a starter prints; `sim` carries
+ * the server options the caller typed (by default, those of the running command's invocation).
+ */
+export function createCommand(dir: string, workspaceId: string, sim = invokedSim()): string {
+  return `${sim} workflows source create --dir ${shellWord(dir)} --workspace ${workspaceId}`
 }
 
 /** The public guide to workflow source, which AGENTS.md points an agent at. */
@@ -279,7 +283,7 @@ function advancedGuide(surface: PrimerSurface): string {
 
 ## Edit loop in detail
 
-${batch} Each non-zero exit stops the chain. Step 3 (with its \`apply --dry\`, which only plans) is for a person, CI, or a change you want reviewed first. The test run (${testRun}) is another thing than \`apply --dry\`: it executes the saved draft, while a run without \`--dry\`, \`--draft\` or a flag that implies the draft (\`--trigger\`, \`--sample\`, \`--stop-after\`, \`--from-block\`) runs the active deployment (\`--deployment-version <n>\`: that deployed version). A dry run answers every tool call not declared read (sends, table writes, HTTP requests other than GET, HEAD or OPTIONS, custom and MCP tools) with a placeholder and lists it under \`sideEffects.stubbed\` with the request it would have sent, when present (each list keeps a bounded number of entries and counts the rest in \`sideEffects.omitted\`, so check it before treating a list as complete); check those payloads instead of reading back or cleaning up data. Placeholders are distinctive (\`dry_run_row_1\`, numbers above 900000000), and a read that would send one (a tool read, an API GET, a Function's fetch, its headers included) is not sent either and is listed with \`reason: 'placeholder'\`. An MCP tool is stubbed even when its server declares it read-only, which Sim cannot verify: that entry has \`reason: 'mcp-read-only'\`, and \`--allow <block>\` sends it. Code (a Function block's, a Condition's expressions, a While or Do While loop's condition, code an Agent's model writes) runs: its GET, HEAD and OPTIONS fetches are sent (an API that writes on a GET is not stubbed, so point those at a test resource), and any other fetch, or one carrying a method-override header, gets an empty 200 and is listed under \`sideEffects.stubbed\`; code in a remote sandbox (shell, Python, imports) is listed under \`sideEffects.unchecked\`, so check that list too. Child workflows run dry too, and custom, Human in the loop and Wait blocks are answered whole. \`--mock <block>='{…}'\` answers a block with fixed output to steer a branch; a bare \`--mock <block>\` with \`--mock-from <runId>\` replays that block's output from the recorded run (this workflow's blocks, not a child's; not inside a loop or parallel unless that run mocked it). \`--allow <block>\` sends that block's writes for real (a Function's fetches included) and \`--draft\` runs the draft with every write sent, so point both at test resources. \`--allow\` and \`--mock\` name a child workflow's block as \`<workflow>.<block>\`.
+${batch} Each non-zero exit stops the chain. Step 3 (with its \`apply --dry\`, which only plans) is for a person, CI, or a change you want reviewed first. The test run (${testRun}) is another thing than \`apply --dry\`: it executes the saved draft, while a run without \`--dry\`, \`--draft\` or a flag that implies the draft (\`--trigger\`, \`--sample\`, \`--stop-after\`, \`--from-block\`) runs the active deployment (\`--deployment-version <n>\`: that deployed version). A dry run answers every tool call not declared read (sends, table writes, HTTP requests other than GET, HEAD or OPTIONS, custom and MCP tools) with a placeholder and lists it under \`sideEffects.stubbed\` with the request it would have sent, when present (each list keeps a bounded number of entries and counts the rest in \`sideEffects.omitted\`, so check it before treating a list as complete); check those payloads instead of reading back or cleaning up data. Placeholders are distinctive (\`dry_run_row_1\`, numbers above 900000000), and a read that would send one (a tool read, an API GET, a Function's fetch, its headers included) is not sent either and is listed with \`reason: 'placeholder'\`. An MCP tool is stubbed even when its server declares it read-only, which Sim cannot verify: that entry has \`reason: 'mcp-read-only'\`, and \`--allow <block>\` sends it. Code (a Function block's, a Condition's expressions, a While or Do While loop's condition, code an Agent's model writes) runs: its GET, HEAD and OPTIONS fetches are sent (an API that writes on a GET is not stubbed, so point those at a test resource), and any other fetch, or one carrying a method-override header, gets an empty 200 and is listed under \`sideEffects.stubbed\`; code in a remote sandbox (shell, Python, imports) really runs, its network requests included, and is listed under \`sideEffects.unchecked\`, so check that list too. Child workflows run dry too, and custom, Human in the loop and Wait blocks are answered whole. \`--mock <block>='{…}'\` answers a block with fixed output to steer a branch; a bare \`--mock <block>\` with \`--mock-from <runId>\` replays that block's output from the recorded run (this workflow's blocks, not a child's; not inside a loop or parallel unless that run mocked it). \`--allow <block>\` sends that block's writes for real (a Function's fetches included) and \`--draft\` runs the draft with every write sent, so point both at test resources. \`--allow\` and \`--mock\` name a child workflow's block as \`<workflow>.<block>\`.
 
 1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`${SOURCE_EXAMPLES_DIR}/\` holds correct examples to copy from: \`cookbook.ts\` (agent with structured output, condition, function, table query and upsert, knowledge search, Slack, human in the loop, loop, response), \`integrations.ts\` (webhook trigger, weekday cron schedule, HTTP request with headers, table update by row id, Gmail, an error path) and \`agents.ts\` (router, agent tools: custom tool, MCP tool, integration operation, child workflow; run a child workflow; parallel). Their resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
 2. \`sim workflows source check --dir .\`: compiles with the server's compiler, in milliseconds and without a request. It catches what \`tsc\` cannot (duplicate names, cycles, literal secrets), and fails (exit 1) on ${STRICT_FINDINGS_CLAUSE} in a block you added (\`--strict\`: in every block). It then adds the blocks the source now uses to \`tsconfig.json\` and type-checks with it, using the TypeScript release the declarations are built for (installed once into the CLI's cache, on the first check; \`E_TYPE\` findings). That catches what the compile and \`apply --dry\` do not, such as a reference to a start input the trigger does not declare. Offline before that install, it warns \`W_TYPES_UNCHECKED\` and passes on the compile alone; \`--no-types\` skips it. \`apply --dry\` is the authority: a type error on a printed line you did not edit that it accepts can be skipped with \`--no-types\`.

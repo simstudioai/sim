@@ -3662,7 +3662,6 @@
   "apps/sim/lib/api/contracts/v2/workflows.ts#v2ActivateWorkflowVersionDataSchema",
   "apps/sim/lib/api/contracts/v2/workflows.ts#v2AgentToolInputSchema",
   "apps/sim/lib/api/contracts/v2/workflows.ts#v2AgentToolSchema",
-  "apps/sim/lib/api/contracts/v2/workflows.ts#v2ApplyWorkflowOperationsBodySchema",
   "apps/sim/lib/api/contracts/v2/workflows.ts#v2ApplyWorkflowVariablesBodySchema",
   "apps/sim/lib/api/contracts/v2/workflows.ts#v2ApplyWorkflowVariablesDataSchema",
   "apps/sim/lib/api/contracts/v2/workflows.ts#v2ArchivedWorkflowMcpToolSchema",

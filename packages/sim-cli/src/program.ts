@@ -14,6 +14,7 @@ import {
   assertNoReservedProgramFlags,
   buildGeneratedCommands,
   refuseHelpAfterUnknownCommand,
+  runActionsInvoked,
 } from './runtime/build'
 import { detectCodingAgent } from './telemetry/coding-agent'
 import { announceUpdateIfAvailable } from './update/check'
@@ -238,6 +239,7 @@ export function buildProgram(
   refuseHelpAfterUnknownCommand(program)
   addParseErrorGuidanceToTree(program)
   assertNoReservedProgramFlags(program)
+  runActionsInvoked(program)
 
   return program
 }

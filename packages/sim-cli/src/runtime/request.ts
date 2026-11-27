@@ -328,14 +328,18 @@ function literalAtHint(error: unknown, path: string): string {
     : ''
 }
 
+/** Whether an argument names a file (`@path`, `@-`) rather than a value: `@@x` is the literal `@x`. */
+export function namesFile(raw: string): boolean {
+  return raw.startsWith('@') && !raw.startsWith('@@')
+}
+
 export async function readArgumentSource(
   raw: string,
   flagName: string
 ): Promise<{ text: string; from: string }> {
   if (Buffer.byteLength(raw, 'utf8') > MAX_JSON_ARGUMENT_BYTES)
     throw new SimApiError(`--${flagName} exceeds the 10 MiB JSON input limit`, 0)
-  if (raw.startsWith('@@')) return { text: raw.slice(1), from: '' }
-  if (!raw.startsWith('@')) return { text: raw, from: '' }
+  if (!namesFile(raw)) return { text: raw.startsWith('@@') ? raw.slice(1) : raw, from: '' }
 
   // An embedded run executes in-process on the hosting server, so a raw file
   // path here would read the SERVER's filesystem with argv the model controls.

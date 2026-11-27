@@ -4,6 +4,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { utf8ByteLength } from '@sim/utils/paste'
 import {
   findWorkflowReferenceTokens,
+  isFilePathReference,
   isLikelyWorkflowReferenceSegment,
 } from '@sim/utils/workflow-references'
 import {
@@ -41,7 +42,13 @@ import {
 } from '../catalog/surface'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { catalogBuildersOfType } from '../catalog/view'
-import { type CodeFileLanguage, codeFileLanguage, codeFileRefs, fromCodeFile } from '../code-files'
+import {
+  type CodeFileLanguage,
+  type CodeFileRef,
+  codeFileLanguage,
+  codeFileRefs,
+  fromCodeFile,
+} from '../code-files'
 import { isIdentifierName, LOOP_PROPERTIES, parseStoredPath } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
@@ -459,6 +466,7 @@ function parseCodeFile(
   }
   if (language !== 'javascript') reportScriptRefSyntax(ctx, path, text, language, decl.key)
   const refs = codeFileRefs(back.refs, text)
+  if (language === 'python') reportQuotedScriptRefs(ctx, path, text, refs, decl.key)
   if (refs.length > 0) ctx.codeFiles.chains.push({ path, blockKey: decl.key, refs })
   return back.code
 }
@@ -515,6 +523,39 @@ function reportScriptRefSyntax(
       `${written} is the JavaScript code file form; a ${label} file is saved as written, so the run reads it as text and the code breaks.`,
       { file: path, start: match.index, end: match.index + written.length },
       { hint: `${label} files are saved as written: write ${form}.`, blockKey }
+    )
+  }
+}
+
+/**
+ * `W_CODE_FILE_REF_QUOTED` on each `<key.path>` tag a Python file writes between quotes of its own
+ * (`"<start.country>"`, `'<start.country>'`): the run substitutes a tag as a Python literal (inside
+ * a string, as its JSON text), so the value arrives with its quotes in it. A tag inside longer text
+ * (a JSON body a string builds) reads that JSON text on purpose, a file's path is spliced raw
+ * (`isFilePathReference`), and a shell file quotes a tag in quotes correctly, so none is reported.
+ */
+function reportQuotedScriptRefs(
+  ctx: CompileContext,
+  path: string,
+  text: string,
+  refs: readonly CodeFileRef[],
+  blockKey: BlockKey
+): void {
+  for (const ref of refs) {
+    if (ref.kind !== 'ref' || !ref.tag) continue
+    const quote = text[ref.start - 1]
+    if ((quote !== '"' && quote !== "'") || text[ref.end] !== quote) continue
+    const tag = text.slice(ref.start, ref.end)
+    // A file's path is spliced raw into its quotes: `open('<start.file.path>')` is right.
+    if (isFilePathReference(tag)) continue
+    ctx.reporter.report(
+      'W_CODE_FILE_REF_QUOTED',
+      `${quote}${tag}${quote} quotes a reference the run already substitutes as a Python literal, so a string value arrives with its quotes in it.`,
+      { file: path, start: ref.start - 1, end: ref.end + 1 },
+      {
+        hint: `References are substituted as language literals: remove the quotes and write ${tag}.`,
+        blockKey,
+      }
     )
   }
 }

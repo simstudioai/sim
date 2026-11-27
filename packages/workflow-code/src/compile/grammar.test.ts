@@ -1893,6 +1893,59 @@ describe('reference tags written in a code file', () => {
   })
 })
 
+describe('a quoted tag in a Python code file', () => {
+  const quoted = (result: CompileResult) =>
+    result.diagnostics
+      .filter((d) => d.code === 'W_CODE_FILE_REF_QUOTED')
+      .map((d) => ({ hint: d.hint, file: d.span.file, line: d.span.line, column: d.span.column }))
+  const withFile = (language: 'python' | 'shell', file: string, text: string) =>
+    run(
+      source(
+        [
+          START,
+          `const f = fn('F', { language: '${language}', code: codeFile('./functions/${file}') })`,
+          'start.to(f)',
+        ].join('\n')
+      ),
+      { [`workflows/functions/${file}`]: text }
+    )
+
+  it('reports a tag between quotes of its own, which the run substitutes already quoted', () => {
+    const result = withFile(
+      'python',
+      'f.py',
+      'country = "<start.country>"\ncity = \'<start.city>\'\nreturn [country, city]'
+    )
+    expect(quoted(result)).toEqual([
+      {
+        hint: 'References are substituted as language literals: remove the quotes and write <start.country>.',
+        file: 'workflows/functions/f.py',
+        line: 1,
+        column: 11,
+      },
+      {
+        hint: 'References are substituted as language literals: remove the quotes and write <start.city>.',
+        file: 'workflows/functions/f.py',
+        line: 2,
+        column: 8,
+      },
+    ])
+  })
+
+  it("leaves an unquoted tag, a tag inside a longer string, a quoted file's path and a shell file alone", () => {
+    expect(
+      quoted(
+        withFile(
+          'python',
+          'f.py',
+          "country = <start.country>\nbody = '{\"country\": <start.country>}'\nwith open('<start.attachment.path>') as f:\n  return [country, body, f.read()]"
+        )
+      )
+    ).toEqual([])
+    expect(quoted(withFile('shell', 'f.sh', 'echo "<start.country>"'))).toEqual([])
+  })
+})
+
 describe('$ref and $env in a Python or shell code file', () => {
   const syntax = (result: CompileResult) =>
     result.diagnostics

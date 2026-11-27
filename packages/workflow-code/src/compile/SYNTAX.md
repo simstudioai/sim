@@ -282,7 +282,10 @@ changes how an unedited field stores it.
 `E_CODE_FILE_MISSING`. JavaScript files use `$ref.block.path` for `<block.path>` and `$env.NAME` for
 `{{NAME}}`, rewritten back on compile; Python and shell files are verbatim, so they write
 `<block.path>` and `{{NAME}}` themselves, and a `$ref` or `$env` in one is
-`W_CODE_FILE_REF_SYNTAX` (the apply refuses it in a file the edit changed). A `<block.path>` tag in
+`W_CODE_FILE_REF_SYNTAX` (the apply refuses it in a file the edit changed). The run substitutes a
+tag in a Python file as a Python literal, so a tag between quotes of its own (`"<start.country>"`)
+gets its quotes twice: `W_CODE_FILE_REF_QUOTED`; write it unquoted (a file's `.path` is spliced raw,
+so it stays quoted). A `<block.path>` tag in
 any code file (a JavaScript string included) is checked like a `$ref` chain. `$ref` names a block by
 its key (`$ref.triageagent.content`), not its ident; a chain that names no block or variable is
 `W_UNRESOLVED_REF` at the file location (the hint names the key when the head is an ident or a
@@ -457,6 +460,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_CODE_FILE_PATH` | A code file path outside the directory, or with the wrong extension. |
 | `W_CODE_FILE_INLINED` | Print: the code could not round-trip through a file and was inlined. |
 | `W_CODE_FILE_REF_SYNTAX` | `$ref.key.path` or `$env.NAME` in a Python or shell code file, which runs as text; the hint names the `<key.path>` or `{{NAME}}` form. Refused as `E_APPLY_CODE_FILE_REF_SYNTAX` in a file the edit changed. |
+| `W_CODE_FILE_REF_QUOTED` | A `<key.path>` tag between quotes of its own in a Python code file (`"<start.country>"`): the run substitutes it as a Python literal, so a string value arrives with its quotes in it. Remove the quotes. A file's path (`open('<start.file.path>')`), spliced raw, is not reported. |
 | `W_UNRESOLVED_REF` | Print: a stored `<x.y>` token that resolves to nothing. Compile: a code file `$ref` chain that does. Either is kept as text. |
 | `W_FORWARD_REF_LITERALIZED` | Print: a ref in a cycle printed as text. |
 | `W_COMMENT_MOVED` | A comment hoisted to the nearest anchor. |

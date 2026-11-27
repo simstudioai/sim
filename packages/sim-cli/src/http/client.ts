@@ -3,7 +3,12 @@ import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
-import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
+import {
+  isMachineFormat,
+  type ResolvedProfile,
+  type StoredCredential,
+  type StoredOAuthCredential,
+} from '../config/index'
 import { AUTH_REQUIRED_CODE, AUTH_REQUIRED_EXIT_CODE, RATE_LIMITED_EXIT_CODE } from '../exit-codes'
 import { identityHeaders } from '../telemetry/client-info'
 import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
@@ -791,7 +796,7 @@ export class SimClient {
       // capture of a request that then succeeds, and one whose retries run out is its error.
       // On a terminal, a `fetched N…` paging line is cleared first.
       const terminal = hasProgressTerminal()
-      if (terminal || (this.profile.output !== 'json' && this.profile.output !== 'yaml')) {
+      if (terminal || !isMachineFormat(this.profile.output)) {
         writeStderr(
           `${terminal ? '\r\u001b[K' : ''}${styles().dim(`Rate limited (HTTP 429); retrying in ${Math.ceil(waitMs / 1000)}s (retry ${rateLimitResends + 1} of ${RATE_LIMIT_RETRIES}).`)}\n`
         )

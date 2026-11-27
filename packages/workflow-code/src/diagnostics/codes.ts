@@ -300,6 +300,14 @@ const CODE_FILE_CODES = [
    * round-trips; refused as `E_APPLY_CODE_FILE_REF_SYNTAX` in a file the edit changed.
    */
   'W_CODE_FILE_REF_SYNTAX',
+  /**
+   * A `<key.path>` tag a Python code file writes between quotes of its own (`"<start.country>"`):
+   * the run substitutes a tag as a Python literal (inside a string, as its JSON text), so a string
+   * value arrives with its quotes in it; a file's `.path`, spliced raw, is not reported. A warning:
+   * an object's JSON text is a reading someone may want, and stored code written in the editor
+   * may hold the form.
+   */
+  'W_CODE_FILE_REF_QUOTED',
 ] as const
 
 /** References and comments, shared by compile and print. */

@@ -7,13 +7,12 @@ import {
 } from '@sim/workflow-sdk/codegen'
 import type { Command } from 'commander'
 import { printLine } from '#sim-cli/output/io'
-import type { ResolvedProfile } from '../../config/index'
+import { isMachineFormat, type ResolvedProfile } from '../../config/index'
 import { actingProfileFrom } from '../../context'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import { recordedWorkspace } from './source-dir'
 import { cachedCatalog, cachedSourceCatalog } from './source-tree'
-import { isMachine } from './source-ui'
 
 const PARAMS_HELP = `
 Prints a builder in brief (an example call, the required params with types, the optional ones by
@@ -69,7 +68,7 @@ export function attachWorkflowSourceParams(source: Command): void {
       const profile = actingProfileFrom(command)
       const catalog = await lookupCatalog(options.dir, profile)
       const found = lookupBuilder(catalog, query)
-      const machine = isMachine(profile.output)
+      const machine = isMachineFormat(profile.output)
       switch (found.kind) {
         case 'builder':
           if (machine) {

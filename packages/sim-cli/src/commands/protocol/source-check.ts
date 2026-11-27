@@ -44,6 +44,7 @@ import { SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS } from '@sim/workspace-code'
 import { KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import type { Command } from 'commander'
+import { isMachineFormat } from '../../config/index'
 import { setSoftExitCode } from '../../embed-context'
 import { printError } from '../../output/io'
 import { SourceDirError } from './local-errors'
@@ -56,6 +57,7 @@ import {
   type Written,
   workspaceFolderOf,
 } from './source-dir'
+import { primerSurface } from './source-primer'
 import { STRICT_FINDINGS } from './source-strict'
 import {
   cachedCatalog,
@@ -914,6 +916,9 @@ export function reportCheck(
   })
   // A failed check's stderr ends with its first error, so a caller that reads the last stderr
   // line as the failure reads the mistake, never a notice (the TypeScript install's) or a warning.
+  // A machine result already holds it and stays one document under `2>&1`; only Mothership,
+  // whose shell runs the check with the default JSON output, reads that line beside it.
+  if (isMachineFormat(output) && primerSurface() !== 'chat') return
   const first = findings.find((finding) => finding.severity === 'error')
   if (first) printError(`Error: ${findingLine(first)}`)
   else if (errors > 0) printError(`Error: ${errors} errors past the findings a check lists.`)

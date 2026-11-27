@@ -50,6 +50,11 @@ export const DEFAULT_ENDPOINT = 'https://www.sim.ai'
 export const OUTPUT_FORMATS = ['table', 'json', 'yaml', 'text'] as const
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
+/** Whether `format` prints one parseable document on stdout rather than lines for a person. */
+export function isMachineFormat(format: OutputFormat): boolean {
+  return format === 'json' || format === 'yaml'
+}
+
 /**
  * JSON unless the flag, `SIM_OUTPUT`, or the profile says otherwise: agents and
  * scripts are the main callers and parse it directly, and a person who prefers

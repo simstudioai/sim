@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import {
   BLOCK_RETRY_MAX_TRIES,
   BLOCK_RETRY_MAX_WAIT_MS,
@@ -4288,48 +4289,59 @@ const v2WorkflowOperationBlockIdSchema = z
  * name, and `delete` accepts no parameters at all.
  */
 export const v2WorkflowOperationSchema = z
-  .discriminatedUnion('operation_type', [
-    z
-      .object({
-        operation_type: z.literal('add').describe('Create a new block.'),
-        block_id: v2WorkflowOperationBlockIdSchema,
-        params: v2AddWorkflowBlockParamsSchema,
-      })
-      .strict(),
-    z
-      .object({
-        operation_type: z
-          .literal('edit')
-          .describe('Change an existing block: its inputs, name, or connections.'),
-        block_id: v2WorkflowOperationBlockIdSchema,
-        params: v2WorkflowOperationParamsSchema,
-      })
-      .strict(),
-    z
-      .object({
-        operation_type: z.literal('delete').describe('Remove a block and every edge touching it.'),
-        block_id: v2WorkflowOperationBlockIdSchema,
-      })
-      .strict(),
-    z
-      .object({
-        operation_type: z
-          .literal('insert_into_subflow')
-          .describe('Create a block inside a loop or parallel container.'),
-        block_id: v2WorkflowOperationBlockIdSchema,
-        params: v2InsertIntoSubflowParamsSchema,
-      })
-      .strict(),
-    z
-      .object({
-        operation_type: z
-          .literal('extract_from_subflow')
-          .describe('Move a block out of its loop or parallel container.'),
-        block_id: v2WorkflowOperationBlockIdSchema,
-        params: v2SubflowMembershipParamsSchema,
-      })
-      .strict(),
-  ])
+  .discriminatedUnion(
+    'operation_type',
+    [
+      z
+        .object({
+          operation_type: z.literal('add').describe('Create a new block.'),
+          block_id: v2WorkflowOperationBlockIdSchema,
+          params: v2AddWorkflowBlockParamsSchema,
+        })
+        .strict(),
+      z
+        .object({
+          operation_type: z
+            .literal('edit')
+            .describe('Change an existing block: its inputs, name, or connections.'),
+          block_id: v2WorkflowOperationBlockIdSchema,
+          params: v2WorkflowOperationParamsSchema,
+        })
+        .strict(),
+      z
+        .object({
+          operation_type: z
+            .literal('delete')
+            .describe('Remove a block and every edge touching it.'),
+          block_id: v2WorkflowOperationBlockIdSchema,
+        })
+        .strict(),
+      z
+        .object({
+          operation_type: z
+            .literal('insert_into_subflow')
+            .describe('Create a block inside a loop or parallel container.'),
+          block_id: v2WorkflowOperationBlockIdSchema,
+          params: v2InsertIntoSubflowParamsSchema,
+        })
+        .strict(),
+      z
+        .object({
+          operation_type: z
+            .literal('extract_from_subflow')
+            .describe('Move a block out of its loop or parallel container.'),
+          block_id: v2WorkflowOperationBlockIdSchema,
+          params: v2SubflowMembershipParamsSchema,
+        })
+        .strict(),
+    ],
+    {
+      // A missing or unknown `operation_type` is `invalid_union`, whose default message is the
+      // unactionable `Invalid input`; a member's own failures keep theirs.
+      error: (issue) =>
+        issue.code === 'invalid_union' ? unknownOperationType(issue.input) : undefined,
+    }
+  )
   .meta({
     id: 'WorkflowEditOperation',
     title: 'Workflow edit operation',
@@ -4337,6 +4349,19 @@ export const v2WorkflowOperationSchema = z
   })
 
 export type V2WorkflowOperation = z.input<typeof v2WorkflowOperationSchema>
+
+/**
+ * The refusal of an operation whose `operation_type` names no kind: the kinds there are, and the
+ * key itself when the operation spelled it another way (`type: 'add'`).
+ */
+function unknownOperationType(input: unknown): string {
+  const kinds = v2WorkflowOperationSchema.options.map((option) => option.shape.operation_type.value)
+  const named =
+    isRecordLike(input) && !('operation_type' in input)
+      ? ` Name each operation's kind in operation_type${'type' in input ? ', not type' : ''}.`
+      : ''
+  return `operation_type must be one of: ${kinds.join(', ')}.${named}`
+}
 
 export const v2ApplyWorkflowOperationsBodySchema = z
   .object({

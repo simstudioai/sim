@@ -22,6 +22,7 @@ import { setSoftExitCode } from '../../embed-context'
 import type { GetWorkflowSourceResponse, PlanWorkflowSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
+import { simInvocation } from '../../runtime/run-next'
 import {
   absoluteDirOption,
   digest,
@@ -55,8 +56,6 @@ import { type Diagnostic, summaryFileOption } from './source-ui'
 import { codeFilePaths, readBase, readLock, readSourceFiles } from './workflow-dir'
 
 type PlanData = PlanWorkflowSourceResponse['data']
-
-const PREFIX = 'sim workflows source'
 
 /** The workflow directory as a status reads it, once. */
 interface LocalWorkflow {
@@ -236,7 +235,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
             ...(local.unnamed.length > 0 ? { unnamed: local.unnamed } : {}),
             plan,
             next: nextStep(status, {
-              prefix: PREFIX,
+              prefix: `${simInvocation(invoked)} workflows source`,
               dir: options.dir,
               getArgs: `${workflowId} `,
               server,

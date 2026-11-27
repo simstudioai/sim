@@ -93,6 +93,7 @@ Reading and writing `workflow.ts`.
 | `E_CODE_FILE_PATH` | A code file path outside the directory, or with the wrong extension. |
 | `W_CODE_FILE_INLINED` | Print: the code could not round-trip through a file and was inlined. |
 | `W_CODE_FILE_REF_SYNTAX` | `$ref.key.path` or `$env.NAME` in a Python or shell code file, which runs as text; the hint names the `<key.path>` or `{{NAME}}` form. Refused as `E_APPLY_CODE_FILE_REF_SYNTAX` in a file the edit changed. |
+| `W_CODE_FILE_REF_QUOTED` | A `<key.path>` tag between quotes of its own in a Python code file (`"<start.country>"`): the run substitutes it as a Python literal, so a string value arrives with its quotes in it. Remove the quotes. A file's path (`open('<start.file.path>')`), spliced raw, is not reported. |
 | `W_UNRESOLVED_REF` | Print: a stored `<x.y>` token that resolves to nothing. Compile: a code file `$ref` chain that does. Either is kept as text. |
 | `W_FORWARD_REF_LITERALIZED` | Print: a ref in a cycle printed as text. |
 | `W_COMMENT_MOVED` | A comment hoisted to the nearest anchor. |

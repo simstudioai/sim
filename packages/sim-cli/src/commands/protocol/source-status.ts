@@ -12,7 +12,7 @@ import type { FileChange, SourceStatus } from '@sim/workspace-code/status'
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from 'diff'
 import { publishSummary } from '#sim-cli/output/github-actions'
 import type { NextStep } from '#sim-cli/output/next-step'
-import type { OutputFormat } from '../../config/index'
+import { isMachineFormat, type OutputFormat } from '../../config/index'
 import {
   AUTH_REQUIRED_CODE,
   AUTH_REQUIRED_EXIT_CODE,
@@ -33,6 +33,7 @@ import {
   errorBullets,
   findingsOutput,
   markdownCell,
+  shellWord,
   summaryFileFlag,
   summaryMarker,
 } from './source-ui'
@@ -352,7 +353,7 @@ function colorLine(line: string): string {
  * unavailable.
  */
 export function printDiffReport(format: OutputFormat, report: DiffReport): void {
-  if (format === 'json' || format === 'yaml') {
+  if (isMachineFormat(format)) {
     printDocument(format, report)
     return
   }
@@ -469,7 +470,10 @@ export function pathFilter(
 
 /** What the next command depends on beyond the status itself. */
 interface NextStepInput {
-  /** `sim workspaces source` or `sim workflows source`. */
+  /**
+   * `sim workspaces source` or `sim workflows source`, with the server options the caller typed
+   * (`simInvocation`).
+   */
   prefix: string
   dir: string
   /** What `get` takes before `--dir` (a workflow id), with its trailing space. */
@@ -502,7 +506,8 @@ interface NextStepInput {
  * checked or the changes have errors, else apply. `null` when there is nothing to do.
  */
 export function nextStep(status: SourceStatus, input: NextStepInput): NextStep | null {
-  const { prefix, dir } = input
+  const { prefix } = input
+  const dir = shellWord(input.dir)
   if (input.login) {
     return {
       command: input.login,

@@ -35,6 +35,7 @@ import type {
   PlanWorkspaceSourceResponse,
 } from '../../generated/v2-api'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
+import { simInvocation } from '../../runtime/run-next'
 import { SourceDirError } from './local-errors'
 import {
   absoluteDirOption,
@@ -69,7 +70,7 @@ import {
   unreachableReason,
 } from './source-status'
 import { withSourceExitCode } from './source-tree'
-import { type Diagnostic, summaryFileOption } from './source-ui'
+import { type Diagnostic, shellWord, summaryFileOption } from './source-ui'
 import {
   assertWorkspaceDir,
   ONLY_KINDS_HELP,
@@ -318,14 +319,15 @@ function unmanagedNext(
   status: SourceStatus,
   managed: readonly WorkspaceKind[],
   dir: string,
-  workspaceScope: string
+  workspaceScope: string,
+  prefix: string
 ): NextStep | null {
   if (status.conflicts.length > 0 || status.local.length === 0) return null
   if (status.local.some((entry) => managed.includes(entry.kind))) return null
   const folders = [...new Set(status.local.map((entry) => KIND_DIRS[entry.kind]))]
   const named = folders.join(', ')
   return {
-    command: `${PREFIX} get --dir ${dir} --only ${folders.join(',')} --force${workspaceScope}`,
+    command: `${prefix} get --dir ${shellWord(dir)} --only ${folders.join(',')} --force${workspaceScope}`,
     reason: `${named} ${folders.length === 1 ? 'is' : 'are'} gone, so this directory no longer manages ${folders.length === 1 ? 'that kind' : 'those kinds'} and an apply leaves their resources alone: this get writes ${folders.length === 1 ? 'it' : 'them'} back. To delete the resources instead, recreate ${folders.length === 1 ? 'it' : 'them'} without them (an emptied folder keeps a .gitkeep) and apply with --allow-delete.`,
   }
 }
@@ -356,6 +358,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
     .description('Show what changed locally and on the server since the directory was read')
     .addHelpText('after', statusHelp('workspaces source status'))
     .action(async (options: StatusOptions, invoked: Command) => {
+      const nextPrefix = `${simInvocation(invoked)} workspaces source`
       const only = parseKinds(options.only)
       const output = options.json ? 'json' : profileFrom(invoked).output
       // A status or diff only reads, but holds the directory's lock so it never reports a
@@ -437,9 +440,15 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             next:
               (login
                 ? null
-                : unmanagedNext(status, local.submission.kinds, options.dir, workspaceScope)) ??
+                : unmanagedNext(
+                    status,
+                    local.submission.kinds,
+                    options.dir,
+                    workspaceScope,
+                    nextPrefix
+                  )) ??
               nextStep(status, {
-                prefix: PREFIX,
+                prefix: nextPrefix,
                 dir: options.dir,
                 getArgs: '',
                 server,

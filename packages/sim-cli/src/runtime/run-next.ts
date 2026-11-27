@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { isRecordLike, toArray, toRecordOrNull } from '@sim/utils/object'
 import type { Command } from 'commander'
 import type { V2OperationName } from '../generated/v2-api'
@@ -50,6 +51,46 @@ export function typedCommandLine(
         }
       }
     }
+  }
+  return words.join(' ')
+}
+
+/** The command whose action is running, for code below it that holds no `Command`. */
+const invoked = new AsyncLocalStorage<Command>()
+
+/** Runs `work` as `command`'s action, so {@link invokedSim} reads the options it was given. */
+export function runInvoked<T>(command: Command, work: () => T): T {
+  return invoked.run(command, work)
+}
+
+/**
+ * {@link simInvocation} of the command whose action is running, for a hint printed far from it
+ * (a directory reader's refusal); bare `sim` outside one.
+ */
+export function invokedSim(): string {
+  const command = invoked.getStore()
+  return command ? simInvocation(command) : 'sim'
+}
+
+/** The root options that choose the server, which a command printed to run next keeps. */
+const SERVER_OPTIONS: ReadonlySet<string> = new Set(['profile', 'endpoint'])
+
+/**
+ * `sim` with the root `--profile` and `--endpoint` the caller typed, so a command printed for the
+ * caller to run next reaches the server this one did. `--workspace` is left out: the source
+ * commands that print one act on a directory that pins its workspace.
+ */
+export function simInvocation(command: Command): string {
+  let root = command
+  while (root.parent) root = root.parent
+  const words = ['sim']
+  for (const option of root.options) {
+    const key = option.attributeName()
+    if (!option.long || !SERVER_OPTIONS.has(key) || root.getOptionValueSource(key) !== 'cli') {
+      continue
+    }
+    const value = root.getOptionValue(key)
+    if (typeof value === 'string') words.push(option.long, shellArgument(value))
   }
   return words.join(' ')
 }

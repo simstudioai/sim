@@ -1,6 +1,7 @@
 import { createEmptyWorkflowLintReport } from '@sim/testing/factories/workflow-lint.factory'
 import { describe, expect, it } from 'vitest'
 import {
+  v2ApplyWorkflowOperationsBodySchema,
   v2ApplyWorkflowOperationsDataSchema,
   v2ReplaceWorkflowStateBodySchema,
   v2WorkflowGraphSchema,
@@ -217,5 +218,27 @@ describe('v2ApplyWorkflowOperationsDataSchema', () => {
     // declare is silently stripped rather than rejected. Assert the parsed
     // output, not just that the input was accepted.
     expect(result.data?.lint).toEqual(FULL_LINT)
+  })
+})
+
+describe('an operation whose operation_type names no kind', () => {
+  const refusal = (operation: Record<string, unknown>) => {
+    const parsed = v2ApplyWorkflowOperationsBodySchema.safeParse({ operations: [operation] })
+    return parsed.success ? null : parsed.error.issues.map((issue) => issue.message)
+  }
+
+  it('lists the kinds there are, and names the key an operation spelled another way', () => {
+    expect(refusal({ operation_type: 'insert', block_id: 'b' })).toEqual([
+      'operation_type must be one of: add, edit, delete, insert_into_subflow, extract_from_subflow.',
+    ])
+    expect(refusal({ type: 'add', block_id: 'b' })).toEqual([
+      "operation_type must be one of: add, edit, delete, insert_into_subflow, extract_from_subflow. Name each operation's kind in operation_type, not type.",
+    ])
+  })
+
+  it("keeps a known kind's own refusal", () => {
+    expect(refusal({ operation_type: 'delete', block_id: 'b', extra: 1 })).toEqual([
+      'Unrecognized key: "extra"',
+    ])
   })
 })

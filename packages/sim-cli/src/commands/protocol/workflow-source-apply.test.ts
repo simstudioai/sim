@@ -104,7 +104,11 @@ function outcome(overrides: { dry?: boolean; diagnostics?: unknown[]; notes?: st
 }
 
 function program(): Command {
+  // The root's server options, as the CLI's program declares them.
   const root = new Command('sim')
+    .option('-P, --profile <name>')
+    .option('--endpoint <url>')
+    .option('-w, --workspace <id>')
   for (const command of buildGeneratedCommands()) root.addCommand(command)
   const workflows = root.commands.find((command) => command.name() === 'workflows')
   const sourceGroup = workflows?.commands.find((command) => command.name() === 'source')
@@ -151,6 +155,19 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // A printed `next.command` is run as printed: a `{…}` placeholder belongs in its reason.
+  for (const [line] of vi.mocked(console.log).mock.calls) {
+    let printed: { next?: { command?: unknown } } | undefined
+    try {
+      printed = JSON.parse(String(line))
+    } catch {
+      continue
+    }
+    expect(String(printed?.next?.command ?? '')).not.toContain('…')
+  }
+})
+
+afterEach(() => {
   Object.defineProperty(process.stdin, 'isTTY', { value: stdinTty, configurable: true })
   Object.defineProperty(process.stderr, 'isTTY', { value: stderrTty, configurable: true })
   process.exitCode = undefined
@@ -181,6 +198,34 @@ function dryRunFlags() {
 }
 
 describe('sim workflows source apply', () => {
+  it('keeps the root --profile and --endpoint the caller typed in the next command, not --workspace', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dry: true }))
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      '--profile',
+      'staging',
+      '--endpoint',
+      'https://sim.example.test',
+      '-w',
+      'ws_other',
+      'workflows',
+      'source',
+      'apply',
+      WORKFLOW_ID,
+      '--dir',
+      dir,
+    ])
+
+    expect(stdoutJson()).toMatchObject({
+      next: {
+        command: `sim --profile staging --endpoint 'https://sim.example.test' workflows source apply --dir ${dir} --yes`,
+      },
+    })
+  })
+
   it('without --yes and nobody at a terminal, prints the plan, writes nothing and exits 14', async () => {
     setTerminal(false)
     request.mockResolvedValue(outcome({ dry: true }))
@@ -1130,7 +1175,7 @@ describe('sim workflows source apply', () => {
         const failure = apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{}', '--deploy')
 
         await expect(failure).rejects.toThrow(
-          /test run failed: score is not a number.*Nothing was deployed/
+          /test run failed: score is not a number\. Nothing was deployed\./
         )
         expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
         expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
@@ -1139,6 +1184,79 @@ describe('sim workflows source apply', () => {
           run: { status: 'failed', error: 'score is not a number' },
           next: { command: `sim workflows source apply --dir ${dir} --run '{}' --deploy --yes` },
         })
+      })
+
+      it('maps an input the server refuses like a failed run: saved, nothing deployed, a runnable next', async () => {
+        setTerminal(false)
+        serveDeploy()
+        const refusal =
+          'workflow_input does not match trigger "Start" (email: Invalid input: expected string, received undefined)'
+        contextMockFns.mockRequestRaw.mockRejectedValue(
+          new SimApiError(refusal, 400, 'BAD_REQUEST')
+        )
+
+        const failure = apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{}', '--deploy')
+
+        await expect(failure).rejects.toThrow(
+          /^The apply was saved into .*, but the test run failed: the server refused it before it started: workflow_input does not match trigger "Start" .*\. Nothing was deployed\. Fix the --run input, then run `sim workflows source apply --dir .* --run '\{\}' --deploy --yes`\.$/
+        )
+        expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
+        expect(stdoutJson()).toMatchObject({
+          applied: true,
+          run: { status: 'failed', error: refusal },
+          next: {
+            command: `sim workflows source apply --dir ${dir} --run '{}' --deploy --yes`,
+            reason: 'applies again and tests it with your fixed --run input',
+          },
+        })
+      })
+
+      it('says nothing changed when the source matched the draft and its test run fails', async () => {
+        setTerminal(false)
+        const unchanged = outcome()
+        unchanged.data.applied = false
+        unchanged.data.diff.noop = true
+        request.mockResolvedValue(unchanged)
+        contextMockFns.mockRequestRaw.mockResolvedValue(
+          runAnswer({ status: 'failed', error: { message: 'score is not a number' } })
+        )
+
+        await expect(apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{}')).rejects.toThrow(
+          /^Nothing changed: the draft already matched .*, and the test run failed: score is not a number\. Fix the source/
+        )
+      })
+
+      it("prints the run's side effects before the result, so the output still ends with it", async () => {
+        setTerminal(false)
+        contextMockState.output = 'table'
+        serveDeploy()
+        contextMockFns.mockRequestRaw.mockResolvedValue(
+          runAnswer({
+            status: 'completed',
+            output: {},
+            sideEffects: {
+              stubbed: [{ blockId: 'b-1', block: 'Send', tool: 'slack_message', count: 1 }],
+              allowed: [],
+              unchecked: [],
+            },
+          })
+        )
+        const printed: Array<{ to: 'stdout' | 'stderr'; text: string }> = []
+        vi.mocked(console.log).mockImplementation((...line: unknown[]) => {
+          printed.push({ to: 'stdout', text: line.join(' ') })
+        })
+        vi.mocked(process.stderr.write).mockImplementation((chunk: unknown) => {
+          printed.push({ to: 'stderr', text: String(chunk) })
+          return true
+        })
+
+        await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{}')
+
+        const sideEffects = printed.findIndex((entry) => entry.text.includes('slack_message'))
+        const result = printed.findIndex((entry) => entry.to === 'stdout')
+        expect(sideEffects).toBeGreaterThanOrEqual(0)
+        expect(sideEffects).toBeLessThan(result)
+        expect(printed.at(-1)?.to).toBe('stdout')
       })
 
       it('refuses beside --dry, before sending anything', async () => {
@@ -1811,6 +1929,24 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     expect(printed.files).toBeGreaterThan(0)
   })
 
+  it("names a starter's create with the --name and --folder the caller chose", async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'new')
+    request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
+      if (path.endsWith('/workflows/source/resources')) return MANIFEST
+      throw new Error(`unexpected request ${path}`)
+    })
+
+    await create('--dir', empty, '--name', 'Lead Router', '--folder', 'Sales/Q4', '--run', '{}')
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed.next.command).toBe(
+      `sim workflows source create --dir ${empty} --workspace ${WORKSPACE_ID} --name 'Lead Router' --folder Sales/Q4 --run '{}' --yes`
+    )
+  })
+
   /** Answers the starter's catalog and manifest reads, and a create with a stored workflow. */
   function answerStarterAndCreate() {
     request.mockImplementation(async (path: string, init: { query?: { dry?: boolean } }) => {
@@ -1826,6 +1962,28 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
       .map((call) => call[0] as string)
       .filter((path) => path.endsWith('/workflows/source'))
   }
+
+  it('names the command that creates a --folder the server does not find', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'new')
+    answerStarterAndCreate()
+    await create('--dir', empty)
+    request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
+      if (path.endsWith('/workflows/source/resources')) return MANIFEST
+      throw new SimApiError('Folder not found', 404)
+    })
+
+    await expect(create('--dir', empty, '--folder', 'Reports/Q4', '--dry')).rejects.toThrow(
+      /^Folder not found\. Create it with `sim workflows folders create '?Reports\/Q4'?`, then create the workflow again\.$/
+    )
+    // The command the hint names is one the CLI has.
+    const folders = program()
+      .commands.find((command) => command.name() === 'workflows')
+      ?.commands.find((command) => command.name() === 'folders')
+    expect(folders?.commands.map((command) => command.name())).toContain('create')
+  })
 
   it('plans a starter without reading or rewriting its workspace types', async () => {
     setTerminal(false)

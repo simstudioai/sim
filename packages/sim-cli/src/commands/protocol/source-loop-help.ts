@@ -96,15 +96,15 @@ The loop, two shell calls:
   sim workspaces source get --dir ./ws && cat ./ws/${SOURCE_AGENTS_FILE}
   edit every file (a new workflow: workflows/<key>/workflow.ts), then:
   sim workspaces source check --dir ./ws && sim workspaces source apply --dir ./ws --yes --run <key>='{…}'
-A non-zero exit stops the chain at the first failure; fix what it reported and run it again. check
+${CHAIN_STOPS} check
 compiles and type-checks (TypeScript installs on first run; --no-types skips it); apply re-checks
 and writes the workspace; --run <key>='{…}' (one per workflow, <key> its workflows/<key>/ folder)
 dry-runs that input on the saved draft: code runs and GET fetches are sent (point them at test
 resources); writes are stubbed and listed under runs[].sideEffects, whose .unchecked lists
-sandboxed code that ran unchecked and .omitted counts entries left out. Use --run when the apply
-changes a workflow. A
-workflow deploys on apply when deployments/<key>.ts declares it; with --run, deployments/ is
-applied only after every run completed.
+sandboxed code that really ran, network requests included, and .omitted counts entries left
+out. Use --run when the apply changes a workflow. A workflow deploys on apply when
+deployments/<key>.ts declares it; with --run, deployments/ is applied only after every run
+completed.
 --allow-delete lets an edit remove a resource, column, rows, document, or a workflow's block or
 variable; apply --dry only prints the plan; get --force replaces edits no apply has saved.
 Promote dev to prod: \`sim workspaces source apply --dir ./ws --to <workspaceId> --dry\`, then --yes.

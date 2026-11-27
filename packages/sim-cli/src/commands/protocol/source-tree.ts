@@ -29,7 +29,7 @@ import {
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
 import { printError, printLine } from '#sim-cli/output/io'
-import type { OutputFormat } from '../../config/index'
+import { isMachineFormat, type OutputFormat } from '../../config/index'
 import { readJsonFile, writeJsonFile } from '../../config/json-file'
 import { configDir } from '../../config/paths'
 import { embedStore } from '../../embed-context'
@@ -56,6 +56,7 @@ import {
 import {
   AGENTS_POINTER_MARKER,
   agentsPointer,
+  CLI_LOOP_RUN,
   type PrimerKind,
   type PrimerSurface,
   primerFor,
@@ -609,7 +610,7 @@ export function printTreeResult(
   format: OutputFormat,
   result: Record<string, unknown> & { primer?: string }
 ): void {
-  if (format === 'json' || format === 'yaml') {
+  if (isMachineFormat(format)) {
     printProtocolResult(format, result)
     return
   }
@@ -619,15 +620,19 @@ export function printTreeResult(
 }
 
 /**
- * The edit loop of a directory for a get's result, as the one chained command the primer
- * recommends: runnable from anywhere because it names the directory. Apply re-checks everything
- * on the server, so a dry run is not a step of it. Still a list, so the JSON field keeps the shape
+ * The edit loop of a directory for a get's result, as the one chained command the primer of this
+ * surface recommends, naming the directory so it runs from anywhere: a coding agent's adds the
+ * test run (and a workflow's deploy) with a `{…}` input to fill in, so it is a template to read,
+ * never a `next` to run as printed; Mothership's stops at the apply. `sim` carries the server
+ * options the caller typed (`simInvocation`). Apply re-checks everything on
+ * the server, so a dry run is not a step of it. Still a list, so the JSON field keeps the shape
  * earlier results had.
  */
-export function editLoop(kind: PrimerKind, dir: string): string[] {
-  const group = kind === 'workflow' ? 'sim workflows source' : 'sim workspaces source'
+export function editLoop(kind: PrimerKind, dir: string, sim: string): string[] {
+  const group = `${sim} ${kind === 'workflow' ? 'workflows' : 'workspaces'} source`
   const at = shellWord(dir)
-  return [`${group} check --dir ${at} && ${group} apply --dir ${at} --yes`]
+  const run = primerSurface() === 'chat' ? '' : CLI_LOOP_RUN[kind]
+  return [`${group} check --dir ${at} && ${group} apply --dir ${at} --yes${run}`]
 }
 
 /** What a directory's editable tree holds beside the printed source. */

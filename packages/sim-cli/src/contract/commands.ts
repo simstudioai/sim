@@ -339,6 +339,11 @@ export const CLI_CONTRACT: CliContract = {
       filter: { json: true, describe: TABLE_FILTER_HELP },
     },
     confirm: 'This deletes every matching row and cannot be undone.',
+    confirmListed: {
+      field: 'rowIds',
+      text: (count) =>
+        `This deletes ${count === null ? 'the listed rows' : count === 1 ? 'this row' : `these ${count} rows`} and cannot be undone.`,
+    },
   },
   updateRowsByFilter: {
     command: 'tables rows batch-update',

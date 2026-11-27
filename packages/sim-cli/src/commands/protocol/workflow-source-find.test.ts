@@ -114,6 +114,29 @@ describe('sim workflows source find', () => {
     expect(contextMockFns.mockRequest).not.toHaveBeenCalled()
   })
 
+  it('names the line that reads the block, not the first line of a field or block that spans several, nor a property of that name', async () => {
+    const multiline = WORKFLOW_TS.replace(
+      "const gate = condition('Gate', { if: js`${fetchPolicy.status} === 200`, else: true })",
+      [
+        "const gate = condition('Gate', {",
+        '    if: js`metadata.fetchPolicy &&',
+        '      ${fetchPolicy.status} === 200`,',
+        '    else: true,',
+        '  })',
+      ].join('\n')
+    )
+    expect(multiline).not.toBe(WORKFLOW_TS)
+    writeFileSync(join(dir, 'workflow.ts'), multiline)
+
+    await find('Fetch Policy')
+
+    const readsAt =
+      multiline.split('\n').findIndex((line) => line.includes('${fetchPolicy.status} === 200')) + 1
+    expect(stdoutJson().blocks[0].readers).toContainEqual(
+      expect.objectContaining({ block: 'Gate', file: 'workflow.ts', line: readsAt })
+    )
+  })
+
   it('takes a key or identifier, and prints every block a part of a name matches', async () => {
     await find('fetchPolicy')
     expect(stdoutJson().blocks.map((block) => block.name)).toEqual(['Fetch Policy'])

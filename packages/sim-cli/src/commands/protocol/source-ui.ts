@@ -16,7 +16,7 @@ import type { Command } from 'commander'
 import { annotationLine, annotationPath, printAnnotations } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
 import { askLine } from '#sim-cli/terminal/line-input'
-import type { OutputFormat } from '../../config/index'
+import { isMachineFormat, type OutputFormat } from '../../config/index'
 import { embedStore, setSoftExitCode } from '../../embed-context'
 import {
   SOURCE_BUSY_EXIT_CODE,
@@ -151,11 +151,6 @@ function printDiagnostics(diagnostics: readonly Diagnostic[]): void {
 /** A finding in a source command's `--output json` (or `yaml`) result: the frame stays human-only. */
 type ResultDiagnostic = Omit<FlatDiagnostic, 'frame' | 'code'> & { code: Diagnostic['code'] }
 
-/** Whether `format` prints one machine document on stdout rather than lines for a person. */
-export function isMachine(format: OutputFormat): boolean {
-  return format === 'json' || format === 'yaml'
-}
-
 /**
  * The `diagnostics` a source command's result carries in a machine format, so the one document on
  * stdout holds every finding: errors and warnings, and info only with `verbose` (a new workflow
@@ -167,7 +162,7 @@ function resultDiagnostics(
   diagnostics: readonly Diagnostic[],
   verbose = false
 ): { diagnostics?: ResultDiagnostic[] } {
-  if (!isMachine(format)) return {}
+  if (!isMachineFormat(format)) return {}
   const hidden = (finding: Diagnostic) =>
     !verbose && finding.severity === 'info' && finding.code !== 'I_FINDINGS_TRUNCATED'
   const hiddenCount = diagnostics.filter(hidden).length
@@ -257,7 +252,7 @@ export function findingsOutput(
   dir?: string
 ): FindingsOutput {
   const printed = new Set<string>()
-  const machine = isMachine(format)
+  const machine = isMachineFormat(format)
   return {
     machine,
     print(diagnostics) {
@@ -418,26 +413,36 @@ const DETAILS_REFERENCE = / See details\.diagnostics\.$/
 export function printRefusal(
   error: unknown,
   format: OutputFormat,
-  options: { ifAnswerLost?: string; verbose?: boolean } = {}
+  options: {
+    ifAnswerLost?: string
+    verbose?: boolean
+    /** The `--folder` a create named, which the server answers "Folder not found" for. */
+    folder?: string
+  } = {}
 ): never {
-  const { ifAnswerLost, verbose = false } = options
+  const { ifAnswerLost, verbose = false, folder } = options
   if (!(error instanceof SimApiError)) throw error
   const details = toRecord(error.details)
   const diagnostics = details.diagnostics
   const printed = isDiagnosticList(diagnostics)
-  const machine = isMachine(format)
+  const machine = isMachineFormat(format)
   if (printed && !machine) printDiagnostics(diagnostics)
   const message = machine
     ? error.message
     : error.message.replace(DETAILS_REFERENCE, printed ? ' Each finding is printed above.' : '')
   const nameTaken = error.status === 409 && details.code === SOURCE_REFUSAL_CODES.nameTaken
+  const folderMissing = folder !== undefined && /\bfolder not found\b/i.test(error.message)
   const hint = nameTaken
     ? 'Pass --name to create it under another name, or apply to that workflow.'
-    : ifAnswerLost && answerLost(error)
-      ? ifAnswerLost
-      : null
+    : folderMissing
+      ? `Create it with \`sim workflows folders create ${shellWord(folder)}\`, then create the workflow again.`
+      : ifAnswerLost && answerLost(error)
+        ? ifAnswerLost
+        : null
   throw new SimApiError(
-    hint ? `${message} ${hint}` : message,
+    hint
+      ? `${folderMissing && !/[.!?]$/.test(message) ? `${message}.` : message} ${hint}`
+      : message,
     error.status,
     error.code,
     printed ? refusalDetails(format, details, diagnostics, verbose) : error.details,

@@ -129,31 +129,21 @@ export const testReportSchema = z.object({
 })
 
 /**
- * A stubbed call of a stored report, read from either shape it was stored in: `reason`, or the
- * `dependsOnStub` and `readOnlyHint` flags a report stored before it held. The MCP target and
- * reason are absent from a report stored before they were recorded.
+ * A stubbed call of a stored report. The MCP target and reason are absent from a report stored
+ * before they were recorded.
  */
-const storedStubbedCallSchema = z
-  .object({
-    workflowId: z.string(),
-    blockId: z.string().nullable(),
-    block: z.string().nullable(),
-    tool: z.string().nullable(),
-    /** The MCP server and tool an MCP block's call named; null for any other call. */
-    mcp: z.object({ server: z.string(), tool: z.string() }).nullable().default(null),
-    /** Why a call that is not a plain write was held back; unset for a plain write. */
-    reason: z.enum(['placeholder', 'mcp-read-only']).optional(),
-    dependsOnStub: z.boolean().optional(),
-    readOnlyHint: z.boolean().optional(),
-    /** Calls folded into this entry. */
-    count: z.number().int().positive(),
-  })
-  .transform(({ dependsOnStub, readOnlyHint, reason, ...call }) => {
-    const read =
-      reason ??
-      (dependsOnStub ? 'placeholder' : readOnlyHint ? ('mcp-read-only' as const) : undefined)
-    return { ...call, ...(read ? { reason: read } : {}) }
-  })
+const storedStubbedCallSchema = z.object({
+  workflowId: z.string(),
+  blockId: z.string().nullable(),
+  block: z.string().nullable(),
+  tool: z.string().nullable(),
+  /** The MCP server and tool an MCP block's call named; null for any other call. */
+  mcp: z.object({ server: z.string(), tool: z.string() }).nullable().default(null),
+  /** Why a call that is not a plain write was held back; unset for a plain write. */
+  reason: z.enum(['placeholder', 'mcp-read-only']).optional(),
+  /** Calls folded into this entry. */
+  count: z.number().int().positive(),
+})
 
 /** What one workflow run of a test did with the writes it reached, without their payloads. */
 const testRunSideEffectsSchema = z.object({

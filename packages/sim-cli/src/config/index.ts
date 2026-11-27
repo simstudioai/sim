@@ -6,6 +6,7 @@ export {
   deleteProfile,
   explicitWorkspaceSetting,
   FORBIDDEN_IN_VALUE,
+  isMachineFormat,
   listAuthenticationDependents,
   listProfiles,
   normalizeEndpoint,

@@ -4,6 +4,7 @@ import type { Command } from 'commander'
 import { publishSummary } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
 import type { NextStep } from '#sim-cli/output/next-step'
+import { isMachineFormat } from '../../config/index'
 import { setSoftExitCode } from '../../embed-context'
 import type {
   ApplyWorkflowSourceBody,
@@ -20,8 +21,7 @@ import {
   liveAgainstDraft,
   liveDeploymentStatus,
 } from '../../runtime/deployment-live'
-import { runFailureMessage } from '../../runtime/execute'
-import { readArgumentSource } from '../../runtime/request'
+import { simInvocation } from '../../runtime/run-next'
 import { searchTasks } from '../search'
 import {
   type DeployedUrl,
@@ -33,7 +33,6 @@ import {
 import { gitProvenance } from './git-provenance'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
-import { printRunFailureSite } from './run-source-location'
 import { folderChildResults } from './source-check'
 import {
   absoluteDirOption,
@@ -58,7 +57,6 @@ import {
   type FindingsOutput,
   findingsOutput,
   fresh,
-  isMachine,
   markdownCell,
   printRefusal,
   refusedExitCode,
@@ -82,7 +80,7 @@ import {
   writeSourceDirectory,
   writeSourceScaffold,
 } from './workflow-dir'
-import { dryRunDraft, printSideEffects, type TestRun, testRunResult } from './workflow-run-follow'
+import { printSideEffects, readRunInput, type TestRun, testRunDraft } from './workflow-run-follow'
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 
@@ -184,6 +182,8 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   save: (data: SourceApplyData) => Promise<void>
   /** The next step when the write's answer never came back, so it may have been stored. */
   ifAnswerLost: string
+  /** The folder a create puts the workflow in (`--folder`). */
+  folder?: string
   /** This write as a command, without `--yes`: what a `plan` run names next with it. */
   command: string
   /**
@@ -212,6 +212,7 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
       return printRefusal(error, args.output, {
         ...(dry ? {} : { ifAnswerLost: args.ifAnswerLost }),
         verbose: options.verbose === true,
+        ...(args.folder !== undefined ? { folder: args.folder } : {}),
       })
     }
   }
@@ -245,13 +246,14 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
       ...(live ? { live } : {}),
       ...(next ? { next } : {}),
     }
+    // Before the result, so its errors, warnings, live and next stay the last lines printed.
+    if (run?.sideEffects && !findings.machine) {
+      printSideEffects(run.sideEffects, undefined, data.workflowId)
+    }
     printProtocolResult(args.output, result, {
       ...(details.created ? { created: createdText(details.created) } : {}),
       ...(outcome.urls?.length ? { urls: deployedUrlsText(outcome.urls) } : {}),
     })
-    if (run?.sideEffects && !findings.machine) {
-      printSideEffects(run.sideEffects, undefined, data.workflowId)
-    }
   }
   const hasErrors = (data: SourceApplyData) => countOf(data, 'error') > 0
   /** Whether a committed answer stored the write: not refused, and a create that applied. */
@@ -302,21 +304,23 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   }
   if (options.run !== undefined) {
     const input = options.run === true ? undefined : options.run
-    const record = await afterWrite(() =>
-      dryRunDraft(args.client, data.workflowId, input, args.workspaceId)
+    const test = await afterWrite(() =>
+      testRunDraft(args.client, options.dir, data.workflowId, input, args.workspaceId)
     )
-    run = testRunResult(record)
-    if (record.status !== 'completed') {
-      await printRunFailureSite(options.dir, data.workflowId, record.error)
+    run = test.run
+    if (test.failure !== undefined) {
       const next = {
         command: `${args.savedCommand} --yes`,
-        reason: 'applies your fix and tests it again',
+        reason: test.refused
+          ? 'applies again and tests it with your fixed --run input'
+          : 'applies your fix and tests it again',
       }
       report(data, { next }, run)
-      const why =
-        runFailureMessage('executeWorkflow', record) ?? `it ended ${String(record.status)}`
+      const written = data.applied
+        ? `The ${verb} was saved into ${options.dir}, but`
+        : `Nothing changed: the draft already matched ${options.dir}, and`
       throw new SimApiError(
-        `The ${verb} was saved into ${options.dir}, but the test run ${String(record.status)}: ${why}${options.deploy ? ' Nothing was deployed.' : ''} Fix the source, then run \`${args.savedCommand} --yes\`.`,
+        `${written} the test run ${String(run.status)}: ${asSentence(test.failure)}${options.deploy ? ' Nothing was deployed.' : ''} Fix the ${test.refused ? '--run input' : 'source'}, then run \`${next.command}\`.`,
         0
       )
     }
@@ -334,6 +338,11 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
     })
   )
   report(data, deployment, run)
+}
+
+/** `text` ending as a sentence, so a sentence can follow it. */
+function asSentence(text: string): string {
+  return /[.!?]$/.test(text) ? text : `${text}.`
 }
 
 /** How many of a write's findings have `severity`. */
@@ -557,9 +566,12 @@ function deployFailure(
   )
 }
 
-/** `sim workflows source apply` with the write flags `options` holds, without `--yes`. */
-function applyCommand(options: SourceWriteOptions): string {
-  return `sim workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`
+/**
+ * `sim workflows source apply` with the write flags `options` holds, without `--yes`; `sim` is the
+ * invocation with the server options the caller typed ({@link simInvocation}).
+ */
+function applyCommand(options: SourceWriteOptions, sim: string): string {
+  return `${sim} workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`
 }
 
 /**
@@ -579,13 +591,10 @@ async function checkedWriteOptions(options: SourceWriteOptions): Promise<SourceW
     )
   }
   if (typeof options.run !== 'string') return options
-  const { text } = await readArgumentSource(options.run, 'run')
-  try {
-    JSON.parse(text)
-  } catch {
-    throw new CliUsageError('--run: its input is not JSON. Nothing was saved.')
+  return {
+    ...options,
+    run: await readRunInput(options.run, '--run: its input is not JSON. Nothing was saved.'),
   }
-  return { ...options, run: text }
 }
 
 /** `--run [input]` and `--deploy` on a write: test the saved draft, then deploy it. */
@@ -593,7 +602,7 @@ function runAndDeployOptions(command: Command): Command {
   return command
     .option(
       '--run [input]',
-      'After the write is saved, dry-run the draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it): a run that does not complete exits 1 and deploys nothing'
+      'After the write is saved, dry-run the draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it): a run that does not complete exits 1 and deploys nothing. Sandboxed code (Python, shell, imports) really runs in it, network requests included, and is listed in sideEffects.unchecked, so --run --deploy in CI sends those'
     )
     .option(
       '--deploy',
@@ -642,8 +651,9 @@ export function attachWorkflowSourceApply(source: Command): void {
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')
     .addHelpText('after', sourceExitCodesHelp('workflows source apply'))
-    .action(async (named: string | undefined, options: SourceWriteOptions) => {
+    .action(async (named: string | undefined, options: SourceWriteOptions, invoked: Command) => {
       const mode = writeMode(options)
+      const sim = simInvocation(invoked)
       await withSourceCommandLock(
         options.dir,
         async () => {
@@ -663,8 +673,8 @@ export function attachWorkflowSourceApply(source: Command): void {
             mode,
             creating: false,
             question: `Apply these changes to workflow ${workflowId}?`,
-            command: applyCommand(options),
-            savedCommand: applyCommand(options),
+            command: applyCommand(options, sim),
+            savedCommand: applyCommand(options, sim),
             output: profile.output,
             client,
             workspaceId: base.workspaceId,
@@ -685,7 +695,7 @@ export function attachWorkflowSourceApply(source: Command): void {
               await writeBack(options.dir, data, lock, { write: edges ? [edges] : [] })
               await refreshWorkflowTsconfigs(options.dir, data)
             },
-            ifAnswerLost: `It may have been saved. Run \`sim workflows source apply ${workflowId} --dir ${options.dir} --dry\`: exit 5 (stale) means the draft changed since this directory was read, by this apply or by someone else. Run \`sim workflows source get ${workflowId} --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edit, \`sim workflows source get ${workflowId} --dir ${options.dir} --force\` brings this directory up to date; if not, reapply your edit in the fresh directory. Any other outcome means it was not saved: apply again.`,
+            ifAnswerLost: `It may have been saved. Run \`${sim} workflows source apply ${workflowId} --dir ${shellWord(options.dir)} --dry\`: exit 5 (stale) means the draft changed since this directory was read, by this apply or by someone else. Run \`${sim} workflows source get ${workflowId} --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edit, \`${sim} workflows source get ${workflowId} --dir ${shellWord(options.dir)} --force\` brings this directory up to date; if not, reapply your edit in the fresh directory. Any other outcome means it was not saved: apply again.`,
           })
         },
         { readOnly: isReadOnly(mode) }
@@ -731,79 +741,91 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .allowExcessArguments(false)
     .description('Create a workflow from a workflow source directory')
     .addHelpText('after', sourceExitCodesHelp('workflows source create'))
-    .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) => {
-      const mode = writeMode(options)
-      await withSourceCommandLock(
-        options.dir,
-        async () => {
-          await assertSourceDirKind(options.dir, 'workflow')
-          const checked = await checkedWriteOptions(options)
-          if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
-            if (options.dry || options.yes) {
-              throw new SourceDirError(
-                `${options.dir} has no ${ENTRY_FILE}, so there is nothing to ${options.dry ? 'check' : 'create'}. Write ${ENTRY_FILE} there, or run \`sim workflows source create --dir ${options.dir}\` without --dry and --yes to write a starter.`
-              )
+    .action(
+      async (
+        options: SourceWriteOptions & { name?: string; folder?: string },
+        invoked: Command
+      ) => {
+        const mode = writeMode(options)
+        const sim = simInvocation(invoked)
+        /** This create in `workspaceId` as a command, without `--yes`: every flag the caller chose. */
+        const createLine = (workspaceId: string) =>
+          `${createCommand(options.dir, workspaceId, sim)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`
+        await withSourceCommandLock(
+          options.dir,
+          async () => {
+            await assertSourceDirKind(options.dir, 'workflow')
+            const checked = await checkedWriteOptions(options)
+            if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
+              if (options.dry || options.yes) {
+                throw new SourceDirError(
+                  `${options.dir} has no ${ENTRY_FILE}, so there is nothing to ${options.dry ? 'check' : 'create'}. Write ${ENTRY_FILE} there, or run \`${sim} workflows source create --dir ${shellWord(options.dir)}\` without --dry and --yes to write a starter.`
+                )
+              }
+              const { client, profile } = connectCreate()
+              const workspaceId = client.requireWorkspace()
+              const tree = await writeSourceScaffold(client, options.dir, workspaceId)
+              const next: NextStep = {
+                command: `${createLine(workspaceId)} --yes`,
+                reason: `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, check it, then create it.`,
+              }
+              const machine = isMachineFormat(profile.output)
+              if (!machine) printError(`${next.reason} Next: ${next.command}`)
+              printTreeResult(profile.output, {
+                created: false,
+                scaffolded: true,
+                ...tree,
+                ...(machine ? { next } : {}),
+              })
+              return
             }
             const { client, profile } = connectCreate()
-            const workspaceId = client.requireWorkspace()
-            const tree = await writeSourceScaffold(client, options.dir, workspaceId)
-            const next: NextStep = {
-              command: `${createCommand(shellWord(options.dir), workspaceId)} --yes${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
-              reason: `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, check it, then create it.`,
+            // A directory is bound to the workspace it records: a starter to the one its types were
+            // written for (--workspace still chooses another), a workspace folder to its workspace.
+            const recorded = directoryWorkspace(
+              options.dir,
+              await recordedWorkspace(options.dir, profile),
+              profile,
+              (from, _named, setting) => `Run it without ${setting} to create it in ${from}.`
+            )
+            const workspaceId = client.requireWorkspace(recorded ?? undefined)
+            const files = await readSourceFiles(options.dir, null)
+            if (!isReadOnly(mode)) {
+              await refreshWorkflowWorkspaceTypes(client, options.dir, workspaceId)
             }
-            const machine = isMachine(profile.output)
-            if (!machine) printError(`${next.reason} Next: ${next.command}`)
-            printTreeResult(profile.output, {
-              created: false,
-              scaffolded: true,
-              ...tree,
-              ...(machine ? { next } : {}),
+            const childResults = isReadOnly(mode)
+              ? undefined
+              : await folderChildResults(options.dir)
+            await writeWorkflowSource<'createWorkflowFromSource'>({
+              options: checked,
+              mode,
+              creating: true,
+              question: 'Create this workflow?',
+              command: createLine(workspaceId),
+              savedCommand: applyCommand(options, sim),
+              output: profile.output,
+              client,
+              operation: 'createWorkflowFromSource',
+              params: { workspaceId },
+              workspaceId,
+              ...(options.folder !== undefined ? { folder: options.folder } : {}),
+              ifAnswerLost: `It may have been created. Run this command again: a SOURCE_NAME_TAKEN refusal means it was, so find its id with \`sim workflows list\` and run \`${sim} workflows source get <workflowId> --dir ${shellWord(options.dir)} --force\`.`,
+              save: async (data) => {
+                await writeSourceDirectory(client, options.dir, data, [], childResults)
+                await updateSourceDir(options.dir, { write: [], remove: [SOURCE_STARTER_FILE] })
+              },
+              body: {
+                files,
+                ...(options.name !== undefined ? { name: options.name } : {}),
+                ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
+                provenance: { client: 'cli', ...(await gitProvenance(options.dir)) },
+              },
             })
-            return
-          }
-          const { client, profile } = connectCreate()
-          // A directory is bound to the workspace it records: a starter to the one its types were
-          // written for (--workspace still chooses another), a workspace folder to its workspace.
-          const recorded = directoryWorkspace(
-            options.dir,
-            await recordedWorkspace(options.dir, profile),
-            profile,
-            (from, _named, setting) => `Run it without ${setting} to create it in ${from}.`
-          )
-          const workspaceId = client.requireWorkspace(recorded ?? undefined)
-          const files = await readSourceFiles(options.dir, null)
-          if (!isReadOnly(mode)) {
-            await refreshWorkflowWorkspaceTypes(client, options.dir, workspaceId)
-          }
-          const childResults = isReadOnly(mode) ? undefined : await folderChildResults(options.dir)
-          await writeWorkflowSource<'createWorkflowFromSource'>({
-            options: checked,
-            mode,
-            creating: true,
-            question: 'Create this workflow?',
-            command: `${createCommand(shellWord(options.dir), workspaceId)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
-            savedCommand: applyCommand(options),
-            output: profile.output,
-            client,
-            operation: 'createWorkflowFromSource',
-            params: { workspaceId },
-            workspaceId,
-            ifAnswerLost: `It may have been created. Run this command again: a SOURCE_NAME_TAKEN refusal means it was, so find its id with \`sim workflows list\` and run \`sim workflows source get <workflowId> --dir ${options.dir} --force\`.`,
-            save: async (data) => {
-              await writeSourceDirectory(client, options.dir, data, [], childResults)
-              await updateSourceDir(options.dir, { write: [], remove: [SOURCE_STARTER_FILE] })
-            },
-            body: {
-              files,
-              ...(options.name !== undefined ? { name: options.name } : {}),
-              ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
-              provenance: { client: 'cli', ...(await gitProvenance(options.dir)) },
-            },
-          })
-        },
-        { readOnly: isReadOnly(mode) }
-      )
-    })
+          },
+          { readOnly: isReadOnly(mode) }
+        )
+      }
+    )
 }
 
 /** Whether a diff adds, removes or changes any workflow variable. */
