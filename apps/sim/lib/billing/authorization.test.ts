@@ -32,6 +32,7 @@ vi.mock('@/lib/billing/enterprise-outbox', () => {
 
 import {
   assertPersonalCheckoutAllowed,
+  assertSelfServeCheckoutPlan,
   authorizeSubscriptionReference,
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
@@ -112,6 +113,19 @@ describe('authorizeSubscriptionReference', () => {
     await expect(
       authorizeSubscriptionReference('owner-1', 'org-1', 'upgrade-subscription', 'team_6000')
     ).rejects.toThrow(/already has an active subscription/)
+  })
+})
+
+describe('assertSelfServeCheckoutPlan', () => {
+  it('refuses a self-serve Enterprise checkout with a client error', () => {
+    expect(() => assertSelfServeCheckoutPlan('enterprise')).toThrow(
+      expect.objectContaining({ statusCode: 400 })
+    )
+  })
+
+  it('admits self-serve Pro and Team checkouts', () => {
+    expect(() => assertSelfServeCheckoutPlan('pro_6000')).not.toThrow()
+    expect(() => assertSelfServeCheckoutPlan('team_25000')).not.toThrow()
   })
 })
 

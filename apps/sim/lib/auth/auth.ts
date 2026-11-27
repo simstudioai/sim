@@ -80,6 +80,7 @@ import { isSsoCallbackPath, resolveSsoCallbackProviderId } from '@/lib/auth/sso/
 import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
 import {
   assertPersonalCheckoutAllowed,
+  assertSelfServeCheckoutPlan,
   authorizeSubscriptionReference,
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
@@ -1212,6 +1213,7 @@ export const auth = betterAuth({
           const sessionUserId = session?.user?.id
           if (sessionUserId) {
             const requestBody = ctx.body ?? {}
+            assertSelfServeCheckoutPlan(requestBody.plan)
             const referenceId = resolveCheckoutReferenceId(
               requestBody,
               sessionUserId,

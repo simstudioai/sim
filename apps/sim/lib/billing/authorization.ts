@@ -14,7 +14,7 @@ import {
   assertNoUnresolvedEnterpriseIssuance,
   EnterpriseIssuanceInProgressError,
 } from '@/lib/billing/enterprise-outbox'
-import { isOrgPlan, isPro } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isOrgPlan, isPro } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('BillingAuthorization')
@@ -71,6 +71,19 @@ async function assertNotBilledThroughMarketplace(referenceId: string): Promise<v
   logger.warn('Blocking checkout - reference is billed through AWS Marketplace', { referenceId })
   throw new APIError('CONFLICT', {
     message: 'This subscription is billed through AWS Marketplace. Contact support to change it.',
+  })
+}
+
+/**
+ * Refuse a self-serve checkout for the Enterprise plan. Enterprise is issued by the Sim team with
+ * its own Stripe price and metadata, so the Stripe plugin's placeholder price can never check out,
+ * and its write to a pending subscription row fails the Enterprise metadata constraint.
+ */
+export function assertSelfServeCheckoutPlan(plan: unknown): void {
+  if (typeof plan !== 'string' || !isEnterprise(plan)) return
+  logger.warn('Blocking checkout - Enterprise is not a self-serve plan')
+  throw new APIError('BAD_REQUEST', {
+    message: 'Enterprise plans are set up by our team. Contact sales to get started.',
   })
 }
 
