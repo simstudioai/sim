@@ -81,6 +81,7 @@ import { DatabricksBlock, DatabricksBlockMeta, DatabricksV2Block } from '@/block
 import { DatadogBlock, DatadogBlockMeta, DatadogV2Block } from '@/blocks/blocks/datadog'
 import { DatagmaBlock, DatagmaBlockMeta } from '@/blocks/blocks/datagma'
 import { DaytonaBlock, DaytonaBlockMeta, DaytonaV2Block } from '@/blocks/blocks/daytona'
+import { DealportBlock, DealportBlockMeta } from '@/blocks/blocks/dealport'
 import { DeploymentsBlock } from '@/blocks/blocks/deployments'
 import { DevinBlock, DevinBlockMeta, DevinV2Block } from '@/blocks/blocks/devin'
 import { DiscordBlock, DiscordBlockMeta, DiscordV2Block } from '@/blocks/blocks/discord'
@@ -587,6 +588,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   datagma: DatagmaBlock,
   daytona: DaytonaBlock,
   daytona_v2: DaytonaV2Block,
+  dealport: DealportBlock,
   deployments: DeploymentsBlock,
   devin: DevinBlock,
   devin_v2: DevinV2Block,
@@ -1069,6 +1071,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   datadog: DatadogBlockMeta,
   datagma: DatagmaBlockMeta,
   daytona: DaytonaBlockMeta,
+  dealport: DealportBlockMeta,
   devin: DevinBlockMeta,
   discord: DiscordBlockMeta,
   docusign: DocuSignBlockMeta,

@@ -500,6 +500,20 @@ export const validateDaytonaServiceAccount = tokenCheckValidator({
 })
 
 /**
+ * Dealport's $0.00 balance endpoint answers 200 for a valid `read`-scoped `dp_live_` key,
+ * 403 coded `insufficient_key_scope` for a valid key restricted to another scope (such as
+ * `owners`), and 401 for an unknown or revoked key.
+ */
+export const validateDealportServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Dealport',
+  provesKey: (errorBody) => toRecord(errorBody).error === 'insufficient_key_scope',
+  request: ({ apiToken }) => ({
+    url: 'https://app.dealport.com/api/v1/balance',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/**
  * Listing one session of the organization is the tools' own read on their host and auth: 200
  * proves the key and its access to that organization (it needs `ViewOrgSessions`). Devin
  * answers an invalid key with 401, and both a key outside the organization and one without the

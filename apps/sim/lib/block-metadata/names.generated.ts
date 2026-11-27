@@ -60,6 +60,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   datadog_v2: 'Datadog',
   datagma: 'Datagma',
   daytona_v2: 'Daytona',
+  dealport: 'Dealport',
   deployments: 'Deployments',
   devin_v2: 'Devin',
   discord_v2: 'Discord',

@@ -1,0 +1,410 @@
+---
+title: Dealport
+description: Search cited US private company and building Records and verified human owners
+integration:
+  type: "dealport"
+  color: "#0E1524"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Dealport](https://dealport.com/) is the SMB knowledge layer for agents and teams: 28M+ US private companies, the commercial and multifamily buildings they own, and the human principals behind them, backed by primary public filings.
+
+With the Dealport block, you can:
+
+- **Size US SMB markets at $0.00**: run free market sizing counts across geography, NAICS industries, headcount, revenue, and regulatory attributes, and inspect up to 5 sample companies before opening paid Records
+- **Search cited company and NYC building Records**: search 28M+ US private businesses or NYC multifamily and mixed-use buildings by borough, unit count, ACRIS loan maturity, mortgage holder, and distress signals
+- **Inspect primary-filing evidence**: open complete company Records (by Dealport UUID) or NYC building Records (by 10-digit BBL) with filed, observed, and estimated facts, principals, identifiers, and source citations
+- **Match external company rows and resolve verified owners**: match 1 to 250 company names and domains at $0.00 into Dealport Projects, and resolve verified human principals behind private companies, US LLCs, or property addresses with direct phones, emails, and professional profiles
+
+Create a workspace API key in [Dealport](https://app.dealport.com/connect?tab=keys) under **Connect > API Keys** (it starts with `dp_live_`), grant the `read` scope for company, building, and Record operations and the `owners` scope for Find Owner, and add it from the block's **Dealport Account** field. New Dealport accounts start with a $5.00 free pay-as-you-go balance; 30-day workspace repeat reads cost $0.00.
+
+In Sim, the Dealport block lets your agents size acquisition and sales territories, enrich inbound company tables with cited public-filing facts, monitor maturing building mortgages, and route verified principal contacts into your CRM.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Size US private company markets at $0.00, search 28M+ US private companies and NYC commercial or multifamily buildings, open cited Records backed by primary public filings, match external company rows into Projects, and resolve verified human principals with direct phones, emails, and profiles.
+
+## Actions
+
+### Dealport Preview Companies
+
+Run a free ($0.00) market sizing count across 28M+ US private companies and inspect up to 5 sample companies before opening paid Records.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | No | Company name prefix filter \(e.g. "Buckeye Mechanical"\) |
+| `state` | string | No | Two-letter US state code \(e.g. OH, TX, FL\) |
+| `counties` | string | No | Comma-separated county names within state \(e.g. "Franklin,Cuyahoga"\) |
+| `cities` | string | No | Comma-separated city names within state \(e.g. "Columbus,Cleveland"\) |
+| `domain` | string | No | Company website host or registrable domain \(e.g. "acmemechanical.com"\) |
+| `naics` | string | No | Comma-separated 2-to-6 digit NAICS codes \(e.g. "238220,332710"\) |
+| `min_revenue` | number | No | Minimum annual revenue in USD |
+| `max_revenue` | number | No | Maximum annual revenue in USD |
+| `filed_revenue_only` | boolean | No | Restrict to primary filed revenue \(CMS cost reports or PPP filings\) |
+| `min_employees` | number | No | Minimum employee headcount |
+| `max_employees` | number | No | Maximum employee headcount |
+| `size_unknown` | boolean | No | Include companies without reported size alongside sized matches |
+| `independent` | boolean | No | Exclude SEC filers, nonprofits, government bodies, membership groups, and HOAs |
+| `owner_businesses` | number | No | Minimum number of businesses associated with the same owner \(2 to 25\) |
+| `medicare` | boolean | No | Require Medicare enrollment \(CMS certification number\) |
+| `owner_operated` | boolean | No | Require owner-operated status in CMS filings |
+| `owner_contact` | boolean | No | Require an owner phone or email already on file |
+| `licensed` | boolean | No | Require an active state health license |
+| `care_types` | string | No | Comma-separated NPI healthcare organization care types |
+| `adviser` | boolean | No | Require SEC Form ADV investment adviser registration |
+| `wealth_adviser` | boolean | No | Require individual wealth adviser profile \(no private funds, at least 20 clients\) |
+| `online_store` | boolean | No | Require an indexed online storefront |
+| `sells` | string | No | Comma-separated online store product categories |
+| `store_words` | string | No | Comma-separated storefront full-text search terms |
+| `min_reviews` | number | No | Minimum online store review count |
+| `order` | string | No | Storefront sort order: reviews, products, or match |
+| `markets` | json | No | Additional state and county markets as a JSON array of \{"state": "MI", "counties": \["Wayne", "Oakland"\]\} objects |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matching_count` | number | Number of US private companies matching the buy-box filters |
+| `matching_count_more` | boolean | Whether additional companies match beyond matching_count |
+| `sample` | array | Up to 5 sample companies matching the filters |
+|   ↳ `id` | string | Dealport company UUID |
+|   ↳ `name` | string | Company name |
+|   ↳ `city` | string | Company city |
+|   ↳ `state` | string | Two-letter US state code |
+|   ↳ `industry` | string | Primary industry label |
+|   ↳ `employee_band` | string | Headcount range band |
+|   ↳ `revenue_band` | string | Annual revenue range band |
+|   ↳ `independent` | boolean | Whether the company is independent |
+| `board_url` | string | Dealport web URL for inspecting the filtered market |
+| `cost_usd` | number | USD charge for this request \($0.00 for market previews\) |
+| `remaining_balance_usd` | number | Remaining workspace USD balance after the call |
+
+</ReferenceDetails>
+
+### Dealport Search Companies
+
+Search 28M+ US private companies by geography, NAICS industry, revenue, headcount, and primary public-filing attributes.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | No | Company name prefix filter \(e.g. "Buckeye Mechanical"\) |
+| `state` | string | No | Two-letter US state code \(e.g. OH, TX, FL\) |
+| `counties` | string | No | Comma-separated county names within state \(e.g. "Franklin,Cuyahoga"\) |
+| `cities` | string | No | Comma-separated city names within state \(e.g. "Columbus,Cleveland"\) |
+| `domain` | string | No | Company website host or registrable domain \(e.g. "acmemechanical.com"\) |
+| `naics` | string | No | Comma-separated 2-to-6 digit NAICS codes \(e.g. "238220,332710"\) |
+| `min_revenue` | number | No | Minimum annual revenue in USD |
+| `max_revenue` | number | No | Maximum annual revenue in USD |
+| `filed_revenue_only` | boolean | No | Restrict to primary filed revenue \(CMS cost reports or PPP filings\) |
+| `min_employees` | number | No | Minimum employee headcount |
+| `max_employees` | number | No | Maximum employee headcount |
+| `size_unknown` | boolean | No | Include companies without reported size alongside sized matches |
+| `independent` | boolean | No | Exclude SEC filers, nonprofits, government bodies, membership groups, and HOAs |
+| `owner_businesses` | number | No | Minimum number of businesses associated with the same owner \(2 to 25\) |
+| `medicare` | boolean | No | Require Medicare enrollment \(CMS certification number\) |
+| `owner_operated` | boolean | No | Require owner-operated status in CMS filings |
+| `owner_contact` | boolean | No | Require an owner phone or email already on file |
+| `licensed` | boolean | No | Require an active state health license |
+| `care_types` | string | No | Comma-separated NPI healthcare organization care types |
+| `adviser` | boolean | No | Require SEC Form ADV investment adviser registration |
+| `wealth_adviser` | boolean | No | Require individual wealth adviser profile \(no private funds, at least 20 clients\) |
+| `online_store` | boolean | No | Require an indexed online storefront |
+| `sells` | string | No | Comma-separated online store product categories |
+| `store_words` | string | No | Comma-separated storefront full-text search terms |
+| `min_reviews` | number | No | Minimum online store review count |
+| `order` | string | No | Storefront sort order: reviews, products, or match |
+| `markets` | string | No | Additional state and county markets \(e.g. "IN\|MI:Wayne,Oakland"\) |
+| `limit` | number | No | Results per page from 1 to 50. Defaults to 25. |
+| `cursor` | string | No | Pagination cursor returned as next_cursor from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | Matching US private company Records on this page |
+|   ↳ `id` | string | Dealport company UUID |
+|   ↳ `name` | string | Company name |
+|   ↳ `city` | string | Company city |
+|   ↳ `state` | string | Two-letter US state code |
+|   ↳ `zip` | string | Postal ZIP code |
+|   ↳ `naics` | array | NAICS industry codes |
+|   ↳ `industry` | array | Industry categories |
+|   ↳ `industryLabel` | string | Primary display industry label |
+|   ↳ `phone` | string | Company phone number |
+|   ↳ `website` | string | Company website or domain |
+|   ↳ `revenue` | object | Annual revenue in USD with filing basis |
+|     ↳ `value` | number | Point figure when reported |
+|     ↳ `low` | number | Lower bound of the range |
+|     ↳ `high` | number | Upper bound of the range |
+|     ↳ `basis` | string | Evidence basis: filed, observed, or estimate |
+|   ↳ `employees` | object | Employee headcount with filing basis |
+|     ↳ `value` | number | Point figure when reported |
+|     ↳ `low` | number | Lower bound of the range |
+|     ↳ `high` | number | Upper bound of the range |
+|     ↳ `basis` | string | Evidence basis: filed, observed, or estimate |
+|   ↳ `owner` | object | Filed or observed principal on the company Record |
+|     ↳ `name` | string | Principal full name |
+|     ↳ `role` | string | Principal title or role |
+|   ↳ `sources` | number | Number of primary public-filing sources |
+|   ↳ `foundedYear` | number | Year founded when known |
+| `next_cursor` | string | Cursor for fetching the next page of companies, or null on the final page |
+
+</ReferenceDetails>
+
+### Dealport Search Buildings
+
+Search NYC multifamily and commercial buildings by borough, unit count, ACRIS loan maturity, mortgage holder category, and regulatory signals.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `borough` | string | Yes | NYC borough code: MN, BK, QN, BX, or SI |
+| `min_units` | number | No | Minimum residential unit count. Defaults to 10. |
+| `q` | string | No | Street address or recorded owner substring match |
+| `loan_due_by` | number | No | Estimated mortgage maturity year ceiling \(e.g. 2027\) |
+| `loan_holder` | string | No | Current mortgage holder category: agency, cmbs, or bank |
+| `signal` | string | No | Regulatory or distress signal: rent_stabilized, dob_penalties, housing_court, tax_lien, ll97, section8_expiring, tax_credit_ending, or failing_inspection |
+| `limit` | number | No | Results per page from 1 to 50. Defaults to 25. |
+| `cursor` | string | No | Pagination cursor returned as next_cursor from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `buildings` | array | Matching NYC building Records on this page |
+|   ↳ `bbl` | string | 10-digit NYC Borough-Block-Lot identifier |
+|   ↳ `borough` | string | NYC borough code \(MN, BK, QN, BX, SI\) |
+|   ↳ `address` | string | Street address of the building |
+|   ↳ `owner_of_record` | string | Recorded deed or tax owner |
+|   ↳ `residential_units` | number | Residential unit count |
+|   ↳ `building_class` | string | NYC DOF building class code |
+|   ↳ `year_built` | number | Year built |
+|   ↳ `zoning` | string | Primary zoning district |
+|   ↳ `rent_stabilized_units` | number | Registered rent-stabilized unit count |
+|   ↳ `loan` | object | Current ACRIS mortgage summary |
+|     ↳ `holder_type` | string | Mortgage holder category: agency, cmbs, or bank |
+|     ↳ `estimated_due_year` | number | Estimated loan maturity year |
+| `next_cursor` | string | Cursor for fetching the next page of buildings, or null on the final page |
+
+</ReferenceDetails>
+
+### Dealport Get Record
+
+Open a cited company Record (by Dealport UUID) or NYC building Record (by 10-digit BBL) with primary filing facts, principals, identifiers, and sources.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `recordId` | string | Yes | Dealport company UUID or 10-digit NYC BBL \(e.g. "1008350041"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | object | Cited Dealport company or building Record |
+|   ↳ `id` | string | Company UUID or 10-digit NYC BBL |
+|   ↳ `kind` | string | Record kind: company, property, or person |
+|   ↳ `name` | string | Entity or property display name |
+|   ↳ `summary` | string | Cited Record summary |
+|   ↳ `website` | string | Company website when present |
+|   ↳ `phone` | string | Main phone number when present |
+|   ↳ `facts` | array | Cited primary-filing facts with basis \(filed, observed, or estimate\) |
+|     ↳ `kind` | string | Fact category key |
+|     ↳ `value` | json | Fact value |
+|     ↳ `low` | number | Range lower bound |
+|     ↳ `high` | number | Range upper bound |
+|     ↳ `as_of` | string | Filing or observation date |
+|     ↳ `basis` | string | Evidence basis: filed, observed, or estimate |
+|     ↳ `source` | object | Primary source citation |
+|       ↳ `name` | string | Source registry or filing name |
+|       ↳ `detail` | string | Filing detail |
+|       ↳ `url` | string | Source URL |
+|   ↳ `people` | array | Human principals and officers linked to the Record |
+|     ↳ `name` | string | Person full name |
+|     ↳ `role` | string | Role or title |
+|     ↳ `owner` | boolean | Whether marked as an owner |
+|     ↳ `organization` | string | Associated entity name |
+|     ↳ `share` | json | Ownership share when filed |
+|     ↳ `since` | string | Start date or year on filing |
+|     ↳ `phone` | string | Phone on record |
+|     ↳ `email` | string | Email on record |
+|     ↳ `sources` | array | Source names citing this person |
+|   ↳ `identifiers` | array | Registry and regulatory identifiers \(EIN, NPI, CRD, BBL, state file numbers\) |
+|     ↳ `type` | string | Identifier type |
+|     ↳ `values` | array | Identifier values |
+|   ↳ `sources` | array | Primary public filings and sources backing the Record |
+|     ↳ `name` | string | Source name |
+|     ↳ `url` | string | Source link |
+|     ↳ `used_for` | string | Facts derived from this source |
+|     ↳ `latest` | string | Most recent filing date |
+|   ↳ `capsule_freshness` | json | Freshness metadata for the Record |
+| `record_url` | string | Canonical URL for the Record in Dealport |
+| `cost_usd` | number | USD charge for opening this Record \($0.01 fresh, $0.00 on 30-day repeat\) |
+| `remaining_balance_usd` | number | Remaining workspace USD balance after the call |
+
+</ReferenceDetails>
+
+### Dealport Match Companies
+
+Match 1 to 250 external company names and domains against 28M+ US private companies via domain and fuzzy entity resolution ($0.00).
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `items` | json | No | JSON array of 1 to 250 company objects with \{name, domain, city, state, external_id\}. Provide either items or csv. |
+| `csv` | string | No | Raw CSV text with a header row \(name, domain, city, state, id\). Provide either items or csv. |
+| `watch` | boolean | No | When true, adds matched companies to weekly Project monitoring \($0.05 per company per month\) |
+| `project_id` | string | No | Target Dealport Project UUID when saving or watching matched companies |
+| `project_name` | string | No | Target Dealport Project name when creating or targeting a Project by name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_input` | number | Total number of submitted company rows |
+| `matched_count` | number | Number of rows matched to Dealport company Records |
+| `unmatched_count` | number | Number of rows that did not match |
+| `domain_matched_count` | number | Number of rows matched via exact registrable domain |
+| `fuzzy_matched_count` | number | Number of rows matched via fuzzy entity and geography resolution |
+| `cached_owners_count` | number | Number of matched companies with an already-cached human owner |
+| `matched_company_ids` | array | Dealport company UUIDs for all matched rows |
+| `results` | array | Per-row match outcomes and matched company details |
+|   ↳ `index` | number | Zero-based input row index |
+|   ↳ `external_id` | string | Caller-supplied external ID |
+|   ↳ `input` | object | Normalized input fields for this row |
+|     ↳ `name` | string | Submitted company name |
+|     ↳ `domain` | string | Submitted domain |
+|     ↳ `city` | string | Submitted city |
+|     ↳ `state` | string | Submitted state |
+|   ↳ `matched` | boolean | Whether a Dealport company Record matched |
+|   ↳ `match_method` | string | Resolution method: domain_exact or name_fuzzy |
+|   ↳ `company_id` | string | Matched Dealport company UUID |
+|   ↳ `company_name` | string | Matched company name |
+|   ↳ `domain` | string | Matched company domain |
+|   ↳ `city` | string | Matched company city |
+|   ↳ `state` | string | Matched company state |
+|   ↳ `naics` | array | Matched NAICS codes |
+|   ↳ `industry` | string | Matched primary industry label |
+|   ↳ `cached_owner` | object | Previously resolved human owner when already cached |
+|     ↳ `name` | string | Principal name |
+|     ↳ `role` | string | Principal role |
+|     ↳ `resolved_at` | string | Timestamp when resolved |
+|   ↳ `record_url` | string | Dealport Record URL |
+| `board_url` | string | Dealport Project URL when matched companies were attached to a Project |
+| `cost_usd` | number | USD charge for this match request \($0.00 when watch is false\) |
+| `remaining_balance_usd` | number | Remaining workspace USD balance after the call |
+
+</ReferenceDetails>
+
+### Dealport Find Owner
+
+Resolve the verified human principal behind a private company, US LLC, or property address with direct phones, emails, and professional profile.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `company_id` | string | No | Dealport company UUID. Provide at least one of company_id, llc_name, or property_address. |
+| `llc_name` | string | No | US LLC or holding entity name when company_id is omitted |
+| `property_address` | string | No | US street address to resolve the human property principal |
+| `state` | string | No | Two-letter US state code for LLC or property resolution |
+| `city` | string | No | City of the entity or property |
+| `mailing_address` | string | No | Tax or corporate filing mailing address |
+| `care_of` | string | No | Care-of line from a deed or tax roll |
+| `person` | string | No | Full name of a specific principal on the company Record |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | Resolved company or entity identifier |
+|   ↳ `id` | string | Dealport company UUID |
+|   ↳ `name` | string | Company or entity name |
+| `person` | object | Resolved human principal, or null when no verified principal was found |
+|   ↳ `name` | string | Verified human principal full name |
+|   ↳ `role` | string | Role or title at the company |
+|   ↳ `headline` | string | Professional headline |
+|   ↳ `summary` | string | Professional bio summary |
+|   ↳ `linkedin_url` | string | LinkedIn profile URL |
+|   ↳ `photo_url` | string | Profile photo URL |
+|   ↳ `location` | string | City and state or country |
+|   ↳ `seniority` | string | Seniority tier |
+|   ↳ `department` | string | Department |
+|   ↳ `decision_role` | string | Decision-maker classification |
+| `phone` | string | Primary verified direct or mobile phone number |
+| `email` | string | Primary verified work or personal email address |
+| `phones` | array | All verified direct and mobile phone numbers for the principal |
+|   ↳ `number` | string | Verified direct or mobile phone number |
+|   ↳ `kind` | string | Phone line type: mobile, direct, or landline |
+|   ↳ `label` | string | Carrier or line label |
+|   ↳ `dnc` | string | Do-Not-Call registry status when checked |
+| `emails` | array | All verified work and personal email addresses for the principal |
+|   ↳ `address` | string | Work or personal email address |
+|   ↳ `kind` | string | Email type: work or personal |
+|   ↳ `verified` | boolean | Whether deliverability was verified |
+|   ↳ `status` | string | Verification status |
+|   ↳ `checked_at` | string | Verification timestamp |
+| `profile` | object | Professional profile including LinkedIn URL, career roles, education, and skills |
+|   ↳ `headline` | string | Professional headline |
+|   ↳ `summary` | string | Professional summary |
+|   ↳ `linkedin_url` | string | LinkedIn profile URL |
+|   ↳ `photo_url` | string | Profile photo URL |
+|   ↳ `location` | string | City and state or country |
+|   ↳ `seniority` | string | Seniority tier |
+|   ↳ `department` | string | Department |
+|   ↳ `decision_role` | string | Decision-maker role |
+|   ↳ `company` | object | Primary employer summary |
+|     ↳ `name` | string | Company name |
+|     ↳ `domain` | string | Company domain |
+|     ↳ `industry` | string | Company industry |
+|   ↳ `roles` | array | Career history entries |
+|     ↳ `title` | string | Job title |
+|     ↳ `company` | string | Company name |
+|     ↳ `domain` | string | Company domain |
+|     ↳ `start` | string | Start date |
+|     ↳ `end` | string | End date |
+|     ↳ `current` | boolean | Whether role is current |
+|   ↳ `education` | array | Education history entries |
+|     ↳ `school` | string | School or university name |
+|     ↳ `degree` | string | Degree earned |
+|     ↳ `field` | string | Field of study |
+|     ↳ `start` | string | Start year |
+|     ↳ `end` | string | End year |
+|   ↳ `skills` | array | Professional skills |
+|   ↳ `certifications` | array | Professional certifications |
+|   ↳ `languages` | array | Spoken languages |
+|   ↳ `organizations` | array | Affiliated boards and organizations |
+| `sources` | array | Primary filing and verification sources for the owner resolution |
+|   ↳ `url` | string | Source URL |
+|   ↳ `title` | string | Source title |
+| `record_url` | string | Dealport Record URL for the company or entity |
+| `note` | string | Resolution diagnostic note when provided by Dealport |
+| `cost_usd` | number | USD charge for this lookup \($0.09 on a verified phone or email hit; $0.00 on miss or 30-day repeat\) |
+| `remaining_balance_usd` | number | Remaining workspace USD balance after the call |
+
+</ReferenceDetails>
+
+

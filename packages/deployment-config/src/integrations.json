@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-18",
+  "updatedAt": "2026-11-27",
   "integrations": [
     {
       "type": "onepassword",
@@ -7917,6 +7917,50 @@
       "integrationType": "devops",
       "tags": ["agentic", "cloud", "automation"],
       "updatedAt": "2026-11-10"
+    },
+    {
+      "type": "dealport",
+      "slug": "dealport",
+      "name": "Dealport",
+      "description": "Search cited US private company and building Records and verified human owners",
+      "longDescription": "Size US private company markets at $0.00, search 28M+ US private companies and NYC commercial or multifamily buildings, open cited Records backed by primary public filings, match external company rows into Projects, and resolve verified human principals with direct phones, emails, and profiles.",
+      "bgColor": "#0E1524",
+      "iconName": "DealportIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/dealport",
+      "operations": [
+        {
+          "name": "Preview Companies",
+          "description": "Run a free ($0.00) market sizing count across 28M+ US private companies and inspect up to 5 sample companies before opening paid Records."
+        },
+        {
+          "name": "Search Companies",
+          "description": "Search 28M+ US private companies by geography, NAICS industry, revenue, headcount, and primary public-filing attributes."
+        },
+        {
+          "name": "Search Buildings",
+          "description": "Search NYC multifamily and commercial buildings by borough, unit count, ACRIS loan maturity, mortgage holder category, and regulatory signals."
+        },
+        {
+          "name": "Get Record",
+          "description": "Open a cited company Record (by Dealport UUID) or NYC building Record (by 10-digit BBL) with primary filing facts, principals, identifiers, and sources."
+        },
+        {
+          "name": "Match Companies",
+          "description": "Match 1 to 250 external company names and domains against 28M+ US private companies via domain and fuzzy entity resolution ($0.00)."
+        },
+        {
+          "name": "Find Owner",
+          "description": "Resolve the verified human principal behind a private company, US LLC, or property address with direct phones, emails, and professional profile."
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"],
+      "updatedAt": "2026-11-27"
     },
     {
       "type": "devin_v2",

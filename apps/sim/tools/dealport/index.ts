@@ -1,0 +1,6 @@
+export { dealportFindOwnerTool } from '@/tools/dealport/find_owner'
+export { dealportGetRecordTool } from '@/tools/dealport/get_record'
+export { dealportMatchCompaniesTool } from '@/tools/dealport/match_companies'
+export { dealportPreviewCompaniesTool } from '@/tools/dealport/preview_companies'
+export { dealportSearchBuildingsTool } from '@/tools/dealport/search_buildings'
+export { dealportSearchCompaniesTool } from '@/tools/dealport/search_companies'

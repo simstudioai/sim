@@ -241,6 +241,7 @@ export const RESEND_SERVICE_ACCOUNT_PROVIDER_ID = 'resend-service-account' as co
 export const PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID = 'pagerduty-service-account' as const
 export const LEMLIST_SERVICE_ACCOUNT_PROVIDER_ID = 'lemlist-service-account' as const
 export const MONACO_SERVICE_ACCOUNT_PROVIDER_ID = 'monaco-service-account' as const
+export const DEALPORT_SERVICE_ACCOUNT_PROVIDER_ID = 'dealport-service-account' as const
 export const GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID = 'granola-service-account' as const
 export const GRAIN_SERVICE_ACCOUNT_PROVIDER_ID = 'grain-service-account' as const
 export const FATHOM_SERVICE_ACCOUNT_PROVIDER_ID = 'fathom-service-account' as const
@@ -380,6 +381,7 @@ export type TokenServiceAccountProviderId =
   | typeof PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof LEMLIST_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof MONACO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DEALPORT_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GRAIN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FATHOM_SERVICE_ACCOUNT_PROVIDER_ID
@@ -1876,6 +1878,27 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Create an API key in Monaco under Settings > API Keys. Monaco shows the key once, so copy it before closing the dialog. The key acts as the user it is tied to, or as the user who created it.',
     invalidCredentialsHelp:
       'Monaco rejected this key. Check that it starts with mks_ and has not been deactivated in Settings > API Keys.',
+  },
+  [DEALPORT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DEALPORT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Dealport',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'dp_live_...',
+        secret: true,
+        hintPattern: /^dp_live_/,
+        hintMessage: 'Dealport API keys start with dp_live_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/dealport',
+    helpText:
+      'Create a workspace API key in Dealport under Connect > API Keys. Grant the read scope for company, building, and Record operations, and the owners scope for Find Owner.',
+    invalidCredentialsHelp:
+      'Dealport rejected this API key. Check that it starts with dp_live_ and is active in Connect > API Keys.',
   },
   [GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID,

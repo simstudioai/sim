@@ -1,0 +1,16 @@
+{
+  "namespace": "dealport",
+  "methods": {
+    "dealport_find_owner": "findOwner",
+    "dealport_get_record": "getRecord",
+    "dealport_match_companies": "matchCompanies",
+    "dealport_preview_companies": "previewCompanies",
+    "dealport_search_buildings": "searchBuildings",
+    "dealport_search_companies": "searchCompanies"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

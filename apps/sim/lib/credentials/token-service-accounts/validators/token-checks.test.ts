@@ -17,6 +17,7 @@ import {
   validateBrexServiceAccount,
   validateCbInsightsServiceAccount,
   validateConvexServiceAccount,
+  validateDealportServiceAccount,
   validateDevinServiceAccount,
   validateDynatraceServiceAccount,
   validateElevenLabsServiceAccount,
@@ -1314,5 +1315,71 @@ describe('Qdrant saved API key verification', () => {
       })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(secureFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('Dealport saved API key verification', () => {
+  it('verifies a read-scoped key against GET /api/v1/balance with Bearer auth', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(jsonResponse({ remaining_balance_usd: 5 }))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await expect(
+      validateDealportServiceAccount({ apiToken: 'dp_live_valid_read' })
+    ).resolves.toMatchObject({
+      displayName: 'Dealport',
+    })
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://app.dealport.com/api/v1/balance',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer dp_live_valid_read' }),
+      })
+    )
+  })
+
+  it('accepts a valid key restricted to another scope such as owners', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { error: 'insufficient_key_scope', message: 'Key lacks the read scope.' },
+            403
+          )
+        )
+    )
+
+    await expect(
+      validateDealportServiceAccount({ apiToken: 'dp_live_owners_only' })
+    ).resolves.toMatchObject({
+      displayName: 'Dealport',
+    })
+  })
+
+  it.each([
+    [
+      'an unknown or revoked key',
+      { error: 'unauthorized', message: 'Send an active API key.' },
+      401,
+    ],
+    ['a generic gateway 403 refusal', { message: 'Forbidden' }, 403],
+  ])('rejects %s', async (_case, body, status) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(body, status)))
+
+    await expect(validateDealportServiceAccount({ apiToken: 'dp_live_bad' })).rejects.toMatchObject(
+      {
+        code: 'invalid_credentials',
+      }
+    )
+  })
+
+  it('reports an upstream 502 error as an outage rather than a bad key', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ error: 'bad_gateway' }, 502)))
+
+    await expect(validateDealportServiceAccount({ apiToken: 'dp_live_any' })).rejects.toMatchObject(
+      {
+        code: 'provider_unavailable',
+      }
+    )
   })
 })

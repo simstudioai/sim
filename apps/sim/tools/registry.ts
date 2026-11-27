@@ -1307,6 +1307,14 @@ import {
   daytonaUploadFileTool,
 } from '@/tools/daytona'
 import {
+  dealportFindOwnerTool,
+  dealportGetRecordTool,
+  dealportMatchCompaniesTool,
+  dealportPreviewCompaniesTool,
+  dealportSearchBuildingsTool,
+  dealportSearchCompaniesTool,
+} from '@/tools/dealport'
+import {
   deploymentsDeployTool,
   deploymentsGetVersionTool,
   deploymentsListVersionsTool,
@@ -9556,6 +9564,12 @@ export const tools: Record<string, ExecutableToolConfig> = {
   daytona_start_sandbox: daytonaStartSandboxTool,
   daytona_stop_sandbox: daytonaStopSandboxTool,
   daytona_upload_file: daytonaUploadFileTool,
+  dealport_find_owner: dealportFindOwnerTool,
+  dealport_get_record: dealportGetRecordTool,
+  dealport_match_companies: dealportMatchCompaniesTool,
+  dealport_preview_companies: dealportPreviewCompaniesTool,
+  dealport_search_buildings: dealportSearchBuildingsTool,
+  dealport_search_companies: dealportSearchCompaniesTool,
   deployments_deploy: deploymentsDeployTool,
   deployments_get_version: deploymentsGetVersionTool,
   deployments_list_versions: deploymentsListVersionsTool,
