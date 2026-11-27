@@ -37,7 +37,10 @@ const PARAMS_COMMAND = 'sim workflows source params'
 export const PATTERNS_HEADING = '- **Patterns**'
 
 /** The rules every source directory shares, after the kind's own edit loop. */
-function sharedRules(group: string, extra: { renames?: string; patterns?: string } = {}): string {
+function sharedRules(
+  group: string,
+  extra: { renames?: string; patterns?: string; debug?: string } = {}
+): string {
   return `- **Renames**: rename any number of blocks' display names (first argument) or consts, with other edits: \`${SOURCE_LOCK_FILE}\` keeps each block and apply rewrites every reference, \`$ref.<key>\` too. Changing both on one block keeps it only if its settings or neighbours match, else a delete (\`E_APPLY_BLOCK_DELETE\`). One workflow variable per apply.${extra.renames ?? ''}
 - **References**: \`${SOURCE_ENTRY_FILE}\` reads \`x.content\`, text as \`\` t\`…\` \`\`, env as \`env.NAME\`. A function file (\`codeFile('./functions/x.js')\`) reads \`$ref.<key>.<path>\` (key: display name lowercased, no spaces or dots), \`$ref.loop.currentItem\` / \`.index\` in a body (\`parallel\` too), \`$env.NAME\`; \`.py\`/\`.sh\` files \`<key.path>\`, \`{{NAME}}\`. A block that never ran reads \`null\` (\`''\` in text).
 ${PATTERNS_HEADING} (\`.sim/examples/\`, indexed atop \`cookbook.ts\`; any builder: \`${PARAMS_COMMAND} <builder>\`):
@@ -50,7 +53,7 @@ ${PATTERNS_HEADING} (\`.sim/examples/\`, indexed atop \`cookbook.ts\`; any build
   - Rejoin: before one \`response\`, a Function picks the branch that ran with \`??\`.${extra.patterns ?? ''}
 - **Credentials**: \`sim credentials connect <provider> --name "<Name>"\`, send the owner its link, then \`credential('<key>')\`.
 - **Run**: \`sim workflows run <workflowId>\` runs the active deployment (\`--deployment-version <n>\`: that version); \`--draft\` runs the draft for real (use test resources); \`--dry\` runs it stubbing writes and MCP tools (even read-only: \`mcp-read-only\`), listed in \`sideEffects\` (\`dry_run_*\` placeholders; a read given one too: \`placeholder\`); GET \`api\` calls and plain-JS GET fetches run; sandboxed code (Python, shell, imports): \`unchecked\`. \`--allow <block>\` sends its writes (use test resources); \`--mock <block>='{…}'\` fixes its output (bare, with \`--mock-from <runId>\`: that run's); a child's block: \`<workflow>.<block>\`.
-- **Debug**: \`--dir .\` maps a failure to file:line; \`sim logs get <runId> --trace --no-include-workflow-state\`; rows: \`sim tables rows list <table>\`; rerun: \`--from-block <block> --source-run <runId>\`; \`--stop-after <block>\`.
+- **Debug**: \`--dir .\` maps a failure to file:line; \`sim logs get <runId> --trace --no-include-workflow-state\`; rows: \`sim tables rows list <table>\`; rerun: \`--from-block <block> --source-run <runId>\`; \`--stop-after <block>\`.${extra.debug ?? ''}
 - **Exit codes**: 0 ok, 1 errors, ${SOURCE_STALE_EXIT_CODE} stale (redo in a fresh \`${group} get\`), ${RATE_LIMITED_EXIT_CODE} rate limited, ${SOURCE_BUSY_EXIT_CODE} busy, ${SOURCE_LOCAL_CHANGES_EXIT_CODE}/${SOURCE_DRIFT_EXIT_CODE} \`status\`: your edits / the server changed.`
 }
 
@@ -70,6 +73,7 @@ const WORKSPACE_EXTRA = {
   renames: ' A column: change its `name`, keep its key.',
   patterns:
     "\n  - Workspace: a text column is `column.string`; `deployments/<workflow key>.ts` with `defineDeployment({` and `live: 'draft'` deploys on apply.",
+  debug: ' Block: `sim workflows source find <name> --dir workflows/<key>`.',
 }
 
 const WORKSPACE_PRIMER = `# Sim workspace source: primer
