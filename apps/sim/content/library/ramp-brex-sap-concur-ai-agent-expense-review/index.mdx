@@ -27,7 +27,7 @@ faq:
   - q: "What happens when a receipt is missing?"
     a: "Sim should mark a required missing receipt as a failed or unknown policy check and route the transaction according to the organization’s documented rule. The model should never invent receipt data or infer that evidence exists."
   - q: "How do you prevent duplicate expense approvals?"
-    a: "Sim should prevent duplicate approvals by combining the source platform, record identifier, and source update timestamp into an idempotency key. The workflow should check that key before creating an approval request or attempting a write."
+    a: "Sim should prevent duplicate approvals by combining the source platform, record identifier, and source update timestamp into an idempotency key. Before creating an approval request or attempting a write, the workflow should reserve that key with an atomic create-if-absent operation and continue only when the reservation succeeds."
   - q: "Is an expense-review agent the same as an invoice-processing agent?"
     a: "An expense-review agent evaluates employee spend and corporate-card activity, while an invoice-processing agent handles supplier invoices, purchase-order matching, accounts-payable coding, and payment preparation. Sim can support both patterns, but they require different source records, controls, and approval roles."
   - q: "Is an expense-review agent the same as a month-end reconciliation agent?"
@@ -114,7 +114,7 @@ Sim gives finance teams a seven-step pattern for building a governed agent acros
 
 Start the workflow from a supported event trigger when one is available or from a scheduled read that records a durable source identifier and ignores records already processed.
 
-Store the platform name, object type, source ID, and source update timestamp as the idempotency key. This prevents retries or overlapping schedules from producing duplicate approval requests.
+Combine the platform name, object type, source ID, and source update timestamp into an idempotency key. Before sending a notification, reserve that key with an atomic create-if-absent operation and continue only in the run that successfully creates the reservation. This prevents retries or overlapping schedules from producing duplicate approval requests.
 
 ### 2. How should the agent match receipts to transactions?
 
