@@ -178,7 +178,7 @@ describe('embedded CLI output ownership', () => {
     const transport = async () => {
       throw new Error('a parse error must not reach the API')
     }
-    const [positionalInput, swallowed, rootSwallowed, negated] = await Promise.all([
+    const [positionalInput, swallowed, rootSwallowed, negated, fromFile] = await Promise.all([
       runEmbeddedCli(['workflows', 'run', 'wf_1', '--dry', '{"email":"a@b.co"}'], {
         ...identity,
         transport,
@@ -195,6 +195,7 @@ describe('embedded CLI output ownership', () => {
         ...identity,
         transport,
       }),
+      runEmbeddedCli(['workflows', 'run', 'wf_1', '@input.json'], { ...identity, transport }),
     ])
     expect(positionalInput.exitCode).toBe(1)
     expect(positionalInput.stderr).toContain(
@@ -204,6 +205,7 @@ describe('embedded CLI output ownership', () => {
     expect(swallowed.stderr).toContain('--allow took --input as its value; write --allow <block>:')
     expect(swallowed.stderr).not.toContain('--input \'{"email"')
     expect(rootSwallowed.stderr).toContain('--workspace took --input as its value')
+    expect(fromFile.stderr).toContain("Example: sim workflows run wf_1 --input '@input.json'")
     expect(negated.stderr).toContain(
       `Example: sim workflows run wf_1 --include-file-base64 --dry --input '{"a":1}'`
     )

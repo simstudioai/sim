@@ -176,11 +176,11 @@ function swallowedFlags(command: Command): string[] {
 /**
  * A JSON operand typed where one of the command's JSON flags (`--input <json|@file>`) was meant,
  * as the line that moves it there with the positionals and the options typed kept. Null when no operand opens like
- * JSON, or the command has no such flag or several to choose between.
+ * JSON or names a source (`@file`, `@-`), or the command has no such flag or several to choose between.
  */
 function misplacedJson(command: Command): string[] | null {
   const extra = command.args.slice(command.registeredArguments.length)
-  const json = extra.find((operand) => /^\s*[[{]/.test(operand))
+  const json = extra.find((operand) => /^\s*[[{]|^@./.test(operand))
   const owners = command.options.filter(
     (option) => !option.hidden && option.long && option.flags.endsWith(` ${JSON_PLACEHOLDER}`)
   )
