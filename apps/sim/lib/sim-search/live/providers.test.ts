@@ -5,8 +5,9 @@ import {
   withSearchProviderDiagnostics,
 } from '@/lib/knowledge/search/diagnostics'
 import { readGitHub, searchGitHub } from '@/lib/sim-search/live/github'
-import { searchCalendar, searchDrive } from '@/lib/sim-search/live/google'
+import { searchCalendar, searchDrive, searchGmail } from '@/lib/sim-search/live/google'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import { filtersByPerson } from '@/lib/sim-search/live/providers'
 import { searchSlack } from '@/lib/sim-search/live/slack'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
@@ -115,6 +116,20 @@ describe('native search endpoints', () => {
       })
     ).rejects.toThrow('ORs repeated involves:')
     expect(api.json.mock.calls.some(([path]) => path.startsWith('/search/'))).toBe(false)
+  })
+  it('keeps a Gmail person group intact when the address holds Gmail operator characters', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ messages: [] })
+    await searchGmail(api, { ...input, query: '', involving: 'a}{b|c@example.com' })
+    const address = '"a}{b|c@example.com"'
+    expect(api.json.mock.calls[0]?.[1]?.query?.q).toBe(
+      `{from:${address} to:${address} cc:${address}}`
+    )
+  })
+  it('skips Slack for a person found by email unless the account can look members up by email', () => {
+    expect(filtersByPerson('slack', 'me', [])).toBe(true)
+    expect(filtersByPerson('slack', 'jane@example.com', [])).toBe(false)
+    expect(filtersByPerson('slack', 'jane@example.com', ['users:read.email'])).toBe(true)
   })
   it('keeps only calendar events a person organizes or attends without declining', async () => {
     const api = client()

@@ -52,6 +52,8 @@ interface NativeProvider {
   involving?: string
   /** The involving filter accepts only `me`: the provider cannot find anyone else by email. */
   involvingMeOnly?: true
+  /** The permission finding someone other than `me` by email needs; without it only `me` applies. */
+  involvingByEmailScope?: string
   /** Plain queries must contain every word, so an underfilled search retries with any term. */
   requiresEveryTerm?: true
   /**
@@ -175,6 +177,7 @@ export const LIVE_SEARCH_PROVIDERS = {
   },
   slack: {
     involving: 'messages they sent',
+    involvingByEmailScope: 'users:read.email',
     guide: {
       syntax:
         'Real-time Search: a question (what/how/…?) enables meaning-based matching where Slack AI is on; keyword retrieval (keywordOnly, sortBy newest or oldest, or no Slack AI) requires every word and does not support OR. "exact phrase" and prefix matching such as psca* work.',
@@ -375,10 +378,21 @@ export function searchNativeProvider(
   return adapter.search(client, input, origin)
 }
 
-/** True when the provider can limit a search to the items this person (`me` or an email) took part in. */
-export function filtersByPerson(provider: LiveSearchProviderId, involving: string): boolean {
+/**
+ * True when the account can limit a search to the items this person (`me` or an email) took part
+ * in: the provider supports the filter and, for an email, the account holds the scope finding
+ * someone by email needs.
+ */
+export function filtersByPerson(
+  provider: LiveSearchProviderId,
+  involving: string,
+  scopes: readonly string[]
+): boolean {
   const adapter: NativeProvider | ManagedMcpProvider = LIVE_SEARCH_PROVIDERS[provider]
-  return 'involving' in adapter && (involving === 'me' || !('involvingMeOnly' in adapter))
+  if (!('involving' in adapter)) return false
+  if (involving === 'me') return true
+  if ('involvingMeOnly' in adapter) return false
+  return !adapter.involvingByEmailScope || scopes.includes(adapter.involvingByEmailScope)
 }
 
 /** True when the provider's plain-text search matches only items containing every query word. */
