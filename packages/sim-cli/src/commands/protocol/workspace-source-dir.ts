@@ -210,8 +210,8 @@ Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
 /** The workspace directory's tree beside the printed source. */
 export const WORKSPACE_TREE: SourceTreeProfile = {
   kind: 'workspace',
-  agents: AGENTS_GUIDE,
-  guides: [[WORKSPACE_ADVANCED_FILE, ADVANCED_GUIDE]],
+  agents: () => AGENTS_GUIDE,
+  guides: () => [[WORKSPACE_ADVANCED_FILE, ADVANCED_GUIDE]],
   tsconfig: workspaceTsconfig,
   // Workspace files and knowledge base documents are bytes, kept as they are (`-text`, after the
   // LF lines it overrides): a commit that rewrote their line endings would change their hashes.

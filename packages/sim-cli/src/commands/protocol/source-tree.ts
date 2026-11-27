@@ -57,6 +57,7 @@ import {
   AGENTS_POINTER_MARKER,
   agentsPointer,
   type PrimerKind,
+  type PrimerSurface,
   primerFor,
   primerSurface,
 } from './source-primer'
@@ -633,10 +634,13 @@ export function editLoop(kind: PrimerKind, dir: string): string[] {
 export interface SourceTreeProfile {
   /** Which primer opens `.sim/AGENTS.md`. */
   kind: PrimerKind
-  /** The reference in `.sim/AGENTS.md`, below the primer. */
-  agents: string
+  /**
+   * The reference in `.sim/AGENTS.md`, below the primer, for the surface that reads it: a guide
+   * Mothership's chat reads never names a flag its shell refuses.
+   */
+  agents: (surface: PrimerSurface) => string
   /** More guides beside `.sim/AGENTS.md` (path → text), rewritten every time like it. */
-  guides?: ReadonlyArray<readonly [string, string]>
+  guides?: (surface: PrimerSurface) => ReadonlyArray<readonly [string, string]>
   /**
    * A `tsconfig.json` the CLI writes, starting with {@link TSCONFIG_MARKER}, that type-checks the
    * source with the SDK declarations `sdkFiles` (directory-relative paths).
@@ -839,8 +843,8 @@ export async function sourceTreeChange(
   const surface = primerSurface()
   const primer = primerFor(profile.kind, surface, catalog, sources)
   const write: Array<readonly [string, string]> = [
-    [SOURCE_AGENTS_FILE, `${primer}\n${profile.agents}`],
-    ...(profile.guides ?? []),
+    [SOURCE_AGENTS_FILE, `${primer}\n${profile.agents(surface)}`],
+    ...(profile.guides?.(surface) ?? []),
     ...Object.entries(COOKBOOK_EXAMPLES).map(
       ([file, text]) => [`${SOURCE_EXAMPLES_DIR}/${file}`, text] as const
     ),

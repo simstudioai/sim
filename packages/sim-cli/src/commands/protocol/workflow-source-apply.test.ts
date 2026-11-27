@@ -1148,6 +1148,17 @@ describe('sim workflows source apply', () => {
         expect(request).not.toHaveBeenCalled()
         expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
       })
+
+      it('refuses an input that is not JSON before saving anything', async () => {
+        setTerminal(false)
+        serveDeploy()
+
+        const failure = apply(WORKFLOW_ID, '--dir', dir, '--yes', '--run', '{bad', '--deploy')
+
+        await expect(failure).rejects.toThrow(/--run: its input is not JSON. Nothing was saved./)
+        expect(request).not.toHaveBeenCalled()
+        expect(contextMockFns.mockRequestRaw).not.toHaveBeenCalled()
+      })
     })
 
     it('deploys through the deploy operation once the apply is saved', async () => {

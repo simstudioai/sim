@@ -2162,7 +2162,9 @@ describe('workspaces source apply', () => {
       new Response(JSON.stringify({ data: { workflowId: 'wf_1', runId: 'run-1', ...record } }), {
         headers: { 'content-type': 'application/json' },
       })
-    const applies = () => request.mock.calls.filter((call) => call[0] === APPLY_PATH)
+    /** The writes: an apply sent without `?dry`. */
+    const applies = () =>
+      request.mock.calls.filter((call) => call[0] === APPLY_PATH && !call[1]?.query?.dry)
     /** Answers the first write with the workflow saved, the second with the deployment. */
     const serveApplies = () =>
       request.mockImplementation(async (path: string, options: { body?: { kinds?: string[] } }) => {
@@ -2262,6 +2264,43 @@ describe('workspaces source apply', () => {
         runs: [{ workflow: 'ingest', status: 'failed', error: 'score is not a number' }],
         next: { command: `sim workspaces source apply --dir ${dir} --run 'ingest={}' --yes` },
       })
+    })
+
+    it('applies nothing of deployments/ when it would also publish a draft no run tested', async () => {
+      write('deployments/other.ts', DEPLOYMENT)
+      request.mockImplementation(async (path: string, options: { body?: { kinds?: string[] } }) => {
+        if (path === '/api/v2/workflows/wf_1/deployment') return deploymentStatus(1)
+        const base = { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } }
+        return options.body?.kinds?.includes('deployment')
+          ? answer({
+              plan: [
+                { kind: 'deployment', key: 'ingest', action: 'update', fields: ['live version'] },
+                { kind: 'deployment', key: 'other', action: 'update', fields: ['live version'] },
+              ],
+              applied: [],
+              base,
+            })
+          : answer({
+              plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              applied: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+              files: { 'workflows/ingest/workflow.ts': `${INGEST}// stored\n` },
+              base,
+            })
+      })
+      contextMockFns.mockRequestRaw.mockResolvedValue(
+        runAnswer({ status: 'completed', output: {} })
+      )
+
+      const failure = apply('--yes', '--run', 'ingest={}')
+
+      await expect(failure).rejects.toThrow(
+        /would also publish the untested draft of workflows\/other\/, so deployments\/ was not applied/
+      )
+      expect(applies()).toHaveLength(1)
+      const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+      expect(printed.next.command).toBe(
+        `sim workspaces source apply --dir ${dir} --run 'ingest={}' --run 'other={…}' --yes`
+      )
     })
 
     it('exits as written in part when the deployments write holds every deployment back', async () => {

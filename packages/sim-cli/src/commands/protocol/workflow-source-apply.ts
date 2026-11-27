@@ -21,6 +21,7 @@ import {
   liveDeploymentStatus,
 } from '../../runtime/deployment-live'
 import { runFailureMessage } from '../../runtime/execute'
+import { readArgumentSource } from '../../runtime/request'
 import { searchTasks } from '../search'
 import {
   type DeployedUrl,
@@ -48,6 +49,7 @@ import {
   writeBack,
 } from './source-dir'
 import { sourceExitCodesHelp } from './source-exit-codes'
+import { primerSurface } from './source-primer'
 import { cachedCatalogByHash, printTreeResult, refreshWorkflowWorkspaceTypes } from './source-tree'
 import {
   type CreatedResource,
@@ -325,8 +327,9 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
       verb,
       machine: findings.machine,
       // Read only without --deploy: an untested draft's next names the tested deploy too.
+      // Mothership's shell refuses runs: its chat tests through sim_cli, then deploys by fingerprint.
       testedDeploy:
-        run === undefined && !creating
+        run === undefined && !creating && primerSurface() === 'cli'
           ? `${args.savedCommand} --yes --run '{…}' --deploy`
           : undefined,
     })
@@ -557,19 +560,30 @@ function applyCommand(options: SourceWriteOptions): string {
   return `sim workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${runFlag(options.run)}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`
 }
 
-/** Refuses `--deploy` or `--run` beside `--dry`: a dry run stores nothing to deploy or run. */
-function assertNotDry(options: SourceWriteOptions): void {
-  if (!options.dry) return
-  if (options.deploy) {
+/**
+ * The write options with `--run`'s input read and checked as JSON, before anything is saved: a
+ * bad input never leaves a saved draft behind an error. Refuses `--deploy` or `--run` beside
+ * `--dry`, as a dry run stores nothing to deploy or run.
+ */
+async function checkedWriteOptions(options: SourceWriteOptions): Promise<SourceWriteOptions> {
+  if (options.dry && options.deploy) {
     throw new CliUsageError(
       '--deploy deploys what the write saves, and --dry saves nothing: drop one of them.'
     )
   }
-  if (options.run !== undefined) {
+  if (options.dry && options.run !== undefined) {
     throw new CliUsageError(
       '--run test-runs what the write saves, and --dry saves nothing: drop one of them.'
     )
   }
+  if (typeof options.run !== 'string') return options
+  const { text } = await readArgumentSource(options.run, 'run')
+  try {
+    JSON.parse(text)
+  } catch {
+    throw new CliUsageError('--run: its input is not JSON. Nothing was saved.')
+  }
+  return { ...options, run: text }
 }
 
 /** `--run [input]` and `--deploy` on a write: test the saved draft, then deploy it. */
@@ -631,7 +645,7 @@ export function attachWorkflowSourceApply(source: Command): void {
       await withSourceCommandLock(
         options.dir,
         async () => {
-          assertNotDry(options)
+          const checked = await checkedWriteOptions(options)
           await assertSourceDirKind(options.dir, 'workflow')
           const { client, profile } = connectApply()
           const lock = await readLock(options.dir)
@@ -643,7 +657,7 @@ export function attachWorkflowSourceApply(source: Command): void {
           }
           const childResults = isReadOnly(mode) ? undefined : await folderChildResults(options.dir)
           await writeWorkflowSource<'applyWorkflowSource'>({
-            options,
+            options: checked,
             mode,
             creating: false,
             question: `Apply these changes to workflow ${workflowId}?`,
@@ -744,7 +758,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
             })
             return
           }
-          assertNotDry(options)
+          const checked = await checkedWriteOptions(options)
           const { client, profile } = connectCreate()
           // A directory is bound to the workspace it records: a starter to the one its types were
           // written for (--workspace still chooses another), a workspace folder to its workspace.
@@ -761,7 +775,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
           }
           const childResults = isReadOnly(mode) ? undefined : await folderChildResults(options.dir)
           await writeWorkflowSource<'createWorkflowFromSource'>({
-            options,
+            options: checked,
             mode,
             creating: true,
             question: 'Create this workflow?',

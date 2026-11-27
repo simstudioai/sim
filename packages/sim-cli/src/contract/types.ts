@@ -59,7 +59,10 @@ export interface FlagSpec {
    *   selector naming a block `Draft, Review`), so a comma never splits it. A folder path list
    *   reads this way without saying so.
    * - `fileReferences`: workspace file ids or `files/…` paths. A comma splits ids, never a value
-   *   that is a `files/` path, so a path keeps a comma in its name.
+   *   holding a `/`, so a path (`files/…`, `/files/…`) keeps a comma in its name.
+   *
+   * Outside `text`, a value starting `[` that is not a JSON array of strings is refused, so a
+   * shell that stripped the quotes never sends `[a,b]` as one id.
    */
   listValues?: 'text' | 'fileReferences'
   /**

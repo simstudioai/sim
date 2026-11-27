@@ -738,7 +738,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     )
     .option(
       '--run <key=input>',
-      "After the apply, dry-run workflows/<key>/'s saved draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it; `--run <key>` alone: no input). Repeat it to test more workflows. deployments/ is applied only after every run completed; a run that does not complete exits 1 and leaves the applied drafts in place",
+      "After the apply, dry-run workflows/<key>/'s saved draft with this input (JSON or @file, as `sim workflows run --dry --input` takes it; `--run <key>` alone: no input). Repeat it to test more workflows. deployments/ is applied only after every run completed, and only when every draft it publishes was test-run; a run that does not complete exits 1 and leaves the applied drafts in place",
       collectRepeated
     )
     .allowExcessArguments(false)
@@ -1068,6 +1068,20 @@ export function attachWorkspaceSourceApply(source: Command): void {
             )
           }
           if (!before) return finish(data)
+          const untested = await afterWrite(async () =>
+            untestedPublishes(await send(before.read, true, before.read.kinds), tested)
+          )
+          if (untested.length > 0) {
+            const next = {
+              command: `${applyCommand(options)}${untested.map((key) => ` --run ${shellWord(`${key}={…}`)}`).join('')} --yes`,
+              reason: 'tests every draft deployments/ publishes, then deploys them',
+            }
+            await finish(data, next)
+            throw new SimApiError(
+              `The apply was written into ${options.dir} and every test run completed, but ${KIND_DIRS.deployment}/ would also publish the untested draft of ${untested.map((key) => `${workflowFolder(key)}/`).join(', ')}, so ${KIND_DIRS.deployment}/ was not applied. Test each with --run, then run \`${next.command}\`.`,
+              0
+            )
+          }
           const deployed = await afterWrite(async () => {
             const after = (await readDeploymentWrite()).read
             const tested = before.read.files
@@ -1183,6 +1197,26 @@ async function readRunInputs(runs: readonly RunRequest[]): Promise<RunRequest[]>
   )
 }
 
+/**
+ * The workflow keys whose draft the deployments write `preview` would publish (a first deploy, or
+ * `live: 'draft'` taking a differing draft live) without a completed test run: `--run` deploys
+ * only drafts it tested, so these hold the whole deployments write back.
+ */
+function untestedPublishes(preview: ApplyData, tested: readonly WorkflowTestRun[]): string[] {
+  const testedKeys = new Set(
+    tested.filter((run) => run.status === 'completed').map((run) => run.workflow)
+  )
+  return preview.plan
+    .filter(
+      (change) =>
+        isDeployment(change) &&
+        !testedKeys.has(change.key) &&
+        (change.fields ?? []).some((field) => field === 'deploy' || field === 'live version')
+    )
+    .map((change) => change.key)
+    .sort(compareStrings)
+}
+
 /** The `paths` whose text in `actual` is not the text in `expected`. */
 function changedPaths(
   expected: Readonly<Record<string, string>>,
@@ -1224,6 +1258,9 @@ function withoutDeployments(submission: WorkspaceSubmission): WorkspaceSubmissio
  * its findings on them repeat the first's.
  */
 function mergedApply(first: ApplyData, deployed: ApplyData): ApplyData {
+  // The write whose id support looks up: the deployments write's when its `E_APPLY_FAILED` hint
+  // names it (it failed part-way), else the first's.
+  const applyId = deployed.failed ? deployed.applyId : first.applyId
   return {
     ...deployed,
     plan: [...first.plan, ...deployed.plan.filter(isDeployment)],
@@ -1233,7 +1270,7 @@ function mergedApply(first: ApplyData, deployed: ApplyData): ApplyData {
       ...first.diagnostics,
       ...deployed.diagnostics.filter((finding) => finding.kind !== 'workflow'),
     ],
-    ...(first.applyId ? { applyId: first.applyId } : {}),
+    ...(applyId ? { applyId } : {}),
   }
 }
 

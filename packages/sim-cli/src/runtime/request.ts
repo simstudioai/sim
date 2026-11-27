@@ -335,7 +335,7 @@ export function listValuesOf(flag: FlagSpec): 'ids' | 'text' | 'fileReferences' 
 /** Whether `value`, read as `listValues`, is a comma-joined run of entries. */
 function splitsOnCommas(value: string, listValues: ReturnType<typeof listValuesOf>): boolean {
   if (!value.includes(',')) return false
-  if (listValues === 'fileReferences') return !value.startsWith('files/')
+  if (listValues === 'fileReferences') return !value.includes('/')
   return listValues === 'ids'
 }
 
@@ -353,9 +353,14 @@ function listEntries(
     : splitsOnCommas(value, listValues)
       ? value.split(',')
       : undefined
-  if (!entries) return [value]
+  if (!entries) {
+    if (value.startsWith('[') && listValues !== 'text') {
+      throw new SimApiError(`--${flagName} must be a JSON array of strings: ${value}`, 0)
+    }
+    return [value]
+  }
   const trimmed = entries.map((entry) => entry.trim())
-  if (trimmed.some((entry) => !entry)) {
+  if (trimmed.length === 0 || trimmed.some((entry) => !entry)) {
     throw new SimApiError(`--${flagName} values cannot be empty: ${value}`, 0)
   }
   return trimmed

@@ -54,6 +54,19 @@ describe('files batch-delete reads the references a caller writes', () => {
     expect(await sentFileIds(['--paths', 'files/qc/a,b.png', 'files/c.png'])).toEqual([
       ['files/qc/a,b.png', 'files/c.png'],
     ])
+    expect(await sentFileIds(['--paths', '/files/Reports/Q1, Q2.pdf'])).toEqual([
+      ['/files/Reports/Q1, Q2.pdf'],
+    ])
+  })
+
+  it('refuses an empty JSON array, or a bracketed value that is not one, before any request', async () => {
+    const empty = await run(['files', 'batch-delete', '--ids', '[]', '--yes'])
+    expect(empty.exitCode).toBe(1)
+    expect(empty.stderr).toContain('--file-ids values cannot be empty')
+    const unquoted = await run(['files', 'batch-delete', '--ids', '[wf_a,wf_b]', '--yes'])
+    expect(unquoted.exitCode).toBe(1)
+    expect(unquoted.stderr).toContain('--file-ids must be a JSON array of strings: [wf_a,wf_b]')
+    expect([...empty.bodies, ...unquoted.bodies]).toEqual([])
   })
 
   it('refuses two spellings at once, before any request', async () => {
