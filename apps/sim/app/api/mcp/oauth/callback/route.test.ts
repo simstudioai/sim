@@ -15,6 +15,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-popup'
+import { McpDnsResolutionError, McpSsrfError } from '@/lib/mcp/domain-check'
 
 const {
   mockAuthenticateEnrollment,
@@ -179,6 +180,36 @@ describe('MCP OAuth callback route', () => {
     expect(body).toContain('ok: false')
     expect(body).toContain('"state-1"')
     expect(body).toContain('serverId: undefined')
+  })
+
+  it('shows the egress refusal when the token endpoint is refused', async () => {
+    mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(
+      new McpSsrfError('MCP server URL resolves to a private or reserved address (10.0.0.1).')
+    )
+
+    const body = await (
+      await GET(
+        new NextRequest('http://localhost:3000/api/mcp/oauth/callback?state=state-1&code=code-1')
+      )
+    ).text()
+
+    expect(body).toContain('ok: false')
+    expect(body).toContain('resolves to a private or reserved address (10.0.0.1).')
+  })
+
+  it('keeps the generic failure for a transient token exchange error', async () => {
+    mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(
+      new McpDnsResolutionError('auth.example.com', false)
+    )
+
+    const body = await (
+      await GET(
+        new NextRequest('http://localhost:3000/api/mcp/oauth/callback?state=state-1&code=code-1')
+      )
+    ).text()
+
+    expect(body).toContain('ok: false')
+    expect(body).toContain('Token exchange failed. Please try again.')
   })
 
   it('rate limits a managed callback before consuming its one-time state', async () => {

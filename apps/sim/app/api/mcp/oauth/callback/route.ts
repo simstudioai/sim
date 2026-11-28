@@ -20,6 +20,7 @@ import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/o
 import type { CredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
+import { isMcpUrlRefusal } from '@/lib/mcp/domain-check'
 import {
   assertSafeOauthServerUrl,
   clearState,
@@ -285,11 +286,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const provider = new SimMcpOauthProvider({ row, preregistered })
     let result: Awaited<ReturnType<typeof mcpAuthGuarded>>
     try {
-      result = await withResourceOutboundScope({ workspaceId: serverWorkspaceId }, () =>
+      // An egress refusal of a URL the server named is the server's configuration, not a
+      // Sim fault: returned as a value so timedStep does not error-log it.
+      const outcome = await withResourceOutboundScope({ workspaceId: serverWorkspaceId }, () =>
         timedStep('mcpAuthGuarded', 120_000, () =>
-          mcpAuthGuarded(provider, { serverUrl, authorizationCode: code })
+          mcpAuthGuarded(provider, { serverUrl, authorizationCode: code }).catch((e: unknown) => {
+            if (isMcpUrlRefusal(e)) return e
+            throw e
+          })
         )
       )
+      if (isMcpUrlRefusal(outcome)) {
+        logger.warn('MCP OAuth token exchange URL refused by egress policy', {
+          serverId: server.id,
+          error: outcome.message,
+        })
+        return respond(outcome.message, false, 'token_exchange_failed', server.id)
+      }
+      result = outcome
     } catch (e) {
       logger.error('Token exchange failed during MCP OAuth callback', e)
       return respond(
