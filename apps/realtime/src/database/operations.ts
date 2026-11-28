@@ -1015,7 +1015,7 @@ async function handleBlocksOperationTx(
         // every other write, so repeated batches cannot grow a workflow past the shared cap.
         const existingBlockCount = Object.keys(lockBlocks).length
         const newBlockCount = allowedBlocks.filter(
-          (block) => !lockBlocks[block.id as string]
+          (block) => !Object.hasOwn(lockBlocks, block.id as string)
         ).length
         if (existingBlockCount + newBlockCount > MAX_WORKFLOW_BLOCKS) {
           logger.warn('Refusing batch add past the workflow block cap', {
@@ -1174,7 +1174,9 @@ async function handleBlocksOperationTx(
       const subflowValues = subflowEntries
         .filter(
           (subflow) =>
-            landed[subflow.id] && !isProtected(subflow.id) && !rejectedBlockIds.has(subflow.id)
+            Object.hasOwn(landed, subflow.id) &&
+            !isProtected(subflow.id) &&
+            !rejectedBlockIds.has(subflow.id)
         )
         .map((subflow) => ({
           ...subflow,

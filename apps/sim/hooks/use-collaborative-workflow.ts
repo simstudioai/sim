@@ -17,6 +17,8 @@ import {
   filterAcyclicEdges,
   getWorkflowBlockNameConflict,
   isWorkflowBlockProtected,
+  MAX_WORKFLOW_BLOCKS,
+  MAX_WORKFLOW_EDGES,
 } from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Edge } from '@xyflow/react'
@@ -2183,6 +2185,19 @@ export function useCollaborativeWorkflow() {
       )
       const allBlocks = { ...existingBlocks, ...newBlocksMap }
       const validEdges = filterValidEdges(edges, allBlocks)
+
+      const newBlockCount = blocks.filter(
+        (block) => !Object.hasOwn(existingBlocks, block.id)
+      ).length
+      if (
+        Object.keys(existingBlocks).length + newBlockCount > MAX_WORKFLOW_BLOCKS ||
+        validEdges.length > MAX_WORKFLOW_EDGES
+      ) {
+        toast.error(
+          `A workflow can hold up to ${MAX_WORKFLOW_BLOCKS.toLocaleString()} blocks, and one paste up to ${MAX_WORKFLOW_EDGES.toLocaleString()} connections`
+        )
+        return false
+      }
 
       logger.info('Batch adding blocks collaboratively', {
         blockCount: blocks.length,
