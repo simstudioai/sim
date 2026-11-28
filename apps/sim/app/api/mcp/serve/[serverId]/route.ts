@@ -67,6 +67,7 @@ import {
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { describeResponseError } from '@/lib/core/utils/response-error'
 import { encodeSSE, encodeSSEComment, SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
   assertContentLengthWithinLimit,
@@ -149,6 +150,17 @@ function createError(
     id,
     error: { code, message, ...(data !== undefined && { data }) },
   }
+}
+
+/** A 400 for a body that is not a usable JSON-RPC message, with its reason kept for the route's log line. */
+function malformedMessageResponse(
+  code: ErrorCode,
+  message: string,
+  reason: 'invalid_json' | 'invalid_notification' | 'not_a_request' | 'invalid_request'
+): NextResponse {
+  const response = NextResponse.json(createError(0, code, message), { status: 400 })
+  describeResponseError(response, { errorCode: String(code), errorReason: reason })
+  return response
 }
 
 const SESSION_SIGNAL_STATUSES = new Set([400, 401, 404])
@@ -751,20 +763,17 @@ export const POST = withRouteHandler(
           )
         }
         if (request.signal.aborted) return clientCancelledJsonRpcResponse(0)
-        return NextResponse.json(createError(0, ErrorCode.ParseError, 'Invalid JSON body'), {
-          status: 400,
-        })
+        return malformedMessageResponse(ErrorCode.ParseError, 'Invalid JSON body', 'invalid_json')
       }
       const message = body as JSONRPCMessage
 
       if (isJSONRPCNotification(message)) {
         const notificationValidation = mcpJsonRpcNotificationSchema.safeParse(message)
         if (!notificationValidation.success) {
-          return NextResponse.json(
-            createError(0, ErrorCode.InvalidRequest, 'Invalid JSON-RPC message'),
-            {
-              status: 400,
-            }
+          return malformedMessageResponse(
+            ErrorCode.InvalidRequest,
+            'Invalid JSON-RPC message',
+            'invalid_notification'
           )
         }
 
@@ -773,21 +782,19 @@ export const POST = withRouteHandler(
       }
 
       if (!isJSONRPCRequest(message)) {
-        return NextResponse.json(
-          createError(0, ErrorCode.InvalidRequest, 'Invalid JSON-RPC message'),
-          {
-            status: 400,
-          }
+        return malformedMessageResponse(
+          ErrorCode.InvalidRequest,
+          'Invalid JSON-RPC message',
+          'not_a_request'
         )
       }
 
       const requestValidation = mcpJsonRpcRequestSchema.safeParse(message)
       if (!requestValidation.success) {
-        return NextResponse.json(
-          createError(0, ErrorCode.InvalidRequest, 'Invalid JSON-RPC message'),
-          {
-            status: 400,
-          }
+        return malformedMessageResponse(
+          ErrorCode.InvalidRequest,
+          'Invalid JSON-RPC message',
+          'invalid_request'
         )
       }
 
