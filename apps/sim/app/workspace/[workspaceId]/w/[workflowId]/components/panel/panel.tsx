@@ -331,11 +331,13 @@ export const Panel = memo(function Panel() {
   const canMutateWorkflow = userPermissions.canEdit && !workflowLocked
   const { isSnapshotView } = useCurrentWorkflow()
 
-  const { chatId: copilotChatId, setChatId: setCopilotChatId } = useCopilotChatSelection(
-    activeWorkflowId ?? undefined
-  )
-  /** Counts the user's chat actions (select, new chat, send), so a late callback can tell whether any happened. */
-  const copilotChatActionsRef = useRef(0)
+  const {
+    chatId: copilotChatId,
+    setChatId: setCopilotChatId,
+    peekChatId: peekCopilotChatId,
+  } = useCopilotChatSelection(activeWorkflowId ?? undefined)
+  /** No transcript and no send in flight, read by callbacks that outlive the render that made them. */
+  const copilotPanelIdleRef = useRef(true)
 
   const copilotDraftWorkflowId = activeWorkflowId ?? scopedWorkflowId ?? undefined
   const copilotDraftScopeKey = copilotDraftKey(workspaceId, copilotDraftWorkflowId, copilotChatId)
@@ -386,7 +388,6 @@ export const Panel = memo(function Panel() {
 
   const handleCopilotSelectChat = useCallback(
     (chat: { id: string; title: string | null }) => {
-      copilotChatActionsRef.current += 1
       setCopilotChatId(chat.id)
       setIsCopilotHistoryOpen(false)
     },
@@ -399,7 +400,6 @@ export const Panel = memo(function Panel() {
       // Leave the chat first: its deleted event drops the open transcript, which would refetch.
       // Auto-select must not reopen it from the list while the delete is in flight.
       const wasOpen = copilotChatId === chatId
-      const actionsAtDelete = copilotChatActionsRef.current
       if (wasOpen) {
         if (activeWorkflowId) autoSelectAttemptedFor.add(activeWorkflowId)
         setCopilotChatId(undefined)
@@ -413,8 +413,8 @@ export const Panel = memo(function Panel() {
         {
           onError: (err) => {
             logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
-            // The chat still exists: reopen it unless the user has since selected, started or sent in another.
-            if (wasOpen && copilotChatActionsRef.current === actionsAtDelete)
+            // The chat still exists: reopen it only while the panel shows no other chat or conversation.
+            if (wasOpen && !peekCopilotChatId() && copilotPanelIdleRef.current)
               setCopilotChatId(chatId)
           },
         }
@@ -426,6 +426,7 @@ export const Panel = memo(function Panel() {
       copilotChatId,
       copilotDraftWorkflowId,
       deleteCopilotChat,
+      peekCopilotChatId,
       setCopilotChatId,
       workspaceId,
     ]
@@ -491,7 +492,6 @@ export const Panel = memo(function Panel() {
 
   const handleCopilotNewChat = useCallback(() => {
     if (!activeWorkflowId || !workspaceId) return
-    copilotChatActionsRef.current += 1
     requestJson(createWorkflowCopilotChatContract, {
       body: { workspaceId, workflowId: activeWorkflowId },
     })
@@ -535,6 +535,10 @@ export const Panel = memo(function Panel() {
     }
   }, [copilotResolvedChatId, copilotChatId, loadCopilotChats, setCopilotChatId])
 
+  useEffect(() => {
+    copilotPanelIdleRef.current = !copilotIsSending && copilotMessages.length === 0
+  }, [copilotIsSending, copilotMessages.length])
+
   const wasCopilotSendingRef = useRef(false)
   useEffect(() => {
     if (wasCopilotSendingRef.current && !copilotIsSending) {
@@ -555,7 +559,6 @@ export const Panel = memo(function Panel() {
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
-      copilotChatActionsRef.current += 1
       copilotSendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
     [copilotSendMessage]
