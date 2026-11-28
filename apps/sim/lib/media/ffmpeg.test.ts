@@ -18,7 +18,7 @@ const {
   capturedCaptions: [] as string[],
   killSignals: [] as string[],
   probeReport: { json: '{"streams":[],"format":{}}' },
-  command: { hang: false },
+  command: { hang: false, outputBytes: 0 },
   saves: { waiters: [] as Array<() => void> },
 }))
 
@@ -81,11 +81,15 @@ vi.mock('node:child_process', () => ({
     }
 
     fs.writeFileSync(args.at(-1) as string, Buffer.from('stub-output'))
+    if (command.outputBytes) fs.truncateSync(args.at(-1) as string, command.outputBytes)
     finish(null)
   },
 }))
 
+import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { extFromMime, runFfmpegOperation } from '@/lib/media/ffmpeg'
+
+const OUTPUT_SIZE_LIMIT = ['-fs', String(MAX_MEDIA_BYTES + 1)]
 
 const videoInput = {
   buffer: Buffer.from('fake-video-bytes'),
@@ -133,6 +137,7 @@ beforeEach(() => {
   killSignals.length = 0
   saves.waiters.length = 0
   command.hang = false
+  command.outputBytes = 0
   probeReport.json = '{"streams":[],"format":{}}'
 })
 
@@ -296,6 +301,22 @@ describe('runFfmpegOperation output format', () => {
     })
   }
 
+  for (const format of ['m3u8', 'mpd']) {
+    it(`refuses the ${format} streaming playlist, whose segments bypass the output size limit`, async () => {
+      await expect(runFfmpegOperation('convert', [videoInput], { format })).rejects.toThrow(
+        /Unsupported output format/
+      )
+      expect(capturedArgs).toHaveLength(0)
+    })
+  }
+
+  it('refuses a trim whose input MIME type selects a streaming playlist muxer', async () => {
+    await expect(
+      runFfmpegOperation('trim', [{ ...videoInput, mimeType: 'video/m3u8' }], { end: 1 })
+    ).rejects.toThrow(/Unsupported output format/)
+    expect(capturedArgs).toHaveLength(0)
+  })
+
   it('refuses a traversal on extract_audio too', async () => {
     await expect(
       runFfmpegOperation('extract_audio', [videoInput], { format: '../../../tmp/pwned.mp3' })
@@ -345,6 +366,7 @@ describe('runFfmpegOperation argument vectors', () => {
       '-c:a',
       'aac',
       '-shortest',
+      ...OUTPUT_SIZE_LIMIT,
       expect.stringMatching(/out\.mp4$/),
     ])
   })
@@ -365,6 +387,7 @@ describe('runFfmpegOperation argument vectors', () => {
       '1.25',
       '-t',
       '4.25',
+      ...OUTPUT_SIZE_LIMIT,
       expect.stringMatching(/out\.mp4$/),
     ])
   })
@@ -385,6 +408,7 @@ describe('runFfmpegOperation argument vectors', () => {
       expect.stringMatching(/in-0\.mp4$/),
       '-frames:v',
       '1',
+      ...OUTPUT_SIZE_LIMIT,
       expect.stringMatching(/out\.jpg$/),
     ])
   })
@@ -409,6 +433,21 @@ describe('runFfmpegOperation argument vectors', () => {
 })
 
 describe('runFfmpegOperation process bounds', () => {
+  it('stops concat before the next clip once normalized clips pass the media limit', async () => {
+    probeReport.json = JSON.stringify({
+      streams: [{ codec_type: 'video', width: 64, height: 64 }, { codec_type: 'audio' }],
+      format: { duration: '1' },
+    })
+    command.outputBytes = MAX_MEDIA_BYTES / 2 + 1
+
+    const outcome = await runFfmpegOperation('concat', [videoInput, videoInput, videoInput]).then(
+      () => 'resolved',
+      (error: Error) => error.message
+    )
+    expect(capturedArgs).toHaveLength(2)
+    expect(outcome).toMatch(/concat clips total/)
+  })
+
   it('kills a command that outlives the operation budget', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     command.hang = true
