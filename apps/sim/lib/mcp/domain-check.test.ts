@@ -16,6 +16,7 @@ vi.mock('@/executor/utils/reference-validation', () => ({
 import {
   isMcpDomainAllowed,
   MCP_EGRESS_PROFILE,
+  McpDnsResolutionError,
   McpDomainNotAllowedError,
   McpSsrfError,
   OAUTH_EGRESS_PROFILE,
@@ -146,6 +147,18 @@ describe('validateMcpServerSsrf', () => {
     await expect(validateMcpServerSsrf('https://app.withgauge.com/mcp')).resolves.toBe(
       '104.21.22.105'
     )
+  })
+
+  it.each([
+    ['ENOTFOUND', true],
+    ['EAI_AGAIN', false],
+  ])('classifies a %s lookup failure as hostNotFound=%s', async (code, hostNotFound) => {
+    mockDnsLookup.mockRejectedValue(
+      Object.assign(new Error(`getaddrinfo ${code} example.invalid`), { code })
+    )
+    const validation = validateMcpServerSsrf('https://example.invalid/mcp')
+    await expect(validation).rejects.toBeInstanceOf(McpDnsResolutionError)
+    await expect(validation).rejects.toMatchObject({ hostNotFound })
   })
 
   it('throws McpSsrfError for cloud metadata IP literal', async () => {
