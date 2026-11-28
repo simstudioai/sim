@@ -34,5 +34,13 @@ export function useCopilotChatSelection(workflowId?: string) {
     [workflowId, queryClient]
   )
 
-  return { chatId: chatId ?? undefined, setChatId }
+  /** The workflow's selection at call time, for callbacks that outlive the render that made them. */
+  const peekChatId = useCallback(
+    () =>
+      queryClient.getQueryData<string | null>(copilotChatSelectionKeys.workflow(workflowId)) ??
+      undefined,
+    [workflowId, queryClient]
+  )
+
+  return { chatId: chatId ?? undefined, setChatId, peekChatId }
 }

@@ -331,9 +331,13 @@ export const Panel = memo(function Panel() {
   const canMutateWorkflow = userPermissions.canEdit && !workflowLocked
   const { isSnapshotView } = useCurrentWorkflow()
 
-  const { chatId: copilotChatId, setChatId: setCopilotChatId } = useCopilotChatSelection(
-    activeWorkflowId ?? undefined
-  )
+  const {
+    chatId: copilotChatId,
+    setChatId: setCopilotChatId,
+    peekChatId: peekCopilotChatId,
+  } = useCopilotChatSelection(activeWorkflowId ?? undefined)
+  /** No transcript and no send in flight, read by callbacks that outlive the render that made them. */
+  const copilotPanelIdleRef = useRef(true)
 
   const copilotDraftWorkflowId = activeWorkflowId ?? scopedWorkflowId ?? undefined
   const copilotDraftScopeKey = copilotDraftKey(workspaceId, copilotDraftWorkflowId, copilotChatId)
@@ -395,7 +399,8 @@ export const Panel = memo(function Panel() {
     (chatId: string) => {
       // Leave the chat first: its deleted event drops the open transcript, which would refetch.
       // Auto-select must not reopen it from the list while the delete is in flight.
-      if (copilotChatId === chatId) {
+      const wasOpen = copilotChatId === chatId
+      if (wasOpen) {
         if (activeWorkflowId) autoSelectAttemptedFor.add(activeWorkflowId)
         setCopilotChatId(undefined)
       }
@@ -408,6 +413,9 @@ export const Panel = memo(function Panel() {
         {
           onError: (err) => {
             logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
+            // The chat still exists: reopen it only while the panel shows no other chat or conversation.
+            if (wasOpen && !peekCopilotChatId() && copilotPanelIdleRef.current)
+              setCopilotChatId(chatId)
           },
         }
       )
@@ -418,6 +426,7 @@ export const Panel = memo(function Panel() {
       copilotChatId,
       copilotDraftWorkflowId,
       deleteCopilotChat,
+      peekCopilotChatId,
       setCopilotChatId,
       workspaceId,
     ]
@@ -525,6 +534,10 @@ export const Panel = memo(function Panel() {
       prevResolvedRef.current = copilotResolvedChatId
     }
   }, [copilotResolvedChatId, copilotChatId, loadCopilotChats, setCopilotChatId])
+
+  useEffect(() => {
+    copilotPanelIdleRef.current = !copilotIsSending && copilotMessages.length === 0
+  }, [copilotIsSending, copilotMessages.length])
 
   const wasCopilotSendingRef = useRef(false)
   useEffect(() => {
