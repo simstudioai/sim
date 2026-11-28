@@ -1,0 +1,11 @@
+-- migration-safe: table-local maintenance settings only; a catalog update under SHARE UPDATE EXCLUSIVE, which reads and writes do not wait on, with no row rewrite.
+-- Re-chunking a document deletes its embedding_search rows and inserts new ones, and the default 20%
+-- scale factor lets dead versions pile up for weeks between vacuums. Every dead version keeps its
+-- embedding_search_kb_idx entry, so a knowledge base whose documents are re-uploaded often makes its
+-- filtered vector search visit many times more index entries and heap pages than it has live rows,
+-- until retrieval runs past its time budget. This reverses 0440's choice to leave the table at the
+-- defaults and mirrors embedding's 2% factors. Going lower would not clear dead index entries sooner:
+-- vacuum skips index cleanup while fewer than 2% of heap pages hold dead items, and each index pass
+-- reads every HNSW page several times, so its cost is fixed per run, not proportional to dead rows.
+-- 0431's cost throttle stays, so each run remains rate-limited. Replay-safe: it sets fixed values.
+ALTER TABLE "embedding_search" SET (autovacuum_vacuum_scale_factor = 0.02, autovacuum_vacuum_insert_scale_factor = 0.02);

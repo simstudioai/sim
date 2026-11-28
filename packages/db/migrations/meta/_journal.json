@@ -3326,6 +3326,13 @@
       "when": 1795720476745,
       "tag": "0475_search_mcp_people_tool",
       "breakpoints": true
+    },
+    {
+      "idx": 476,
+      "version": "7",
+      "when": 1795865830754,
+      "tag": "0476_embedding_search_autovacuum",
+      "breakpoints": true
     }
   ]
 }
