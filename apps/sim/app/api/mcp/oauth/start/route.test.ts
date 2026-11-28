@@ -12,6 +12,7 @@ import {
 import { createRouteContext } from '@sim/testing/helpers/http'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { McpDnsResolutionError, McpSsrfError } from '@/lib/mcp/domain-check'
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
@@ -235,6 +236,38 @@ describe('MCP OAuth start route: authorization-server refusals', () => {
       expect((await response.json()).error).toBe(message)
     }
   )
+
+  it.each([
+    [
+      'a metadata-endpoint destination',
+      new McpSsrfError(
+        'MCP server URL resolves to a cloud metadata endpoint (169.254.169.254), which is never reachable and cannot be allowlisted.'
+      ),
+    ],
+    [
+      'a non-public destination',
+      new McpSsrfError('MCP server URL must use https:// to a public destination.'),
+    ],
+    ['a hostname that does not exist', new McpDnsResolutionError('missing.example.com', true)],
+  ] as const)('answers 400 with the refusal for %s', async (_name, refusal) => {
+    mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(refusal)
+
+    const response = await start()
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe(refusal.message)
+  })
+
+  it('keeps a 500 for a transient DNS failure', async () => {
+    mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(
+      new McpDnsResolutionError('mcp.example.com', false)
+    )
+
+    const response = await start()
+
+    expect(response.status).toBe(500)
+    expect((await response.json()).error).toBe('Failed to start OAuth flow')
+  })
 
   it('keeps a 500 for a failure that is not an authorization-server answer', async () => {
     mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(new Error('decrypt failed'))
