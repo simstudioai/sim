@@ -18,7 +18,7 @@ const {
   capturedCaptions: [] as string[],
   killSignals: [] as string[],
   probeReport: { json: '{"streams":[],"format":{}}' },
-  command: { hang: false },
+  command: { hang: false, outputBytes: 0 },
   saves: { waiters: [] as Array<() => void> },
 }))
 
@@ -81,6 +81,7 @@ vi.mock('node:child_process', () => ({
     }
 
     fs.writeFileSync(args.at(-1) as string, Buffer.from('stub-output'))
+    if (command.outputBytes) fs.truncateSync(args.at(-1) as string, command.outputBytes)
     finish(null)
   },
 }))
@@ -136,6 +137,7 @@ beforeEach(() => {
   killSignals.length = 0
   saves.waiters.length = 0
   command.hang = false
+  command.outputBytes = 0
   probeReport.json = '{"streams":[],"format":{}}'
 })
 
@@ -431,6 +433,21 @@ describe('runFfmpegOperation argument vectors', () => {
 })
 
 describe('runFfmpegOperation process bounds', () => {
+  it('stops concat before the next clip once normalized clips pass the media limit', async () => {
+    probeReport.json = JSON.stringify({
+      streams: [{ codec_type: 'video', width: 64, height: 64 }, { codec_type: 'audio' }],
+      format: { duration: '1' },
+    })
+    command.outputBytes = MAX_MEDIA_BYTES / 2 + 1
+
+    const outcome = await runFfmpegOperation('concat', [videoInput, videoInput, videoInput]).then(
+      () => 'resolved',
+      (error: Error) => error.message
+    )
+    expect(capturedArgs).toHaveLength(2)
+    expect(outcome).toMatch(/concat clips total/)
+  })
+
   it('kills a command that outlives the operation budget', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     command.hang = true
