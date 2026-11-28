@@ -36,8 +36,14 @@ export const GET = withRouteHandler(async (req: NextRequest, context: RouteConte
 
   const userId = auth.userId
   const session = auth.principal?.kind === 'session' ? auth.principal : null
+  // The session check also runs at open: `auth` may come from the signed cookie
+  // cache, which would let a revoked session reopen the stream after every rotate.
+  const isSessionLive = async () => !session || (await isSessionActive(session))
   const checkReadAccess = () => checkAccess(tableId, { kind: 'user', userId }, 'read')
 
+  if (!(await isSessionLive())) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
   const access = await checkReadAccess()
   if (!access.ok) return accessError(access, requestId, tableId)
 
@@ -48,10 +54,7 @@ export const GET = withRouteHandler(async (req: NextRequest, context: RouteConte
     fromEventId,
     getLatestEventId: getLatestTableEventId,
     readEventsSince: readTableEventsSince,
-    revalidateAccess: async () => {
-      if (session && !(await isSessionActive(session))) return false
-      return (await checkReadAccess()).ok
-    },
+    revalidateAccess: async () => (await isSessionLive()) && (await checkReadAccess()).ok,
     extraHeaders: { 'X-Table-Id': tableId },
   })
 })
