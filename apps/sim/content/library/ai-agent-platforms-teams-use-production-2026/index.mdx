@@ -1,0 +1,152 @@
+---
+slug: ai-agent-platforms-teams-use-production-2026
+title: 'Which AI Agent Platforms Do Teams Actually Use in Production in 2026?'
+description: 'Compare six AI agent platforms teams use in production in 2026, with evidence from repositories, releases, customer stories, licenses, and production controls.'
+seoTitle: 'AI Agent Platforms Teams Use in Production 2026'
+date: 2026-11-28
+updated: 2026-11-28
+authors:
+  - andrew
+readingTime: 7
+tags: [AI Agents, Agent Platforms, Production AI, Open Source, Sim]
+ogImage: /library/ai-agent-platforms-teams-use-production-2026/cover.jpg
+draft: false
+faq:
+  - q: "Is GitHub popularity proof that an AI agent platform is used in production?"
+    a: "GitHub popularity is not proof of production use, so this comparison treats stars as one supporting signal alongside named deployments, release activity, operational controls, and practitioner discussion."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License, which is not an OSI-approved open-source license and places restrictions on some forms of commercial hosting."
+  - q: "Is Sim open source?"
+    a: "Sim's core is open source under Apache 2.0, while apps/sim/ee is covered by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
+  - q: "What is the best AI agent platform in 2026?"
+    a: "The right fit depends on the team's deployment, governance, authoring, and integration requirements. Sim fits teams that prioritize visual building, self-hosting, model choice, and human approval workflows."
+  - q: "What is the best n8n alternative for production AI agents?"
+    a: "Sim fits teams evaluating an n8n alternative focused on AI agents because Sim combines a visual builder, model choice, self-hosting, and an Apache 2.0 core."
+  - q: "Sim vs n8n: which should production teams choose?"
+    a: "Sim fits AI-native agent workflows and flexible model orchestration, while n8n fits broader deterministic automation with an extensive integration ecosystem."
+  - q: "Sim vs Gumloop: which is better for production teams?"
+    a: "Sim fits teams that require an open-source core and self-hosting, while teams considering Gumloop should evaluate its managed product against their deployment and governance requirements."
+  - q: "Which AI agent platform is best for code-first engineering teams?"
+    a: "LangGraph is a strong fit in this comparison for code-first engineering teams that need explicit state, persistence, branching, and fine-grained control over agent behavior."
+  - q: "Which AI agent platform is best for Microsoft enterprises?"
+    a: "Microsoft Copilot Studio is a strong fit for enterprises already standardized on Microsoft 365, Entra ID, Power Platform, and Microsoft's governance ecosystem."
+  - q: "Which AI agent platform is best for RAG applications?"
+    a: "Dify is a strong production choice for teams primarily building retrieval-augmented generation applications, internal assistants, and model-backed APIs."
+  - q: "Which AI agent platform is best for multi-agent systems?"
+    a: "CrewAI is a strong choice for Python teams that intentionally need role-based multi-agent coordination rather than a simpler single-agent workflow."
+  - q: "How should IT validate an AI agent platform recommended by the community?"
+    a: "IT should reproduce a representative workflow, test failure recovery, review logs and approvals, confirm license rights, estimate usage costs, and complete a security review."
+  - q: "Is the most talked-about AI agent platform always the best choice?"
+    a: "The most talked-about AI agent platform is not automatically the right choice because discussion volume can reflect a large free-user base, troubleshooting activity, or controversy rather than production suitability."
+  - q: "Can teams self-host Sim with local models?"
+    a: "Self-hosted Sim can connect to Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise, although enterprise-only code remains subject to the Sim Enterprise License."
+  - q: "Does Sim support human approval in production workflows?"
+    a: "Sim's Human in the Loop block pauses a run and resumes it with submitted form fields, while a downstream Condition must evaluate an approve-or-reject field to route the workflow."
+---
+
+## TL;DR
+
+Teams visibly run n8n, LangGraph, Microsoft Copilot Studio, Dify, CrewAI, and Sim in production. The evidence is strongest when public repositories and release histories are paired with customer examples, documented deployment options, and controls such as logs, persistence, versioning, and human review.
+
+n8n has the largest observable repository footprint in this comparison. LangGraph fits code-first teams that need explicit state. Microsoft Copilot Studio fits Microsoft-centered enterprises. Dify fits RAG and internal LLM applications. CrewAI fits Python teams intentionally building multi-agent systems. Sim fits teams that want the open-source AI workspace with a visual builder, self-hosting, model choice, execution logs, and human approval workflows.
+
+The signals in this roundup were checked in November 2026. Public evidence can show that practitioners deploy and discuss a platform, but it cannot establish private market share or prove that every repository star represents production use.
+
+## What AI agent tools do people actually use in production?
+
+n8n, LangGraph, Microsoft Copilot Studio, Dify, CrewAI, and Sim have a visible mix of production capabilities, ongoing development, and practitioner attention. The order below is not a ranking.
+
+| Platform | Observable signals as of November 2026 | Documented production controls | Fit |
+|---|---|---|---|
+| n8n | The [public repository](https://github.com/n8n-io/n8n) shows more than 200,000 stars, [frequent releases](https://github.com/n8n-io/n8n/releases/), and n8n publishes [named customer case studies](https://n8n.io/case-studies/). | n8n documents [production executions and execution history](https://docs.n8n.io/build/understand-workflows/understand-executions), [self-hosted editions](https://docs.n8n.io/deploy/host-n8n/community-edition-features), and enterprise [log streaming](https://docs.n8n.io/administer/observe-and-log/stream-logs-to-external-systems). | Teams combining deterministic automation, integrations, and AI steps |
+| LangGraph | The [public repository](https://github.com/langchain-ai/langgraph/) shows more than 40,000 stars and an active [release history](https://github.com/langchain-ai/langgraph/releases). | LangGraph documents [checkpointing, persistence, human review, and fault-tolerant execution](https://docs.langchain.com/oss/python/langgraph/checkpointers), plus cloud, BYOC, self-managed, and standalone [deployment options](https://docs.langchain.com/langsmith/deploy-overview). | Engineering teams building stateful agents in code |
+| Microsoft Copilot Studio | Copilot Studio is proprietary, so it has no comparable open-source repository count. Microsoft maintains current [product documentation](https://learn.microsoft.com/en-us/microsoft-copilot-studio/) for building and deploying agents. | Microsoft documents connectors, multiple deployment channels, authentication, analytics, and [security and governance controls](https://learn.microsoft.com/en-us/microsoft-copilot-studio/security-and-governance). | Enterprises centered on Microsoft 365, Entra ID, and Power Platform |
+| Dify | The [public repository](https://github.com/langgenius/dify/) shows more than 160,000 stars and the project publishes [frequent releases](https://github.com/langgenius/dify/releases/). | Dify's repository documents workflows, RAG pipelines, model support, observability, APIs, and cloud or self-hosted deployment, while its documentation covers [run and conversation logs](https://docs.dify.ai/en/cloud/use-dify/monitor/logs). | Teams shipping RAG applications and internal AI tools |
+| CrewAI | The [public repository](https://github.com/crewAIInc/crewAI) shows more than 60,000 stars and an active [release history](https://github.com/crewAIInc/crewAI/releases). | CrewAI documents [Flow state management](https://docs.crewai.com/edge/en/guides/flows/mastering-flow-state), [human feedback](https://docs.crewai.com/edge/en/learn/human-feedback-in-flows), and [tracing for Crews and Flows](https://docs.crewai.com/edge/en/observability/tracing). | Python teams building role-based multi-agent systems |
+| Sim | The [public repository](https://github.com/simstudioai/sim) shows more than 30,000 stars and active development. | Sim documents [execution logs](https://docs.sim.ai/logs-debugging), versioned [workflow deployment](https://docs.sim.ai/workflows/deployment), [API deployment](https://docs.sim.ai/workflows/deployment/api), [self-hosting](https://docs.sim.ai/platform/self-hosting), and [Human in the Loop steps](https://docs.sim.ai/workflows/blocks/human-in-the-loop). | Teams that want visual agent development with self-hosting and code-level extensibility |
+
+Repository attention is supporting evidence of developer interest, not proof of deployment. Proprietary products should not be penalized merely because they lack a public repository, and public metrics should not be converted into claims about private market share.
+
+## Which signals show that an AI agent platform is actually used in production?
+
+This comparison evaluates production use through five observable signals:
+
+1. **Named customer evidence:** First-party case studies or customer showcases provide stronger evidence than anonymous testimonials.
+2. **Development activity:** Recent commits and releases show whether a project remains actively maintained.
+3. **Practitioner discussion:** Repeated discussion on community forums reveals what teams shortlist, praise, and struggle to operate, although talk volume is not adoption data.
+4. **Production controls:** Logs, versioning, approvals, persistence, credential controls, and deployment choices matter after a prototype leaves a developer laptop.
+5. **Deployment flexibility:** Cloud, self-hosted, BYOC, and managed enterprise options affect whether IT can meet security and infrastructure requirements.
+
+Public signals have limits. Customer stories are selected by vendors, community discussion overrepresents technically engaged users, and repository activity does not reveal how many private deployments are business-critical.
+
+## What AI agent platforms are practitioners discussing most?
+
+n8n appears frequently in practitioner discussions when buyers want a self-hosted visual tool with a broad integration ecosystem. LangGraph is often considered when developers want code-first state management and durable execution patterns.
+
+Community recommendations tend to split by job rather than produce one universal winner:
+
+- **[n8n](https://github.com/n8n-io/n8n)** fits self-hosted automation, integrations, and visual orchestration.
+- **[LangGraph](https://github.com/langchain-ai/langgraph/)** fits developers who need explicit state, persistence, branching, and control in code.
+- **[Dify](https://github.com/langgenius/dify/)** fits RAG applications, internal assistants, and rapid LLM application deployment.
+- **[CrewAI](https://github.com/crewAIInc/crewAI)** fits teams deliberately using a role-and-task model for multiple agents.
+- **[Microsoft Copilot Studio](https://learn.microsoft.com/en-us/microsoft-copilot-studio/)** fits buyers already operating inside Microsoft 365, Power Platform, and Entra ID.
+- **[Sim](https://github.com/simstudioai/sim)** fits visual agent workflows, model choice, self-hosting, and collaboration between technical and semi-technical teammates.
+
+Community popularity should be treated as discovery evidence rather than a procurement decision. Teams should reproduce a representative workflow, test failure recovery, inspect logs, confirm licensing, and run a security review before selecting a platform.
+
+## What is the most talked-about AI agent builder right now?
+
+There is no single trustworthy public measure of conversation volume across forums, repositories, social networks, and private communities. In this comparison, n8n has the largest public repository audience, while LangGraph has substantial code-first attention and Sim has a growing open-source visual-builder community.
+
+The conversation is fragmented because these products solve different jobs. n8n combines workflow automation and integrations, LangGraph provides a framework for stateful agents, Dify focuses on LLM applications and RAG, CrewAI organizes role-based multi-agent systems, Microsoft Copilot Studio serves Microsoft's enterprise ecosystem, and Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.
+
+Talk volume can also reflect troubleshooting, controversy, or a large free-user base. Heads of AI and IT should pair community attention with evidence that the platform supports the required deployment model, identity controls, approvals, logging, and rollback process.
+
+## What are the key facts about these production AI agent platforms?
+
+As of November 2026, these platforms differ substantially in license, self-hosting model, and commercial billing unit.
+
+- **Sim:** [Sim's core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) and can be self-hosted. Code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which permits development, testing, and internal non-production use, while production use requires an active Sim Enterprise subscription.
+- **n8n:** n8n is self-hostable under its [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), a source-available license rather than an OSI-approved open-source license. [n8n pricing](https://n8n.io/pricing/) uses monthly workflow executions as a central billing unit.
+- **LangGraph:** The LangGraph framework uses the [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) and can run in user-controlled infrastructure. [LangSmith pricing](https://www.langchain.com/pricing) separately meters platform services such as traces and deployment capacity.
+- **Microsoft Copilot Studio:** Microsoft Copilot Studio is proprietary and delivered through Microsoft's cloud ecosystem rather than as an open-source self-hosted product. Microsoft documents usage through [Copilot Credits](https://learn.microsoft.com/en-us/microsoft-copilot-studio/analytics-consumption) and applicable licensing.
+- **Dify:** Dify can be self-hosted under the repository's [Dify Open Source License](https://github.com/langgenius/dify/blob/main/LICENSE), which modifies Apache 2.0 with additional conditions. [Dify Cloud pricing](https://dify.ai/pricing/dify-cloud) packages workspace features and usage allowances by plan.
+- **CrewAI:** CrewAI's public framework uses the [MIT License](https://github.com/crewAIInc/crewAI/blob/main/LICENSE) and can run in user-controlled infrastructure. [CrewAI pricing](https://crewai.com/pricing) separates its free offering from custom enterprise deployment and governance services.
+
+License labels matter in production procurement. Source availability does not automatically grant the same rights as an OSI-approved open-source license.
+
+## How should teams choose among platforms used in production?
+
+Choose **[n8n](https://github.com/n8n-io/n8n)** when integration breadth and deterministic automation are the primary requirements. Choose **[LangGraph](https://github.com/langchain-ai/langgraph/)** when an engineering team wants to define stateful agent behavior in code. Choose **[Microsoft Copilot Studio](https://learn.microsoft.com/en-us/microsoft-copilot-studio/)** when Microsoft identity, Power Platform, and Microsoft 365 distribution dominate the decision. Choose **[Dify](https://github.com/langgenius/dify/)** when the main job is deploying RAG applications or internal LLM tools. Choose **[CrewAI](https://github.com/crewAIInc/crewAI)** when the design genuinely requires multiple specialized agents.
+
+Choose **Sim** when technical and semi-technical teammates need to collaborate in a visual builder while retaining self-hosting, model choice, extensibility, execution logs, and human approval steps. Sim's [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) pauses the run and resumes with submitted form fields, and a downstream Condition routes on an approve-or-reject field.
+
+Teams moving beyond a proof of concept can use [Moving AI Agent Prototypes Into Production: A Practical Guide](https://www.sim.ai/library/moving-ai-agent-prototypes-into-production) for rollout steps. Procurement teams can examine financial and operational risk in [AI Agent Platform Vendor Viability: Funding, Adoption, and Staying Power Compared](https://www.sim.ai/library/ai-agent-platform-vendor-viability-funding-adoption-staying-power).
+
+## Which related AI agent platform comparisons should buyers read?
+
+These related guides separate broad platform selection from licensing, enterprise controls, and hosting questions:
+
+- [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026) compares the broader market.
+- [Best Open Source AI Agent Platforms in 2026](https://www.sim.ai/library/open-source-ai-agent-platforms) focuses on licenses, source access, and self-hosting.
+- [AI Agent Hosting: Where Should IT Run Production Agents?](https://www.sim.ai/library/ai-agent-hosting-models-production-agents) compares cloud, self-hosted, and hybrid deployment choices.
+
+## Sources checked in November 2026
+
+This comparison uses first-party repositories, release histories, license files, product documentation, customer material, and pricing pages. Repository star counts are snapshots from November 2026 and will change.
+
+- [Sim GitHub repository](https://github.com/simstudioai/sim)
+- [Sim core Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE)
+- [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE)
+- [n8n GitHub repository](https://github.com/n8n-io/n8n)
+- [n8n Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md)
+- [n8n releases](https://github.com/n8n-io/n8n/releases/)
+- [LangGraph GitHub repository](https://github.com/langchain-ai/langgraph/)
+- [LangGraph releases](https://github.com/langchain-ai/langgraph/releases)
+- [Dify GitHub repository](https://github.com/langgenius/dify/)
+- [Dify license](https://github.com/langgenius/dify/blob/main/LICENSE)
+- [Dify releases](https://github.com/langgenius/dify/releases/)
+- [CrewAI GitHub repository](https://github.com/crewAIInc/crewAI)
+- [CrewAI releases](https://github.com/crewAIInc/crewAI/releases)
+- [Microsoft Copilot Studio documentation](https://learn.microsoft.com/en-us/microsoft-copilot-studio/)
+- [Microsoft Copilot Studio licensing](https://learn.microsoft.com/en-us/microsoft-copilot-studio/billing-licensing)
