@@ -85,7 +85,10 @@ vi.mock('node:child_process', () => ({
   },
 }))
 
+import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { extFromMime, runFfmpegOperation } from '@/lib/media/ffmpeg'
+
+const OUTPUT_SIZE_LIMIT = ['-fs', String(MAX_MEDIA_BYTES + 1)]
 
 const videoInput = {
   buffer: Buffer.from('fake-video-bytes'),
@@ -296,6 +299,22 @@ describe('runFfmpegOperation output format', () => {
     })
   }
 
+  for (const format of ['m3u8', 'mpd']) {
+    it(`refuses the ${format} streaming playlist, whose segments bypass the output size limit`, async () => {
+      await expect(runFfmpegOperation('convert', [videoInput], { format })).rejects.toThrow(
+        /Unsupported output format/
+      )
+      expect(capturedArgs).toHaveLength(0)
+    })
+  }
+
+  it('refuses a trim whose input MIME type selects a streaming playlist muxer', async () => {
+    await expect(
+      runFfmpegOperation('trim', [{ ...videoInput, mimeType: 'video/m3u8' }], { end: 1 })
+    ).rejects.toThrow(/Unsupported output format/)
+    expect(capturedArgs).toHaveLength(0)
+  })
+
   it('refuses a traversal on extract_audio too', async () => {
     await expect(
       runFfmpegOperation('extract_audio', [videoInput], { format: '../../../tmp/pwned.mp3' })
@@ -345,6 +364,7 @@ describe('runFfmpegOperation argument vectors', () => {
       '-c:a',
       'aac',
       '-shortest',
+      ...OUTPUT_SIZE_LIMIT,
       expect.stringMatching(/out\.mp4$/),
     ])
   })
@@ -365,6 +385,7 @@ describe('runFfmpegOperation argument vectors', () => {
       '1.25',
       '-t',
       '4.25',
+      ...OUTPUT_SIZE_LIMIT,
       expect.stringMatching(/out\.mp4$/),
     ])
   })
@@ -385,6 +406,7 @@ describe('runFfmpegOperation argument vectors', () => {
       expect.stringMatching(/in-0\.mp4$/),
       '-frames:v',
       '1',
+      ...OUTPUT_SIZE_LIMIT,
       expect.stringMatching(/out\.jpg$/),
     ])
   })

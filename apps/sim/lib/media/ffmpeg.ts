@@ -32,6 +32,19 @@ const PROBE_TIMEOUT_MS = 30 * 1000
 /** Headroom for ffprobe's JSON report on a container with many streams. */
 const PROBE_MAX_OUTPUT_BYTES = 4 * 1024 * 1024
 
+/**
+ * Bounds what an expanding format (raw video, PCM) writes to the shared temp
+ * volume. One byte over the media limit, so a capped output always ends above
+ * `MAX_MEDIA_BYTES` and `readOut` rejects it instead of returning it truncated.
+ */
+const OUTPUT_SIZE_LIMIT_ARGS = ['-fs', String(MAX_MEDIA_BYTES + 1)]
+
+/**
+ * Output extensions whose muxer (HLS, DASH) writes its media as separate
+ * segment files that `-fs` never sees, leaving only a playlist at the output path.
+ */
+const SEGMENTED_OUTPUT_EXTS = new Set(['.m3u8', '.mpd'])
+
 const {
   minScaleDimension: MIN_SCALE_DIMENSION,
   maxScaleDimension: MAX_SCALE_DIMENSION,
@@ -291,10 +304,16 @@ async function runCommand(
   if (ctx.signal?.aborted) throw new Error(CANCELLED_MESSAGE)
   const remaining = ctx.deadlineAt - Date.now()
   if (remaining <= 0) throw new Error(timedOutMessage())
+  const outputExt = path.extname(outputPath).toLowerCase()
+  if (SEGMENTED_OUTPUT_EXTS.has(outputExt)) {
+    throw new Error(
+      `Unsupported output format "${outputExt.slice(1)}" — streaming playlists are not supported; use a single-file format such as mp4`
+    )
+  }
 
   ensureFfmpeg()
   try {
-    const commandArgs = [...ffmpegArgs(args), outputPath]
+    const commandArgs = [...ffmpegArgs(args), ...OUTPUT_SIZE_LIMIT_ARGS, outputPath]
     await runExecutable(ffmpegPath as string, commandArgs, {
       cwd,
       maxOutputBytes: PROBE_MAX_OUTPUT_BYTES,
@@ -516,6 +535,7 @@ async function concat(
   // (generateAudio:false) otherwise break the concat filtergraph (it referenced a
   // non-existent [i:a]), which is the "Error binding filtergraph inputs/outputs" failure.
   const normalized: string[] = []
+  let normalizedBytes = 0
   for (let i = 0; i < inputPaths.length; i++) {
     const out = path.join(dir, `norm-${i}.mp4`)
     const args = ['-i', inputPaths[i]]
@@ -562,6 +582,14 @@ async function concat(
       ...extra
     )
     await runCommand(ctx, args, out)
+    // The stream-copy concat below is about the size of its parts, so stop as
+    // soon as they pass the limit instead of writing every remaining clip.
+    normalizedBytes += (await fs.stat(out)).size
+    if (normalizedBytes > MAX_MEDIA_BYTES) {
+      throw new Error(
+        `FFmpeg concat clips total ${normalizedBytes} bytes, above the ${MAX_MEDIA_BYTES} byte media limit. Use shorter or fewer clips.`
+      )
+    }
     normalized.push(out)
   }
 
