@@ -129,6 +129,14 @@ async function reserveOTPAttempt(
 export type OTPVerification = 'valid' | 'invalid' | 'locked' | 'missing'
 
 /**
+ * The one answer an email-auth gate gives for every failed verification.
+ * Allow-list misses and missing, wrong, or exhausted codes all share it, and
+ * callers run {@link verifyOTP} for every email, so neither the response nor
+ * its latency reveals whether an email is on the deployment's allow-list.
+ */
+export const OTP_VERIFICATION_FAILED = 'Invalid or expired verification code'
+
+/**
  * Checks a submitted code and consumes it on a match. An attempt is reserved
  * before the comparison, so at most {@link MAX_OTP_ATTEMPTS} guesses are ever
  * compared against one code however many requests run concurrently, and only
