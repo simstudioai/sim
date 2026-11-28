@@ -324,6 +324,11 @@ export interface CompetitorProfile {
    */
   sectionIntros?: Partial<Record<keyof ComparisonFacts, Prose>>
   /**
+   * A paragraph shown after a comparison-table section, for a worked example that makes the
+   * section's rows concrete (such as what a typical run costs on each pricing model).
+   */
+  sectionOutros?: Partial<Record<keyof ComparisonFacts, Prose>>
+  /**
    * Whether this competitor is, categorically, a visual workflow/automation
    * builder like Sim. Defaults to `true` when omitted. Set `false` for a
    * product that isn't (an interactive desktop agent) or has documented

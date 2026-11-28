@@ -1,0 +1,155 @@
+---
+slug: gumloop-pricing-credits-cost
+title: 'Gumloop Pricing: Plans, Credits, and Costs for Scaling Teams'
+description: 'Understand Gumloop pricing, credit usage, overage costs, and how its Pro and Enterprise plans compare with n8n and Sim.'
+seoTitle: 'Gumloop Pricing: Plans, Credits, and Costs'
+date: 2026-11-28
+updated: 2026-11-28
+authors:
+  - andrew
+readingTime: 7
+tags: [Gumloop, Pricing, AI Agents, Automation, Sim]
+ogImage: /library/gumloop-pricing-credits-cost/cover.jpg
+draft: false
+faq:
+  - q: "Is Gumloop free?"
+    a: "Gumloop’s public pricing page lists a 14-day free trial rather than an ongoing Free plan as of November 2026. Continued use starts with the paid Pro plan or a custom Enterprise agreement."
+  - q: "Does Gumloop charge per workflow run?"
+    a: "Gumloop does not apply one flat price to every workflow run because usage is metered through credits. Two runs can consume different amounts when they use different models, tools, or processing time."
+  - q: "Does Gumloop include AI model usage in its credits?"
+    a: "Gumloop uses credits for model calls and other metered services. Teams should profile representative prompts and input sizes because AI-heavy runs may consume more credits than simpler work."
+  - q: "Can Gumloop be self hosted?"
+    a: "Gumloop does not list a self-hosted deployment on its public pricing page as of November 2026. Teams requiring self-hosting can compare alternatives such as Sim or n8n and review the applicable licenses."
+  - q: "Which AI agent builder has the best free tier for testing before buying?"
+    a: "The right testing option depends on whether the team wants a hosted trial or can operate its own infrastructure. Gumloop offers a 14-day trial, while Sim’s Apache-licensed core fits technical teams that want to evaluate a self-hosted deployment."
+  - q: "What is the best value AI agent builder for the price?"
+    a: "Value depends on the billing unit, deployment model, model costs, and operating effort. Gumloop fits teams that prefer managed credit-based usage, while Sim fits technical teams that want self-hosting and direct control of provider and infrastructure costs."
+  - q: "What should a team ask for in a Gumloop Enterprise quote?"
+    a: "Gumloop Enterprise buyers should ask about included credits, overage pricing, support, security capabilities, contract minimums, and the treatment of usage above the allowance. Teams should test the quote against measured credit use per successful production outcome."
+  - q: "How much capacity should a team add above its Gumloop forecast?"
+    a: "Teams should base their buffer on observed variation in input size, retries, testing, and seasonal peaks rather than an arbitrary percentage. A forecast built from representative run history is more defensible than one based only on average production volume."
+---
+
+Gumloop’s published pricing now starts at $37 per month for Pro, while Enterprise pricing is custom. As of November 2026, teams should estimate Gumloop cost by measuring credits across representative work, adding testing and retry usage, and comparing the result with the included allowance and overage terms.
+
+## TL;DR
+
+- **Published plans:** The [Gumloop pricing page](https://www.gumloop.com/pricing) lists Pro at $37 per month with 20,000 included monthly credits and Enterprise with custom pricing.
+- **Trial:** Gumloop advertises a 14-day free trial rather than an ongoing Free plan.
+- **Usage meter:** Gumloop says one credit is worth $0.005, and actual consumption varies with model calls, tool calls, and task duration.
+- **Forecasting:** Measure several realistic tasks, then include development, failed work, retries, and a capacity buffer.
+- **Alternatives:** n8n meters its Cloud plans by workflow executions, while Sim fits technical teams that want an open-source core, self-hosting, and direct control over model and infrastructure costs.
+
+## How much does Gumloop cost?
+
+As of November 2026, Gumloop’s public page lists two plans: [Pro at $37 per month and Enterprise with custom pricing](https://www.gumloop.com/pricing). Pro includes 20,000 credits per month, while Enterprise capacity and commercial terms are negotiated.
+
+| Gumloop plan | Published price | Included credits | Practical fit |
+| --- | ---: | ---: | --- |
+| Pro | $37 per month | 20,000 per month | Individuals and teams that can operate within a shared published allowance |
+| Enterprise | Custom | Custom | Organizations that need negotiated capacity, support, security, or deployment terms |
+
+The current pricing page also advertises a 14-day Pro trial. Buyers should model decisions against the current Pro and Enterprise structure.
+
+The subscription price is only the starting point. A team’s total cost depends on its included credits, any enabled overage, and how much credit its agents and workflows consume.
+
+## How do Gumloop credits work?
+
+[Gumloop’s credit documentation](https://docs.gumloop.com/core-concepts/credits) defines credits as the usage currency for model calls, tool calls, and agent activity. It states that one credit is worth $0.005 and that the same agent can consume very different amounts depending on the model, tools, and time required.
+
+A useful planning formula is:
+
+**Monthly credits = average credits per successful task × expected successful tasks + credits used by tests, retries, and failed work**
+
+Teams should measure several representative tasks instead of using one short demonstration as the benchmark. A research task with multiple model and tool calls can consume credits differently from a simple connector action.
+
+Use this process to estimate monthly demand:
+
+1. Run each important agent or workflow with realistic inputs.
+2. Record the credits consumed by successful work.
+3. Test short, typical, and unusually large inputs.
+4. Include development runs, retries, and failures.
+5. Calculate an average and add a buffer based on observed variation.
+
+Gumloop’s documentation also says model calls are billed at provider cost converted into credits, while other services can have direct credit charges. That makes the composition of a task more important than run count alone.
+
+## What do teams pay as Gumloop usage grows?
+
+Teams pay the Pro subscription while usage stays within its included allowance. According to [Gumloop’s current credit documentation](https://docs.gumloop.com/core-concepts/credits), Pro includes 20,000 monthly credits, unused included credits do not roll over, and enabled overage is billed at $0.005 per credit.
+
+The scenarios below show planning arithmetic, not universal Gumloop task costs:
+
+| Monthly successful tasks | Assumed credits per task | Production credits | Example extra usage | Forecast credits |
+| ---: | ---: | ---: | ---: | ---: |
+| 100 | 20 | 2,000 | 500 | 2,500 |
+| 500 | 20 | 10,000 | 2,000 | 12,000 |
+| 1,000 | 20 | 20,000 | 4,000 | 24,000 |
+
+At 24,000 credits, the example exceeds the Pro inclusion by 4,000 credits. At the documented $0.005 overage rate, that excess would add $20 if overage is enabled, producing an illustrative monthly total of $57 before taxes or other negotiated charges.
+
+The result changes immediately when measured credit use changes. If the same 1,000 tasks average 50 credits each, production alone would consume 50,000 credits. Buyers should therefore profile real work before treating a run forecast as a budget.
+
+## How should teams calculate Gumloop cost per successful outcome?
+
+Cost per successful outcome should include the subscription, overage, development usage, retries, and failed attempts. Dividing the list price by all attempts can make an unreliable process appear cheaper than it is.
+
+Use this formula:
+
+**Effective cost per successful outcome = total monthly Gumloop spend ÷ successful production outcomes**
+
+For the 24,000-credit scenario above, the illustrative spend is $57 and the successful task count is 1,000. That produces an effective platform cost of $0.057 per successful outcome. The figure is a scenario calculation, not a fixed Gumloop unit price.
+
+Underused capacity increases the effective subscription cost per outcome. Credit-intensive tasks and frequent retries increase overage sooner. Teams should track both successful outcomes and total consumed credits so procurement can distinguish productive usage from avoidable spend.
+
+## When can Sim cost less than Gumloop?
+
+Sim can cost less when a technical team can self-host Sim’s core, use its own model-provider keys, and operate infrastructure directly instead of buying increasing credit capacity. Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, but the cost case depends on actual model usage, infrastructure, and operating effort.
+
+Workspace BYOK works on every Sim Cloud plan. The [Sim BYOK guide](https://www.sim.ai/library/byok-multi-model-ai-agent-builder) explains how teams can connect provider keys and manage model access without treating BYOK as an Enterprise-only capability.
+
+A [self-hosted Sim deployment](https://docs.sim.ai/platform/self-hosting) can also connect to Ollama, vLLM, LM Studio, or LiteLLM. Local models can reduce external model charges for suitable workloads, although teams still pay for compute, storage, networking, maintenance, and staff time.
+
+[Sim’s core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) and can be self-hosted. Code in `apps/sim/ee`, including enterprise capabilities such as SSO, SCIM, access control, and audit logs, uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). It is free for development, testing, and internal non-production use, while production use requires an active Sim Enterprise subscription.
+
+Sim fits teams that:
+
+- already operate application infrastructure;
+- want direct control over model-provider costs;
+- need self-hosted deployment;
+- can use local models for part of the workload; or
+- need control over deployment and model routing.
+
+Gumloop can remain the simpler economic fit when a team values a managed service, wants a short hosted trial, and can forecast credit consumption with confidence.
+
+## How does Gumloop pricing compare with n8n and Sim?
+
+Gumloop uses credits, [n8n prices its published plans by workflow executions](https://n8n.io/pricing/), and Sim supports managed usage as well as self-hosted deployment with BYOK. The billing unit and deployment model matter because the same business process can produce different metered usage on each product.
+
+| Platform | Key pricing unit | Deployment and license | Cost fit |
+| --- | --- | --- | --- |
+| Gumloop | Credits consumed by models, tools, and agent activity | Commercial hosted product with Pro and custom Enterprise plans | Teams that want managed operation and can forecast credit consumption |
+| n8n | Workflow executions on published plans | Cloud and self-hosted options under the source-available Sustainable Use License | Teams whose multi-step workflows fit execution-based billing |
+| Sim | Managed usage, direct provider costs with BYOK, or self-hosted infrastructure and model costs | Apache 2.0 core with enterprise code under the separate Sim Enterprise License | Technical teams that want deployment and model-cost control |
+
+The [n8n Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) is source-available rather than an OSI-approved open-source license. For a deeper cost breakdown, see [n8n Pricing: Cloud, Self-Hosted, and Enterprise Costs Explained](https://www.sim.ai/library/n8n-pricing-cloud-self-hosted-enterprise).
+
+## What should buyers know before choosing a plan?
+
+Buyers should compare billing units, deployment options, model costs, and operating responsibility rather than subscription prices alone.
+
+- Gumloop’s current public offer uses a Pro allowance plus optional overage, with custom Enterprise terms for larger or specialized requirements.
+- n8n’s published pricing is based on workflow executions regardless of standard workflow complexity.
+- Sim’s core is Apache 2.0 and self-hostable, while production use of enterprise code requires a Sim Enterprise subscription.
+- Sim supports workspace BYOK on every Cloud plan and local-model connections on self-hosted deployments.
+
+A useful procurement worksheet should record successful outcomes, total attempts, credits or executions, model-provider charges, infrastructure, support, and engineering time. That exposes whether a low entry price remains economical as volume and complexity grow.
+
+## How can teams choose between Gumloop and Sim?
+
+Gumloop fits teams that prioritize a managed experience and can forecast credits. Sim fits technical teams that prioritize self-hosting, direct model keys, and control over deployment costs.
+
+Choose Gumloop when the team wants the vendor to operate the service, can validate credit consumption during the trial, and accepts usage-based overage or negotiated Enterprise capacity.
+
+Choose Sim when the team wants an open-source core, needs to self-host, wants to connect provider keys directly, or expects credit capacity to become a recurring procurement concern.
+
+For wider product context, read [Best Gumloop Alternatives in 2026](https://www.sim.ai/library/best-gumloop-alternatives-in-2026). Teams focused on infrastructure control can review [Best Self-Hosted AI Workflow Automation Platforms in 2026](https://www.sim.ai/library/best-self-hosted-ai-workflow-automation-platforms-2026), while teams comparing entry costs can use [Cheapest AI Agent Builders for Startups in 2026](https://www.sim.ai/library/cheapest-ai-agent-builders-for-startups-2026).

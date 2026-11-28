@@ -14,6 +14,8 @@ const logger = createLogger('SocketAuth')
 export interface AuthenticatedSocket extends Socket {
   data: { fileDocPresence?: { roomName: string; user: FileDocPresenceUser } }
   userId?: string
+  /** Better Auth session the handshake token was minted from; the access sweep disconnects the socket once it ends. */
+  sessionId?: string
   userName?: string
   userEmail?: string
   activeOrganizationId?: string
@@ -71,6 +73,7 @@ export async function authenticateSocket(socket: AuthenticatedSocket, next: (err
 
       // Store user info in socket for later use
       socket.userId = session.user.id
+      socket.sessionId = session.session.id
       socket.userName = session.user.name || session.user.email || 'Unknown User'
       socket.userEmail = session.user.email ?? undefined
       socket.userImage = session.user.image || null

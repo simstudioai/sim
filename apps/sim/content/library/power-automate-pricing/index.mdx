@@ -1,0 +1,143 @@
+---
+slug: power-automate-pricing
+title: 'Microsoft Power Automate Pricing: Costs for IT and Automation Teams'
+description: 'Microsoft Power Automate pricing starts at $15 per user monthly. Compare Premium, Process, Hosted Process, and the costs IT teams should model.'
+seoTitle: 'Power Automate Pricing: Plans and Costs'
+date: 2026-11-28
+updated: 2026-11-28
+authors:
+  - andrew
+readingTime: 7
+tags: [Power Automate, Automation, AI Agents, Microsoft, Sim]
+ogImage: /library/power-automate-pricing/cover.jpg
+draft: false
+faq:
+  - q: "Does Microsoft 365 include Power Automate?"
+    a: "Microsoft 365 includes limited Power Automate use rights for eligible Microsoft 365 applications and standard connector scenarios, but it does not generally include Power Automate Premium, premium connectors, unattended RPA, Hosted Process, or separate AI capacity."
+  - q: "What is Power Automate Premium?"
+    a: "Power Automate Premium is Microsoft's named user license for premium cloud flows, premium and custom connectors, attended desktop flows, and individual automation makers, listed at $15 per user per month with annual billing as of November 2026."
+  - q: "Should I buy Power Automate per user or per bot?"
+    a: "Microsoft Power Automate Premium is usually appropriate when a named person builds or runs multiple premium automations, while Power Automate Process is usually appropriate when one shared process serves many people or runs unattended."
+  - q: "Are premium connectors included with Power Automate?"
+    a: "Microsoft Power Automate Premium, Process, and Hosted Process include applicable premium connector rights within their licensing scope, while basic Microsoft 365 use rights do not provide unrestricted premium connector access."
+  - q: "Does every user need a Power Automate license?"
+    a: "Microsoft Power Automate may require each participating user to hold appropriate rights unless the flow or process is covered by a suitable Process license, and the answer depends on the trigger, connector, run context, and interaction model."
+  - q: "How do AI Builder credits affect Power Automate pricing?"
+    a: "Microsoft is progressively ending AI Builder credits, and new add-on customers must use Copilot Credits for supported AI Builder operations. Existing customers should check their renewal and transition dates when modeling capacity costs."
+  - q: "How much does Power Automate Process Mining cost?"
+    a: "Microsoft directs buyers to its current licensing guidance and sales channels for Process Mining capacity. Total cost can also include implementation, data preparation, storage, and required base licenses."
+  - q: "How much does hosted RPA cost in Power Automate?"
+    a: "Microsoft Power Automate Hosted Process costs $215 per bot per month with annual billing as of November 2026 and includes a Microsoft-hosted virtual machine for unattended automation."
+  - q: "What should we switch to if Microsoft Copilot Studio feels too limited outside the Microsoft ecosystem?"
+    a: "Sim fits teams that need model flexibility, BYOK, optional local models on a self-hosted deployment, and AI agents that coordinate work across Microsoft and non-Microsoft systems, while Power Automate remains suited to desktop RPA and Microsoft-centered process automation."
+  - q: "Is Sim open source and can it be self hosted?"
+    a: "Sim's core is Apache 2.0 and can be self-hosted, while enterprise code in apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Sim Enterprise subscription for production use."
+  - q: "Can Sim use local models?"
+    a: "Sim can use Ollama, vLLM, LM Studio, or LiteLLM on any self-hosted deployment, and local model support does not require Sim Enterprise."
+  - q: "Is n8n open source?"
+    a: "n8n is source available under the Sustainable Use License, which is not an OSI-approved open-source license and restricts some commercial hosting and redistribution scenarios."
+---
+
+## TL;DR
+
+As of November 2026, [Microsoft lists Power Automate Premium at $15 per user per month, Process at $150 per bot per month, and Hosted Process at $215 per bot per month](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing), with annual billing. The lowest-cost license depends on who runs each automation, whether it uses premium connectors, and whether desktop automation is attended, unattended, or hosted by Microsoft.
+
+IT teams should model the complete automation estate, not just one headline price. Capacity, Dataverse storage, implementation, monitoring, and governance can increase total cost. Microsoft has also started [phasing out AI Builder credits in favor of Copilot Credits](https://learn.microsoft.com/en-us/ai-builder/endofaibcredits), which changes how new buyers should budget for AI Builder workloads.
+
+## What are the key Power Automate pricing facts at a glance?
+
+Microsoft Power Automate combines user licenses, process licenses, hosted machines, and optional capacity. IT leaders should map each production automation to its run context before estimating cost.
+
+- Microsoft Power Automate is a proprietary Microsoft service with user and capacity licensing for premium automation, as described in [Microsoft's license overview](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/types).
+- [Power Automate Premium](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) is the main user license for people who build or run premium cloud flows and attended desktop flows.
+- [Power Automate Process](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/deep-dive-on-specific-license) licenses a shared cloud flow or machine rather than every individual participant.
+- [Power Automate Hosted Process](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) adds a Microsoft-hosted virtual machine for unattended desktop automation.
+- Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. [Sim's core is Apache 2.0, while code in apps/sim/ee is governed by the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+- Zapier is a proprietary cloud service that measures automation usage in tasks, with details on [Zapier's official task usage page](https://zapier.com/pricing/rates).
+- n8n offers cloud plans based on monthly workflow executions, according to [n8n's official pricing page](https://n8n.io/pricing/). Its code is source available under the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), not an OSI-approved open-source license.
+
+## How much does Microsoft Power Automate cost?
+
+[Microsoft's United States pricing page](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) lists three primary Power Automate offers as of November 2026.
+
+| License | United States list price as of November 2026 | Billing unit | Fit |
+| --- | ---: | --- | --- |
+| [Power Automate Premium](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) | $15 per user per month, paid yearly | Named user | Premium cloud flows, premium connectors, attended desktop flows, and individual makers |
+| [Power Automate Process](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) | $150 per bot per month, paid yearly | Licensed process or unattended bot | Shared cloud processes and unattended automation on customer-managed infrastructure |
+| [Power Automate Hosted Process](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) | $215 per bot per month, paid yearly | Licensed process with a Microsoft-hosted machine | Unattended desktop automation without maintaining the underlying virtual machine |
+
+These are list prices before taxes, negotiated discounts, regional adjustments, Dataverse capacity, implementation services, and internal operations. Microsoft can change prices and entitlements, so procurement teams should confirm the current quote and review [Microsoft's Power Automate licensing FAQ](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/faqs) before purchase.
+
+AI workloads need separate attention. Microsoft says [new customers have not been able to buy AI Builder capacity add-ons since November 1, 2025](https://learn.microsoft.com/en-us/ai-builder/endofaibcredits), while existing customers follow a staged transition to Copilot Credits. Do not use the former $500 AI Builder add-on as a default assumption for a new 2026 deployment.
+
+## What drives Power Automate cost as automation spreads across departments?
+
+Power Automate becomes more expensive when premium access expands from a small maker group to many named users, shared processes, unattended bots, and governed production environments.
+
+| Cost driver | Why the cost grows | What IT should measure |
+| --- | --- | --- |
+| [Named users](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) | Every person who needs Premium rights may require a separate license | Active makers, operators, and people invoking premium flows |
+| [Premium connectors](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/types) | Premium and custom connectors can move a workflow beyond limited Microsoft 365 use rights | Connector classification and the license held by each affected person or process |
+| [Shared processes](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/deep-dive-on-specific-license) | Department-wide workflows may need Process licenses instead of relying on one maker's user license | Number of independently licensed business processes |
+| [Unattended desktop automation](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) | Each unattended workload needs suitable process licensing and machine capacity | Concurrent bots, run duration, queue depth, and peak demand |
+| [Hosted machines](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) | Hosted Process avoids customer-managed virtual machines but costs more than Process at list price | Number of hosted bots and utilization per machine |
+| [AI capacity](https://learn.microsoft.com/en-us/ai-builder/endofaibcredits) | AI Builder operations are moving from AI Builder credits toward Copilot Credits | Monthly credit consumption by model and flow |
+| [Process mining](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/types) | Broader process analysis can add capacity, data preparation, and implementation work | Data volume, refresh frequency, and participating processes |
+| [Dataverse](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) | Production environments can require additional database, file, or log capacity | Storage growth, retention, and environment strategy |
+| Governance | More departments create demand for environment management, data policies, service accounts, monitoring, and support | Administrative labor, incident volume, and audit requirements |
+
+Premium connector licensing deserves particular attention. [Microsoft's licensing FAQ](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/faqs) explains that automated and scheduled flows use the owner's license context, instant flows use the invoking person's context, and Process-licensed flows use the Process license limits. One licensed maker does not automatically grant premium rights to an entire department.
+
+## What would Power Automate cost for a 200-person department?
+
+Power Automate would cost $5,575 per month, or $66,900 per year, in an illustrative 200-person department that licenses all 200 people, 10 customer-hosted processes, and 5 hosted processes at [Microsoft's November 2026 list prices](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing).
+
+| Component | Calculation | Monthly cost |
+| --- | ---: | ---: |
+| 200 Power Automate Premium users | 200 × $15 | $3,000 |
+| 10 Power Automate Process licenses | 10 × $150 | $1,500 |
+| 5 Power Automate Hosted Process licenses | 5 × $215 | $1,075 |
+| Total | $3,000 + $1,500 + $1,075 | $5,575 |
+
+The example is a planning model, not a recommendation that every department needs every component. A department using only standard Microsoft 365 automation could spend less, while one with more premium participants, unattended processes, AI consumption, process mining, Dataverse capacity, or consulting work could spend more.
+
+IT should create separate scenarios for named users, shared cloud processes, customer-managed unattended bots, and Microsoft-hosted bots. Those licenses solve different problems and should not be treated as interchangeable units.
+
+## When can Sim cost less than Power Automate?
+
+Sim can cost less when the primary requirement is building model-flexible AI agents and a Power Automate design would otherwise require premium licenses for many people or multiple process licenses. The actual result depends on the Sim plan, model usage, hosting, infrastructure, and support requirements.
+
+[Workspace BYOK keys work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise](https://docs.sim.ai/platform/costs). [Self-hosted Sim deployments can connect to Ollama, vLLM, LM Studio, or LiteLLM](https://docs.sim.ai/platform/self-hosting/environment-variables) without requiring Sim Enterprise.
+
+Sim tends to fit cost models with these characteristics:
+
+- A small automation team builds AI agents used by a much larger audience.
+- Model choice and model cost control matter more than standardizing on one vendor's AI services.
+- The agent must coordinate Microsoft 365 work with systems outside the Microsoft ecosystem.
+- The team can use workspace BYOK or local models to control inference costs.
+- The use case is language-model intensive rather than primarily desktop RPA.
+
+Power Automate can fit teams that already have suitable Microsoft entitlements, use mostly standard Microsoft connectors, and need conventional approvals or desktop RPA. Sim is not a direct replacement for every Power Automate capability, especially desktop automation and process mining. The [AI agents versus RPA guide](https://www.sim.ai/library/ai-agents-vs-rpa) explains where those approaches differ.
+
+For adjacent Microsoft product choices, read [Microsoft Copilot Studio vs Power Automate](https://www.sim.ai/library/microsoft-copilot-studio-vs-power-automate). Teams evaluating agent-focused products can also compare [Microsoft Copilot Studio and Power Automate alternatives](https://www.sim.ai/library/best-microsoft-copilot-studio-power-automate-alternatives).
+
+## How do Power Automate, Zapier, n8n, and Sim compare?
+
+Microsoft Power Automate, Zapier, n8n, and Sim serve different automation needs. The right fit depends on the systems involved, the billing meter, hosting requirements, and whether the work is deterministic or driven by AI agents.
+
+| Option | Fit | Main cost meter | Important limitation |
+| --- | --- | --- | --- |
+| [Microsoft Power Automate](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) | Microsoft-centered business automation and desktop RPA | Users, processes, hosted bots, and capacity | Licensing becomes more complex across premium connectors, people, bots, and add-ons |
+| [Zapier](https://zapier.com/pricing/rates) | Cloud application automation for business teams | Tasks and plan limits | Successful app actions consume tasks, so higher action volume can increase cost |
+| [n8n](https://n8n.io/pricing/) | Technical teams that want visual workflow automation with self-hosting options | Cloud workflow executions or self-hosted infrastructure | n8n uses a source-available license rather than an OSI-approved open-source license |
+| Sim | Teams building and managing model-flexible AI agents | Workspace plan, model usage, or self-hosted infrastructure | Sim is not a desktop RPA or process mining replacement |
+
+Power Automate fits Microsoft-centered automation and desktop RPA. Zapier fits straightforward software-as-a-service connections where task-based billing matches the workload. n8n fits technical workflow teams that value self-hosting and execution-based cloud plans. Sim fits teams that need model flexibility, AI agent orchestration, BYOK, and optional local models on a self-hosted deployment.
+
+For a wider market view, see the guide to [AI automation tools](https://www.sim.ai/library/best-ai-automation-tools-2026).
+
+## How should IT budget for Power Automate?
+
+Start with an inventory of production flows, triggers, connectors, owners, participants, machines, and run contexts. Then classify each automation as standard cloud automation, premium user automation, a shared Process-licensed flow, attended desktop automation, customer-hosted unattended automation, or Microsoft-hosted unattended automation.
+
+Build low, expected, and high scenarios. Include license growth, Dataverse storage, AI or Copilot capacity, process mining, virtual machine operations, monitoring, support, implementation, and governance. Finally, validate the design with Microsoft's current licensing documentation and a written reseller or Microsoft quote before treating the estimate as a budget.

@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { startMcpOauthContract } from '@/lib/api/contracts/mcp'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isMcpUrlRefusal } from '@/lib/mcp/domain-check'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import {
   assertSafeOauthServerUrl,
@@ -173,15 +174,19 @@ export const GET = withRouteHandler(
       // OAuth discovery + DCR through the guarded fetch, bounded so a transient stall fails
       // fast with a labeled log instead of hanging the popup. `McpOauthRedirectRequired` is
       // the SUCCESS signal (a throw carrying the authorize URL), and an authorization-server
-      // refusal is an expected outcome rather than a Sim fault, so both are caught INSIDE the
-      // bounded step and returned as values — otherwise timedStep would error-log them. Only
-      // a real error or a timeout escapes as a throw.
+      // refusal or an egress refusal of a URL the server named is an expected outcome rather
+      // than a Sim fault, so all are caught INSIDE the bounded step and returned as values —
+      // otherwise timedStep would error-log them. Only a real error or a timeout escapes as a
+      // throw.
       const authOutcome = await timedStep('mcpAuthGuarded', MCP_AUTH_STEP_MS, async () => {
         try {
           return { kind: 'result' as const, value: await mcpAuthGuarded(provider, { serverUrl }) }
         } catch (e) {
           if (e instanceof McpOauthRedirectRequired) {
             return { kind: 'redirect' as const, authorizationUrl: e.authorizationUrl }
+          }
+          if (isMcpUrlRefusal(e)) {
+            return { kind: 'refused' as const, error: e }
           }
           if (isDynamicClientRegistrationUnsupported(e)) {
             return {
@@ -208,6 +213,13 @@ export const GET = withRouteHandler(
           error: authOutcome.error.message,
         })
         return createMcpErrorResponse(authOutcome.error, authOutcome.message, 422)
+      }
+      if (authOutcome.kind === 'refused') {
+        logger.warn('MCP OAuth URL refused by egress policy', {
+          serverId,
+          error: authOutcome.error.message,
+        })
+        return createMcpErrorResponse(authOutcome.error, authOutcome.error.message, 400)
       }
       if (authOutcome.value === 'AUTHORIZED') {
         return NextResponse.json({ status: 'already_authorized' })

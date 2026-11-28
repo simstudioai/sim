@@ -55,6 +55,17 @@ export class McpDnsResolutionError extends Error {
 }
 
 /**
+ * True when an MCP URL was refused because of what the caller supplied: the egress policy
+ * refused the destination, or its hostname provably does not exist. A transient DNS failure
+ * is not one, so it stays a server fault.
+ */
+export function isMcpUrlRefusal(error: unknown): error is McpSsrfError | McpDnsResolutionError {
+  return (
+    error instanceof McpSsrfError || (error instanceof McpDnsResolutionError && error.hostNotFound)
+  )
+}
+
+/**
  * Core domain check. Returns null if the URL is allowed, or the hostname/url
  * string to use in the rejection error.
  */

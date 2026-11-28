@@ -194,11 +194,7 @@ export async function validateDeploymentCredentials(
         return { authorized: false, error: 'Email is required' }
       }
 
-      if (isEmailAllowed(email, resource.allowedEmails)) {
-        return { authorized: false, error: 'otp_required' }
-      }
-
-      return { authorized: false, error: 'Email not authorized' }
+      return { authorized: false, error: 'otp_required' }
     } catch (error) {
       logger.error('Error validating email:', error, { requestId })
       return { authorized: false, error: 'Authentication error' }

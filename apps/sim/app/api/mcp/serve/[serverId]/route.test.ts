@@ -141,6 +141,7 @@ vi.mock('@/lib/workflows/executor/execute-service', () => ({
 }))
 
 import { PERSONAL_KEY_DENIED } from '@/lib/api-key/policy-messages'
+import { readResponseError } from '@/lib/core/utils/response-error'
 import { DELETE, GET, POST } from '@/app/api/mcp/serve/[serverId]/route'
 
 executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(60_000)
@@ -819,6 +820,37 @@ describe('MCP Serve Route', () => {
     expect(response.status).toBe(413)
     expect(body.error.message).toContain('MCP request body exceeds maximum size')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an unparseable body', '{ this is not json', ErrorCode.ParseError, 'invalid_json'],
+    [
+      'a JSON-RPC 1.0 envelope',
+      JSON.stringify({ jsonrpc: '1.0', id: 1, method: 'ping' }),
+      ErrorCode.InvalidRequest,
+      'not_a_request',
+    ],
+  ])('names why it refuses %s on the route log line', async (_label, body, code, reason) => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        name: 'Public Server',
+        workspaceId: 'ws-1',
+        isPublic: true,
+        createdBy: 'owner-1',
+      },
+    ])
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      body,
+    })
+
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
+
+    expect(response.status).toBe(400)
+    expect((await response.clone().json()).error.code).toBe(code)
+    expect(readResponseError(response)).toEqual({ errorCode: String(code), errorReason: reason })
   })
 
   it('rejects streamed MCP request bodies that exceed the cap without content-length', async () => {

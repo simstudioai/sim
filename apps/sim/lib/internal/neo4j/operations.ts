@@ -9,7 +9,7 @@ import type {
   Neo4jQueryRequest,
   Neo4jUpdateRequest,
 } from '@/lib/api/contracts/tools/databases/neo4j'
-import { createNeo4jDriver } from '@/lib/internal/neo4j/client'
+import { openNeo4jConnection } from '@/lib/internal/neo4j/client'
 import { convertNeo4jValue } from '@/lib/internal/neo4j/values'
 import { createResponseRowsBudget } from '@/lib/internal/tool-operations/response-limits'
 import type { Neo4jNodeSchema, Neo4jRelationshipSchema } from '@/tools/neo4j/types'
@@ -150,8 +150,8 @@ function statementResponse(
 async function executeStatement(input: StatementInput, kind: StatementKind, signal?: AbortSignal) {
   signal?.throwIfAborted()
   validateCypherQuery(input.cypherQuery)
-  const driver = await createNeo4jDriver({ ...input, port: Number(input.port) }, signal)
-  const session = driver.session({ database: input.database })
+  const connection = await openNeo4jConnection({ ...input, port: Number(input.port) }, signal)
+  const session = connection.driver.session({ database: input.database })
   const unbindAbort = bindSessionAbort(session, signal)
   try {
     const result = await readResult(session.run(input.cypherQuery, input.parameters ?? {}), kind)
@@ -160,7 +160,7 @@ async function executeStatement(input: StatementInput, kind: StatementKind, sign
   } finally {
     unbindAbort()
     await session.close().catch(() => undefined)
-    await driver.close().catch(() => undefined)
+    await connection.close().catch(() => undefined)
   }
 }
 
@@ -188,8 +188,8 @@ export async function executeNeo4jIntrospection(
   signal?: AbortSignal
 ) {
   signal?.throwIfAborted()
-  const driver = await createNeo4jDriver({ ...input, port: Number(input.port) }, signal)
-  const session = driver.session({ database: input.database })
+  const connection = await openNeo4jConnection({ ...input, port: Number(input.port) }, signal)
+  const session = connection.driver.session({ database: input.database })
   const unbindAbort = bindSessionAbort(session, signal)
   try {
     const labelsResult = await session.run(
@@ -298,6 +298,6 @@ export async function executeNeo4jIntrospection(
   } finally {
     unbindAbort()
     await session.close().catch(() => undefined)
-    await driver.close().catch(() => undefined)
+    await connection.close().catch(() => undefined)
   }
 }

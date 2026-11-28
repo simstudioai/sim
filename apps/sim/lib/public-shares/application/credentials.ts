@@ -7,6 +7,7 @@ import {
   generateOTP,
   OTP_EMAIL_RATE_LIMIT,
   OTP_RESOURCE_RATE_LIMIT,
+  OTP_VERIFICATION_FAILED,
   storeOTP,
   verifyOTP,
 } from '@/lib/core/security/otp'
@@ -23,7 +24,7 @@ const SSO_RESOURCE_RATE_LIMIT: TokenBucketConfig = {
   refillRate: 100,
   refillIntervalMs: 15 * 60_000,
 }
-const OTP_FAILURE = { authorized: false as const, error: 'Invalid verification code', status: 400 }
+const OTP_FAILURE = { authorized: false as const, error: OTP_VERIFICATION_FAILED, status: 400 }
 
 /** Exchanges a verified password for a cookie bound to the share's current password slot. */
 export async function authenticatePublicFileSharePassword({
@@ -105,13 +106,11 @@ export async function verifyPublicFileShareOtp({
 }) {
   const normalizedEmail = normalizeEmail(email)
   const challenge = await preparePublicFileShareChallenge(token, 'email')
+  const verification = await verifyOTP('file', challenge.shareId, normalizedEmail, otp)
   const allowed = await challenge.withCurrentPolicy(({ share }) =>
     isEmailAllowed(normalizedEmail, share.allowedEmails)
   )
-  if (!allowed) return OTP_FAILURE
-  const verification = await verifyOTP('file', challenge.shareId, normalizedEmail, otp)
-  await challenge.withCurrentPolicy(() => undefined)
-  if (verification !== 'valid') return OTP_FAILURE
+  if (!allowed || verification !== 'valid') return OTP_FAILURE
   const resource = await challenge.withCurrentPolicy(({ share }) => share)
   const cookie = await createDeploymentAuthCookie({
     cookiePrefix: 'file',

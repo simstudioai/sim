@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { session } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
 import type { AccessRevokedBroadcast } from '@sim/realtime-protocol/events'
@@ -9,7 +11,8 @@ import {
   type RoomType,
   roomName,
 } from '@sim/realtime-protocol/rooms'
-import { sleep } from '@sim/utils/helpers'
+import { chunkArray, sleep } from '@sim/utils/helpers'
+import { and, gt, inArray } from 'drizzle-orm'
 import {
   evictSocketFromRoom,
   runRoomEvictionHandler,
@@ -73,6 +76,23 @@ const SCAN_PASS_BUDGET_MS = 20_000
 
 const SCAN_TIMED_OUT = Symbol('scan-timed-out')
 
+/** Keeps each session-liveness query's `IN` list well below Postgres' bind-parameter limit. */
+const SESSION_LOOKUP_BATCH_SIZE = 1_000
+
+/** Returns the subset of `sessionIds` that still name an unexpired session row. */
+async function findLiveSessionIds(sessionIds: string[]): Promise<Set<string>> {
+  const live = new Set<string>()
+  const now = new Date()
+  for (const batch of chunkArray(sessionIds, SESSION_LOOKUP_BATCH_SIZE)) {
+    const rows = await db
+      .select({ id: session.id })
+      .from(session)
+      .where(and(inArray(session.id, batch), gt(session.expiresAt, now)))
+    for (const row of rows) live.add(row.id)
+  }
+  return live
+}
+
 export interface AccessRevalidationSweep {
   /** Stop the periodic sweep (clears the interval). */
   stop: () => void
@@ -125,7 +145,9 @@ function collectScanTargets(io: IRoomManager['io']): ScanTarget[] {
  * no longer satisfies the room, closing the gap left by the join-only access
  * check. Without it, a member removed or downgraded mid-session keeps live
  * collaborative access (including durable document writes) for the whole lifetime
- * of an already-open socket.
+ * of an already-open socket. Each pass first disconnects sockets whose Better Auth
+ * session has ended (signed out, revoked, or expired), since the handshake is the
+ * only other place the credential is checked.
  *
  * Blip-safety: eviction fires *only* when {@link resolveCurrentRoomPermission}
  * resolves to a permission that does not satisfy the room's membership level,
@@ -290,7 +312,61 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
     }
   }
 
+  /** Set while a session lookup is outstanding, so a timed-out query is never stacked with another. */
+  let sessionLookupRunning = false
+
+  /**
+   * Disconnects every socket whose handshake session no longer exists or has
+   * expired. Like the permission scan, only a successful query result acts: a
+   * failed or timed-out lookup leaves every socket connected until the next pass.
+   */
+  async function disconnectEndedSessions(): Promise<void> {
+    if (sessionLookupRunning) {
+      logger.warn('Skipping session liveness check; previous lookup still running')
+      return
+    }
+    const sockets = [...io.sockets.sockets.values()].filter(
+      (socket): socket is AuthenticatedSocket & { sessionId: string } =>
+        Boolean((socket as AuthenticatedSocket).sessionId)
+    )
+    if (sockets.length === 0) return
+
+    sessionLookupRunning = true
+    const lookup = findLiveSessionIds([...new Set(sockets.map((socket) => socket.sessionId))])
+    lookup
+      .catch(() => {})
+      .finally(() => {
+        sessionLookupRunning = false
+      })
+
+    let live: Set<string> | typeof SCAN_TIMED_OUT
+    try {
+      live = await Promise.race([
+        lookup,
+        sleep(SCAN_SOCKET_TIMEOUT_MS).then((): typeof SCAN_TIMED_OUT => SCAN_TIMED_OUT),
+      ])
+    } catch (error) {
+      logger.warn('Session liveness check failed; leaving sockets connected', error)
+      return
+    }
+    if (live === SCAN_TIMED_OUT) {
+      logger.warn('Session liveness check timed out; leaving sockets connected')
+      return
+    }
+
+    for (const socket of sockets) {
+      if (live.has(socket.sessionId)) continue
+      logger.info('Disconnecting socket whose session ended', {
+        socketId: socket.id,
+        userId: socket.userId,
+      })
+      socket.disconnect(true)
+    }
+  }
+
   async function scanMemberships(): Promise<void> {
+    await disconnectEndedSessions()
+
     const targets = collectScanTargets(io)
     if (targets.length === 0) return
 

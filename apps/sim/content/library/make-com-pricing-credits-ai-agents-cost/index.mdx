@@ -1,0 +1,189 @@
+---
+slug: make-com-pricing-credits-ai-agents-cost
+title: 'Make.com Pricing: Credits, Plans, and When AI Agents Cost Less'
+description: 'Understand Make.com pricing, credit usage, AI costs, and how to compare Make with an AI agent workspace using measured monthly workload costs.'
+seoTitle: 'Make.com Pricing: Credits, Plans, and AI Costs'
+date: 2026-11-28
+updated: 2026-11-28
+authors:
+  - andrew
+readingTime: 9
+tags: [AI Agents, Pricing, Automation, Make.com, Sim]
+ogImage: /library/make-com-pricing-credits-ai-agents-cost/cover.jpg
+draft: false
+faq:
+  - q: "Can Make.com AI costs change between runs?"
+    a: "Make.com AI costs can change between runs when dynamic credit consumption or model token usage changes with the size of the input and output."
+  - q: "Does the number of Make.com scenarios determine the monthly bill?"
+    a: "Make.com does not base normal usage cost only on the number of scenarios because the more important variables are how often each scenario runs and how many module actions it executes."
+  - q: "Can one Make.com scenario run consume multiple credits?"
+    a: "Make.com can consume multiple credits in one scenario run because each executed module, repeated bundle, retry, route, and dynamic AI feature can add usage."
+  - q: "Can Sim use local models instead of paid model APIs?"
+    a: "Sim can use Ollama, vLLM, LM Studio, or LiteLLM on any self hosted Sim deployment, replacing hosted model API charges with the cost of operating the required infrastructure."
+  - q: "Is Sim fully covered by the Apache 2.0 license?"
+    a: "Sim’s core is licensed under Apache 2.0, while code in apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
+  - q: "When should a company stay with Make.com instead of moving to an AI workspace?"
+    a: "Make.com remains a strong fit when a company mainly needs deterministic application automation, already depends on Make.com integrations, and can keep execution within a predictable credit allowance."
+  - q: "When should a company compare Make.com with Sim?"
+    a: "Sim is worth comparing with Make.com when AI model calls, agent behavior, bring your own keys, local models, or self hosting are central to the workload."
+---
+
+## TL;DR
+
+Make.com pricing starts at $0 and scales through credit allowances. AI features, repeated module executions, retries, and external model charges can make the real monthly cost higher than the advertised plan price.
+
+As of November 2026, estimate Make.com cost by calculating expected credit consumption, adding any separate AI provider bill, and then selecting the required allowance on [Make.com’s pricing page](https://www.make.com/pricing).
+
+## How Does Make.com Pricing Work?
+
+Make.com prices its cloud automation service by plan and credits. Paid plans combine a credit allowance with different collaboration, development, and administration features, while the selected tier and billing cycle affect the final price.
+
+A credit is Make.com’s usage unit. For most non-AI modules, one operation consumes one credit. A scenario that executes six modules normally starts at about six credits each time it runs, although bundles, iterators, retries, polling, and AI usage can increase that total. Make documents the current rules in its [credits guide](https://help.make.com/credits).
+
+The basic planning formula is:
+
+**Monthly Make.com credits = completed runs × average credits per run + retries + polling + dynamic AI credits**
+
+Model provider charges may be separate from Make.com credits when a scenario uses a custom connection to an external AI provider.
+
+## What Does Each Make.com Plan Cost?
+
+Make.com offers Free, Core, Pro, Teams, and Enterprise options. Its live pricing interface changes the displayed price when a buyer selects a different credit tier or billing cycle, so the entry price is not a universal quote for every workload.
+
+As of November 2026, Make’s public pages show a Free allowance of 1,000 credits per month and paid plans starting with Core at $9 per month for 10,000 credits. Enterprise pricing is customized. Buyers should confirm the current amount for their region and selected allowance on the [official Make pricing page](https://www.make.com/pricing).
+
+| Make.com plan | Public pricing approach | Included credits | Fit |
+|---|---|---:|---|
+| [Free](https://www.make.com/pricing) | $0 | 1,000 per month | Testing and very small personal automations |
+| [Core](https://www.make.com/pricing) | Starts at $9 per month with annual billing | Starts at 10,000 per month | Individuals and small teams running production scenarios |
+| [Pro](https://www.make.com/pricing) | Varies by credit tier and billing cycle | Selected tier | Teams that need additional execution and development controls |
+| [Teams](https://www.make.com/pricing) | Varies by credit tier and billing cycle | Selected tier | Groups that need shared administration and team roles |
+| [Enterprise](https://www.make.com/pricing) | Custom quote | Custom | Organizations that need negotiated support, security, and governance |
+
+Make distinguishes plans from credit tiers. Plans determine available features, while tiers determine the credit quantity. Its [subscription documentation](https://help.make.com/monthly-and-annual-subscriptions) also explains that annual credit allocation differs by plan, so teams should check both the headline monthly equivalent and the actual billing terms.
+
+## What Counts as a Credit in Make.com?
+
+Make.com generally counts each non-AI module operation as one credit, but a single visible scenario run can execute many operations and consume many credits.
+
+For example, a workflow that receives a form, looks up a CRM record, enriches the record, calls an AI model, updates the CRM, and sends a Slack message contains six module actions. If every action executes once, that run starts at roughly six credits before variable AI usage or retries.
+
+Credit consumption can grow when:
+
+- An iterator sends multiple bundles through downstream modules
+- A search returns several records that each trigger later steps
+- A route executes more than one branch
+- An error causes a retry
+- A polling trigger checks for new data repeatedly
+- An AI feature applies a usage formula based on operations and tokens
+
+The [Make credits guide](https://help.make.com/credits) explains how non-AI apps, third-party AI apps, and built-in AI connections consume credits. Execution history is the most useful source for measuring the average credits consumed by an existing scenario.
+
+## How Much Do Make.com Operations Cost?
+
+Make.com now uses credits as its billing unit, so the cost of an operation depends on the selected plan, credit allowance, and number of module actions executed.
+
+As of November 2026, the entry Core package starts at $9 per month with annual billing for 10,000 credits. That produces a simple entry benchmark of $0.0009 per included credit. Buyers should not extend that ratio into a final quote because larger allowances, extra credits, billing cycles, and plan choices can change the effective rate.
+
+Older articles and internal budgets may still refer to operations. For non-AI apps, Make states that one operation equals one credit. AI features make a universal conversion incomplete, so current budgets should use the rules in the [credits guide](https://help.make.com/credits) rather than assuming every action has an identical cost.
+
+## What Counts as a Credit for AI Steps in Make.com?
+
+Make.com can apply variable credit usage to AI features, so an AI step may consume more than the single credit associated with an ordinary module operation.
+
+The final cost depends on the feature, connection type, selected model, and amount of input and output. Make’s AI Provider uses credits based on tokens and operations. With a custom AI provider connection on a paid plan, Make counts operations while the external provider bills token usage directly. These distinctions are documented in Make’s [current AI credit rules](https://help.make.com/credits).
+
+As of November 2026, an AI workflow budget should track two possible meters:
+
+1. Make.com credits for scenario execution and applicable AI usage
+2. Model provider charges for tokens or other services billed outside Make.com
+
+Teams should run a representative sample, record Make.com credits from execution history, and inspect the model provider’s usage dashboard before projecting a monthly total.
+
+## How Do I Estimate My Real Monthly Make.com Cost?
+
+Make.com cost is best estimated from measured credits per successful business outcome rather than from the number of scenarios in the workspace.
+
+Use this process:
+
+1. Count how many business events the workflow will process each month.
+2. Run a representative sample through every normal route, including typical retries and AI usage.
+3. Divide the sample’s total credits by completed business events to find the all-in average credits per event.
+4. Multiply the all-in average by the expected monthly business events.
+5. Add the separate model provider bill when applicable.
+6. Select the required allowance on Make.com’s [live pricing page](https://www.make.com/pricing).
+
+A useful cost formula is:
+
+**Real monthly cost = Make.com plan cost + extra credit cost + external AI provider cost + connected service cost**
+
+This approach also exposes expensive design choices. A workflow that processes ten records individually through five downstream modules can use far more credits than a workflow that batches the same records into one request.
+
+## What Does Make.com Cost at Three Workflow Volumes?
+
+A six-action workflow requires about 6,000, 60,000, or 600,000 base credits for 1,000, 10,000, or 100,000 runs when every action executes once.
+
+The example below assumes five standard module actions and one AI module action per run. It treats the AI module as one base operation, excludes variable AI credits, and excludes the separate model provider bill.
+
+| Monthly workflow runs | Base credits per run | Estimated base credits | Entry Core ratio benchmark | Pricing implication |
+|---:|---:|---:|---:|---|
+| 1,000 | 6 | 6,000 | $5.40 before the plan minimum | The 1,000-credit Free allowance is too small, so a paid tier is required |
+| 10,000 | 6 | 60,000 | $54 before tier pricing | Select an allowance that covers at least 60,000 credits and add AI charges |
+| 100,000 | 6 | 600,000 | $540 before tier pricing | Request the appropriate high-volume allowance and compare alternative execution models |
+
+As of November 2026, the benchmark uses the Core entry ratio of $9 for 10,000 credits. It is a planning comparison, not a quoted Make.com price for 60,000 or 600,000 credits, because the live pricing interface can apply different tier pricing.
+
+If the AI step averages two additional credits per run, the same workloads rise to about 8,000, 80,000, and 800,000 total credits. If the workflow fans out across several records, consumption can rise further.
+
+## When Is Sim a Simpler Pricing Alternative for AI Workflows?
+
+Sim fits teams that want an AI-focused workspace, direct control over model providers, and the option to use their own keys or self-hosted models.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Workspace BYOK works on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. With BYOK, teams pay the provider directly for covered calls, as documented in [Sim’s cost guide](https://docs.sim.ai/platform/costs#bring-your-own-key-byok).
+
+According to [Sim’s cost guide](https://docs.sim.ai/platform/costs), each billable Sim Cloud workflow run has a base charge of one credit ($0.005), including runs that use BYOK. Hosted tools and sandbox runtime can add usage charges. Billing-disabled self-hosted deployments do not apply Sim plan-based usage billing, but provider and infrastructure costs still apply.
+
+Sim may cost less when Make.com execution credits are the main cost driver, a workflow contains many AI calls, or a team can obtain suitable model pricing directly from its provider. Make.com may cost less when a workflow is mostly deterministic, already uses Make.com integrations effectively, and remains within a predictable credit allowance.
+
+The comparison is:
+
+**Make.com total = Make.com subscription and credits + model provider charges + connected service charges**
+
+**Sim Cloud total = Sim subscription + base run and other usage charges + model provider charges + connected service charges**
+
+**Billing-disabled self-hosted Sim total = hosting and infrastructure costs + model provider charges + connected service charges**
+
+Teams considering a move can compare broader product tradeoffs in [6 Best Make.com Alternatives for AI Agents in 2026](https://www.sim.ai/library/best-make-com-alternatives-ai-agents-2026).
+
+## What Are the Key Make.com and Sim Pricing Facts?
+
+Make.com and Sim use different cost structures, so buyers should compare total workflow cost rather than entry subscription prices alone.
+
+- Make.com is a proprietary cloud automation service whose public plans use credits as the billing unit.
+- Make.com usually charges one credit for an ordinary non-AI operation, while its AI credit rules depend on the connection type.
+- Sim is the open-source AI workspace. Sim’s core is licensed under Apache 2.0, while code in `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+- Sim supports workspace BYOK on every Sim Cloud plan as of November 2026.
+- Sim supports Ollama, vLLM, LM Studio, and LiteLLM on self-hosted deployments. The [self-hosting environment reference](https://docs.sim.ai/platform/self-hosting/environment-variables) documents the relevant provider endpoints.
+
+## How Should Buyers Compare Value for AI Agents?
+
+Sim fits buyers who prioritize model flexibility, bring your own keys, self-hosting options, and an open-source core. The right choice still depends on workload and governance requirements.
+
+A buyer should compare model cost, execution metering, deployment options, collaboration, governance, and maintenance burden. Entry subscription price alone does not reveal the cost of a production agent.
+
+For a broader platform comparison, see [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026). For a startup-focused cost comparison, see [Cheapest AI Agent Builders for Startups in 2026](https://www.sim.ai/library/cheapest-ai-agent-builders-for-startups-2026).
+
+## What Should a Startup Comparing Automation Tools Measure?
+
+Startups should compare Make.com, Sim, Zapier, and n8n with the same real workload because each product meters usage differently and serves a different primary use case.
+
+The test should record:
+
+- Successful business outcomes per month
+- Platform credits, tasks, or executions per outcome
+- AI model charges per outcome
+- Time required to build and maintain the workflow
+- Collaboration and approval requirements
+- Hosting and operational work
+
+A representative test is more useful than comparing entry prices because it captures fan-out, retries, model usage, and maintenance effort. See [Zapier Pricing at Scale](https://www.sim.ai/library/zapier-pricing-at-scale) for task economics and [n8n vs Zapier vs Make](https://www.sim.ai/library/n8n-vs-zapier-vs-make) for broader platform tradeoffs.

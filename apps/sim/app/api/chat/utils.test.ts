@@ -179,7 +179,7 @@ describe('Chat API Utils', () => {
       )
     })
 
-    it('should check allowed emails for email auth', async () => {
+    it('answers allowed and unlisted emails alike so the allow-list stays private', async () => {
       const deployment = {
         id: 'chat-id',
         authType: 'email',
@@ -193,25 +193,14 @@ describe('Chat API Utils', () => {
         },
       } as any
 
-      mockIsEmailAllowed.mockReturnValue(true)
-      const result1 = await validateChatAuth('request-id', deployment, mockRequest, {
-        email: 'user@example.com',
-      })
-      expect(result1.authorized).toBe(false)
-      expect(result1.error).toBe('otp_required')
+      mockIsEmailAllowed.mockImplementation((address: string) => address !== 'user@unknown.com')
 
-      const result2 = await validateChatAuth('request-id', deployment, mockRequest, {
-        email: 'other@company.com',
-      })
-      expect(result2.authorized).toBe(false)
-      expect(result2.error).toBe('otp_required')
-
-      mockIsEmailAllowed.mockReturnValue(false)
-      const result3 = await validateChatAuth('request-id', deployment, mockRequest, {
-        email: 'user@unknown.com',
-      })
-      expect(result3.authorized).toBe(false)
-      expect(result3.error).toBe('Email not authorized')
+      for (const email of ['user@example.com', 'other@company.com', 'user@unknown.com']) {
+        expect(await validateChatAuth('request-id', deployment, mockRequest, { email })).toEqual({
+          authorized: false,
+          error: 'otp_required',
+        })
+      }
     })
 
     describe('SSO auth', () => {

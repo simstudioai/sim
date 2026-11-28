@@ -4,10 +4,10 @@ title: 'CrewAI vs LangGraph vs AutoGen: Which Multi-Agent Framework Should You C
 description: 'Compare CrewAI, LangGraph, and AutoGen on orchestration, state, human review, deployment, licensing, and fit for production multi-agent systems.'
 seoTitle: 'CrewAI vs LangGraph vs AutoGen: 2026 Comparison'
 date: 2026-10-22
-updated: 2026-10-22
+updated: 2026-11-28
 authors:
   - andrew
-readingTime: 11
+readingTime: 13
 tags: [AI Agents, Multi-Agent Systems, Agent Frameworks, Sim]
 ogImage: /library/crewai-vs-langgraph-vs-autogen/cover.jpg
 draft: false
@@ -33,16 +33,34 @@ faq:
   - q: "Can CrewAI, LangGraph, and AutoGen be self-hosted?"
     a: "CrewAI, LangGraph, and AutoGen can all run in infrastructure controlled by the developer because their framework code uses permissive MIT licenses. Self-hosting still requires teams to operate model access, compute, storage, credentials, monitoring, upgrades, and security controls."
   - q: "Are CrewAI, LangGraph, and AutoGen open source?"
-    a: "CrewAI, LangGraph, and AutoGen publish their framework code under the OSI-approved MIT License as of October 2026. Separate vendor-hosted products, deployment services, and enterprise capabilities can have different commercial terms, so teams should review those terms independently from the framework license."
+    a: "CrewAI, LangGraph, and AutoGen publish their framework code under the OSI-approved MIT License as of November 2026. Separate vendor-hosted products, deployment services, and enterprise capabilities can have different commercial terms, so teams should review those terms independently from the framework license."
   - q: "Which is best for multi-agent workflows: CrewAI, LangGraph, or AutoGen?"
     a: "CrewAI is best for structured role-and-task workflows, LangGraph is best for stateful and tightly controlled workflows, and AutoGen is best for conversation-driven collaboration in an existing AutoGen application. For a new long-lived system, compare Microsoft Agent Framework instead of adopting archived AutoGen. The final choice should be based on a failure-and-recovery prototype using the team's real approval, persistence, and cost constraints."
+  - q: "Is AG2 the same as Microsoft AutoGen?"
+    a: "AG2 is not the same project as Microsoft AutoGen; it is an independently maintained project whose classic codebase was forked from AutoGen and whose current framework follows its own release path."
 ---
 
 ## TL;DR
 
-**Best overall: LangGraph** for new production systems that need explicit state, recovery, and human review. CrewAI is the faster choice for role-based multi-agent teams, while AutoGen is now most relevant to existing conversation-driven agent systems because [Microsoft has archived it and recommends Microsoft Agent Framework for new work](https://github.com/microsoft/autogen/blob/main/README.md). This guide is published by Sim, the open-source AI workspace for building, deploying, and managing AI agents.
+Choose LangGraph when a new production system needs explicit state, recovery, and human review. Choose CrewAI when role-based teams and tasks match the application. Treat AutoGen as an option for existing systems because [Microsoft has archived it and recommends Microsoft Agent Framework for new work](https://github.com/microsoft/autogen/blob/main/README.md). Sim fits teams that want coordinated agents in a visual workspace, while n8n fits teams whose primary requirement is application automation.
+
+The comparison below reflects first-party project documentation available as of November 2026.
+
+| Option | Best fit | Main tradeoff |
+|---|---|---|
+| LangGraph | Engineering teams that need [explicit state, branching, persistence, and recovery](https://docs.langchain.com/oss/python/langgraph/overview) | Teams maintain graph logic and application infrastructure |
+| CrewAI | Python teams that want [agents organized around roles, crews, tasks, and flows](https://docs.crewai.com/edge/en/concepts/crews) | Its abstractions can be restrictive when an application needs unusual state transitions |
+| AutoGen | Teams maintaining existing AutoGen applications or studying conversational agent patterns | The [archived project receives no fixes or support](https://github.com/microsoft/autogen/blob/main/README.md) |
+| Sim | Teams that want to build and operate multi-agent workflows in a visual workspace | Sim is a workspace rather than a Python framework embedded directly in application code |
+| n8n | Teams combining AI steps with [application automation](https://docs.n8n.io/build/integrate-ai/) | n8n is primarily an automation product rather than a dedicated code-first multi-agent framework |
 
 The three Python-first frameworks overlap, but they start from different abstractions. CrewAI organizes agents into crews, roles, and tasks. LangGraph models execution as a stateful graph. AutoGen coordinates agents through messages and conversations. The right choice depends less on headline feature lists than on how your team wants to represent control, state, and human intervention.
+
+## AutoGen status in November 2026
+
+AutoGen remains available for existing applications, but [Microsoft has archived the repository](https://github.com/microsoft/autogen/blob/main/README.md), ended bug fixes and security fixes, and directs developers starting new systems to [Microsoft Agent Framework](https://github.com/microsoft/agent-framework). Microsoft describes Agent Framework as AutoGen's successor and provides migration examples for teams moving existing applications.
+
+AG2 is separate from both Microsoft projects. [AG2's repository](https://github.com/ag2ai/ag2) describes its current framework as independently developed, while its notice identifies the classic codebase as a fork of AutoGen v0.2.35. Teams evaluating the AutoGen lineage should compare Microsoft Agent Framework and AG2 directly rather than treating them as the same project.
 
 ## What is the difference between CrewAI, LangGraph, and AutoGen?
 
@@ -62,7 +80,7 @@ CrewAI, LangGraph, and AutoGen are code-first frameworks that can run in develop
 - **LangGraph:** LangGraph's library uses the [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE), while LangSmith Deployment (formerly LangGraph Platform) documents [Cloud, BYOC, and Self-hosted deployment options](https://docs.langchain.com/langsmith/platform-setup), with BYOC and Self-hosted on the Enterprise plan.
 - **AutoGen:** AutoGen's code uses the [MIT License](https://github.com/microsoft/autogen/blob/main/LICENSE-CODE), but the project is archived and its repository recommends [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) for new work.
 
-These license and commercial-service details are current as of October 2026. A permissive framework license does not automatically grant rights to a vendor's separate hosted control plane, deployment service, or enterprise features.
+These license and commercial-service details are current as of November 2026. A permissive framework license does not automatically grant rights to a vendor's separate hosted control plane, deployment service, or enterprise features.
 
 ## How do CrewAI, LangGraph, and AutoGen compare?
 
@@ -232,15 +250,15 @@ The conversation is concise, but production teams should set hard termination co
 
 CrewAI has a first-party hosted product, LangGraph pairs its open-source library with deployment services, and AutoGen has been superseded by Microsoft Agent Framework.
 
-As of October 2026, the CrewAI framework code is available under the [MIT License](https://github.com/crewAIInc/crewAI/blob/main/LICENSE), while CrewAI also provides a vendor-managed path for deploying and operating crews. CrewAI's [pricing page](https://crewai.com/pricing) distinguishes free access from custom enterprise purchasing and lists hosted execution limits separately from the framework license. Teams should compare expected executions, concurrency, retention, support, and governance rather than treating the framework's free license as the total production cost.
+As of November 2026, the CrewAI framework code is available under the [MIT License](https://github.com/crewAIInc/crewAI/blob/main/LICENSE), while CrewAI also provides a vendor-managed path for deploying and operating crews. CrewAI's [pricing page](https://crewai.com/pricing) distinguishes free access from custom enterprise purchasing and lists hosted execution limits separately from the framework license. Teams should compare expected executions, concurrency, retention, support, and governance rather than treating the framework's free license as the total production cost.
 
-As of October 2026, LangGraph is available under the [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE). Teams can operate the library themselves or choose [LangSmith Deployment (formerly LangGraph Platform)](https://docs.langchain.com/langsmith/platform-setup) with Cloud, BYOC, or Self-hosted options; BYOC and Self-hosted are available on the Enterprise plan. The practical cost therefore depends on model calls, infrastructure, graph executions, retention, and any commercial services selected.
+As of November 2026, LangGraph is available under the [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE). Teams can operate the library themselves or choose [LangSmith Deployment (formerly LangGraph Platform)](https://docs.langchain.com/langsmith/platform-setup) with Cloud, BYOC, or Self-hosted options; BYOC and Self-hosted are available on the Enterprise plan. The practical cost therefore depends on model calls, infrastructure, graph executions, retention, and any commercial services selected.
 
-As of October 2026, AutoGen's framework code remains available under the [MIT License](https://github.com/microsoft/autogen/blob/main/LICENSE-CODE), but Microsoft has [archived the project](https://github.com/microsoft/autogen/blob/main/README.md) and recommends Microsoft Agent Framework. Existing AutoGen applications do not automatically become Agent Framework applications, so teams should evaluate migration work and security exposure rather than adopting AutoGen for a new long-lived system.
+As of November 2026, AutoGen's framework code remains available under the [MIT License](https://github.com/microsoft/autogen/blob/main/LICENSE-CODE), but Microsoft has [archived the project](https://github.com/microsoft/autogen/blob/main/README.md) and recommends Microsoft Agent Framework. Existing AutoGen applications do not automatically become Agent Framework applications, so teams should evaluate migration work and security exposure rather than adopting AutoGen for a new long-lived system.
 
 Self-hosting any of the three frameworks still leaves teams responsible for model charges, compute, storage, secrets, logs, identity, network controls, upgrades, and incident response. A permissive license lowers software restrictions but does not eliminate operating costs.
 
-CrewAI, LangGraph, and AutoGen are also not direct equivalents to n8n. [n8n describes itself as a fair-code workflow automation tool](https://docs.n8n.io/) with AI capabilities, while these three are Python-first frameworks for agent orchestration. As of October 2026, n8n uses the [Sustainable Use License](https://docs.n8n.io/n8n-community-license), a fair-code license rather than an OSI-approved open-source license. Teams comparing code-first agents with broader automation products can review the [n8n alternatives comparison](https://www.sim.ai/library/n8n-alternatives).
+CrewAI, LangGraph, and AutoGen are also not direct equivalents to n8n. [n8n describes itself as a fair-code workflow automation tool](https://docs.n8n.io/) with AI capabilities, while these three are Python-first frameworks for agent orchestration. As of November 2026, n8n uses the [Sustainable Use License](https://docs.n8n.io/n8n-community-license), which its [repository license](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) presents as a source-available fair-code license that is not OSI approved. Teams comparing code-first agents with broader automation products can review the [n8n alternatives comparison](https://www.sim.ai/library/n8n-alternatives).
 
 ## Which should you choose: CrewAI, LangGraph, or AutoGen?
 
@@ -267,7 +285,11 @@ Maintain or evaluate migration from **AutoGen** when:
 - The team accepts responsibility for controlling turn count and termination.
 - The team has a plan to move to Microsoft Agent Framework or another maintained option.
 
-Choose none of these frameworks without further evaluation when the primary requirement is visual construction by technical and semi-technical collaborators. Sim, the open-source AI workspace for building, deploying, and managing AI agents, fits teams that want a visual builder and 270+ integrations when a code-first framework would exclude important operators or reviewers.
+Choose none of these frameworks without further evaluation when the primary requirement is visual construction by technical and semi-technical collaborators. Sim, the open-source AI workspace where teams build, deploy, and manage AI agents, fits teams that want a visual builder and 270+ integrations when a code-first framework would exclude important operators or reviewers.
+
+Sim's core uses the Apache 2.0 license, while code in `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) and requires an active Sim Enterprise subscription for production use. [Self-hosted Sim deployments](https://docs.sim.ai/platform/self-hosting) can use local models through Ollama, vLLM, LM Studio, or LiteLLM without an Enterprise subscription, and [workspace BYOK keys](https://docs.sim.ai/platform/costs#bring-your-own-key-byok) work on every Sim Cloud plan. Human in the Loop pauses a run and resumes with submitted form fields; a downstream Condition must inspect an approve or reject field before routing the workflow.
+
+Consider n8n when application connectivity and deterministic business-process automation matter more than code-first agent orchestration. n8n can incorporate AI agents and tool calls into broader workflows, but its Sustainable Use License is source available and not OSI approved.
 
 A proof of concept should test the hardest production behavior rather than the easiest demo. For CrewAI, test task recovery and observability. For LangGraph, test checkpoint persistence and state migration. For an existing AutoGen system, test termination, cost limits, migration, and recovery from an unproductive conversation.
 

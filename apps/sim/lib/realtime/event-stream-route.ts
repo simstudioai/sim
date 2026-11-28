@@ -3,14 +3,19 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { NextResponse } from 'next/server'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import type { EventLogEntry, EventLogReadResult } from '@/lib/realtime/event-log'
 
 const logger = createLogger('EventStreamRoute')
+
+const ROTATE_FRAME = `event: rotate\ndata: {}\n\n`
 
 const POLL_INTERVAL_MS = 500
 const HEARTBEAT_INTERVAL_MS = 15_000
 /** Defensive ceiling; the client reconnects (resuming from lastEventId) past this. */
 const MAX_STREAM_DURATION_MS = 4 * 60 * 60 * 1000
+/** Matches the realtime access-revalidation sweep, so a revoked member loses both live channels on the same cadence. */
+const ACCESS_REVALIDATION_INTERVAL_MS = 30_000
 
 export interface EventStreamResponseOptions<E extends EventLogEntry> {
   requestId: string
@@ -20,6 +25,12 @@ export interface EventStreamResponseOptions<E extends EventLogEntry> {
   fromEventId: number | undefined
   getLatestEventId: (streamId: string) => Promise<number>
   readEventsSince: (streamId: string, afterEventId: number) => Promise<EventLogReadResult<E>>
+  /**
+   * Re-runs the route's authorization every {@link ACCESS_REVALIDATION_INTERVAL_MS}:
+   * `false` closes the stream with `rotate`, a throw errors it, and either way the
+   * client's reconnect meets the route's own check.
+   */
+  revalidateAccess: () => Promise<boolean>
   /** Extra response headers (e.g. `{ 'X-Table-Id': id }`). */
   extraHeaders?: Record<string, string>
   /** Short label for logs (e.g. 'table'). */
@@ -39,7 +50,15 @@ export interface EventStreamResponseOptions<E extends EventLogEntry> {
 export function createEventStreamResponse<E extends EventLogEntry>(
   options: EventStreamResponseOptions<E>
 ): NextResponse {
-  const { requestId, streamId, fromEventId, getLatestEventId, readEventsSince, label } = options
+  const {
+    requestId,
+    streamId,
+    fromEventId,
+    getLatestEventId,
+    readEventsSince,
+    revalidateAccess,
+    label,
+  } = options
 
   logger.info(`${label} event stream opened`, { requestId, streamId, fromEventId })
 
@@ -51,6 +70,7 @@ export function createEventStreamResponse<E extends EventLogEntry>(
       let lastEventId = fromEventId ?? 0
       const deadline = Date.now() + MAX_STREAM_DURATION_MS
       let nextHeartbeatAt = Date.now() + HEARTBEAT_INTERVAL_MS
+      let nextRevalidationAt = Date.now() + ACCESS_REVALIDATION_INTERVAL_MS
 
       const enqueue = (text: string) => {
         if (closed) return
@@ -69,16 +89,20 @@ export function createEventStreamResponse<E extends EventLogEntry>(
         }
       }
 
-      const sendPrunedAndClose = (earliestEventId: number | undefined) => {
-        enqueue(
-          `event: pruned\ndata: ${JSON.stringify({ earliestEventId: earliestEventId ?? null })}\n\n`
-        )
+      const closeWith = (frame: string) => {
+        enqueue(frame)
         if (!closed) {
           closed = true
           try {
             controller.close()
           } catch {}
         }
+      }
+
+      const sendPrunedAndClose = (earliestEventId: number | undefined) => {
+        closeWith(
+          `event: pruned\ndata: ${JSON.stringify({ earliestEventId: earliestEventId ?? null })}\n\n`
+        )
       }
 
       const sendHeartbeat = () => {
@@ -109,6 +133,17 @@ export function createEventStreamResponse<E extends EventLogEntry>(
           await sleep(POLL_INTERVAL_MS)
           if (closed) return
 
+          if (Date.now() >= nextRevalidationAt) {
+            // A fresh scope per check: the loop inherits the opening request's
+            // permission-group memo, which would replay its answer for hours.
+            if (!(await withPermissionGroupScope(revalidateAccess))) {
+              logger.info(`${label} event stream access revoked`, { requestId, streamId })
+              closeWith(ROTATE_FRAME)
+              return
+            }
+            nextRevalidationAt = Date.now() + ACCESS_REVALIDATION_INTERVAL_MS
+          }
+
           const result = await readEventsSince(streamId, lastEventId)
           if (result.status === 'pruned') {
             sendPrunedAndClose(result.earliestEventId)
@@ -129,13 +164,7 @@ export function createEventStreamResponse<E extends EventLogEntry>(
 
         // Reached the defensive duration ceiling — close cleanly so the client
         // reconnects with the latest lastEventId.
-        if (!closed) {
-          enqueue(`event: rotate\ndata: {}\n\n`)
-          closed = true
-          try {
-            controller.close()
-          } catch {}
-        }
+        closeWith(ROTATE_FRAME)
       } catch (error) {
         logger.error(`${label} event stream error`, {
           requestId,
