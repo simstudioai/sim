@@ -45,10 +45,11 @@ vi.mock('@/lib/mcp/client', () => ({
   },
 }))
 
-vi.mock('@/lib/mcp/domain-check', () => ({
+vi.mock('@/lib/mcp/domain-check', async (importOriginal) => ({
   MCP_EGRESS_PROFILE: 'selfHostedService',
   OAUTH_EGRESS_PROFILE: 'contentFetch',
-  McpDnsResolutionError: class extends Error {},
+  McpDnsResolutionError: (await importOriginal<typeof import('@/lib/mcp/domain-check')>())
+    .McpDnsResolutionError,
   McpDomainNotAllowedError: class extends Error {},
   McpSsrfError: MockMcpSsrfError,
   validateMcpDomain: vi.fn(),
@@ -80,6 +81,7 @@ vi.mock('@/lib/mcp/resolve-config', () => ({
   resolveMcpConfigEnvVars: mockResolveMcpConfigEnvVars,
 }))
 
+import { McpDnsResolutionError } from '@/lib/mcp/domain-check'
 import { POST } from '@/app/api/mcp/servers/test-connection/route'
 
 const { mockDetectMcpAuthType } = mcpOauthMockFns
@@ -113,6 +115,30 @@ describe('MCP server test-connection route', () => {
     mockListTools.mockResolvedValue([])
     mockDisconnect.mockResolvedValue(undefined)
   })
+
+  it.each([
+    ['before', true, 400],
+    ['before', false, 502],
+    ['after', true, 400],
+    ['after', false, 502],
+  ])(
+    'answers a DNS failure %s env resolution with hostNotFound=%s as %i',
+    async (phase, hostNotFound, status) => {
+      if (phase === 'after') mockValidateMcpServerSsrf.mockResolvedValueOnce('203.0.113.10')
+      mockValidateMcpServerSsrf.mockRejectedValueOnce(
+        new McpDnsResolutionError('example.invalid', hostNotFound)
+      )
+
+      const response = await POST(createTestRequest())
+
+      expect(response.status).toBe(status)
+      expect(await response.json()).toEqual({
+        success: false,
+        error: 'MCP server URL hostname "example.invalid" could not be resolved',
+      })
+      expect(mockValidateMcpServerSsrf).toHaveBeenCalledTimes(phase === 'after' ? 2 : 1)
+    }
+  )
 
   it('tests configured bearer headers before treating OAuth discovery as mandatory', async () => {
     const response = await POST(createTestRequest({ Authorization: 'Bearer static-api-token' }))
