@@ -1,5 +1,6 @@
 import { boundAnswerFindings } from '@sim/workflow-code/diagnostics'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
+import { presentDry } from '@/lib/api/contracts/v2/deprecated-names'
 import type { v2ApplyWorkflowSourceContract } from '@/lib/api/contracts/v2/workflow-source'
 import type { SourceOutcome } from '@/lib/workflows/application/source-pipeline'
 
@@ -15,7 +16,7 @@ export function presentSourceOutcome(outcome: SourceOutcome): SourceOutcomeData 
   return {
     workflowId: outcome.workflowId,
     workspaceId: outcome.workspaceId,
-    dry: outcome.dryRun,
+    ...presentDry(outcome.dryRun),
     applied: outcome.applied,
     diff: outcome.diff,
     diagnostics: boundAnswerFindings(outcome.diagnostics),

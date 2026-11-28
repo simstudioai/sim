@@ -322,6 +322,7 @@ function parametersFor(
       name,
       in: location,
       required: location === 'path' || required.has(name),
+      ...((property as JsonObject).deprecated === true ? { deprecated: true } : {}),
       description,
       schema: property,
     }

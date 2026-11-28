@@ -116,6 +116,7 @@ export const workflowSourceOpenApiRoutes = [
               workflowId: WORKFLOW_SOURCE_EXAMPLE.workflowId,
               workspaceId: WORKFLOW_SOURCE_EXAMPLE.workspaceId,
               dry: false,
+              dryRun: false,
               applied: false,
               diff: {
                 noop: true,
@@ -180,6 +181,7 @@ export const workflowSourceOpenApiRoutes = [
               workflowId: WORKFLOW_SOURCE_EXAMPLE.workflowId,
               workspaceId: WORKFLOW_SOURCE_EXAMPLE.workspaceId,
               dry: true,
+              dryRun: true,
               applied: false,
               diff: {
                 noop: true,
@@ -243,6 +245,7 @@ export const workflowSourceOpenApiRoutes = [
               workflowId: WORKFLOW_SOURCE_EXAMPLE.workflowId,
               workspaceId: WORKFLOW_SOURCE_EXAMPLE.workspaceId,
               dry: false,
+              dryRun: false,
               applied: true,
               diff: {
                 noop: false,

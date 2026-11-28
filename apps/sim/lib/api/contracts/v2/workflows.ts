@@ -34,6 +34,11 @@ import {
   v1WorkflowExportPayloadSchema,
 } from '@/lib/api/contracts/v1/workflows'
 import {
+  deprecatedDryRunResponseField,
+  deprecatedRequestName,
+  foldDeprecatedName,
+} from '@/lib/api/contracts/v2/deprecated-names'
+import {
   V2_FOLDER_FILTER_MISS,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
@@ -1655,29 +1660,37 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
     .strict(),
   z
     .object({
-      source: z.literal('draft').describe('Run the saved draft.'),
+      source: z
+        .enum(['draft', 'manual'])
+        .transform((): 'draft' => 'draft')
+        .describe('Run the saved draft. `manual` is a deprecated name of `draft`.'),
       entry: z
         .discriminatedUnion('type', [
-          z
-            .object({
-              type: z
-                .literal('trigger')
-                .describe('Enter the draft run through a runnable trigger.'),
-              blockId: z
-                .string()
-                .min(1, 'run.entry.blockId cannot be empty')
-                .optional()
-                .describe(
-                  'Runnable trigger block to enter through. Omit only when the saved workflow has exactly one runnable trigger.'
-                ),
-              sample: z
-                .boolean()
-                .optional()
-                .describe(
-                  "Run with the selected trigger's sample payload, which the server derives from the trigger, instead of `input`. Its writes are sent unless `dry`. Cannot be combined with `input`."
-                ),
-            })
-            .strict(),
+          foldDeprecatedName(
+            z
+              .object({
+                type: z
+                  .literal('trigger')
+                  .describe('Enter the draft run through a runnable trigger.'),
+                blockId: z
+                  .string()
+                  .min(1, 'run.entry.blockId cannot be empty')
+                  .optional()
+                  .describe(
+                    'Runnable trigger block to enter through. Omit only when the saved workflow has exactly one runnable trigger.'
+                  ),
+                sample: z
+                  .boolean()
+                  .optional()
+                  .describe(
+                    "Run with the selected trigger's sample payload, which the server derives from the trigger, instead of `input`. Its writes are sent unless `dry`. Cannot be combined with `input`."
+                  ),
+                useMockPayload: deprecatedRequestName('sample', z.boolean().optional()),
+              })
+              .strict(),
+            'useMockPayload',
+            'sample'
+          ),
           z
             .object({
               type: z
@@ -3739,15 +3752,20 @@ const v2WorkflowGraphWriteResultSchema = z
  * (`validateOnly`) both keep it outside the represented resource for the same
  * reason.
  */
-const v2GraphWriteDryQuerySchema = z
-  .object({
-    dry: booleanQueryFlagSchema
-      .optional()
-      .describe(
-        'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.'
-      ),
-  })
-  .strict()
+const v2GraphWriteDryQuerySchema = foldDeprecatedName(
+  z
+    .object({
+      dry: booleanQueryFlagSchema
+        .optional()
+        .describe(
+          'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.'
+        ),
+      dryRun: deprecatedRequestName('dry', booleanQueryFlagSchema.optional()),
+    })
+    .strict(),
+  'dryRun',
+  'dry'
+)
 
 export const v2ReplaceWorkflowStateDataSchema = v2WorkflowGraphWriteResultSchema
   .extend({
@@ -3757,6 +3775,7 @@ export const v2ReplaceWorkflowStateDataSchema = v2WorkflowGraphWriteResultSchema
       .describe(
         'Whether this request only validated. `true` means nothing was persisted; the findings describe what a committed write of the same body would produce.'
       ),
+    dryRun: deprecatedDryRunResponseField,
   })
   .meta({
     id: 'ReplaceWorkflowStateResult',
@@ -4489,6 +4508,7 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
       .describe(
         'Whether this request only evaluated. `true` means nothing was persisted; the outcome describes what a committed apply of the same body would produce.'
       ),
+    dryRun: deprecatedDryRunResponseField,
   })
   .meta({
     id: 'ApplyWorkflowOperationsResult',

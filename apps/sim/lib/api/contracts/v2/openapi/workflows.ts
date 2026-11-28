@@ -429,6 +429,7 @@ const declaredRoutes = [
               warnings: [],
               needsRedeployment: true,
               dry: false,
+              dryRun: false,
               lint: EMPTY_LINT_EXAMPLE,
             },
           },
@@ -507,6 +508,7 @@ const declaredRoutes = [
               ],
               needsRedeployment: true,
               dry: false,
+              dryRun: false,
             },
           },
         ]

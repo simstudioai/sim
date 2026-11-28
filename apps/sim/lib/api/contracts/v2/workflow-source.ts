@@ -3,6 +3,11 @@ import { SOURCE_ENTRY_FILE, SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { z } from 'zod'
 import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import {
+  deprecatedDryRunResponseField,
+  deprecatedRequestName,
+  foldDeprecatedName,
+} from '@/lib/api/contracts/v2/deprecated-names'
 import { v2DataResponse, v2FolderPathInputSchema } from '@/lib/api/contracts/v2/shared'
 import { v2WorkflowIdParamsSchema } from '@/lib/api/contracts/v2/workflows'
 import {
@@ -22,20 +27,25 @@ export const v2GetWorkflowSourceContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(workflowSourceSchema) },
 })
 
-const applyWorkflowSourceQuerySchema = z
-  .object({
-    dry: booleanQueryFlagSchema
-      .optional()
-      .describe(
-        'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.'
-      ),
-    allowDelete: booleanQueryFlagSchema
-      .optional()
-      .describe(
-        'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.'
-      ),
-  })
-  .strict()
+const applyWorkflowSourceQuerySchema = foldDeprecatedName(
+  z
+    .object({
+      dry: booleanQueryFlagSchema
+        .optional()
+        .describe(
+          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dry`, and a create under a taken name answers `409`.'
+        ),
+      allowDelete: booleanQueryFlagSchema
+        .optional()
+        .describe(
+          'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.'
+        ),
+      dryRun: deprecatedRequestName('dry', booleanQueryFlagSchema.optional()),
+    })
+    .strict(),
+  'dryRun',
+  'dry'
+)
 
 /** Longest path a source file may have, in a workflow's source and in a workspace's alike. */
 export const SOURCE_PATH_MAX_LENGTH = 1024
@@ -231,6 +241,7 @@ const applyWorkflowSourceDataSchema = z
     workflowId: z.string().describe('Workflow id.'),
     workspaceId: z.string().describe('Workspace id.'),
     dry: z.boolean().describe('True when nothing was written because `dry` was set.'),
+    dryRun: deprecatedDryRunResponseField,
     applied: z
       .boolean()
       .describe(

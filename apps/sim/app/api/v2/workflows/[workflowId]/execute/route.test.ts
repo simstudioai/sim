@@ -597,6 +597,43 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
   })
 
+  describe('names used before the draft-run rename', () => {
+    it('keeps the draft-run limits for source manual: no async, no input beside the sample', async () => {
+      authenticatePersonalKey()
+
+      const asyncResponse = await callExecute({ run: { source: 'manual' }, async: true })
+      expect(asyncResponse.status).toBe(400)
+      expect((await asyncResponse.json()).error.message).toBe(
+        'A draft run does not support async mode'
+      )
+
+      const withInput = await callExecute({
+        input: { event: 'created' },
+        run: { source: 'manual', entry: { type: 'trigger', useMockPayload: true } },
+      })
+      expect(withInput.status).toBe(400)
+      expect((await withInput.json()).error.message).toBe(
+        'input and run.entry.sample cannot be combined'
+      )
+      expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
+      expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    })
+
+    it('refuses useMockPayload and sample that disagree, before dispatch', async () => {
+      authenticatePersonalKey()
+
+      const response = await callExecute({
+        run: { source: 'draft', entry: { type: 'trigger', sample: true, useMockPayload: false } },
+      })
+
+      expect(response.status).toBe(400)
+      expect(JSON.stringify(await response.json())).toContain(
+        'useMockPayload is the deprecated name of sample'
+      )
+      expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
+    })
+  })
+
   it('dispatches an OAuth manual trigger run through the same manual operation', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
       principal: {
@@ -1043,6 +1080,17 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       'A draft run requires an OAuth access token or personal API key'
     )
     expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
+  })
+
+  it('never permits a run named source manual on the anonymous public path', async () => {
+    dbChainMockFns.limit.mockReset()
+    queuePublicWorkflowReads()
+
+    const response = await callPublicExecute({ run: { source: 'manual' } })
+
+    expect(response.status).toBe(401)
+    expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
   })
 
   it('returns not found when a public workflow disappears before authorization', async () => {

@@ -477,7 +477,11 @@ export function renderSlotMap(
     }
   }
 
-  const keys = Object.keys(properties).filter((key) => !exclude?.has(key))
+  // A deprecated name the server still accepts for older clients gets no flag: the CLI sends the
+  // current name only.
+  const keys = Object.keys(properties).filter(
+    (key) => !exclude?.has(key) && deref(properties[key]).deprecated !== true
+  )
 
   // A union body (e.g. single-row vs batch insert) has no flat field list. The
   // caller marks it `opaqueBody` so the runtime can offer the whole body as one

@@ -106,6 +106,29 @@ describe('POST /api/v2/workspaces/{workspaceId}/source', () => {
     expect(charges()).toEqual(['workflows.source.write 1', 'workflows.source.write 39'])
   })
 
+  it('runs the pre-rename ?dryRun as a dry run, in the plan bucket, answering under both names', async () => {
+    v2RouteMocks.operationRate.mockClear()
+    mocks.apply.mockClear()
+    mocks.apply.mockResolvedValue({
+      workspaceId: WORKSPACE_ID,
+      dryRun: true,
+      plan: [],
+      applied: [],
+      needBlobs: [],
+      files: {},
+      base: { version: 1, workspaceId: WORKSPACE_ID, resources: {} },
+      diagnostics: [],
+    })
+
+    const response = await apply('?dryRun=true')
+
+    expect(response.status).toBe(200)
+    expect(mocks.apply.mock.calls[0][0].input).toMatchObject({ dryRun: true })
+    const buckets = v2RouteMocks.operationRate.mock.calls.map(([key]) => String(key).split(':')[1])
+    expect(new Set(buckets)).toEqual(new Set(['source.plan']))
+    expect((await response.json()).data).toMatchObject({ dry: true, dryRun: true })
+  })
+
   it('runs dry runs in plan slots, never in an apply’s: past the plans this server runs at once a dry run answers 429 and a real apply still runs', async () => {
     const result = {
       workspaceId: WORKSPACE_ID,
