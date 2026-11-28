@@ -4,7 +4,7 @@
  */
 import { execFile } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import type { AddressInfo, Socket } from 'node:net'
+import { type AddressInfo, connect as connectTcp, type Server, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -22,6 +22,34 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
+/** The relay's own server and sockets, observed (not replaced) so a test can fail them directly. */
+const relayHandles = vi.hoisted(() => ({
+  servers: [] as Server[],
+  clients: [] as Socket[],
+  upstreams: [] as Socket[],
+}))
+
+vi.mock('node:net', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:net')>()
+  const createServer = ((...args: Parameters<typeof actual.createServer>) => {
+    const server = actual.createServer(...args)
+    server.on('connection', (socket) => relayHandles.clients.push(socket))
+    relayHandles.servers.push(server)
+    return server
+  }) as typeof actual.createServer
+  return { ...actual, createServer }
+})
+
+vi.mock('node:tls', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:tls')>()
+  const connect = ((...args: Parameters<typeof actual.connect>) => {
+    const socket = actual.connect(...args)
+    relayHandles.upstreams.push(socket)
+    return socket
+  }) as typeof actual.connect
+  return { ...actual, connect }
+})
+
 import { openNeo4jConnection } from '@/lib/internal/neo4j/client'
 
 /** `.invalid` never resolves, so only a connection pinned to the validated IP can reach the server. */
@@ -32,6 +60,7 @@ interface TlsDatabase {
   port: number
   /** SNI and first application bytes of every TLS session that completed. */
   sessions: Array<{ servername: string | undefined; firstBytes: string }>
+  openSockets: () => number
   close: () => Promise<void>
 }
 
@@ -63,8 +92,14 @@ async function issueCertificate(name: string) {
   certificates[name] = { cert: readFileSync(certPath, 'utf8'), key: readFileSync(keyPath, 'utf8') }
 }
 
-/** A TLS listener that records the session, then hangs up: enough to see what the driver sent. */
-async function startTlsDatabase(certificateName: string): Promise<TlsDatabase> {
+/**
+ * A TLS listener that records the session, then hangs up: enough to see what the driver sent.
+ * With `holdOpen` it never answers, so the driver stays mid-handshake until the relay fails.
+ */
+async function startTlsDatabase(
+  certificateName: string,
+  { holdOpen = false } = {}
+): Promise<TlsDatabase> {
   const sessions: TlsDatabase['sessions'] = []
   const sockets = new Set<Socket>()
   const server = createTlsServer(certificates[certificateName], (socket) => {
@@ -73,7 +108,7 @@ async function startTlsDatabase(certificateName: string): Promise<TlsDatabase> {
         servername: socket.servername || undefined,
         firstBytes: chunk.subarray(0, 4).toString('hex'),
       })
-      socket.destroy()
+      if (!holdOpen) socket.destroy()
     })
   })
   server.on('connection', (socket) => {
@@ -85,6 +120,7 @@ async function startTlsDatabase(certificateName: string): Promise<TlsDatabase> {
   return {
     port: (server.address() as AddressInfo).port,
     sessions,
+    openSockets: () => sockets.size,
     close: () =>
       new Promise<void>((resolve) => {
         for (const socket of sockets) socket.destroy()
@@ -110,6 +146,9 @@ describe('openNeo4jConnection with encryption enabled', () => {
   })
 
   beforeEach(() => {
+    relayHandles.servers.length = 0
+    relayHandles.clients.length = 0
+    relayHandles.upstreams.length = 0
     inputValidationMockFns.mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
       resolvedIP: '127.0.0.1',
@@ -153,4 +192,59 @@ describe('openNeo4jConnection with encryption enabled', () => {
       await database.close()
     }
   })
+
+  /** Opens through a database that never answers and waits until Bolt bytes cross the relay. */
+  async function openMidHandshake() {
+    const database = await startTlsDatabase(DATABASE_HOST, { holdOpen: true })
+    const opening = open(database.port).catch((caught: unknown) => caught)
+    await vi.waitFor(() => expect(database.sessions).toHaveLength(1))
+    return { database, opening }
+  }
+
+  it('closes the relay and fails the connection when its server errors after listening', async () => {
+    const { database, opening } = await openMidHandshake()
+    try {
+      const [server] = relayHandles.servers
+      const port = (server.address() as AddressInfo).port
+      const failure = Object.assign(new Error('accept EMFILE'), { code: 'EMFILE' })
+
+      expect(() => server.emit('error', failure)).not.toThrow()
+
+      const error = await opening
+      expect(error).toBeInstanceOf(Neo4jError)
+      expect(error).toMatchObject({
+        message: expect.stringMatching(/Failed to connect to server.*Caused by: accept EMFILE/),
+      })
+      expect(server.listening).toBe(false)
+      await vi.waitFor(() => expect(database.openSockets()).toBe(0))
+      const refused = await new Promise<unknown>((resolve) => {
+        const probe = connectTcp(port, '127.0.0.1', () => resolve(undefined))
+        probe.once('error', resolve)
+      })
+      expect(refused).toMatchObject({ code: 'ECONNREFUSED' })
+    } finally {
+      await database.close()
+    }
+  })
+
+  it.each(['clients', 'upstreams'] as const)(
+    'survives a relayed socket (%s) emitting error more than once',
+    async (side) => {
+      const { database, opening } = await openMidHandshake()
+      try {
+        const [socket] = relayHandles[side]
+        const failure = new Error('connection reset')
+
+        expect(() => {
+          socket.emit('error', failure)
+          socket.emit('error', failure)
+        }).not.toThrow()
+
+        expect(await opening).toBeInstanceOf(Neo4jError)
+        await vi.waitFor(() => expect(database.openSockets()).toBe(0))
+      } finally {
+        await database.close()
+      }
+    }
+  )
 })
