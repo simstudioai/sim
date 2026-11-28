@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/internal/neo4j/client', () => ({
-  createNeo4jDriver: mocks.createDriver,
+  openNeo4jConnection: mocks.createDriver,
 }))
 
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -69,7 +69,9 @@ describe('Neo4j operations', () => {
     mocks.sessionClose.mockResolvedValue(undefined)
     mocks.driverClose.mockResolvedValue(undefined)
     mocks.createDriver.mockResolvedValue({
-      session: vi.fn().mockReturnValue({ run: mocks.run, close: mocks.sessionClose }),
+      driver: {
+        session: vi.fn().mockReturnValue({ run: mocks.run, close: mocks.sessionClose }),
+      },
       close: mocks.driverClose,
     })
   })
