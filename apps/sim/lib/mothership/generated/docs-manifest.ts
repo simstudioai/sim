@@ -131,6 +131,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/datadog.mdx',
   'integrations/datagma.mdx',
   'integrations/daytona.mdx',
+  'integrations/dealport.mdx',
   'integrations/deployments.mdx',
   'integrations/devin.mdx',
   'integrations/discord.mdx',

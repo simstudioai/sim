@@ -38,6 +38,7 @@ import {
   DatabricksIcon,
   DatadogIcon,
   DaytonaIcon,
+  DealportIcon,
   DevinIcon,
   DiscordIcon,
   DocuSignIcon,
@@ -3850,6 +3851,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'monaco',
+  },
+  dealport: {
+    name: 'Dealport',
+    icon: DealportIcon,
+    services: {
+      dealport: {
+        name: 'Dealport',
+        description:
+          'Size markets, search US private companies and NYC buildings, open cited Records, match company rows, and resolve verified human owners.',
+        providerId: 'dealport',
+        serviceAccountProviderId: 'dealport-service-account',
+        icon: DealportIcon,
+        baseProviderIcon: DealportIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'dealport',
   },
   linkedin: {
     name: 'LinkedIn',
