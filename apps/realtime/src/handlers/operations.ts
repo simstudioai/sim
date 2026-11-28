@@ -23,9 +23,10 @@ import { type IRoomManager, type UserSession, workflowRoom as wf } from '@/rooms
 const logger = createLogger('OperationsHandlers')
 
 /**
- * Relays a persisted operation to the room. When persistence kept lock-protected state over
- * the payload, every client, the sender included, is told to reload the stored graph instead
- * of applying a payload that no longer describes what was saved.
+ * Relays a persisted operation to the room. When persistence kept stored state over the payload
+ * (lock-protected blocks, or a batch add past the workflow block cap), every client, the sender
+ * included, is told to reload the stored graph instead of applying a payload that no longer
+ * describes what was saved.
  */
 function relayPersistedOperation(
   socket: AuthenticatedSocket,
@@ -37,7 +38,7 @@ function relayPersistedOperation(
   if (reconcile) {
     roomManager.emitToRoom<WorkflowUpdatedBroadcast>(wf(workflowId), 'workflow-updated', {
       workflowId,
-      message: 'Locked blocks were kept as stored',
+      message: 'Stored state was kept over the refused change',
       timestamp: Date.now(),
     })
     return

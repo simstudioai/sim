@@ -65,6 +65,13 @@ export interface BlockLayoutState {
 }
 
 /**
+ * Ceilings on one workflow's graph, shared by every write path that bounds it: the v2 graph
+ * routes, workflows-as-code source and the realtime batch add.
+ */
+export const MAX_WORKFLOW_BLOCKS = 2_000
+export const MAX_WORKFLOW_EDGES = 10_000
+
+/**
  * Inclusive bounds for {@link BlockRetryConfig.maxTries}: a retrying block tries
  * at least twice, since one retry is the whole point, and at most five times.
  */

@@ -1,3 +1,4 @@
+import { MAX_WORKFLOW_BLOCKS, MAX_WORKFLOW_EDGES } from '@sim/workflow-types/workflow'
 import { z } from 'zod'
 import {
   BLOCK_OPERATIONS,
@@ -14,12 +15,12 @@ import {
 /**
  * Most entries one batch frame may carry. Persistence spends work per entry inside the workflow's
  * write lock, so the 8 MiB transport cap alone would let one frame hold a pooled connection for
- * minutes. Blocks and edges mirror the workflow graph limits (`SOURCE_LIMITS`). Subblock updates
+ * minutes. Blocks and edges are the shared workflow graph limits. Subblock updates
  * come from a workflow-wide search-replace, one per matched field, and persist as one write per
  * block.
  */
-const MAX_BATCH_BLOCKS = 2_000
-const MAX_BATCH_EDGES = 10_000
+const MAX_BATCH_BLOCKS = MAX_WORKFLOW_BLOCKS
+const MAX_BATCH_EDGES = MAX_WORKFLOW_EDGES
 const MAX_BATCH_SUBBLOCK_UPDATES = 10_000
 
 const PositionSchema = z.object({
@@ -203,15 +204,24 @@ const SubblockCanonicalModesUpdateSchema = z.object({
   operationId: z.string().optional(),
 })
 
+/** A record keyed by block id, holding at most one entry per block a workflow may have. */
+function boundedRecord<T extends z.ZodType>(value: T) {
+  return z
+    .record(z.string(), value)
+    .refine((record) => Object.keys(record).length <= MAX_BATCH_BLOCKS, {
+      message: `Too many entries (max ${MAX_BATCH_BLOCKS})`,
+    })
+}
+
 const BatchAddBlocksSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
     blocks: z.array(z.record(z.string(), z.any())).max(MAX_BATCH_BLOCKS),
     edges: z.array(AutoConnectEdgeSchema).max(MAX_BATCH_EDGES).optional(),
-    loops: z.record(z.string(), z.any()).optional(),
-    parallels: z.record(z.string(), z.any()).optional(),
-    subBlockValues: z.record(z.string(), z.record(z.string(), z.any())).optional(),
+    loops: boundedRecord(z.any()).optional(),
+    parallels: boundedRecord(z.any()).optional(),
+    subBlockValues: boundedRecord(z.record(z.string(), z.any())).optional(),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),

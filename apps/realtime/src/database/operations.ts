@@ -37,6 +37,7 @@ import {
   isWorkflowAnnotationOnlyBlockType,
   isWorkflowBlockAncestorLocked,
   isWorkflowBlockProtected,
+  MAX_WORKFLOW_BLOCKS,
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
   preserveProtectedWorkflowBlocks,
@@ -983,12 +984,12 @@ async function handleBlocksOperationTx(
       // block or its loop/parallel config, nor places a block inside a locked container.
       let reconcile = false
       const rejectedBlockIds = new Set<string>()
+      const landed: Record<string, DbBlockRef> = { ...lockBlocks }
 
       if (blocks && blocks.length > 0) {
         const incoming = blocks as Array<Record<string, unknown>>
         // Added blocks land unlocked, so one is refused exactly when it is protected now or
         // would sit under a locked ancestor once the whole batch lands.
-        const landed: Record<string, DbBlockRef> = { ...lockBlocks }
         for (const block of incoming) {
           const id = block.id as string
           if (!isProtected(id)) landed[id] = { id, locked: false, data: block.data }
@@ -1008,6 +1009,21 @@ async function handleBlocksOperationTx(
         if (allowedBlocks.length === 0) {
           logger.info('All blocks filtered out due to locks, skipping add')
           return reconcile
+        }
+
+        // The workflow row lock taken in persistWorkflowOperation serializes this count with
+        // every other write, so repeated batches cannot grow a workflow past the shared cap.
+        const existingBlockCount = Object.keys(lockBlocks).length
+        const newBlockCount = allowedBlocks.filter(
+          (block) => !Object.hasOwn(lockBlocks, block.id as string)
+        ).length
+        if (existingBlockCount + newBlockCount > MAX_WORKFLOW_BLOCKS) {
+          logger.warn('Refusing batch add past the workflow block cap', {
+            existingBlockCount,
+            newBlockCount,
+            max: MAX_WORKFLOW_BLOCKS,
+          })
+          return true
         }
 
         const blockValues = allowedBlocks.map((block: Record<string, unknown>) => {
@@ -1153,15 +1169,22 @@ async function handleBlocksOperationTx(
           config,
         })),
       ]
+      // A loop or parallel config belongs to its container block, so one for a block that is
+      // neither stored nor added here would only leave an orphan row behind.
       const subflowValues = subflowEntries
-        .filter((subflow) => !isProtected(subflow.id) && !rejectedBlockIds.has(subflow.id))
+        .filter(
+          (subflow) =>
+            Object.hasOwn(landed, subflow.id) &&
+            !isProtected(subflow.id) &&
+            !rejectedBlockIds.has(subflow.id)
+        )
         .map((subflow) => ({
           ...subflow,
           workflowId,
           config: subflow.config as Record<string, unknown>,
         }))
       if (subflowValues.length < subflowEntries.length) {
-        logger.info('Skipping loop/parallel config of locked containers')
+        logger.info('Skipping loop/parallel config of locked or missing containers')
         reconcile = true
       }
       if (subflowValues.length > 0) {

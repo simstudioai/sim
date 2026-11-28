@@ -714,6 +714,7 @@
       "name": "@sim/realtime-protocol",
       "version": "0.1.0",
       "dependencies": {
+        "@sim/workflow-types": "workspace:*",
         "zod": "4.3.6",
       },
       "devDependencies": {

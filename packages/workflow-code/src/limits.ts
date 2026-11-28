@@ -1,4 +1,5 @@
 import { utf8ByteLength } from '@sim/utils/paste'
+import { MAX_WORKFLOW_BLOCKS, MAX_WORKFLOW_EDGES } from '@sim/workflow-types/workflow'
 
 /**
  * The limits workflow source shares across reading and writing. A get refuses to print a workflow
@@ -17,10 +18,10 @@ import { utf8ByteLength } from '@sim/utils/paste'
  * Client-safe: no parser or catalog imports, so contracts can read it.
  */
 export const SOURCE_LIMITS = {
-  /** Blocks in one workflow. Mirrors the v2 graph cap (`MAX_WORKFLOW_GRAPH_BLOCKS`). */
-  maxBlocks: 2_000,
-  /** Edges in one workflow. Mirrors the v2 graph cap (`MAX_WORKFLOW_GRAPH_EDGES`). */
-  maxEdges: 10_000,
+  /** Blocks in one workflow. */
+  maxBlocks: MAX_WORKFLOW_BLOCKS,
+  /** Edges in one workflow. */
+  maxEdges: MAX_WORKFLOW_EDGES,
   /** Variables in one workflow, so a lock holds at most this many variable entries. */
   maxVariables: 2_000,
   /** Files in one source: `workflow.ts` plus one code file per block. */

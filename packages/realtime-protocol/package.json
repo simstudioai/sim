@@ -49,6 +49,7 @@
     "format:check": "biome format ."
   },
   "dependencies": {
+    "@sim/workflow-types": "workspace:*",
     "zod": "4.3.6"
   },
   "devDependencies": {
