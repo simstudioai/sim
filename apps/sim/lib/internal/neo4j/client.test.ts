@@ -26,7 +26,7 @@ const BOLT_MAGIC = '6060b017'
 interface TlsDatabase {
   port: number
   /** SNI and first application bytes of every TLS session that completed. */
-  sessions: Array<{ servername: string | false; firstBytes: string }>
+  sessions: Array<{ servername: string | undefined; firstBytes: string }>
   close: () => Promise<void>
 }
 
@@ -65,7 +65,7 @@ async function startTlsDatabase(certificateName: string): Promise<TlsDatabase> {
   const server = createTlsServer(certificates[certificateName], (socket) => {
     socket.once('data', (chunk: Buffer) => {
       sessions.push({
-        servername: socket.servername,
+        servername: socket.servername || undefined,
         firstBytes: chunk.subarray(0, 4).toString('hex'),
       })
       socket.destroy()
@@ -142,5 +142,9 @@ describe('openNeo4jConnection with encryption enabled', () => {
     } finally {
       await database.close()
     }
+  })
+
+  it('rejects an out-of-range port instead of throwing from the relay', async () => {
+    await expect(open(65_536)).rejects.toThrow('Port must be an integer between 1 and 65535')
   })
 })

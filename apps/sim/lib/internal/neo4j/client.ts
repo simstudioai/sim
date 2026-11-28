@@ -129,6 +129,9 @@ export async function openNeo4jConnection(
   signal?: AbortSignal
 ): Promise<Neo4jConnection> {
   signal?.throwIfAborted()
+  if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65_535) {
+    throw new Error('Port must be an integer between 1 and 65535')
+  }
   const hostValidation = await validateDatabaseHost(config.host, 'host')
   signal?.throwIfAborted()
   if (!hostValidation.isValid) throw new Error(hostValidation.error)
@@ -143,6 +146,10 @@ export async function openNeo4jConnection(
           serverName: config.host.replace(/^\[|\]$/g, ''),
         })
       : undefined
+  if (signal?.aborted) {
+    await relay?.close()
+    signal.throwIfAborted()
+  }
 
   let uri: string
   if (aura) {
