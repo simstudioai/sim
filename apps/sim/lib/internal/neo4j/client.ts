@@ -184,8 +184,9 @@ export async function openNeo4jConnection(
   } catch (error) {
     await close().catch(() => undefined)
     const relayFailure = relay?.failure()
-    if (relayFailure && !signal?.aborted) {
-      throw new Error(`${CONNECT_FAILURE_PREFIX} Caused by: ${relayFailure.message}`)
+    if (relayFailure && !signal?.aborted && error instanceof neo4j.Neo4jError) {
+      error.message = `${CONNECT_FAILURE_PREFIX} Caused by: ${relayFailure.message}`
+      error.cause = relayFailure
     }
     throw error
   } finally {
