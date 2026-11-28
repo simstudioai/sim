@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { tableEventStreamContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { isSessionActive } from '@/lib/auth/session-liveness'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createEventStreamResponse } from '@/lib/realtime/event-stream-route'
@@ -18,8 +19,9 @@ interface RouteContext {
 /** GET /api/table/[tableId]/events/stream?from=<lastEventId>
  *
  *  SSE stream of cell-state transitions over the shared durable event log. Auth
- *  and access are checked here; the replay/tail/poll/heartbeat/prune mechanics
- *  come from `createEventStreamResponse`. */
+ *  and access are checked here at open and re-checked by `revalidateAccess` while
+ *  the stream runs; the replay/tail/poll/heartbeat/prune mechanics come from
+ *  `createEventStreamResponse`. */
 export const GET = withRouteHandler(async (req: NextRequest, context: RouteContext) => {
   const requestId = generateRequestId()
   const parsed = await parseRequest(tableEventStreamContract, req, context)
@@ -32,7 +34,11 @@ export const GET = withRouteHandler(async (req: NextRequest, context: RouteConte
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
 
-  const access = await checkAccess(tableId, { kind: 'user', userId: auth.userId }, 'read')
+  const userId = auth.userId
+  const session = auth.principal?.kind === 'session' ? auth.principal : null
+  const checkReadAccess = () => checkAccess(tableId, { kind: 'user', userId }, 'read')
+
+  const access = await checkReadAccess()
   if (!access.ok) return accessError(access, requestId, tableId)
 
   return createEventStreamResponse({
@@ -42,6 +48,10 @@ export const GET = withRouteHandler(async (req: NextRequest, context: RouteConte
     fromEventId,
     getLatestEventId: getLatestTableEventId,
     readEventsSince: readTableEventsSince,
+    revalidateAccess: async () => {
+      if (session && !(await isSessionActive(session))) return false
+      return (await checkReadAccess()).ok
+    },
     extraHeaders: { 'X-Table-Id': tableId },
   })
 })
