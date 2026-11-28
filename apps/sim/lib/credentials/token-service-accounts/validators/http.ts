@@ -1,4 +1,3 @@
-import { truncate } from '@sim/utils/string'
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
@@ -14,6 +13,7 @@ import {
   providerFailureCode,
   TokenServiceAccountValidationError,
   throwForProviderResponse,
+  toProviderErrorLogSnippet,
 } from '@/lib/credentials/token-service-accounts/errors'
 import type {
   TokenServiceAccountFields,
@@ -289,7 +289,7 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
           body:
             errorBody === unreadable || check.errorBodyEchoesToken
               ? ''
-              : truncate(JSON.stringify(errorBody) ?? '', 500),
+              : toProviderErrorLogSnippet(JSON.stringify(errorBody) ?? ''),
         }
       )
     }

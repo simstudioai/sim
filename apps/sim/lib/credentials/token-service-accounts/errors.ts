@@ -85,7 +85,17 @@ export class TokenServiceAccountValidationError extends Error {
   }
 }
 
-const ERROR_SNIPPET_MAX_LENGTH = 500
+const ERROR_SNIPPET_MAX_LENGTH = 200
+const CONTROL_CHARACTERS_GLOBAL = /[\u0000-\u001f\u007f]+/g
+
+/**
+ * Bounds a provider error body for server logs. Validators reach hosts the user typed, so the
+ * text is attacker-controlled: keep enough to diagnose a real provider failure, with control
+ * characters collapsed so it cannot forge log structure.
+ */
+export function toProviderErrorLogSnippet(text: string): string {
+  return truncate(text.replace(CONTROL_CHARACTERS_GLOBAL, ' '), ERROR_SNIPPET_MAX_LENGTH)
+}
 
 /**
  * Narrows the optional `clientSecret` for the single-grant client-credential
@@ -290,7 +300,7 @@ export async function readProviderErrorSnippet(res: ProviderResponse): Promise<s
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'provider error response',
     })
-    return truncate(text, ERROR_SNIPPET_MAX_LENGTH)
+    return toProviderErrorLogSnippet(text)
   } catch {
     return ''
   }
