@@ -7,7 +7,7 @@ date: 2026-11-28
 updated: 2026-11-28
 authors:
   - andrew
-readingTime: 8
+readingTime: 9
 tags: [AI Agents, Pricing, Automation, Make.com, Sim]
 ogImage: /library/make-com-pricing-credits-ai-agents-cost/cover.jpg
 draft: false
@@ -107,12 +107,11 @@ Make.com cost is best estimated from measured credits per successful business ou
 Use this process:
 
 1. Count how many business events the workflow will process each month.
-2. Run a representative sample through every normal route.
-3. Divide total credits by completed business events to find average credits per event.
-4. Add a retry and error-handling allowance based on execution history.
-5. Add variable AI credits shown by Make.com.
-6. Add the separate model provider bill when applicable.
-7. Select the required allowance on Make.com’s [live pricing page](https://www.make.com/pricing).
+2. Run a representative sample through every normal route, including typical retries and AI usage.
+3. Divide the sample’s total credits by completed business events to find the all-in average credits per event.
+4. Multiply the all-in average by the expected monthly business events.
+5. Add the separate model provider bill when applicable.
+6. Select the required allowance on Make.com’s [live pricing page](https://www.make.com/pricing).
 
 A useful cost formula is:
 
@@ -142,13 +141,17 @@ Sim fits teams that want an AI-focused workspace, direct control over model prov
 
 Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Workspace BYOK works on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. With BYOK, teams pay the provider directly for covered calls, as documented in [Sim’s cost guide](https://docs.sim.ai/platform/costs#bring-your-own-key-byok).
 
+According to [Sim’s cost guide](https://docs.sim.ai/platform/costs), each billable Sim Cloud workflow run has a base charge of one credit ($0.005), including runs that use BYOK. Hosted tools and sandbox runtime can add usage charges. Billing-disabled self-hosted deployments do not apply Sim plan-based usage billing, but provider and infrastructure costs still apply.
+
 Sim may cost less when Make.com execution credits are the main cost driver, a workflow contains many AI calls, or a team can obtain suitable model pricing directly from its provider. Make.com may cost less when a workflow is mostly deterministic, already uses Make.com integrations effectively, and remains within a predictable credit allowance.
 
 The comparison is:
 
 **Make.com total = Make.com subscription and credits + model provider charges + connected service charges**
 
-**Sim total = Sim workspace or hosting cost + model provider charges + connected service charges**
+**Sim Cloud total = Sim subscription + base run and other usage charges + model provider charges + connected service charges**
+
+**Billing-disabled self-hosted Sim total = hosting and infrastructure costs + model provider charges + connected service charges**
 
 Teams considering a move can compare broader product tradeoffs in [6 Best Make.com Alternatives for AI Agents in 2026](https://www.sim.ai/library/best-make-com-alternatives-ai-agents-2026).
 
