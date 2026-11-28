@@ -4,6 +4,8 @@ import {
   BLOCK_RETRY_MAX_WAIT_MS,
   BLOCK_RETRY_MIN_TRIES,
   BLOCK_RETRY_MIN_WAIT_MS,
+  MAX_WORKFLOW_BLOCKS,
+  MAX_WORKFLOW_EDGES,
 } from '@sim/workflow-types/workflow'
 import { z } from 'zod'
 import {
@@ -3352,8 +3354,8 @@ export const v2ImportWorkflowContract = defineRouteContract({
  * ask the persistence layer to write an unbounded number of rows. Both sit an
  * order of magnitude above the largest workflow observed in production.
  */
-export const MAX_WORKFLOW_GRAPH_BLOCKS = 2000
-export const MAX_WORKFLOW_GRAPH_EDGES = 10_000
+export const MAX_WORKFLOW_GRAPH_BLOCKS = MAX_WORKFLOW_BLOCKS
+export const MAX_WORKFLOW_GRAPH_EDGES = MAX_WORKFLOW_EDGES
 /**
  * Ceiling on one `POST /operations` batch: a bound on the request, the one transaction and the
  * report an atomic batch writes, not on a workflow's size. A larger edit splits into batches.
