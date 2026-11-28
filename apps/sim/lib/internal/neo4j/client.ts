@@ -1,8 +1,11 @@
 import { createServer as createTcpServer, isIP, type Socket } from 'node:net'
 import { checkServerIdentity, connect as connectTls } from 'node:tls'
+import { createLogger } from '@sim/logger'
 import neo4j, { type Driver } from 'neo4j-driver'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import type { Neo4jConnectionConfig } from '@/tools/neo4j/types'
+
+const logger = createLogger('Neo4jClient')
 
 const CONNECTION_TIMEOUT_MS = 10_000
 /** The driver pools one connection; the rest of the budget covers reconnects after a drop. */
@@ -11,7 +14,7 @@ const CONNECT_FAILURE_PREFIX =
   'Failed to connect to server. Please ensure that your database is listening on the correct host and port and that you have compatible encryption settings both on Neo4j server and driver.'
 
 /** An open Neo4j driver and everything that must be released with it. */
-export interface Neo4jConnection {
+interface Neo4jConnection {
   driver: Driver
   close: () => Promise<void>
 }
@@ -43,6 +46,14 @@ async function startPinnedTlsRelay(target: {
   let accepted = 0
   let lastFailure: Error | undefined
   let closePromise: Promise<void> | undefined
+
+  const close = () => {
+    closePromise ??= new Promise<void>((resolve) => {
+      for (const socket of sockets) socket.destroy()
+      server.close(() => resolve())
+    })
+    return closePromise
+  }
 
   const server = createTcpServer((client) => {
     accepted += 1
@@ -79,12 +90,12 @@ async function startPinnedTlsRelay(target: {
       lastFailure = new Error(`Failed to establish connection in ${CONNECTION_TIMEOUT_MS}ms`)
       finish()
     })
-    upstream.once('error', (error) => {
+    upstream.on('error', (error) => {
       lastFailure = error
       finish()
     })
     upstream.once('close', finish)
-    client.once('error', finish)
+    client.on('error', finish)
     client.once('close', finish)
   })
 
@@ -92,27 +103,25 @@ async function startPinnedTlsRelay(target: {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => {
       server.removeListener('error', reject)
+      server.on('error', (error: NodeJS.ErrnoException) => {
+        logger.error('Neo4j TLS relay server failed; closing the relay', {
+          code: error.code,
+          error: error.message,
+        })
+        lastFailure = error
+        void close()
+      })
       resolve()
     })
   })
 
   const address = server.address()
   if (!address || typeof address === 'string') {
-    server.close()
+    await close()
     throw new Error('Neo4j TLS relay did not bind a TCP port')
   }
 
-  return {
-    port: address.port,
-    failure: () => lastFailure,
-    close: () => {
-      closePromise ??= new Promise<void>((resolve) => {
-        for (const socket of sockets) socket.destroy()
-        server.close(() => resolve())
-      })
-      return closePromise
-    },
-  }
+  return { port: address.port, failure: () => lastFailure, close }
 }
 
 /**
