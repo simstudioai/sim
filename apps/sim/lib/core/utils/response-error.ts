@@ -34,17 +34,18 @@ export function readResponseError(response: Response): ResponseErrorSummary | un
 }
 
 /**
- * Records a contract validation failure: the request slice and its top-level
- * field (deeper segments can be record keys the caller wrote) and the first
- * issue's kind.
+ * Records a contract validation failure: the request slice, its top-level field
+ * (deeper segments can be record keys the caller wrote) unless `sliceOnly` says
+ * the slice accepts caller-chosen keys, and the first issue's kind.
  */
 export function describeValidationError(
   response: Response,
   error: z.ZodError,
-  slice?: string
+  slice?: string,
+  { sliceOnly = false }: { sliceOnly?: boolean } = {}
 ): void {
   const issue = error.issues[0]
-  const field = [slice, issue?.path[0]]
+  const field = [slice, sliceOnly ? undefined : issue?.path[0]]
     .filter((part) => part !== undefined && part !== '')
     .map(String)
     .join('.')

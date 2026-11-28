@@ -104,12 +104,13 @@ async function describeTransportRefusal(response: Response, request: Request): P
 
 /**
  * `parseRequest` options for an MCP route: the default 400 bodies, described
- * for the route's log line.
+ * for the route's log line. A JSON-RPC message keeps keys the caller chose, so
+ * a validation failure names only the slice.
  */
 export const MCP_PARSE_ERROR_RESPONSES = {
   validationErrorResponseBySlice(error: z.ZodError, slice: RequestSlice) {
     const response = validationErrorResponse(error)
-    describeValidationError(response, error, slice)
+    describeValidationError(response, error, slice, { sliceOnly: true })
     return response
   },
   invalidJsonResponse() {
