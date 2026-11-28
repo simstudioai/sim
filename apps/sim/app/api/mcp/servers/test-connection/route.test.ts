@@ -129,7 +129,7 @@ describe('MCP server test-connection route', () => {
         new McpDnsResolutionError('example.invalid', hostNotFound)
       )
 
-      const response = await POST(createTestRequest())
+      const response = await POST(createTestRequest(), { params: Promise.resolve({}) })
 
       expect(response.status).toBe(status)
       expect(await response.json()).toEqual({
