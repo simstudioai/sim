@@ -24,6 +24,7 @@ interface VerifiedOneTimeTokenSession {
     image?: string | null
   }
   session: {
+    id: string
     activeOrganizationId?: string | null
   }
 }
@@ -83,6 +84,7 @@ export function createVerifyAuth(options: VerifyAuthOptions): VerifyAuth {
             image: result.user.image ?? null,
           },
           session: {
+            id: result.session.id,
             activeOrganizationId:
               typeof result.session.activeOrganizationId === 'string'
                 ? result.session.activeOrganizationId
