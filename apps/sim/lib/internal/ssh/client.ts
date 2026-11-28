@@ -111,7 +111,7 @@ export async function createSSHConnection(
     throw new Error('Host is required. Please provide a valid hostname or IP address.')
   }
 
-  const hostValidation = await validateDatabaseHost(host, 'host')
+  const hostValidation = await validateDatabaseHost(host.trim(), 'host')
   signal?.throwIfAborted()
   if (!hostValidation.isValid) {
     throw new Error(hostValidation.error)
