@@ -74,17 +74,48 @@ async function assertNotBilledThroughMarketplace(referenceId: string): Promise<v
   })
 }
 
+/** A checkout's plan name as the Stripe plugin matches it: trimmed and case-insensitive. */
+function normalizeCheckoutPlan(plan: unknown): string | undefined {
+  return typeof plan === 'string' ? plan.trim().toLowerCase() : undefined
+}
+
+/** The most seats one self-serve checkout may request. */
+const MAX_CHECKOUT_SEATS = 1000
+
 /**
- * Refuse a self-serve checkout for the Enterprise plan. Enterprise is issued by the Sim team with
- * its own Stripe price and metadata, so the Stripe plugin's placeholder price can never check out,
- * and its write to a pending subscription row fails the Enterprise metadata constraint.
+ * Refuse what a self-serve checkout may not carry. Enterprise is issued by the Sim team with its
+ * own Stripe price and terms, so it is never a checkout plan. Subscription metadata is Sim's own:
+ * the Stripe plugin copies a request's `metadata` onto the Stripe subscription, where billing
+ * reads plan terms, and Sim's client never sends any. Seats must be a whole number in range.
  */
-export function assertSelfServeCheckoutPlan(plan: unknown): void {
-  if (typeof plan !== 'string' || !isEnterprise(plan)) return
-  logger.warn('Blocking checkout - Enterprise is not a self-serve plan')
-  throw new APIError('BAD_REQUEST', {
-    message: 'Enterprise plans are set up by our team. Contact sales to get started.',
-  })
+export function assertSelfServeCheckoutRequest(body: {
+  plan?: unknown
+  metadata?: unknown
+  seats?: unknown
+}): void {
+  if (isEnterprise(normalizeCheckoutPlan(body.plan))) {
+    logger.warn('Blocking checkout - Enterprise is not a self-serve plan')
+    throw new APIError('BAD_REQUEST', {
+      message: 'Enterprise plans are set up by our team. Contact sales to get started.',
+    })
+  }
+  if (body.metadata !== undefined) {
+    logger.warn('Blocking checkout - request carries subscription metadata')
+    throw new APIError('BAD_REQUEST', { message: 'Checkout does not accept metadata.' })
+  }
+  if (
+    body.seats !== undefined &&
+    !(
+      typeof body.seats === 'number' &&
+      Number.isInteger(body.seats) &&
+      body.seats >= 1 &&
+      body.seats <= MAX_CHECKOUT_SEATS
+    )
+  ) {
+    throw new APIError('BAD_REQUEST', {
+      message: `Seats must be a whole number from 1 to ${MAX_CHECKOUT_SEATS}.`,
+    })
+  }
 }
 
 /** Refuse an organization-plan upgrade while the account's own Pro plan is still in its free trial. */
@@ -146,7 +177,7 @@ export function isPersonalCheckoutRequest(
 export async function assertPersonalCheckoutAllowed(userId: string, plan?: unknown): Promise<void> {
   await assertNotBilledThroughMarketplace(userId)
   await assertNoBoundIncompleteSubscription(userId)
-  if (typeof plan === 'string' && isOrgPlan(plan)) {
+  if (isOrgPlan(normalizeCheckoutPlan(plan))) {
     await assertNoPersonalTrial(userId)
   }
 
@@ -203,11 +234,16 @@ export async function authorizeSubscriptionReference(
     return true
   }
 
+  // Membership first, so the organization's billing state is never revealed to an outsider.
+  if (!(await isOrganizationOwnerOrAdmin(userId, referenceId))) {
+    return false
+  }
+
   if (action === 'upgrade-subscription') {
     await assertNotBilledThroughMarketplace(referenceId)
   }
 
-  if (action === 'upgrade-subscription' && !isOrgPlan(plan)) {
+  if (action === 'upgrade-subscription' && !isOrgPlan(normalizeCheckoutPlan(plan))) {
     logger.warn('Blocking checkout - organizations can only subscribe to Team or Enterprise', {
       userId,
       referenceId,
@@ -252,5 +288,5 @@ export async function authorizeSubscriptionReference(
     }
   }
 
-  return isOrganizationOwnerOrAdmin(userId, referenceId)
+  return true
 }
