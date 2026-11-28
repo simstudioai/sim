@@ -197,7 +197,12 @@ describe('openNeo4jConnection with encryption enabled', () => {
   async function openMidHandshake() {
     const database = await startTlsDatabase(DATABASE_HOST, { holdOpen: true })
     const opening = open(database.port).catch((caught: unknown) => caught)
-    await vi.waitFor(() => expect(database.sessions).toHaveLength(1))
+    try {
+      await vi.waitFor(() => expect(database.sessions).toHaveLength(1))
+    } catch (error) {
+      await database.close()
+      throw error
+    }
     return { database, opening }
   }
 
