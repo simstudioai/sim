@@ -14,6 +14,7 @@ import { createSimMcpServer } from '@/lib/api/mcp/server'
 import { getSimMcpUrl } from '@/lib/api/mcp/urls'
 import { parseRequest } from '@/lib/api/server'
 import {
+  MCP_PARSE_ERROR_RESPONSES,
   mcpCredentialAuth,
   mcpMethodNotAllowed,
   readMcpCredentialHeaders,
@@ -103,7 +104,7 @@ export function createSimMcpHandlers() {
         simMcpContract,
         request,
         {},
-        { maxBodyBytes: MAX_MCP_BODY_BYTES }
+        { ...MCP_PARSE_ERROR_RESPONSES, maxBodyBytes: MAX_MCP_BODY_BYTES }
       )
       if (!parsed.success) return parsed.response
       const operation = await toolCallOperation(parsed.data.body)
