@@ -945,22 +945,24 @@ async function handleBlocksOperationTx(
   switch (operation) {
     case BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS: {
       const { updates } = payload
-      if (!Array.isArray(updates) || updates.length === 0) {
-        return
-      }
+      if (!Array.isArray(updates)) return
 
-      for (const update of updates) {
-        const { id, position } = update
-        if (!id || !position) continue
-
-        await tx
-          .update(workflowBlocks)
-          .set({
-            positionX: position.x,
-            positionY: position.y,
-          })
-          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
+      // UPDATE ... FROM applies an arbitrary row for a repeated id, so keep the last entry for each.
+      const positions = new Map<string, { x: number; y: number }>()
+      for (const { id, position } of updates) {
+        if (id && position) positions.set(id, position)
       }
+      if (positions.size === 0) return
+
+      const moved = sql.join(
+        Array.from(positions, ([id, { x, y }]) => sql`(${id}, ${x}::numeric, ${y}::numeric)`),
+        sql`, `
+      )
+      await tx
+        .update(workflowBlocks)
+        .set({ positionX: sql`moved.x`, positionY: sql`moved.y` })
+        .from(sql`(VALUES ${moved}) AS moved(id, x, y)`)
+        .where(and(eq(workflowBlocks.id, sql`moved.id`), eq(workflowBlocks.workflowId, workflowId)))
       break
     }
 
@@ -2023,6 +2025,7 @@ async function handleSubblockOperationTx(
       }
 
       const blocksById = await loadSubblockUpdateBlocks(tx, workflowId)
+      const changedBlockIds = new Set<string>()
 
       for (const update of updates) {
         const { blockId, subblockId, value, expectedValue } = update
@@ -2044,15 +2047,18 @@ async function handleSubblockOperationTx(
           ? { ...currentSubBlock, value }
           : { id: subblockId, type: 'unknown', value }
 
+        blocksById[blockId] = { ...block, subBlocks }
+        changedBlockIds.add(blockId)
+      }
+
+      for (const blockId of changedBlockIds) {
         await tx
           .update(workflowBlocks)
           .set({
-            subBlocks,
+            subBlocks: blocksById[blockId].subBlocks,
             updatedAt: new Date(),
           })
           .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-
-        blocksById[blockId] = { ...block, subBlocks }
       }
 
       logger.debug(`Batch updated ${updates.length} subblocks for workflow ${workflowId}`)

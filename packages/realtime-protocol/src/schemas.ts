@@ -11,6 +11,17 @@ import {
   WORKFLOW_OPERATIONS,
 } from './constants'
 
+/**
+ * Most entries one batch frame may carry. Persistence spends work per entry inside the workflow's
+ * write lock, so the 8 MiB transport cap alone would let one frame hold a pooled connection for
+ * minutes. Blocks and edges mirror the workflow graph limits (`SOURCE_LIMITS`). Subblock updates
+ * come from a workflow-wide search-replace, one per matched field, and persist as one write per
+ * block.
+ */
+const MAX_BATCH_BLOCKS = 2_000
+const MAX_BATCH_EDGES = 10_000
+const MAX_BATCH_SUBBLOCK_UPDATES = 10_000
+
 const PositionSchema = z.object({
   x: z.number(),
   y: z.number(),
@@ -81,12 +92,14 @@ const BatchPositionUpdateSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
-    updates: z.array(
-      z.object({
-        id: z.string(),
-        position: PositionSchema,
-      })
-    ),
+    updates: z
+      .array(
+        z.object({
+          id: z.string(),
+          position: PositionSchema,
+        })
+      )
+      .max(MAX_BATCH_BLOCKS),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -157,14 +170,16 @@ const SubblockOperationSchema = z.object({
   operation: z.literal(SUBBLOCK_OPERATIONS.BATCH_UPDATE),
   target: z.literal(OPERATION_TARGETS.SUBBLOCK),
   payload: z.object({
-    updates: z.array(
-      z.object({
-        blockId: z.string(),
-        subblockId: z.string(),
-        value: z.any(),
-        expectedValue: z.any().optional(),
-      })
-    ),
+    updates: z
+      .array(
+        z.object({
+          blockId: z.string(),
+          subblockId: z.string(),
+          value: z.any(),
+          expectedValue: z.any().optional(),
+        })
+      )
+      .max(MAX_BATCH_SUBBLOCK_UPDATES),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -192,8 +207,8 @@ const BatchAddBlocksSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
-    blocks: z.array(z.record(z.string(), z.any())),
-    edges: z.array(AutoConnectEdgeSchema).optional(),
+    blocks: z.array(z.record(z.string(), z.any())).max(MAX_BATCH_BLOCKS),
+    edges: z.array(AutoConnectEdgeSchema).max(MAX_BATCH_EDGES).optional(),
     loops: z.record(z.string(), z.any()).optional(),
     parallels: z.record(z.string(), z.any()).optional(),
     subBlockValues: z.record(z.string(), z.record(z.string(), z.any())).optional(),
@@ -206,7 +221,7 @@ const BatchRemoveBlocksSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
-    ids: z.array(z.string()),
+    ids: z.array(z.string()).max(MAX_BATCH_BLOCKS),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -216,7 +231,7 @@ const BatchRemoveEdgesSchema = z.object({
   operation: z.literal(EDGES_OPERATIONS.BATCH_REMOVE_EDGES),
   target: z.literal(OPERATION_TARGETS.EDGES),
   payload: z.object({
-    ids: z.array(z.string()),
+    ids: z.array(z.string()).max(MAX_BATCH_EDGES),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -226,15 +241,17 @@ const BatchAddEdgesSchema = z.object({
   operation: z.literal(EDGES_OPERATIONS.BATCH_ADD_EDGES),
   target: z.literal(OPERATION_TARGETS.EDGES),
   payload: z.object({
-    edges: z.array(
-      z.object({
-        id: z.string(),
-        source: z.string(),
-        target: z.string(),
-        sourceHandle: z.string().nullable().optional(),
-        targetHandle: z.string().nullable().optional(),
-      })
-    ),
+    edges: z
+      .array(
+        z.object({
+          id: z.string(),
+          source: z.string(),
+          target: z.string(),
+          sourceHandle: z.string().nullable().optional(),
+          targetHandle: z.string().nullable().optional(),
+        })
+      )
+      .max(MAX_BATCH_EDGES),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -244,7 +261,7 @@ const BatchToggleEnabledSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
-    blockIds: z.array(z.string()),
+    blockIds: z.array(z.string()).max(MAX_BATCH_BLOCKS),
     previousStates: z.record(z.string(), z.boolean()),
   }),
   timestamp: z.number(),
@@ -255,7 +272,7 @@ const BatchToggleHandlesSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
-    blockIds: z.array(z.string()),
+    blockIds: z.array(z.string()).max(MAX_BATCH_BLOCKS),
     previousStates: z.record(z.string(), z.boolean()),
   }),
   timestamp: z.number(),
@@ -266,7 +283,7 @@ const BatchToggleLockedSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
-    blockIds: z.array(z.string()),
+    blockIds: z.array(z.string()).max(MAX_BATCH_BLOCKS),
     previousStates: z.record(z.string(), z.boolean()),
   }),
   timestamp: z.number(),
@@ -277,13 +294,15 @@ const BatchUpdateParentSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
-    updates: z.array(
-      z.object({
-        id: z.string(),
-        parentId: z.string(),
-        position: PositionSchema,
-      })
-    ),
+    updates: z
+      .array(
+        z.object({
+          id: z.string(),
+          parentId: z.string(),
+          position: PositionSchema,
+        })
+      )
+      .max(MAX_BATCH_BLOCKS),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
