@@ -8,6 +8,7 @@ import {
   resetDbChainMock,
 } from '@sim/testing'
 import { flushMicrotasks } from '@sim/testing/helpers/async'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
@@ -189,7 +190,8 @@ describe('MCP OAuth callback route', () => {
 
     const body = await (
       await GET(
-        new NextRequest('http://localhost:3000/api/mcp/oauth/callback?state=state-1&code=code-1')
+        new NextRequest('http://localhost:3000/api/mcp/oauth/callback?state=state-1&code=code-1'),
+        createRouteContext({})
       )
     ).text()
 
@@ -204,7 +206,8 @@ describe('MCP OAuth callback route', () => {
 
     const body = await (
       await GET(
-        new NextRequest('http://localhost:3000/api/mcp/oauth/callback?state=state-1&code=code-1')
+        new NextRequest('http://localhost:3000/api/mcp/oauth/callback?state=state-1&code=code-1'),
+        createRouteContext({})
       )
     ).text()
 
