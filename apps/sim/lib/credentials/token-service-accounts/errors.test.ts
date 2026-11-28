@@ -189,12 +189,18 @@ describe('token service-account error helpers', () => {
   })
 
   describe('readProviderErrorSnippet', () => {
-    it('truncates the body to 500 characters', async () => {
+    it('collapses control characters so a provider body cannot forge log lines', async () => {
+      const res = new Response('bad key\r\n{"level":"INFO"}\u0000end', { status: 401 })
+
+      await expect(readProviderErrorSnippet(res)).resolves.toBe('bad key {"level":"INFO"} end')
+    })
+
+    it('truncates the body to 200 characters', async () => {
       const res = new Response('x'.repeat(2000), { status: 500 })
 
       const snippet = await readProviderErrorSnippet(res)
 
-      expect(snippet).toBe(`${'x'.repeat(500)}...`)
+      expect(snippet).toBe(`${'x'.repeat(200)}...`)
     })
 
     it('stops reading an oversized error body instead of buffering all of it', async () => {

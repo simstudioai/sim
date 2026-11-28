@@ -1,7 +1,12 @@
-import { skipToken, useQuery } from '@tanstack/react-query'
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { type CopilotChatListItem, listCopilotChatsContract } from '@/lib/api/contracts/copilot'
+import {
+  type CopilotChatListItem,
+  deleteCopilotChatContract,
+  listCopilotChatsContract,
+} from '@/lib/api/contracts/copilot'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 export type { CopilotChatListItem }
 
@@ -36,5 +41,34 @@ export function useCopilotChats(workflowId?: string) {
     queryKey: copilotChatsKeys.list(workflowId),
     queryFn: workflowId ? ({ signal }) => fetchCopilotChats(workflowId, signal) : skipToken,
     staleTime: COPILOT_CHAT_LIST_STALE_TIME,
+  })
+}
+
+interface DeleteCopilotChatVariables {
+  chatId: string
+  /** Workflow whose chat list drops the chat, captured when the delete starts. */
+  workflowId?: string
+  /** Persisted composer draft to prune once the chat is gone. */
+  draftKey?: string
+}
+
+/** Deletes a workflow copilot chat, prunes its draft, and refreshes its workflow's chat list. */
+export function useDeleteCopilotChat() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ chatId }: DeleteCopilotChatVariables) => {
+      try {
+        await requestJson(deleteCopilotChatContract, { body: { chatId } })
+      } catch (error) {
+        // Deleted elsewhere between the route's lookup and its delete: the chat is gone either way.
+        if (error instanceof ApiClientError && error.status === 404) return
+        throw error
+      }
+    },
+    onSuccess: (_data, { workflowId, draftKey }) => {
+      // The draft store is persisted, so an unpruned key survives forever.
+      if (draftKey) useMothershipDraftsStore.getState().clearDraft(draftKey)
+      return queryClient.invalidateQueries({ queryKey: copilotChatsKeys.list(workflowId) })
+    },
   })
 }

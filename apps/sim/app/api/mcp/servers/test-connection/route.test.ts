@@ -1,4 +1,5 @@
 import { createMockRequest, loggerMock } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { mcpOauthMock, mcpOauthMockFns } from '@sim/testing/mocks/mcp-oauth.mock'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -45,10 +46,11 @@ vi.mock('@/lib/mcp/client', () => ({
   },
 }))
 
-vi.mock('@/lib/mcp/domain-check', () => ({
+vi.mock('@/lib/mcp/domain-check', async (importOriginal) => ({
   MCP_EGRESS_PROFILE: 'selfHostedService',
   OAUTH_EGRESS_PROFILE: 'contentFetch',
-  McpDnsResolutionError: class extends Error {},
+  McpDnsResolutionError: (await importOriginal<typeof import('@/lib/mcp/domain-check')>())
+    .McpDnsResolutionError,
   McpDomainNotAllowedError: class extends Error {},
   McpSsrfError: MockMcpSsrfError,
   validateMcpDomain: vi.fn(),
@@ -80,6 +82,7 @@ vi.mock('@/lib/mcp/resolve-config', () => ({
   resolveMcpConfigEnvVars: mockResolveMcpConfigEnvVars,
 }))
 
+import { McpDnsResolutionError } from '@/lib/mcp/domain-check'
 import { POST } from '@/app/api/mcp/servers/test-connection/route'
 
 const { mockDetectMcpAuthType } = mcpOauthMockFns
@@ -114,8 +117,35 @@ describe('MCP server test-connection route', () => {
     mockDisconnect.mockResolvedValue(undefined)
   })
 
+  it.each([
+    ['before', true, 400],
+    ['before', false, 502],
+    ['after', true, 400],
+    ['after', false, 502],
+  ])(
+    'answers a DNS failure %s env resolution with hostNotFound=%s as %i',
+    async (phase, hostNotFound, status) => {
+      if (phase === 'after') mockValidateMcpServerSsrf.mockResolvedValueOnce('203.0.113.10')
+      mockValidateMcpServerSsrf.mockRejectedValueOnce(
+        new McpDnsResolutionError('example.invalid', hostNotFound)
+      )
+
+      const response = await POST(createTestRequest(), createRouteContext({}))
+
+      expect(response.status).toBe(status)
+      expect(await response.json()).toEqual({
+        success: false,
+        error: 'MCP server URL hostname "example.invalid" could not be resolved',
+      })
+      expect(mockValidateMcpServerSsrf).toHaveBeenCalledTimes(phase === 'after' ? 2 : 1)
+    }
+  )
+
   it('tests configured bearer headers before treating OAuth discovery as mandatory', async () => {
-    const response = await POST(createTestRequest({ Authorization: 'Bearer static-api-token' }))
+    const response = await POST(
+      createTestRequest({ Authorization: 'Bearer static-api-token' }),
+      createRouteContext({})
+    )
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -136,7 +166,10 @@ describe('MCP server test-connection route', () => {
   it('returns a header-auth failure when the configured token is rejected', async () => {
     mockConnect.mockRejectedValueOnce(new Error('HTTP 401: Unauthorized'))
 
-    const response = await POST(createTestRequest({ Authorization: 'Bearer invalid-static-token' }))
+    const response = await POST(
+      createTestRequest({ Authorization: 'Bearer invalid-static-token' }),
+      createRouteContext({})
+    )
     const body = await response.json()
 
     expect(response.status).toBe(400)
@@ -156,7 +189,10 @@ describe('MCP server test-connection route', () => {
     const token = 'opaque-static-token'
     mockConnect.mockRejectedValueOnce(new Error(`Upstream rejected ${token}`))
 
-    const response = await POST(createTestRequest({ Authorization: `Bearer ${token}` }))
+    const response = await POST(
+      createTestRequest({ Authorization: `Bearer ${token}` }),
+      createRouteContext({})
+    )
     const body = await response.json()
 
     expect(response.status).toBe(400)
@@ -168,7 +204,7 @@ describe('MCP server test-connection route', () => {
   })
 
   it('preserves OAuth discovery when no static headers are configured', async () => {
-    const response = await POST(createTestRequest())
+    const response = await POST(createTestRequest(), createRouteContext({}))
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -201,7 +237,10 @@ describe('MCP server test-connection route', () => {
       return '203.0.113.10'
     })
 
-    const response = await POST(createTestRequest({ Authorization: `Bearer ${token}` }))
+    const response = await POST(
+      createTestRequest({ Authorization: `Bearer ${token}` }),
+      createRouteContext({})
+    )
     const responseText = await response.text()
 
     expect(response.status).toBe(403)

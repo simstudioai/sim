@@ -80,6 +80,7 @@ import { isSsoCallbackPath, resolveSsoCallbackProviderId } from '@/lib/auth/sso/
 import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
 import {
   assertPersonalCheckoutAllowed,
+  assertSelfServeCheckoutRequest,
   authorizeSubscriptionReference,
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
@@ -1153,7 +1154,9 @@ export const auth = betterAuth({
 
         if (isSignIn || isSignUp) {
           const accessControl = await getAccessControlConfig()
-          const requestEmail = ctx.body?.email?.toLowerCase()
+          // Better Auth validates the body after this hook; a non-string email falls through to its 400.
+          const requestEmail =
+            typeof ctx.body?.email === 'string' ? ctx.body.email.toLowerCase() : undefined
 
           // Banning an existing account is owned by better-auth's admin plugin (a
           // `session.create.before` hook that blocks banned users at sign-in across
@@ -1186,10 +1189,10 @@ export const auth = betterAuth({
           if (
             isSignupMxValidationEnabled &&
             ctx.path.startsWith('/sign-up/email') &&
-            ctx.body?.email
+            requestEmail
           ) {
             const mxCheck = await validateSignupEmailMx(
-              ctx.body.email,
+              requestEmail,
               accessControl.blockedEmailMxHosts
             )
             if (!mxCheck.allowed) {
@@ -1212,6 +1215,7 @@ export const auth = betterAuth({
           const sessionUserId = session?.user?.id
           if (sessionUserId) {
             const requestBody = ctx.body ?? {}
+            assertSelfServeCheckoutRequest(requestBody)
             const referenceId = resolveCheckoutReferenceId(
               requestBody,
               sessionUserId,
@@ -1605,7 +1609,8 @@ export const auth = betterAuth({
             },
             subscription: {
               enabled: true,
-              plans: getPlans(),
+              // Enterprise is issued by the team, never checked out, so the plugin never offers it.
+              plans: getPlans().filter((plan) => !isEnterprise(plan.name)),
               authorizeReference: async ({ user, referenceId, action }, ctx) => {
                 const body: unknown = ctx?.body
                 const requestedPlan =

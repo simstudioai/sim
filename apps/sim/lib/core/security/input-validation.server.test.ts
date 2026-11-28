@@ -14,6 +14,7 @@ vi.mock('@sim/security/dns', () => ({
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import {
   secureFetchWithValidation,
+  validateDatabaseHost,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 
@@ -168,5 +169,44 @@ describe('validateUrlWithDNS address classification', () => {
     expect(mockResolve).toHaveBeenCalledWith('example.com', { signal: controller.signal })
     expect(mockWarn).not.toHaveBeenCalled()
     expect(egressWarn).not.toHaveBeenCalled()
+  })
+})
+
+describe('validateDatabaseHost host shape', () => {
+  it.each([
+    ['a seed list behind a public name', 'db.example.com,127.0.0.1'],
+    ['a seed list with a port', '127.0.0.1:6379,db.example.com'],
+    ['userinfo before an internal address', 'a@127.0.0.1'],
+    ['a path and options', 'db.example.com/admin?directConnection=false'],
+    ['a fragment', 'db.example.com#127.0.0.1'],
+    ['a port suffix', 'db.example.com:27017'],
+    ['a bracketed name', '[db.example.com]'],
+    ['an IPv6 zone id', 'fe80::1%eth0'],
+    ['surrounding whitespace', ' db.example.com'],
+  ])('refuses %s before resolving it', async (_case, host) => {
+    // A wildcard zone answers any name, so the resolver alone cannot catch these.
+    mockResolve.mockReset()
+    mockResolve.mockResolvedValue(resolved(['93.184.216.34']))
+
+    const result = await validateDatabaseHost(host)
+
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('single hostname or IP address')
+    expect(mockResolve).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a DNS name', 'db.example.com'],
+    ['a service name with underscores', 'mongo_primary'],
+    ['a trailing-dot name', 'db.example.com.'],
+    ['a public IPv4 literal', '93.184.216.34'],
+    ['a bare IPv6 literal', '2606:4700::1111'],
+    ['a bracketed IPv6 literal', '[2606:4700::1111]'],
+  ])('accepts %s', async (_case, host) => {
+    mockResolve.mockResolvedValue(resolved(['93.184.216.34']))
+
+    const result = await validateDatabaseHost(host)
+
+    expect(result.isValid).toBe(true)
   })
 })

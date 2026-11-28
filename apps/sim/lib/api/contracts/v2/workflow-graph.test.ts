@@ -189,6 +189,7 @@ describe('v2ApplyWorkflowOperationsDataSchema', () => {
         mintedBlockIds: {},
         lint: EMPTY_LINT,
         dry: false,
+        dryRun: false,
       })
       expect(result.success, `skip type ${type} is not published`).toBe(true)
     }
@@ -211,6 +212,7 @@ describe('v2ApplyWorkflowOperationsDataSchema', () => {
       mintedBlockIds: {},
       lint: FULL_LINT,
       dry: false,
+      dryRun: false,
     })
 
     expect(result.error?.issues ?? []).toEqual([])

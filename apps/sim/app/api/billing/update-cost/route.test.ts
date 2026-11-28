@@ -222,10 +222,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     )
 
     expect(res.status).toBe(401)
-    await expect(res.json()).resolves.toEqual({
-      success: false,
-      error: 'Invalid internal API key',
-    })
+    await expect(res.json()).resolves.toEqual({ success: false, error: 'Unauthorized' })
     expect(mockCheckInternalApiKey).toHaveBeenCalledTimes(1)
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })

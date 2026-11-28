@@ -489,6 +489,18 @@
               "description": "Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.",
               "type": "boolean"
             }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "deprecated": true,
+            "description": "Deprecated name of `dry`, accepted with the same meaning. Send `dry`; a request that sends both with different values is refused.",
+            "schema": {
+              "deprecated": true,
+              "description": "Deprecated name of `dry`, accepted with the same meaning. Send `dry`; a request that sends both with different values is refused.",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -539,6 +551,7 @@
                         "warnings": [],
                         "needsRedeployment": true,
                         "dry": false,
+                        "dryRun": false,
                         "lint": {
                           "sources": [],
                           "sinks": [],
@@ -736,6 +749,18 @@
               "description": "Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.",
               "type": "boolean"
             }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "deprecated": true,
+            "description": "Deprecated name of `dry`, accepted with the same meaning. Send `dry`; a request that sends both with different values is refused.",
+            "schema": {
+              "deprecated": true,
+              "description": "Deprecated name of `dry`, accepted with the same meaning. Send `dry`; a request that sends both with different values is refused.",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -845,7 +870,8 @@
                           "Workflow lint found issues (Blocks missing required fields: 1). The findings are in `lint`."
                         ],
                         "needsRedeployment": true,
-                        "dry": false
+                        "dry": false,
+                        "dryRun": false
                       }
                     }
                   }
@@ -6083,6 +6109,18 @@
               "description": "Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.",
               "type": "boolean"
             }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "deprecated": true,
+            "description": "Deprecated name of `dry`, accepted with the same meaning. Send `dry`; a request that sends both with different values is refused.",
+            "schema": {
+              "deprecated": true,
+              "description": "Deprecated name of `dry`, accepted with the same meaning. Send `dry`; a request that sends both with different values is refused.",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -6152,6 +6190,7 @@
                         "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                         "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                         "dry": false,
+                        "dryRun": false,
                         "applied": false,
                         "diff": {
                           "noop": true,
@@ -6349,6 +6388,7 @@
                         "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                         "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                         "dry": true,
+                        "dryRun": true,
                         "applied": false,
                         "diff": {
                           "noop": true,
@@ -6481,6 +6521,18 @@
               "description": "Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.",
               "type": "boolean"
             }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "deprecated": true,
+            "description": "Deprecated name of `dry`, accepted with the same meaning. Send `dry`; a request that sends both with different values is refused.",
+            "schema": {
+              "deprecated": true,
+              "description": "Deprecated name of `dry`, accepted with the same meaning. Send `dry`; a request that sends both with different values is refused.",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -6532,6 +6584,7 @@
                         "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                         "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                         "dry": false,
+                        "dryRun": false,
                         "applied": true,
                         "diff": {
                           "noop": false,
@@ -8907,6 +8960,18 @@
               "description": "Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.",
               "type": "boolean"
             }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "deprecated": true,
+            "description": "Deprecated name of `dry`, accepted with the same meaning. Send `dry`; a request that sends both with different values is refused.",
+            "schema": {
+              "deprecated": true,
+              "description": "Deprecated name of `dry`, accepted with the same meaning. Send `dry`; a request that sends both with different values is refused.",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -8979,6 +9044,7 @@
                       "data": {
                         "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                         "dry": false,
+                        "dryRun": false,
                         "plan": [
                           {
                             "kind": "table",
@@ -9156,6 +9222,7 @@
                       "data": {
                         "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                         "dry": true,
+                        "dryRun": true,
                         "plan": [
                           {
                             "kind": "table",
@@ -11481,9 +11548,14 @@
           "dry": {
             "type": "boolean",
             "description": "Whether this request only validated. `true` means nothing was persisted; the findings describe what a committed write of the same body would produce."
+          },
+          "dryRun": {
+            "type": "boolean",
+            "deprecated": true,
+            "description": "Deprecated name of `dry`, always sent with the same value. Read `dry`."
           }
         },
-        "required": ["id", "warnings", "needsRedeployment", "lint", "dry"],
+        "required": ["id", "warnings", "needsRedeployment", "lint", "dry", "dryRun"],
         "additionalProperties": false,
         "title": "Replace workflow state result",
         "description": "Outcome of replacing a workflow draft graph, with its advisory findings."
@@ -11507,6 +11579,7 @@
               "warnings": [],
               "needsRedeployment": true,
               "dry": false,
+              "dryRun": false,
               "lint": {
                 "sources": [],
                 "sinks": [],
@@ -12144,6 +12217,11 @@
           "dry": {
             "type": "boolean",
             "description": "Whether this request only evaluated. `true` means nothing was persisted; the outcome describes what a committed apply of the same body would produce."
+          },
+          "dryRun": {
+            "type": "boolean",
+            "deprecated": true,
+            "description": "Deprecated name of `dry`, always sent with the same value. Read `dry`."
           }
         },
         "required": [
@@ -12156,7 +12234,8 @@
           "inputValidationErrors",
           "mintedBlockIds",
           "lint",
-          "dry"
+          "dry",
+          "dryRun"
         ],
         "additionalProperties": false,
         "title": "Apply workflow operations result",
@@ -12222,7 +12301,8 @@
                 "Workflow lint found issues (Blocks missing required fields: 1). The findings are in `lint`."
               ],
               "needsRedeployment": true,
-              "dry": false
+              "dry": false,
+              "dryRun": false
             }
           }
         ]
@@ -17827,9 +17907,9 @@
                 "type": "object",
                 "properties": {
                   "source": {
+                    "description": "Run the saved draft. `manual` is a deprecated name of `draft`.",
                     "type": "string",
-                    "const": "draft",
-                    "description": "Run the saved draft."
+                    "enum": ["draft", "manual"]
                   },
                   "entry": {
                     "description": "Where the draft run enters. Omit to enter through the workflow trigger; a block entry requires an exact source run.",
@@ -17849,6 +17929,11 @@
                           },
                           "sample": {
                             "description": "Run with the selected trigger's sample payload, which the server derives from the trigger, instead of `input`. Its writes are sent unless `dry`. Cannot be combined with `input`.",
+                            "type": "boolean"
+                          },
+                          "useMockPayload": {
+                            "deprecated": true,
+                            "description": "Deprecated name of `sample`, accepted with the same meaning. Send `sample`; a request that sends both with different values is refused.",
                             "type": "boolean"
                           }
                         },
@@ -18002,58 +18087,7 @@
         },
         "additionalProperties": false,
         "title": "Execute workflow request",
-        "description": "Input, workflow-state selection, and execution-mode options. Input descriptions specify compatible modes; invalid combinations return `400`.",
-        "examples": [
-          {
-            "input": {
-              "ticketId": "ticket_123"
-            }
-          },
-          {
-            "input": {
-              "ticketId": "ticket_123"
-            },
-            "async": true
-          },
-          {
-            "input": {
-              "ticketId": "ticket_123"
-            },
-            "stream": true
-          },
-          {
-            "run": {
-              "source": "draft"
-            }
-          },
-          {
-            "run": {
-              "source": "draft"
-            },
-            "waitTimeoutSeconds": 240
-          },
-          {
-            "run": {
-              "source": "draft",
-              "entry": {
-                "type": "block",
-                "blockId": "block_123",
-                "sourceRunId": "run_123"
-              }
-            }
-          },
-          {
-            "run": {
-              "source": "draft",
-              "entry": {
-                "type": "block",
-                "blockId": "block_123",
-                "sourceRunId": "run_123"
-              },
-              "stopAfterBlockId": "block_123"
-            }
-          }
-        ]
+        "description": "Input, workflow-state selection, and execution-mode options. Input descriptions specify compatible modes; invalid combinations return `400`."
       },
       "WorkflowRunListItem": {
         "type": "object",
@@ -19977,6 +20011,11 @@
                 "type": "boolean",
                 "description": "True when nothing was written because `dry` was set."
               },
+              "dryRun": {
+                "type": "boolean",
+                "deprecated": true,
+                "description": "Deprecated name of `dry`, always sent with the same value. Read `dry`."
+              },
               "applied": {
                 "type": "boolean",
                 "description": "True when the draft was written or the workflow renamed or redescribed; false on a dry run and on a no-op."
@@ -20646,6 +20685,7 @@
               "workflowId",
               "workspaceId",
               "dry",
+              "dryRun",
               "applied",
               "diff",
               "diagnostics",
@@ -20671,6 +20711,7 @@
               "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
               "dry": false,
+              "dryRun": false,
               "applied": false,
               "diff": {
                 "noop": true,
@@ -20960,6 +21001,11 @@
                 "type": "boolean",
                 "description": "True when nothing was written because `dry` was set."
               },
+              "dryRun": {
+                "type": "boolean",
+                "deprecated": true,
+                "description": "Deprecated name of `dry`, always sent with the same value. Read `dry`."
+              },
               "applied": {
                 "type": "boolean",
                 "description": "True when the draft was written or the workflow renamed or redescribed; false on a dry run and on a no-op."
@@ -21629,6 +21675,7 @@
               "workflowId",
               "workspaceId",
               "dry",
+              "dryRun",
               "applied",
               "diff",
               "diagnostics",
@@ -21654,6 +21701,7 @@
               "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
               "dry": true,
+              "dryRun": true,
               "applied": false,
               "diff": {
                 "noop": true,
@@ -21919,6 +21967,11 @@
                 "type": "boolean",
                 "description": "True when nothing was written because `dry` was set."
               },
+              "dryRun": {
+                "type": "boolean",
+                "deprecated": true,
+                "description": "Deprecated name of `dry`, always sent with the same value. Read `dry`."
+              },
               "applied": {
                 "type": "boolean",
                 "description": "True when the draft was written or the workflow renamed or redescribed; false on a dry run and on a no-op."
@@ -22588,6 +22641,7 @@
               "workflowId",
               "workspaceId",
               "dry",
+              "dryRun",
               "applied",
               "diff",
               "diagnostics",
@@ -22613,6 +22667,7 @@
               "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
               "dry": false,
+              "dryRun": false,
               "applied": true,
               "diff": {
                 "noop": false,
@@ -27501,6 +27556,11 @@
                 "type": "boolean",
                 "description": "True when nothing was written because `dry` was set."
               },
+              "dryRun": {
+                "type": "boolean",
+                "deprecated": true,
+                "description": "Deprecated name of `dry`, always sent with the same value. Read `dry`."
+              },
               "plan": {
                 "type": "array",
                 "items": {
@@ -28440,6 +28500,7 @@
             "required": [
               "workspaceId",
               "dry",
+              "dryRun",
               "plan",
               "applied",
               "needBlobs",
@@ -28460,6 +28521,7 @@
             "data": {
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
               "dry": false,
+              "dryRun": false,
               "plan": [
                 {
                   "kind": "table",
@@ -28785,6 +28847,11 @@
                 "type": "boolean",
                 "description": "True when nothing was written because `dry` was set."
               },
+              "dryRun": {
+                "type": "boolean",
+                "deprecated": true,
+                "description": "Deprecated name of `dry`, always sent with the same value. Read `dry`."
+              },
               "plan": {
                 "type": "array",
                 "items": {
@@ -29724,6 +29791,7 @@
             "required": [
               "workspaceId",
               "dry",
+              "dryRun",
               "plan",
               "applied",
               "needBlobs",
@@ -29744,6 +29812,7 @@
             "data": {
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
               "dry": true,
+              "dryRun": true,
               "plan": [
                 {
                   "kind": "table",

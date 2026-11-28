@@ -90,7 +90,7 @@ export async function createSftpConnection(config: SftpConnectionConfig): Promis
   }
   config.signal?.throwIfAborted()
 
-  const hostValidation = await validateDatabaseHost(host, 'host')
+  const hostValidation = await validateDatabaseHost(host.trim(), 'host')
   config.signal?.throwIfAborted()
   if (!hostValidation.isValid) throw new Error(hostValidation.error)
 

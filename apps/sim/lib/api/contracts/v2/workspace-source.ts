@@ -10,6 +10,11 @@ import {
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import {
+  deprecatedDryRunResponseField,
+  deprecatedRequestName,
+  foldDeprecatedName,
+} from '@/lib/api/contracts/v2/deprecated-names'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 import {
   provenanceGitShaSchema,
@@ -237,15 +242,20 @@ export const v2GetWorkspaceSourceContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(readDataSchema) },
 })
 
-const applyQuerySchema = z
-  .object({
-    dry: booleanQueryFlagSchema
-      .optional()
-      .describe(
-        'Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.'
-      ),
-  })
-  .strict()
+const applyQuerySchema = foldDeprecatedName(
+  z
+    .object({
+      dry: booleanQueryFlagSchema
+        .optional()
+        .describe(
+          'Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.'
+        ),
+      dryRun: deprecatedRequestName('dry', booleanQueryFlagSchema.optional()),
+    })
+    .strict(),
+  'dryRun',
+  'dry'
+)
 
 const applyBodySchema = z
   .object({
@@ -300,6 +310,7 @@ const applyDataSchema = z
   .object({
     workspaceId: z.string().describe('Workspace id.'),
     dry: z.boolean().describe('True when nothing was written because `dry` was set.'),
+    dryRun: deprecatedDryRunResponseField,
     plan: z.array(changeSchema).describe('Every planned change, no-ops included, in apply order.'),
     refuses: z
       .boolean()

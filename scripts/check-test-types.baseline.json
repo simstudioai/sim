@@ -196,9 +196,6 @@
   "apps/sim/app/api/mcp/servers/route.test.ts": {
     "TS2554": 2
   },
-  "apps/sim/app/api/mcp/servers/test-connection/route.test.ts": {
-    "TS2554": 5
-  },
   "apps/sim/app/api/mothership/chat/stop/route.test.ts": {
     "TS18046": 2,
     "TS2345": 1,

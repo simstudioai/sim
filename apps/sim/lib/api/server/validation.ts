@@ -138,6 +138,11 @@ export function isZodError(error: unknown): error is z.ZodError {
   return error instanceof ZodError
 }
 
+/** The default 400 for a request body that is not valid JSON. */
+export function invalidJsonBodyResponse(): NextResponse<{ error: string }> {
+  return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+}
+
 export function validationErrorResponse(
   error: z.ZodError,
   message = 'Validation error',
@@ -219,7 +224,7 @@ export async function parseJsonBody(
     return {
       success: false,
       reason: 'invalid_json',
-      response: NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 }),
+      response: invalidJsonBodyResponse(),
     }
   }
 }
@@ -272,7 +277,7 @@ export async function parseOptionalJsonBody(
     return {
       success: false,
       reason: 'invalid_json',
-      response: NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 }),
+      response: invalidJsonBodyResponse(),
     }
   }
 }

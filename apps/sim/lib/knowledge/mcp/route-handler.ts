@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server'
 import { organizationKnowledgeMcpContract } from '@/lib/api/contracts/knowledge/mcp'
 import { parseRequest } from '@/lib/api/server'
 import {
+  MCP_PARSE_ERROR_RESPONSES,
   mcpCredentialAuth,
   mcpMethodNotAllowed,
   serveStatelessMcp,
@@ -60,6 +61,7 @@ export function createKnowledgeMcpHandlers() {
       }
       try {
         const parsed = await parseRequest(organizationKnowledgeMcpContract, request, context, {
+          ...MCP_PARSE_ERROR_RESPONSES,
           maxBodyBytes: 64 * 1024,
         })
         if (!parsed.success) return parsed.response

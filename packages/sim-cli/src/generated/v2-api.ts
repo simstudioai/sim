@@ -436,6 +436,7 @@ export type ApplyWorkflowOperationsParams = {
 
 export type ApplyWorkflowOperationsQuery = {
   dry?: boolean
+  dryRun?: boolean
 }
 
 type ApplyWorkflowOperationsBodyRef0 =
@@ -708,6 +709,7 @@ type ApplyWorkflowOperationsResponseRef3 = {
   previewBlockIds?: Record<string, string>
   lint: ApplyWorkflowOperationsResponseRef2
   dry: boolean
+  dryRun: boolean
 }
 
 export type ApplyWorkflowOperationsResponse = {
@@ -722,6 +724,7 @@ export type ApplyWorkflowSourceParams = {
 export type ApplyWorkflowSourceQuery = {
   dry?: boolean
   allowDelete?: boolean
+  dryRun?: boolean
 }
 
 export type ApplyWorkflowSourceBody = {
@@ -779,6 +782,7 @@ export type ApplyWorkflowSourceResponse = {
     workflowId: string
     workspaceId: string
     dry: boolean
+    dryRun: boolean
     applied: boolean
     diff: {
       noop: boolean
@@ -1092,6 +1096,7 @@ export type ApplyWorkspaceSourceParams = {
 
 export type ApplyWorkspaceSourceQuery = {
   dry?: boolean
+  dryRun?: boolean
 }
 
 export type ApplyWorkspaceSourceBody = {
@@ -1172,6 +1177,7 @@ export type ApplyWorkspaceSourceResponse = {
   data: {
     workspaceId: string
     dry: boolean
+    dryRun: boolean
     plan: Array<{
       kind:
         | 'secret'
@@ -5241,6 +5247,7 @@ export type CreateWorkflowFromSourceParams = {
 export type CreateWorkflowFromSourceQuery = {
   dry?: boolean
   allowDelete?: boolean
+  dryRun?: boolean
 }
 
 type CreateWorkflowFromSourceBodyRef0 = string
@@ -5262,6 +5269,7 @@ export type CreateWorkflowFromSourceResponse = {
     workflowId: string
     workspaceId: string
     dry: boolean
+    dryRun: boolean
     applied: boolean
     diff: {
       noop: boolean
@@ -7115,12 +7123,13 @@ export type ExecuteWorkflowBody = {
         version?: number
       }
     | {
-        source: 'draft'
+        source: 'draft' | 'manual'
         entry?:
           | {
               type: 'trigger'
               blockId?: string
               sample?: boolean
+              useMockPayload?: boolean
             }
           | {
               type: 'block'
@@ -14527,6 +14536,7 @@ export type PlanWorkflowSourceResponse = {
     workflowId: string
     workspaceId: string
     dry: boolean
+    dryRun: boolean
     applied: boolean
     diff: {
       noop: boolean
@@ -14875,6 +14885,7 @@ export type PlanWorkspaceSourceResponse = {
   data: {
     workspaceId: string
     dry: boolean
+    dryRun: boolean
     plan: Array<{
       kind:
         | 'secret'
@@ -17268,6 +17279,7 @@ export type ReplaceWorkflowStateParams = {
 
 export type ReplaceWorkflowStateQuery = {
   dry?: boolean
+  dryRun?: boolean
 }
 
 type ReplaceWorkflowStateBodyRef0 = {
@@ -17451,6 +17463,7 @@ type ReplaceWorkflowStateResponseRef1 = {
   needsRedeployment: boolean
   lint: ReplaceWorkflowStateResponseRef0
   dry: boolean
+  dryRun: boolean
 }
 
 export type ReplaceWorkflowStateResponse = {

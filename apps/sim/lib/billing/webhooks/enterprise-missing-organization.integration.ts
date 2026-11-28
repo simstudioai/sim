@@ -11,6 +11,8 @@
  *   seeds an organization owned by that nonexistent user;
  * - acknowledging permanent failures swallows a transient one (an issuance whose Stripe writes
  *   have not landed yet), so the event is never redelivered.
+ * - a self-serve checkout subscription whose metadata claims Enterprise terms is recorded as
+ *   Enterprise.
  *
  * The copied tables carry no foreign keys, so an attempted organization creation for a dangling
  * reference persists here instead of being rolled back by the member foreign key: the suite
@@ -367,5 +369,36 @@ describe('Enterprise issuance that Stripe has not caught up with', () => {
     expect(operation.payload).toMatchObject({
       applicationResult: { subscriptionId: customer.stripeSubscriptionId },
     })
+  })
+})
+
+describe('Self-serve checkout subscription that claims Enterprise terms', () => {
+  it('keeps the subscription on its checked-out plan', async () => {
+    const organizationId = `org_${generateId()}`
+    await testDatabase
+      .insert(organization)
+      .values({ id: organizationId, name: 'Org', slug: organizationId })
+    const rowId = generateId()
+    // The Stripe plugin stamps its row id on every checkout subscription's metadata.
+    const customer = await createEnterpriseCustomer(organizationId, {
+      metadata: { subscriptionId: rowId, usageLimitCredits: String(USAGE_LIMIT_CREDITS) },
+    })
+    await testDatabase.insert(subscription).values({
+      id: rowId,
+      plan: 'team_6000',
+      referenceId: organizationId,
+      status: 'active',
+      seats: 5,
+      stripeSubscriptionId: customer.stripeSubscriptionId,
+      stripeCustomerId: customer.stripeCustomerId,
+      cancelAtPeriodEnd: false,
+    })
+
+    const response = await renew(customer.stripeSubscriptionId)
+
+    expect(response.status).toBe(200)
+    expect(await subscriptionRowsFor(customer.stripeSubscriptionId)).toEqual([
+      { referenceId: organizationId, plan: 'team_6000' },
+    ])
   })
 })

@@ -6,6 +6,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/attribution'
+import { isHostedKeyPaidPlanFailure } from '@/lib/billing/core/hosted-key-access'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -301,7 +302,11 @@ export async function executeWorkflow(
       attachExecutionResult(error, executionResult)
     }
     const errorDiagnostic = loggingSession.projectDiagnosticError(error)
-    logger.error('Workflow execution failed', errorDiagnostic, { requestId })
+    if (isHostedKeyPaidPlanFailure(toError(error).message)) {
+      logger.info('Workflow execution refused for the payer plan', errorDiagnostic, { requestId })
+    } else {
+      logger.error('Workflow execution failed', errorDiagnostic, { requestId })
+    }
 
     captureServerEvent(
       actorUserId,

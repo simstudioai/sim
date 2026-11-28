@@ -196,10 +196,15 @@ const V2_SOURCE_PLAN_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 60_000,
 }
 
-/** Whether `request` asks for a dry run (`?dry=true`), as the source apply contract reads it. */
+/**
+ * Whether `request` asks for a dry run (`?dry=true`, or its deprecated name `?dryRun=true`), as
+ * the source apply contract reads it. It runs before the query is parsed, so a request naming
+ * both with different values is charged here and refused by the parse.
+ */
 function isDryRequest(request: NextRequest): boolean {
+  const { searchParams } = request.nextUrl
   const flag = booleanQueryFlagSchema.safeParse(
-    request.nextUrl.searchParams.get('dry') ?? undefined
+    searchParams.get('dry') ?? searchParams.get('dryRun') ?? undefined
   )
   return flag.success && flag.data
 }

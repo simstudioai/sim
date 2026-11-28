@@ -1,4 +1,5 @@
 import dns from 'node:dns/promises'
+import { isIP } from 'node:net'
 import { Readable } from 'node:stream'
 import zlib from 'node:zlib'
 import http from 'http'
@@ -145,12 +146,33 @@ export async function validateAndPinProxyUrl(
 }
 
 /**
+ * One DNS name: dot-separated labels of letters, digits, `-`, and `_` (Docker
+ * and K8s service names carry underscores), with an optional trailing dot.
+ */
+const DATABASE_HOSTNAME_PATTERN =
+  /^(?=.{1,253}\.?$)[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?(?:\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)*\.?$/
+
+/**
+ * True when `host` names exactly one host: a DNS name, an IPv4 literal, or an
+ * IPv6 literal (bracketed or bare, no zone id). Connection strings give `,`,
+ * `/`, `@`, `?`, `#`, and `:` structural meaning, so a value carrying any of
+ * them could name hosts, ports, or options the address check never judged.
+ */
+function isSingleDatabaseHost(host: string): boolean {
+  const bare = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
+  if (bare.includes(':')) return isIP(bare) === 6 && !bare.includes('%')
+  return bare === host && DATABASE_HOSTNAME_PATTERN.test(host)
+}
+
+/**
  * Validates a database hostname by resolving DNS and checking the resolved IP
  * against private/reserved ranges to prevent SSRF via database connections.
  *
- * Permissive about hostname format, so a legitimate database host is not
- * rejected on shape alone — Docker and K8s service names carry underscores that
- * a strict RFC check would refuse. Only the address is judged.
+ * The value must be exactly one hostname or IP literal (see
+ * {@link isSingleDatabaseHost}); a port, credentials, path, query, or second
+ * host is refused before any lookup, because drivers that build a connection
+ * string from it would otherwise connect to hosts this check never saw.
+ * Underscores are accepted for Docker and K8s service names.
  *
  * Self-hosted operators reach a database on their private network (e.g. a
  * Docker/Swarm service name that resolves to an internal IP) by naming it in the
@@ -174,6 +196,13 @@ export async function validateDatabaseHost(
 ): Promise<AsyncValidationResult> {
   if (!host) {
     return { isValid: false, error: `${paramName} is required` }
+  }
+
+  if (!isSingleDatabaseHost(host.toLowerCase())) {
+    return {
+      isValid: false,
+      error: `${paramName} must be a single hostname or IP address, without a port, credentials, path, or options`,
+    }
   }
 
   const cleanHost = unwrapIpv6Brackets(host.toLowerCase())

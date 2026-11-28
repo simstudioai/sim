@@ -1,3 +1,4 @@
+import { presentDry } from '@/lib/api/contracts/v2/deprecated-names'
 import { v2ApplyWorkflowOperationsContract } from '@/lib/api/contracts/v2/workflows'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
@@ -53,7 +54,7 @@ export const POST = defineV2JsonRoute({
       lint: presentWorkflowLint(result.lint),
       warnings: result.warnings,
       needsRedeployment: result.needsRedeployment,
-      dry: result.dryRun,
+      ...presentDry(result.dryRun),
     },
   }),
 })

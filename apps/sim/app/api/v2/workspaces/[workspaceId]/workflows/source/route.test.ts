@@ -194,4 +194,14 @@ describe('POST /api/v2/workspaces/{workspaceId}/workflows/source', () => {
     expect(response.status).toBe(200)
     expect(mocks.create.mock.calls[0][0].input).toMatchObject({ dryRun: true })
   })
+
+  it('treats the pre-rename ?dryRun as dry and answers under both names', async () => {
+    mocks.create.mockResolvedValue({ ...created, dryRun: true, applied: false })
+
+    const response = await POST(createRequest({ files }, '?dryRun=true'), context)
+
+    expect(response.status).toBe(200)
+    expect(mocks.create.mock.calls[0][0].input).toMatchObject({ dryRun: true })
+    expect((await response.json()).data).toMatchObject({ dry: true, dryRun: true })
+  })
 })

@@ -32,6 +32,7 @@ vi.mock('@/lib/billing/enterprise-outbox', () => {
 
 import {
   assertPersonalCheckoutAllowed,
+  assertSelfServeCheckoutRequest,
   authorizeSubscriptionReference,
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
@@ -74,7 +75,6 @@ describe('authorizeSubscriptionReference', () => {
     ).rejects.toThrow(/Enterprise plan setup in progress/)
 
     expect(mockAssertNoUnresolved).toHaveBeenCalledWith(expect.anything(), 'org-1')
-    expect(mockIsOwnerOrAdmin).not.toHaveBeenCalled()
   })
 
   it('blocks an organization checkout while its bound Stripe subscription is incomplete', async () => {
@@ -88,7 +88,6 @@ describe('authorizeSubscriptionReference', () => {
 
     expect(mockHasPaidSubscription).not.toHaveBeenCalled()
     expect(mockAssertNoUnresolved).not.toHaveBeenCalled()
-    expect(mockIsOwnerOrAdmin).not.toHaveBeenCalled()
   })
 
   it('rejects an organization checkout for a pro plan — org references only hold Team/Enterprise', async () => {
@@ -97,7 +96,6 @@ describe('authorizeSubscriptionReference', () => {
     ).rejects.toThrow('Organizations can only subscribe to Team or Enterprise plans.')
 
     expect(mockHasPaidSubscription).not.toHaveBeenCalled()
-    expect(mockIsOwnerOrAdmin).not.toHaveBeenCalled()
   })
 
   it('rejects an organization checkout when the plan cannot be determined (fail closed)', async () => {
@@ -106,12 +104,52 @@ describe('authorizeSubscriptionReference', () => {
     ).rejects.toThrow('Organizations can only subscribe to Team or Enterprise plans.')
   })
 
+  it("refuses a non-member without revealing the organization's billing state", async () => {
+    mockIsOwnerOrAdmin.mockResolvedValueOnce(false)
+    mockHasPaidSubscription.mockResolvedValueOnce(true)
+
+    await expect(
+      authorizeSubscriptionReference('outsider-1', 'org-1', 'upgrade-subscription', 'team_6000')
+    ).resolves.toBe(false)
+
+    expect(mockHasPaidSubscription).not.toHaveBeenCalled()
+    expect(mockAssertNoUnresolved).not.toHaveBeenCalled()
+  })
+
   it('blocks an organization checkout when the organization already has an active subscription', async () => {
     mockHasPaidSubscription.mockResolvedValueOnce(true)
 
     await expect(
       authorizeSubscriptionReference('owner-1', 'org-1', 'upgrade-subscription', 'team_6000')
     ).rejects.toThrow(/already has an active subscription/)
+  })
+})
+
+describe('assertSelfServeCheckoutRequest', () => {
+  it.each(['enterprise', 'Enterprise', ' ENTERPRISE '])(
+    'refuses a self-serve Enterprise checkout named %j with a client error',
+    (plan) => {
+      expect(() => assertSelfServeCheckoutRequest({ plan })).toThrow(
+        expect.objectContaining({ statusCode: 400 })
+      )
+    }
+  )
+
+  it('refuses a checkout that carries subscription metadata', () => {
+    expect(() =>
+      assertSelfServeCheckoutRequest({ plan: 'team_6000', metadata: { plan: 'enterprise' } })
+    ).toThrow(expect.objectContaining({ statusCode: 400 }))
+  })
+
+  it.each([0, -3, 2.5, 100_000, '5'])('refuses %j seats', (seats) => {
+    expect(() => assertSelfServeCheckoutRequest({ plan: 'team_6000', seats })).toThrow(
+      expect.objectContaining({ statusCode: 400 })
+    )
+  })
+
+  it('admits a Pro checkout and a Team checkout for whole seats', () => {
+    expect(() => assertSelfServeCheckoutRequest({ plan: 'pro_6000' })).not.toThrow()
+    expect(() => assertSelfServeCheckoutRequest({ plan: 'team_25000', seats: 12 })).not.toThrow()
   })
 })
 

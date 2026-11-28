@@ -1,4 +1,5 @@
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
+import { presentDry } from '@/lib/api/contracts/v2/deprecated-names'
 import {
   v2GetWorkflowStateContract,
   v2ReplaceWorkflowStateContract,
@@ -71,7 +72,7 @@ export const PUT = defineV2JsonRoute({
       warnings,
       needsRedeployment,
       lint: presentWorkflowLint(lint),
-      dry: dryRun,
+      ...presentDry(dryRun),
     },
   }),
 })
