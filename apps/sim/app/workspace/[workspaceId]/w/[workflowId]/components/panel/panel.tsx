@@ -331,9 +331,11 @@ export const Panel = memo(function Panel() {
   const canMutateWorkflow = userPermissions.canEdit && !workflowLocked
   const { isSnapshotView } = useCurrentWorkflow()
 
-  const { chatId: copilotChatId, setChatId: setCopilotChatId } = useCopilotChatSelection(
-    activeWorkflowId ?? undefined
-  )
+  const {
+    chatId: copilotChatId,
+    setChatId: setCopilotChatId,
+    peekChatId: peekCopilotChatId,
+  } = useCopilotChatSelection(activeWorkflowId ?? undefined)
 
   const copilotDraftWorkflowId = activeWorkflowId ?? scopedWorkflowId ?? undefined
   const copilotDraftScopeKey = copilotDraftKey(workspaceId, copilotDraftWorkflowId, copilotChatId)
@@ -395,7 +397,8 @@ export const Panel = memo(function Panel() {
     (chatId: string) => {
       // Leave the chat first: its deleted event drops the open transcript, which would refetch.
       // Auto-select must not reopen it from the list while the delete is in flight.
-      if (copilotChatId === chatId) {
+      const wasOpen = copilotChatId === chatId
+      if (wasOpen) {
         if (activeWorkflowId) autoSelectAttemptedFor.add(activeWorkflowId)
         setCopilotChatId(undefined)
       }
@@ -408,6 +411,8 @@ export const Panel = memo(function Panel() {
         {
           onError: (err) => {
             logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
+            // The chat still exists: reopen it unless another chat was opened or started meanwhile.
+            if (wasOpen && !peekCopilotChatId()) setCopilotChatId(chatId)
           },
         }
       )
@@ -418,6 +423,7 @@ export const Panel = memo(function Panel() {
       copilotChatId,
       copilotDraftWorkflowId,
       deleteCopilotChat,
+      peekCopilotChatId,
       setCopilotChatId,
       workspaceId,
     ]
