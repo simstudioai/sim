@@ -138,6 +138,7 @@ export const workspaceSourceOpenApiRoutes = [
             data: {
               workspaceId: WORKSPACE_ID,
               dry: false,
+              dryRun: false,
               plan: [{ kind: 'table', key: 'leads', action: 'noop', id: TABLE_ID }],
               applied: [],
               needBlobs: [],
@@ -192,6 +193,7 @@ export const workspaceSourceOpenApiRoutes = [
             data: {
               workspaceId: WORKSPACE_ID,
               dry: true,
+              dryRun: true,
               plan: [{ kind: 'table', key: 'leads', action: 'noop', id: TABLE_ID }],
               applied: [],
               needBlobs: [],

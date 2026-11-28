@@ -5,6 +5,7 @@ import { KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { workflowCodec, workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import { kindOfPath } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import { presentDry } from '@/lib/api/contracts/v2/deprecated-names'
 import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
 import { renderSourceSlotBusy } from '@/lib/workflows/api/source-slots'
 import type { ApplyWorkspaceSourceResult } from '@/lib/workspace-source/application/apply-workspace-source'
@@ -56,9 +57,9 @@ export function withBoundWorkspaceFindings<
   return { ...result, diagnostics: boundAnswerFindings(result.diagnostics, WORKSPACE_ANSWER_BOUND) }
 }
 
-/** An apply's or plan's result as the routes answer it: {@link withBoundWorkspaceFindings}, with `dry`. */
+/** An apply's or plan's result as the routes answer it: {@link withBoundWorkspaceFindings}, with `dry` (and its deprecated name `dryRun`). */
 export function presentWorkspaceApply({ dryRun, ...result }: ApplyWorkspaceSourceResult) {
-  return { ...withBoundWorkspaceFindings(result), dry: dryRun }
+  return { ...withBoundWorkspaceFindings(result), ...presentDry(dryRun) }
 }
 
 /** Non-workflow text bytes (declarations and table rows) one source-write unit covers. */
