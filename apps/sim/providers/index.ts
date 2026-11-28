@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
+import { HostedKeyRequiresPaidPlanError } from '@/lib/billing/core/hosted-key-access'
 import { env, envNumber } from '@/lib/core/config/env'
 import type { ConversationUsageTotal } from '@/lib/memory/conversation-types'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
@@ -274,11 +275,13 @@ export async function executeProviderRequest(
         isBYOK,
       })
     } catch (error) {
-      logger.error('Failed to resolve API key:', {
-        provider: providerId,
-        model: request.model,
-        error: toError(error).message,
-      })
+      const details = { provider: providerId, model: request.model, error: toError(error).message }
+      // A free payer refused Sim's hosted key is an expected outcome, not a fault.
+      if (error instanceof HostedKeyRequiresPaidPlanError) {
+        logger.info('Hosted key refused for a free payer', details)
+      } else {
+        logger.error('Failed to resolve API key:', details)
+      }
       throw error
     }
   }
