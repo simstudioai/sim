@@ -199,10 +199,21 @@ describe('authentication audit history in PostgreSQL', () => {
   })
 
   it('answers a non-string email with a validation error instead of crashing the sign-in hook', async () => {
-    const response = await auth.handler(
-      request('/sign-in/email', { email: { $ne: null }, password: fixturePassword })
-    )
-    expect(response.status).toBe(400)
+    const agent = `Malformed sign-in fixture ${generateId()}`
+    const attempt = request('/sign-in/email', { email: { $ne: null }, password: fixturePassword })
+    attempt.headers.set('user-agent', agent)
+    try {
+      const response = await auth.handler(attempt)
+      expect(response.status).toBe(400)
+      // The rejection is audited anonymously (no resourceId), which the user-scoped cleanup misses.
+      await expect
+        .poll(
+          async () => (await db.select().from(auditLog).where(eq(auditLog.userAgent, agent))).length
+        )
+        .toBe(1)
+    } finally {
+      await db.delete(auditLog).where(eq(auditLog.userAgent, agent))
+    }
   })
 
   it('records suspended-account denial without claiming a successful login', async () => {
