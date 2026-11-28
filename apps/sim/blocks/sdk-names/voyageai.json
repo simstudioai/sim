@@ -1,0 +1,7 @@
+{
+  "namespace": "voyageai",
+  "methods": {
+    "voyageai_contextualized_embeddings": "contextualizedEmbeddings",
+    "voyageai_rerank": "rerank"
+  }
+}

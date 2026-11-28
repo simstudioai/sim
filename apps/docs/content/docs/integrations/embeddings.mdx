@@ -35,7 +35,7 @@ Knowledge bases embed separately. Each base fixes an embedding model and vector 
 
 ## Use the block [#usage-instructions]
 
-Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.
+Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, Mistral, and Voyage AI embedding models, plus embedding models on a self-hosted Ollama.
 
 ## Actions
 
@@ -171,6 +171,36 @@ Generate embeddings from text using Mistral's embedding models
 | --------- | ---- | -------- | ----------- |
 | `input` | string | Yes | Text to embed, or an array of texts to embed in one call |
 | `model` | string | No | Embedding model to use |
+| `taskType` | string | No | What the embedding is for, when the model supports task conditioning: document, query, similarity, classification, or clustering |
+| `dimensions` | number | No | Output dimensions, when the model supports truncation. Defaults to native. |
+| `apiKey` | string | Yes | API key for the selected embedding provider |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `embeddings` | json | Generated embedding vectors, one per input, in input order |
+| `model` | string | Model used |
+| `provider` | string | Provider used |
+| `dimensions` | number | Dimensionality of each returned vector |
+| `usage` | json | Token usage |
+|   ↳ `prompt_tokens` | number | Tokens in the input |
+|   ↳ `total_tokens` | number | Total tokens billed |
+
+</ReferenceDetails>
+
+### Voyage AI Embeddings
+
+Generate embeddings from text using Voyage AI's embedding models
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Text to embed, or an array of texts to embed in one call |
+| `model` | string | Yes | Embedding model to use |
 | `taskType` | string | No | What the embedding is for, when the model supports task conditioning: document, query, similarity, classification, or clustering |
 | `dimensions` | number | No | Output dimensions, when the model supports truncation. Defaults to native. |
 | `apiKey` | string | Yes | API key for the selected embedding provider |

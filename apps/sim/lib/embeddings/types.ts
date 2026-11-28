@@ -11,6 +11,7 @@ export type EmbeddingProviderKind =
   | 'gemini'
   | 'cohere'
   | 'mistral'
+  | 'voyage'
   | 'ollama'
 
 /**
@@ -27,7 +28,7 @@ export type EmbeddingCatalogProvider = Exclude<EmbeddingProviderKind, 'azure-ope
 export type KeyedEmbeddingProvider = Exclude<EmbeddingCatalogProvider, 'ollama'>
 
 /** Provider id for `estimateTokenCount` so token counts match the embedding provider's tokenization. */
-export type TokenizerProviderId = 'openai' | 'google' | 'cohere' | 'mistral' | 'ollama'
+export type TokenizerProviderId = 'openai' | 'google' | 'cohere' | 'mistral' | 'voyage' | 'ollama'
 
 /**
  * What the embedding will be used for. Providers that support task-conditioned

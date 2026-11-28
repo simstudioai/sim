@@ -136,7 +136,9 @@ export async function executeEmbedding(
       )
     }
   } else {
-    resolvedModel = model || DEFAULT_MODEL_BY_PROVIDER[provider]
+    const namedModel = model || DEFAULT_MODEL_BY_PROVIDER[provider]
+    if (!namedModel) return failureResponse(`model is required for ${provider}`, 400)
+    resolvedModel = namedModel
   }
 
   if (provider !== 'openrouter') {
