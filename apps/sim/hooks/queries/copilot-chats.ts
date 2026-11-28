@@ -56,8 +56,15 @@ interface DeleteCopilotChatVariables {
 export function useDeleteCopilotChat() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ chatId }: DeleteCopilotChatVariables) =>
-      requestJson(deleteCopilotChatContract, { body: { chatId } }),
+    mutationFn: async ({ chatId }: DeleteCopilotChatVariables) => {
+      try {
+        await requestJson(deleteCopilotChatContract, { body: { chatId } })
+      } catch (error) {
+        // Deleted elsewhere between the route's lookup and its delete: the chat is gone either way.
+        if (error instanceof ApiClientError && error.status === 404) return
+        throw error
+      }
+    },
     onSuccess: (_data, { workflowId, draftKey }) => {
       // The draft store is persisted, so an unpruned key survives forever.
       if (draftKey) useMothershipDraftsStore.getState().clearDraft(draftKey)
