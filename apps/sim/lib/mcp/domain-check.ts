@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getAllowedMcpDomainsFromEnv } from '@/lib/core/config/env-flags'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { isHostNotFound } from '@/lib/credentials/token-service-accounts/errors'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpDomainCheck')
@@ -38,8 +39,16 @@ export class McpSsrfError extends Error {
   }
 }
 
+/**
+ * The MCP server hostname did not resolve. `hostNotFound` is true only when the
+ * resolver proved the name doesn't exist (`ENOTFOUND`), which is the caller's input;
+ * a transient lookup failure (`EAI_AGAIN`, timeout) leaves it false.
+ */
 export class McpDnsResolutionError extends Error {
-  constructor(hostname: string) {
+  constructor(
+    hostname: string,
+    readonly hostNotFound = false
+  ) {
     super(`MCP server URL hostname "${hostname}" could not be resolved`)
     this.name = 'McpDnsResolutionError'
   }
@@ -154,7 +163,7 @@ export async function validateMcpServerSsrf(
       // Fall back to the raw URL in the message.
     }
     logger.warn('DNS lookup failed for MCP server URL', { hostname })
-    throw new McpDnsResolutionError(hostname)
+    throw new McpDnsResolutionError(hostname, isHostNotFound(validation.cause))
   }
   logger.warn('MCP server URL refused by egress policy', { error })
   throw new McpSsrfError(error)
