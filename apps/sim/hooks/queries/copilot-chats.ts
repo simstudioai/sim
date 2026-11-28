@@ -1,7 +1,11 @@
-import { skipToken, useQuery } from '@tanstack/react-query'
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { type CopilotChatListItem, listCopilotChatsContract } from '@/lib/api/contracts/copilot'
+import {
+  type CopilotChatListItem,
+  deleteCopilotChatContract,
+  listCopilotChatsContract,
+} from '@/lib/api/contracts/copilot'
 
 export type { CopilotChatListItem }
 
@@ -36,5 +40,14 @@ export function useCopilotChats(workflowId?: string) {
     queryKey: copilotChatsKeys.list(workflowId),
     queryFn: workflowId ? ({ signal }) => fetchCopilotChats(workflowId, signal) : skipToken,
     staleTime: COPILOT_CHAT_LIST_STALE_TIME,
+  })
+}
+
+/** Deletes a workflow copilot chat and refreshes that workflow's chat list. */
+export function useDeleteCopilotChat(workflowId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (chatId: string) => requestJson(deleteCopilotChatContract, { body: { chatId } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: copilotChatsKeys.list(workflowId) }),
   })
 }
