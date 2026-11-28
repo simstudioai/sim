@@ -61,21 +61,37 @@ export function formatLiteralForCode(value: unknown, language: 'javascript' | 'p
  * so the value a condition compares is byte-identical to what it was before — this is a
  * syntax guard, not a value transform.
  *
+ * `{` is escaped the same way, so the text can never form a `{{NAME}}` placeholder: the
+ * execution-boundary compiler scans the whole script and would expand one that run data
+ * carried into the secret it names. `keepEnvPlaceholders` opts out for author-written text.
+ *
  * JavaScript only: `\$`, `` \` `` and `\/` are not identity escapes in Python, where they
  * would change the value. Code blocks bind their values as runtime context variables
  * instead of splicing them, which is why they need no escaping in any language.
  */
-export function escapeInertStringContent(value: string): string {
+export function escapeInertStringContent(
+  value: string,
+  { keepEnvPlaceholders = false }: InertStringOptions = {}
+): string {
   return value
     .replace(/\\/g, '\\\\')
-    .replace(/['"`$/]/g, '\\$&')
+    .replace(keepEnvPlaceholders ? /['"`$/]/g : /['"`$/{]/g, '\\$&')
     .replace(/\n/g, '\\n')
     .replace(/\r/g, '\\r')
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029')
 }
 
+export interface InertStringOptions {
+  /** Leaves `{{NAME}}` placeholders intact; only for text an author wrote. */
+  keepEnvPlaceholders?: boolean
+}
+
 /** Wraps {@link escapeInertStringContent} output as a complete JavaScript string literal. */
-export function formatInertStringLiteral(value: string, quote: '"' | "'" = "'"): string {
-  return `${quote}${escapeInertStringContent(value)}${quote}`
+export function formatInertStringLiteral(
+  value: string,
+  quote: '"' | "'" = "'",
+  options: InertStringOptions = {}
+): string {
+  return `${quote}${escapeInertStringContent(value, options)}${quote}`
 }

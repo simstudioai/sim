@@ -24,6 +24,7 @@ import type { ExecutionContext, UserFile } from '@/executor/types'
 import {
   escapeInertStringContent,
   formatInertStringLiteral,
+  type InertStringOptions,
 } from '@/executor/utils/code-formatting'
 import { isJSONString, mayBeJsonText } from '@/executor/utils/json'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
@@ -131,6 +132,50 @@ async function replaceEnvVarsAsync(
     cursor = index + fullMatch.length
   }
   return result + template.slice(cursor)
+}
+
+/**
+ * Records the spans of the substituted text that references filled with run data, so the
+ * `{{NAME}}` pass that follows expands only placeholders the author wrote. Substitutions must be
+ * recorded in template order, as {@link replaceValidReferencesAsync} makes them.
+ */
+function createRunDataSpanTracker() {
+  const spans: Array<[start: number, end: number]> = []
+  let shift = 0
+  return {
+    record(templateIndex: number, match: string, replacement: string, authored: boolean): void {
+      const start = templateIndex + shift
+      if (!authored && replacement !== match && replacement.length > 0) {
+        spans.push([start, start + replacement.length])
+      }
+      shift += replacement.length - match.length
+    },
+    overlaps(start: number, end: number): boolean {
+      return spans.some(([spanStart, spanEnd]) => spanStart < end && start < spanEnd)
+    },
+  }
+}
+
+interface TrackedReference {
+  context: ResolutionContext
+  provenance: { containsResolvedSecret: boolean; authoredWorkflowVariable: boolean }
+}
+
+/** Derives a context that records what the resolvers report while resolving one reference. */
+function trackReference(resolutionContext: ResolutionContext): TrackedReference {
+  const provenance = { containsResolvedSecret: false, authoredWorkflowVariable: false }
+  return {
+    provenance,
+    context: {
+      ...resolutionContext,
+      onResolvedSecretReference: () => {
+        provenance.containsResolvedSecret = true
+      },
+      onAuthoredWorkflowVariable: () => {
+        provenance.authoredWorkflowVariable = true
+      },
+    },
+  }
 }
 
 /**
@@ -755,7 +800,8 @@ export class VariableResolver {
           return replacement
         }
 
-        const resolved = await this.resolveReference(match, resolutionContext)
+        const { context: referenceContext, provenance } = trackReference(resolutionContext)
+        const resolved = await this.resolveReference(match, referenceContext)
         if (resolved === undefined) {
           displayResult += match
           return match
@@ -804,7 +850,9 @@ export class VariableResolver {
           throw getNestedLargeValueMaterializationError()
         }
 
-        if (this.canInlineResolvedCodeLiteral(effectiveValue, match)) {
+        if (
+          this.canInlineResolvedCodeLiteral(effectiveValue, provenance.authoredWorkflowVariable)
+        ) {
           const replacement = this.blockResolver.formatValueForBlock(
             effectiveValue,
             BlockType.FUNCTION,
@@ -1094,18 +1142,16 @@ export class VariableResolver {
    * is what let a runtime-assigned variable or loop item carrying trigger data close the
    * string it landed in and run as code.
    *
-   * The placeholder case is admitted only for a workflow variable, never for a loop item or
-   * any other run value. Whoever supplies the text picks which secret the compiler expands
-   * into the generated source, so that choice stays with the surface an author configures.
+   * The placeholder case is admitted only for a workflow variable's author-stored value, never
+   * for a loop item, a value the Variables block assigned during the run, or any other run
+   * value. Whoever supplies the text picks which secret the compiler expands into the
+   * generated source, so that choice stays with the surface an author configures.
    */
-  private canInlineResolvedCodeLiteral(value: unknown, reference: string): boolean {
+  private canInlineResolvedCodeLiteral(value: unknown, authoredWorkflowVariable: boolean): boolean {
     if (value === null || typeof value === 'number' || typeof value === 'boolean') {
       return true
     }
-    if (typeof value !== 'string') {
-      return false
-    }
-    if (parseReferencePath(reference)[0] !== REFERENCE.PREFIX.VARIABLE) {
+    if (typeof value !== 'string' || !authoredWorkflowVariable) {
       return false
     }
     return createEnvVarPattern().test(value) && !/['"`$\\\n\r\u2028\u2029]/.test(value)
@@ -1867,21 +1913,17 @@ export class VariableResolver {
     const spliceReference = placeholderSplicer(template, options.jsonText)
     let projectedReferenceResult = ''
     let projectedReferenceCursor = 0
-    let result = await replaceValidReferencesAsync(template, async (match, index) => {
-      if (replacementError) return match
-
+    const runDataSpans = createRunDataSpanTracker()
+    const resolveReferenceText = async (
+      match: string,
+      index: number,
+      { context, provenance }: TrackedReference
+    ): Promise<string> => {
       projectedReferenceResult += template.slice(projectedReferenceCursor, index)
       projectedReferenceCursor = index + match.length
-      let containsResolvedSecret = false
-      const referenceContext: ResolutionContext = {
-        ...resolutionContext,
-        onResolvedSecretReference: () => {
-          containsResolvedSecret = true
-        },
-      }
 
       try {
-        const resolved = await this.resolveReference(match, referenceContext)
+        const resolved = await this.resolveReference(match, context)
         if (resolved === undefined) {
           projectedReferenceResult += match
           return match
@@ -1893,7 +1935,6 @@ export class VariableResolver {
             projectedReferenceResult += formatted
             return formatted
           }
-          projectedReferenceResult += ''
           return ''
         }
 
@@ -1904,13 +1945,20 @@ export class VariableResolver {
           index + match.length,
           typeof resolved === 'string'
         )
-        projectedReferenceResult += containsResolvedSecret ? match : formatted
+        projectedReferenceResult += provenance.containsResolvedSecret ? match : formatted
         return formatted
       } catch (error) {
         replacementError = toError(error)
         projectedReferenceResult += match
         return match
       }
+    }
+    let result = await replaceValidReferencesAsync(template, async (match, index) => {
+      if (replacementError) return match
+      const reference = trackReference(resolutionContext)
+      const replacement = await resolveReferenceText(match, index, reference)
+      runDataSpans.record(index, match, replacement, reference.provenance.authoredWorkflowVariable)
+      return replacement
     })
     projectedReferenceResult += template.slice(projectedReferenceCursor)
 
@@ -1920,6 +1968,7 @@ export class VariableResolver {
 
     const spliceEnvVar = placeholderSplicer(result, options.jsonText)
     result = await replaceEnvVarsAsync(result, async (match, index) => {
+      if (runDataSpans.overlaps(index, index + match.length)) return match
       const resolved = await this.resolveReference(match, resolutionContext)
       if (typeof resolved !== 'string') return match
       return spliceEnvVar(resolved, index, index + match.length, true)
@@ -1957,13 +2006,7 @@ export class VariableResolver {
 
       projectedReferenceResult += template.slice(projectedReferenceCursor, index)
       projectedReferenceCursor = index + match.length
-      let containsResolvedSecret = false
-      const referenceContext: ResolutionContext = {
-        ...resolutionContext,
-        onResolvedSecretReference: () => {
-          containsResolvedSecret = true
-        },
-      }
+      const { context: referenceContext, provenance } = trackReference(resolutionContext)
 
       try {
         const resolved = await this.resolveReference(match, referenceContext)
@@ -1978,17 +2021,21 @@ export class VariableResolver {
         }
 
         if (typeof resolved === 'string') {
-          const formatted = formatInertStringLiteral(resolved)
-          projectedReferenceResult += containsResolvedSecret ? match : formatted
+          const formatted = formatInertStringLiteral(resolved, "'", {
+            keepEnvPlaceholders: provenance.authoredWorkflowVariable,
+          })
+          projectedReferenceResult += provenance.containsResolvedSecret ? match : formatted
           return formatted
         }
         if (typeof resolved === 'object' && resolved !== null) {
-          const formatted = this.formatConditionJson(resolved, scan, index)
-          projectedReferenceResult += containsResolvedSecret ? match : formatted
+          const formatted = this.formatConditionJson(resolved, scan, index, {
+            keepEnvPlaceholders: provenance.authoredWorkflowVariable,
+          })
+          projectedReferenceResult += provenance.containsResolvedSecret ? match : formatted
           return formatted
         }
         const formatted = String(resolved)
-        projectedReferenceResult += containsResolvedSecret ? match : formatted
+        projectedReferenceResult += provenance.containsResolvedSecret ? match : formatted
         return formatted
       } catch (error) {
         replacementError = toError(error)
@@ -2030,8 +2077,13 @@ export class VariableResolver {
    * surrounding context wrongly, and a quote inside a regex literal is enough to do that.
    * Splicing raw JSON would make that heuristic load-bearing for injection.
    */
-  private formatConditionJson(value: object, scan: CodeTemplateScan, matchIndex: number): string {
-    const escaped = escapeInertStringContent(JSON.stringify(value))
+  private formatConditionJson(
+    value: object,
+    scan: CodeTemplateScan,
+    matchIndex: number,
+    options: InertStringOptions
+  ): string {
+    const escaped = escapeInertStringContent(JSON.stringify(value), options)
     const quoteContext = this.getCodeStringQuoteContext(scan, matchIndex, 'javascript')
     return quoteContext === null ? `JSON.parse('${escaped}')` : escaped
   }

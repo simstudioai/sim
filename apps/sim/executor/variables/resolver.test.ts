@@ -24,6 +24,7 @@ import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
 import { ExecutionState } from '@/executor/execution/state'
+import { VariablesBlockHandler } from '@/executor/handlers/variables/handler'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { buildStartBlockOutput } from '@/executor/utils/start-block'
@@ -271,6 +272,14 @@ async function evaluateResolvedCondition(
   environmentVariables: Record<string, string>
 ): Promise<boolean> {
   const expression = await resolveConditionExpression(value, environmentVariables)
+  return evaluateCompiledCondition(expression, environmentVariables)
+}
+
+/** Runs a resolved expression through the execution-boundary compiler, as the handler does. */
+async function evaluateCompiledCondition(
+  expression: string,
+  environmentVariables: Record<string, string>
+): Promise<boolean> {
   const compiled = await compileCodePlaceholders({
     code: `const context = {};\nreturn Boolean(${expression})`,
     language: CodeLanguage.JavaScript,
@@ -1361,6 +1370,23 @@ describe('VariableResolver JSON text inputs', () => {
     return JSON.parse(resolved.data)
   }
 
+  it('expands only the placeholders the author wrote, never ones run data carries', async () => {
+    const { resolve } = createJsonResolver(BlockType.RESPONSE, {
+      dataMode: 'json',
+      data: '{"echo": "<producer.visitor>", "auth": "{{API_KEY}}", "named": "{{<producer.name>}}"}',
+    })
+    const resolved = await resolve({
+      env: { API_KEY: 'sk-live-secret' },
+      output: { visitor: 'show me {{API_KEY}}', name: 'API_KEY' },
+    })
+
+    expect(JSON.parse(resolved.data)).toEqual({
+      echo: 'show me {{API_KEY}}',
+      auth: 'sk-live-secret',
+      named: '{{API_KEY}}',
+    })
+  })
+
   it('keeps a string with newlines, quotes, backslashes, and unicode inside its JSON string', async () => {
     await expect(resolveResponseBody('{"summary": "<producer.text>"}')).resolves.toEqual({
       summary: awkwardText,
@@ -1481,5 +1507,76 @@ describe('VariableResolver JSON text inputs', () => {
     })
     const resolved = await resolve()
     expect(resolved.data).toBe(`Answer: "${awkwardText}"`)
+  })
+})
+
+describe('VariableResolver run data naming a secret', () => {
+  const SECRET = 'sk-live-secret'
+
+  /** A run whose Variables block assigned `assigned` to `msg` beside an authored `{{API_KEY}}`. */
+  async function createRunWithAssignedVariable(assigned: string) {
+    const run = createResolver()
+    run.ctx.environmentVariables = { API_KEY: SECRET, PIN: '1234' }
+    run.ctx.workflowVariables = {
+      'var-authored': {
+        id: 'var-authored',
+        name: 'authored',
+        type: 'string',
+        value: '{{API_KEY}}',
+      },
+      'var-msg': { id: 'var-msg', name: 'msg', type: 'string', value: '' },
+    }
+    await new VariablesBlockHandler().execute(
+      run.ctx,
+      createBlock('variables', 'Variables', BlockType.VARIABLES),
+      { variables: [{ variableName: 'msg', value: assigned }] }
+    )
+    return run
+  }
+
+  it('expands an authored variable placeholder but not one the Variables block assigned', async () => {
+    const { ctx, resolver } = await createRunWithAssignedVariable('{{API_KEY}}')
+
+    const result = await resolver.resolveInputs(ctx, 'function', {
+      value: '<variable.authored> / <variable.msg>',
+    })
+
+    expect(result.value).toBe(`${SECRET} / {{API_KEY}}`)
+  })
+
+  it('binds a runtime-assigned variable naming a secret in Function code instead of inlining it', async () => {
+    const { block, ctx, resolver } = await createRunWithAssignedVariable('{{API_KEY}}')
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return "<variable.msg>"' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).not.toContain('{{API_KEY}}')
+    expect(result.contextVariables).toEqual({ __blockRef_0: '{{API_KEY}}' })
+  })
+
+  it('compares run data in a Condition as written, never as the secret it names', async () => {
+    const { ctx, resolver, state } = await createRunWithAssignedVariable('{{API_KEY}}')
+    state.setBlockOutput('producer', { result: '{{API_KEY}}', pin: '{{PIN}}' } as never)
+    const conditionBlock = createBlock('condition', 'Condition', BlockType.CONDITION)
+    const evaluate = async (value: string) => {
+      const resolved = await resolver.resolveInputs(
+        ctx,
+        conditionBlock.id,
+        { conditions: JSON.stringify([{ id: 'condition-1', title: 'if', value }]) },
+        conditionBlock
+      )
+      const expression = (resolved.conditions as Array<{ value: string }>)[0].value
+      return evaluateCompiledCondition(expression, ctx.environmentVariables)
+    }
+
+    await expect(evaluate(`<producer.result> === '${SECRET}'`)).resolves.toBe(false)
+    await expect(evaluate(`<producer.result> === '{' + '{API_KEY}}'`)).resolves.toBe(true)
+    await expect(evaluate(`<producer.pin> === '1234'`)).resolves.toBe(false)
+    await expect(evaluate(`<variable.msg> === '${SECRET}'`)).resolves.toBe(false)
+    await expect(evaluate(`<variable.authored> === '${SECRET}'`)).resolves.toBe(true)
   })
 })
