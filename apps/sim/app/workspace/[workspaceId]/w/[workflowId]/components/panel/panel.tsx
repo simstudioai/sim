@@ -71,7 +71,10 @@ import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
 import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
-import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
+import {
+  copilotChatSelectionKeys,
+  useCopilotChatSelection,
+} from '@/hooks/queries/copilot-chat-selection'
 import {
   type CopilotChatListItem,
   copilotChatsKeys,
@@ -396,8 +399,13 @@ export const Panel = memo(function Panel() {
   )
   const handleCopilotDeleteChat = useCallback(
     (chatId: string) => {
+      const wasOpen = copilotChatId === chatId
       // Leave the chat first: its deleted event drops the open transcript, which would refetch.
-      if (copilotChatId === chatId) setCopilotChatId(undefined)
+      // Auto-select must not reopen it from the list while the delete is in flight.
+      if (wasOpen) {
+        if (activeWorkflowId) autoSelectAttemptedFor.add(activeWorkflowId)
+        setCopilotChatId(undefined)
+      }
       deleteCopilotChat(chatId, {
         onSuccess: () => {
           // The draft store is persisted, so an unpruned key survives forever.
@@ -406,10 +414,23 @@ export const Panel = memo(function Panel() {
         },
         onError: (err) => {
           logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
+          const selection = queryClient.getQueryData<string | null>(
+            copilotChatSelectionKeys.workflow(activeWorkflowId ?? undefined)
+          )
+          if (wasOpen && !selection) setCopilotChatId(chatId)
         },
       })
     },
-    [copilotChatId, deleteCopilotChat, setCopilotChatId, workspaceId, copilotDraftWorkflowId]
+    [
+      activeWorkflowId,
+      autoSelectAttemptedFor,
+      copilotChatId,
+      copilotDraftWorkflowId,
+      deleteCopilotChat,
+      queryClient,
+      setCopilotChatId,
+      workspaceId,
+    ]
   )
 
   const handleCopilotToolResult = useCallback(
