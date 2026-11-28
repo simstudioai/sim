@@ -198,6 +198,13 @@ describe('authentication audit history in PostgreSQL', () => {
     expect((await history()).some((entry) => entry.action === 'auth.login_succeeded')).toBe(false)
   })
 
+  it('answers a non-string email with a validation error instead of crashing the sign-in hook', async () => {
+    const response = await auth.handler(
+      request('/sign-in/email', { email: { $ne: null }, password: fixturePassword })
+    )
+    expect(response.status).toBe(400)
+  })
+
   it('records suspended-account denial without claiming a successful login', async () => {
     await db.update(user).set({ suspendedAt: new Date() }).where(eq(user.id, userId))
     const response = await auth.handler(

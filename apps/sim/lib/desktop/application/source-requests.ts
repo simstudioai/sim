@@ -48,7 +48,8 @@ export const createDesktopSourceRequest = defineAuthorizedCredentialUserUseCase(
       REQUEST_TTL_SECONDS,
       'NX'
     )
-    if (saved !== 'OK') throw new Error('Could not prepare the connection request')
+    if (saved !== 'OK')
+      throw new OrchestrationError('conflict', 'This connection request was already prepared')
     return { requestId }
   },
 })

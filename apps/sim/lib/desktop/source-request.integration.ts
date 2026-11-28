@@ -62,6 +62,25 @@ describe('desktop source request transport', () => {
     ).rejects.toThrow('Connection request expired')
   })
 
+  it('refuses a reused request id as a conflict and keeps the original request', async () => {
+    const principal = {
+      kind: 'session' as const,
+      userId: generateId(),
+      sessionId: 'desktop-fixture',
+    }
+    const requestId = generateShortId(32)
+    await createDesktopSourceRequest.execute({
+      principal,
+      input: { requestId, payload: '{"n":1}' },
+    })
+    await expect(
+      createDesktopSourceRequest.execute({ principal, input: { requestId, payload: '{"n":2}' } })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    await expect(
+      consumeDesktopSourceRequest.execute({ principal, input: { requestId } })
+    ).resolves.toEqual({ payload: '{"n":1}' })
+  })
+
   it('rejects non-session callers and oversized requests', async () => {
     await expect(
       createDesktopSourceRequest.execute({

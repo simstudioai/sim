@@ -1154,7 +1154,9 @@ export const auth = betterAuth({
 
         if (isSignIn || isSignUp) {
           const accessControl = await getAccessControlConfig()
-          const requestEmail = ctx.body?.email?.toLowerCase()
+          // Better Auth validates the body after this hook; a non-string email falls through to its 400.
+          const requestEmail =
+            typeof ctx.body?.email === 'string' ? ctx.body.email.toLowerCase() : undefined
 
           // Banning an existing account is owned by better-auth's admin plugin (a
           // `session.create.before` hook that blocks banned users at sign-in across
@@ -1187,10 +1189,10 @@ export const auth = betterAuth({
           if (
             isSignupMxValidationEnabled &&
             ctx.path.startsWith('/sign-up/email') &&
-            ctx.body?.email
+            requestEmail
           ) {
             const mxCheck = await validateSignupEmailMx(
-              ctx.body.email,
+              requestEmail,
               accessControl.blockedEmailMxHosts
             )
             if (!mxCheck.allowed) {
