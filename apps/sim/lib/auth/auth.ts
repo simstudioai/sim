@@ -80,7 +80,7 @@ import { isSsoCallbackPath, resolveSsoCallbackProviderId } from '@/lib/auth/sso/
 import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
 import {
   assertPersonalCheckoutAllowed,
-  assertSelfServeCheckoutPlan,
+  assertSelfServeCheckoutRequest,
   authorizeSubscriptionReference,
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
@@ -1213,7 +1213,7 @@ export const auth = betterAuth({
           const sessionUserId = session?.user?.id
           if (sessionUserId) {
             const requestBody = ctx.body ?? {}
-            assertSelfServeCheckoutPlan(requestBody.plan)
+            assertSelfServeCheckoutRequest(requestBody)
             const referenceId = resolveCheckoutReferenceId(
               requestBody,
               sessionUserId,
@@ -1607,7 +1607,8 @@ export const auth = betterAuth({
             },
             subscription: {
               enabled: true,
-              plans: getPlans(),
+              // Enterprise is issued by the team, never checked out, so the plugin never offers it.
+              plans: getPlans().filter((plan) => !isEnterprise(plan.name)),
               authorizeReference: async ({ user, referenceId, action }, ctx) => {
                 const body: unknown = ctx?.body
                 const requestedPlan =

@@ -135,6 +135,16 @@ async function reconcileManualEnterpriseSubscription(
 
   const metadata = stripeSubscription.metadata || {}
 
+  // The Stripe plugin stamps its own row id on every self-serve checkout's subscription. Enterprise
+  // is issued by the team and never checked out, so such a subscription is never Enterprise,
+  // whatever plan its metadata claims.
+  if (typeof metadata.subscriptionId === 'string') {
+    logger.error('[subscription] Refusing Enterprise terms on a self-serve checkout subscription', {
+      subscriptionId: stripeSubscription.id,
+    })
+    return
+  }
+
   const referenceId =
     typeof metadata.referenceId === 'string' && metadata.referenceId.length > 0
       ? metadata.referenceId

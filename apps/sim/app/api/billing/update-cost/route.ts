@@ -207,7 +207,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       return NextResponse.json(
         {
           success: false,
-          error: authResult.error || 'Authentication failed',
+          error: 'Unauthorized',
         },
         { status: 401 }
       )
