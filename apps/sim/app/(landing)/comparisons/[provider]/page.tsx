@@ -314,6 +314,7 @@ export default async function ComparisonProviderPage({
 
             {COMPARISON_SECTIONS.map((section) => {
               const sectionIntro = competitor.sectionIntros?.[section.group]
+              const sectionOutro = competitor.sectionOutros?.[section.group]
 
               return (
                 <section
@@ -333,6 +334,11 @@ export default async function ComparisonProviderPage({
                     </p>
                   ) : null}
                   <ComparisonTable sim={simProfile} competitor={competitor} section={section} />
+                  {sectionOutro ? (
+                    <p className='mt-4 max-w-[720px] text-[var(--text-body)] text-small leading-[150%]'>
+                      <ProseText prose={sectionOutro} />
+                    </p>
+                  ) : null}
                 </section>
               )
             })}
