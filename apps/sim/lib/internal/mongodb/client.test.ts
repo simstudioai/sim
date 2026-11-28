@@ -71,6 +71,7 @@ describe('MongoDB client', () => {
     ['connection-string options', 'db?directConnection=false&proxyHost=127.0.0.1&proxyPort=1080'],
     ['a path separator', 'app/other'],
     ['a dot', 'app.other'],
+    ['more than 63 bytes in fewer characters', 'é'.repeat(32)],
   ])('refuses a database name carrying %s', async (_case, database) => {
     await expect(createMongodbClient({ ...CONNECTION_CONFIG, database })).rejects.toThrow(
       'database must be'

@@ -17,7 +17,7 @@ export interface MongodbConnectionConfig {
 }
 
 /**
- * MongoDB's database-name rules: 1–63 characters, none of `/\. "$*<>:|?` or NUL.
+ * MongoDB's database-name rules: 1–63 bytes, none of `/\. "$*<>:|?` or NUL.
  * The driver itself only refuses a few of these, so check the full set up front.
  */
 const INVALID_DATABASE_NAME_CHARACTERS = /[/\\. "$*<>:|?\0]/
@@ -25,11 +25,11 @@ const INVALID_DATABASE_NAME_CHARACTERS = /[/\\. "$*<>:|?\0]/
 function assertValidDatabaseName(database: string): void {
   if (
     database.length === 0 ||
-    database.length > 63 ||
+    Buffer.byteLength(database, 'utf8') > 63 ||
     INVALID_DATABASE_NAME_CHARACTERS.test(database)
   ) {
     throw new Error(
-      'database must be 1-63 characters and cannot contain /, \\, ., spaces, ", $, *, <, >, :, |, or ?'
+      'database must be 1-63 bytes and cannot contain /, \\, ., spaces, ", $, *, <, >, :, |, or ?'
     )
   }
 }
