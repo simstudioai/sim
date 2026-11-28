@@ -22,7 +22,7 @@ import {
   type OrchestrationErrorCode,
 } from '@/lib/core/orchestration/types'
 import type { HttpError } from '@/lib/core/utils/http-error'
-import { describeResponseError } from '@/lib/core/utils/response-error'
+import { describeResponseError, describeValidationError } from '@/lib/core/utils/response-error'
 import type { RateLimitResult } from '@/app/api/v1/middleware'
 
 /**
@@ -280,13 +280,7 @@ export function v2ValidationError(error: ZodError, slice?: RequestSlice): NextRe
   const response = v2Error('BAD_REQUEST', location ? `${location}: ${message}` : message, {
     details: serializeZodIssues(error),
   })
-  // Deeper segments can be record keys the caller wrote (an import's CSV headers); no slice is itself a record.
-  const field = [slice, path[0]].filter((part) => part !== undefined && part !== '').join('.')
-  describeResponseError(response, {
-    errorCode: 'BAD_REQUEST',
-    ...(field ? { errorField: field } : {}),
-    ...(error.issues[0] ? { errorReason: error.issues[0].code } : {}),
-  })
+  describeValidationError(response, error, slice)
   return response
 }
 

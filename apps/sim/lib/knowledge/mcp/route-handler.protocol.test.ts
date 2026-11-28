@@ -51,6 +51,7 @@ vi.mock('@/lib/sim-search/live/application', async (importOriginal) => ({
   searchLiveKnowledge: { execute: mocks.liveSearch },
 }))
 
+import { readResponseError } from '@/lib/core/utils/response-error'
 import { createKnowledgeMcpHandlers } from '@/lib/knowledge/mcp/route-handler'
 
 urlsMockFns.mockGetBaseUrl.mockReturnValue('http://localhost')
@@ -58,9 +59,9 @@ urlsMockFns.mockGetBaseUrl.mockReturnValue('http://localhost')
 const handlers = createKnowledgeMcpHandlers()
 const principal = createPersonalApiKeyPrincipal({ userId: 'person-1' })
 
-/** Calls a tool over the real route, SDK transport, and Search MCP server. */
-async function callTool(name: string, args: Record<string, unknown>) {
-  const response = await handlers.POST(
+/** Posts one message over the real route, SDK transport, and Search MCP server. */
+function post(body: unknown, headers: Record<string, string> = {}) {
+  return handlers.POST(
     createMockRequest({
       method: 'POST',
       url: 'http://localhost/api/mcp/search/organizations/org-1',
@@ -69,16 +70,21 @@ async function callTool(name: string, args: Record<string, unknown>) {
         accept: 'application/json, text/event-stream',
         'x-forwarded-for': '127.0.0.1',
         'x-api-key': 'personal-key',
+        ...headers,
       },
-      body: {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/call',
-        params: { name, arguments: args },
-      },
+      body,
     }),
     createRouteContext({ organizationId: 'org-1' })
   )
+}
+
+async function callTool(name: string, args: Record<string, unknown>) {
+  const response = await post({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name, arguments: args },
+  })
   return { status: response.status, body: await response.json() }
 }
 
@@ -193,4 +199,29 @@ describe('Search MCP tool arguments with one possible reading', () => {
       expect(JSON.stringify(body)).toContain(name)
     }
   )
+})
+
+describe('Search MCP refusals name their reason on the route log line', () => {
+  it('names the SDK refusal and the protocol version a client asked for', async () => {
+    const response = await post(
+      { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+      { 'mcp-protocol-version': '2099-01-01' }
+    )
+    expect(response.status).toBe(400)
+    expect(readResponseError(response)).toEqual({
+      errorCode: '-32000',
+      errorReason: 'Bad Request: Unsupported protocol version',
+      errorDetail: '2099-01-01',
+    })
+  })
+
+  it('names a JSON-RPC batch as a body that is not an object', async () => {
+    const response = await post([{ jsonrpc: '2.0', id: 1, method: 'tools/list' }])
+    expect(response.status).toBe(400)
+    expect(readResponseError(response)).toEqual({
+      errorCode: 'BAD_REQUEST',
+      errorField: 'body',
+      errorReason: 'invalid_type',
+    })
+  })
 })
