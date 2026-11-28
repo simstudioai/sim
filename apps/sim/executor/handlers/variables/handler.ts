@@ -6,6 +6,7 @@ import { compactWorkflowVariableValue } from '@/lib/execution/payloads/serialize
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { RUNTIME_ASSIGNED_VARIABLE_KEY } from '@/executor/variables/resolvers/workflow'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('VariablesBlockHandler')
@@ -127,6 +128,7 @@ export class VariablesBlockHandler implements BlockHandler {
           setWorkflowVariableEntry(ctx.workflowVariables, id, {
             ...variable,
             value,
+            [RUNTIME_ASSIGNED_VARIABLE_KEY]: true,
           })
           if (provenance) {
             ctx.workflowVariableResolvedSecretTraceProvenance ??= {}

@@ -1,6 +1,8 @@
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { toolsMock } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { compileCodePlaceholders } from '@/lib/execution/code-placeholders'
+import { CodeLanguage } from '@/lib/execution/languages'
 import { BlockType } from '@/executor/constants'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
@@ -217,9 +219,36 @@ describe('ConditionBlockHandler', () => {
     await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
 
     const [, toolParams] = mockExecuteTool.mock.calls[0]
-    expect(toolParams.code).toContain('{{OPENAI_API_KEY}}')
+    expect(toolParams.code).not.toContain('{{OPENAI_API_KEY}}')
     expect(toolParams.secretScope).toBe('selected')
     expect(toolParams.mountedSecrets).toEqual([])
+  })
+
+  it('keeps a placeholder in the source output as data when the author mounts that secret', async () => {
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+    blockStates.set('source-block-1', {
+      output: { text: '{{OPENAI_API_KEY}}' },
+      executed: true,
+      executionTime: 0,
+    } as BlockState)
+    const conditions = [
+      { id: 'cond1', title: 'if', value: `'{{OPENAI_API_KEY}}' === context.text` },
+      { id: 'cond2', title: 'else if', value: `context.text === '{' + '{OPENAI_API_KEY}}'` },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+
+    const [, toolParams] = mockExecuteTool.mock.calls[0]
+    expect(toolParams.mountedSecrets).toEqual(['OPENAI_API_KEY'])
+    const compiled = await compileCodePlaceholders({
+      code: toolParams.code as string,
+      language: CodeLanguage.JavaScript,
+      environmentVariables: { OPENAI_API_KEY: 'sk-secret' },
+    })
+    const bindings = Object.fromEntries(compiled.bindings.map((b) => [b.name, b.value]))
+    const run = new Function(...Object.keys(bindings), compiled.code)
+    expect(run(...Object.values(bindings))).toEqual({ matchedIndex: 1 })
   })
 
   it('keeps the whole environment for a condition that reads the environment directly', async () => {

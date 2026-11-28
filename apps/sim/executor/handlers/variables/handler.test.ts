@@ -6,6 +6,7 @@ import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manif
 import { BlockType } from '@/executor/constants'
 import { VariablesBlockHandler } from '@/executor/handlers/variables/handler'
 import type { ExecutionContext } from '@/executor/types'
+import { RUNTIME_ASSIGNED_VARIABLE_KEY } from '@/executor/variables/resolvers/workflow'
 import type { SerializedBlock } from '@/serializer/types'
 
 const mockUploadFile = storageServiceMockFns.mockUploadFile
@@ -242,6 +243,7 @@ describe('VariablesBlockHandler', () => {
       type: 'array',
       value,
       isExisting: true,
+      [RUNTIME_ASSIGNED_VARIABLE_KEY]: true,
     })
   })
 

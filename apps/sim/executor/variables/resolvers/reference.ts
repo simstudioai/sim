@@ -39,6 +39,11 @@ export interface ResolutionContext {
   allowLargeValueRefs?: boolean
   inputPath?: readonly string[]
   onResolvedSecretReference?: () => void
+  /**
+   * Called when the reference resolves to a workflow variable's author-stored value, the one
+   * run value an author may write `{{NAME}}` placeholders into for later expansion.
+   */
+  onAuthoredWorkflowVariable?: () => void
 }
 
 export interface Resolver {

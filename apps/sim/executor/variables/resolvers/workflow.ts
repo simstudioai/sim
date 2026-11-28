@@ -14,6 +14,13 @@ import type { VariableType } from '@/stores/variables/types'
 
 const logger = createLogger('WorkflowResolver')
 
+/**
+ * Marks a workflow variable entry the Variables block reassigned during the run. Its value is run
+ * data rather than the author's stored value, so `{{NAME}}` text inside it is never expanded.
+ * Kept on the entry itself so the mark survives pause/resume snapshots.
+ */
+export const RUNTIME_ASSIGNED_VARIABLE_KEY = '_assignedAtRuntime'
+
 export class WorkflowResolver implements Resolver {
   constructor(
     private workflowVariables: Record<string, any>,
@@ -57,6 +64,7 @@ export class WorkflowResolver implements Resolver {
         const normalizedType = (v.type === 'string' ? 'plain' : v.type) || 'plain'
         let value: any
         value = this.resolveVariableValue(v.value, normalizedType, variableName)
+        if (v[RUNTIME_ASSIGNED_VARIABLE_KEY] !== true) context.onAuthoredWorkflowVariable?.()
 
         if (pathParts.length > 0) {
           return navigatePath(value, pathParts, {
@@ -98,6 +106,7 @@ export class WorkflowResolver implements Resolver {
         const normalizedType = (v.type === 'string' ? 'plain' : v.type) || 'plain'
         let value: any
         value = this.resolveVariableValue(v.value, normalizedType, variableName)
+        if (v[RUNTIME_ASSIGNED_VARIABLE_KEY] !== true) context.onAuthoredWorkflowVariable?.()
 
         if (pathParts.length > 0) {
           const resolved = this.navigatePathAsync

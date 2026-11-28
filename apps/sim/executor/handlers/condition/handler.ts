@@ -11,6 +11,7 @@ import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import { formatInertStringLiteral } from '@/executor/utils/code-formatting'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import {
   buildBranchNodeId,
@@ -50,6 +51,16 @@ type ConditionEvaluation =
     }
 
 /**
+ * Declares the source block's output as the script's `context`. That output is run data, so it is
+ * parsed from an escaped string literal rather than spliced in as source: the execution-boundary
+ * compiler scans the whole script, and a `{{NAME}}` the data carried would otherwise expand to
+ * that secret whenever the author's expressions mount it.
+ */
+function declareEvaluationContext(evalContext: Record<string, unknown>): string {
+  return `const context = JSON.parse(${formatInertStringLiteral(JSON.stringify(evalContext))});`
+}
+
+/**
  * Wraps one expression as a boolean test, on its own line so a trailing line
  * comment ends before the closing parenthesis instead of swallowing it.
  *
@@ -82,7 +93,7 @@ function buildConditionScript(expressions: string[], evalContext: Record<string,
     .join('\n')
 
   return [
-    `const context = ${JSON.stringify(evalContext)};`,
+    declareEvaluationContext(evalContext),
     'let __simConditionIndex = -1',
     'try {',
     tests,
@@ -113,7 +124,8 @@ function buildConditionScript(expressions: string[], evalContext: Record<string,
  * `{{SECRET}}` would mount that secret and have the compiler expand it beside the payload.
  * Placeholders are therefore read from the expressions, which is where every legitimate route
  * to a secret passes, including a workflow variable holding `{{NAME}}`: the resolver inlines
- * that value into the expression before this runs.
+ * that value into the expression before this runs. Run data the resolver quotes into the
+ * expression has every `{` escaped, so a payload naming a secret never reads as a placeholder.
  *
  * A direct read of the environment map is not read from the resolved expression either, for the
  * same reason one step further in: resolved data is quoted inside it, so a payload containing
@@ -294,11 +306,11 @@ async function evaluateConditionList(
 async function evaluateSingleCondition(
   ctx: ExecutionContext,
   condition: ConditionEntry,
-  evalContext: Record<string, unknown>,
+  contextDeclaration: string,
   currentNodeId?: string
 ): Promise<boolean> {
   const expression = String(condition.value || '')
-  const code = `const context = ${JSON.stringify(evalContext)};\nreturn ${buildBooleanTest(expression)}`
+  const code = `${contextDeclaration}\nreturn ${buildBooleanTest(expression)}`
   const result = await runConditionCode(ctx, code, [condition], currentNodeId)
 
   if (!result.success) {
@@ -544,12 +556,13 @@ export class ConditionBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     currentNodeId?: string
   ): Promise<ConditionEntry | null> {
+    const contextDeclaration = declareEvaluationContext(evalContext)
     for (const condition of conditions) {
       try {
         const conditionMet = await evaluateSingleCondition(
           ctx,
           condition,
-          evalContext,
+          contextDeclaration,
           currentNodeId
         )
         if (conditionMet) return condition
