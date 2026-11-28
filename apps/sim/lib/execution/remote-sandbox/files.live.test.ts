@@ -9,7 +9,8 @@
  * Enable with `SANDBOX_FILES_SMOKE=1`. Requires `E2B_API_KEY` and
  * `E2B_FUNCTION_TEMPLATE_ID`; set `SANDBOX_PROVIDER=daytona` (with
  * `DAYTONA_API_KEY` and `DAYTONA_SHELL_SNAPSHOT_ID`) to run the same table
- * against Daytona instead. Each case creates and destroys one sandbox.
+ * against Daytona instead, or `SANDBOX_PROVIDER=boxd` (with `BOXD_API_KEY` and
+ * `BOXD_FUNCTION_SNAPSHOT`) to run it against boxd. Each case creates and destroys one sandbox.
  */
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'

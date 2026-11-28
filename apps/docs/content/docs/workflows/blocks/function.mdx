@@ -40,12 +40,12 @@ on a self-hosted instance, build and configure the provider's dedicated
 [Function base](/platform/enterprise/self-hosted) first. Python can return plots as images; you can also write image files under `/tmp/sim/outputs`.
 
 If no remote provider is configured, JavaScript without `import` or `require`
-continues to run in Sim's local isolated VM. Missing E2B or Daytona configuration
+continues to run in Sim's local isolated VM. Missing E2B, Daytona, or boxd configuration
 does not disable that path. Remote-only code fails with an explicit configuration
 error; Sim does not reinterpret Python or Shell as JavaScript.
 
 The dedicated Function base has the same runtime and universal package contract
-on E2B and Daytona. It includes this data-science stack; use a workspace sandbox
+on E2B, Daytona, and boxd. It includes this data-science stack; use a workspace sandbox
 when another dependency must be present:
 
 - **Data and graphs:** `pandas`, `numpy`, `scipy`, `xarray`, `numba`, `networkx`
@@ -272,7 +272,7 @@ open the three-dot menu at the end of the failed status row and choose **Retry
 build**. Save or discard unsaved sandbox edits first so the retry always uses the
 visible spec.
 
-On a self-hosted deployment using Daytona, dependencies, system packages, and
+On a self-hosted deployment using Daytona or boxd, dependencies, system packages, and
 managed CLI tools install inside the sandbox at the start of every run instead,
 adding startup time per execution. Prebuilt images require E2B.
 

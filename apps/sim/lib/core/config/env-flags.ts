@@ -19,6 +19,7 @@ import {
   resolveRegistrationMode,
 } from '@sim/deployment-config/registration'
 import {
+  isImmutableBoxdSnapshotRef,
   isImmutableDaytonaSnapshotRef,
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
@@ -465,23 +466,26 @@ const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, env).providerId
  * the runtime.
  */
 export const isRemoteSandboxEnabled =
-  sandboxProvider === 'daytona'
-    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
-      Boolean(
-        env.DAYTONA_FUNCTION_SNAPSHOT_ID &&
-          isImmutableDaytonaSnapshotRef(env.DAYTONA_FUNCTION_SNAPSHOT_ID)
-      )
-    : sandboxProvider === 'e2b'
-      ? isTruthy(env.E2B_ENABLED) &&
-        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+  sandboxProvider === 'boxd'
+    ? hasEnvCapabilityValue(env, 'BOXD_API_KEY') &&
+      Boolean(env.BOXD_FUNCTION_SNAPSHOT && isImmutableBoxdSnapshotRef(env.BOXD_FUNCTION_SNAPSHOT))
+    : sandboxProvider === 'daytona'
+      ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
         Boolean(
-          env.E2B_FUNCTION_TEMPLATE_ID && isImmutableE2BTemplateRef(env.E2B_FUNCTION_TEMPLATE_ID)
-        ) &&
-        Boolean(
-          env.E2B_FUNCTION_TEMPLATE_GENERATION &&
-            isValidSandboxReleaseGeneration(env.E2B_FUNCTION_TEMPLATE_GENERATION)
+          env.DAYTONA_FUNCTION_SNAPSHOT_ID &&
+            isImmutableDaytonaSnapshotRef(env.DAYTONA_FUNCTION_SNAPSHOT_ID)
         )
-      : false
+      : sandboxProvider === 'e2b'
+        ? isTruthy(env.E2B_ENABLED) &&
+          hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+          Boolean(
+            env.E2B_FUNCTION_TEMPLATE_ID && isImmutableE2BTemplateRef(env.E2B_FUNCTION_TEMPLATE_ID)
+          ) &&
+          Boolean(
+            env.E2B_FUNCTION_TEMPLATE_GENERATION &&
+              isValidSandboxReleaseGeneration(env.E2B_FUNCTION_TEMPLATE_GENERATION)
+          )
+        : false
 
 /**
  * Whether the complete custom-Sandbox feature is available on this deployment.
@@ -503,14 +507,17 @@ export const isSandboxesEnabled =
  * Function and Mothership images have separate release and rollout lifecycles.
  */
 export const isMothershipSandboxEnabled =
-  sandboxProvider === 'daytona'
-    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
-      hasEnvCapabilityValue(env, 'DAYTONA_SHELL_SNAPSHOT_ID')
-    : sandboxProvider === 'e2b'
-      ? isTruthy(env.E2B_ENABLED) &&
-        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
-        hasEnvCapabilityValue(env, 'MOTHERSHIP_E2B_TEMPLATE_ID')
-      : false
+  sandboxProvider === 'boxd'
+    ? hasEnvCapabilityValue(env, 'BOXD_API_KEY') &&
+      hasEnvCapabilityValue(env, 'BOXD_SHELL_SNAPSHOT')
+    : sandboxProvider === 'daytona'
+      ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
+        hasEnvCapabilityValue(env, 'DAYTONA_SHELL_SNAPSHOT_ID')
+      : sandboxProvider === 'e2b'
+        ? isTruthy(env.E2B_ENABLED) &&
+          hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+          hasEnvCapabilityValue(env, 'MOTHERSHIP_E2B_TEMPLATE_ID')
+        : false
 
 /**
  * Whether the document-generation sandbox is available with the selected
@@ -525,14 +532,16 @@ export const isMothershipSandboxEnabled =
  * sent to the copilot file subagent so the agent's output and compiler agree.
  */
 export const isDocSandboxEnabled =
-  sandboxProvider === 'daytona'
-    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
-      hasEnvCapabilityValue(env, 'DAYTONA_DOC_SNAPSHOT_ID')
-    : sandboxProvider === 'e2b'
-      ? isTruthy(env.E2B_ENABLED) &&
-        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
-        hasEnvCapabilityValue(env, 'MOTHERSHIP_E2B_DOC_TEMPLATE_ID')
-      : false
+  sandboxProvider === 'boxd'
+    ? hasEnvCapabilityValue(env, 'BOXD_API_KEY') && hasEnvCapabilityValue(env, 'BOXD_DOC_SNAPSHOT')
+    : sandboxProvider === 'daytona'
+      ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
+        hasEnvCapabilityValue(env, 'DAYTONA_DOC_SNAPSHOT_ID')
+      : sandboxProvider === 'e2b'
+        ? isTruthy(env.E2B_ENABLED) &&
+          hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+          hasEnvCapabilityValue(env, 'MOTHERSHIP_E2B_DOC_TEMPLATE_ID')
+        : false
 
 /**
  * Whether Ollama is configured (OLLAMA_URL is set).

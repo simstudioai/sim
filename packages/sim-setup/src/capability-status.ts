@@ -64,7 +64,7 @@ export interface StorageCapabilityStatus extends FeatureStatusBase<'storage'> {
 }
 
 export interface SandboxCapabilityStatus extends FeatureStatusBase<'sandbox'> {
-  providerId: 'disabled' | 'e2b' | 'daytona' | null
+  providerId: 'disabled' | 'e2b' | 'daytona' | 'boxd' | null
 }
 
 export interface JobsCapabilityStatus extends FeatureStatusBase<'jobs'> {
@@ -249,7 +249,8 @@ function inspectSandbox(values: EnvCapabilityValues): SandboxCapabilityStatus {
     }
   }
 
-  const knownProvider = requestedProvider === 'e2b' || requestedProvider === 'daytona'
+  const knownProvider =
+    requestedProvider === 'e2b' || requestedProvider === 'daytona' || requestedProvider === 'boxd'
   const selectedProvider = inspection.providers.find(
     (provider) => provider.id === requestedProvider
   )
@@ -264,7 +265,7 @@ function inspectSandbox(values: EnvCapabilityValues): SandboxCapabilityStatus {
       inspection.error,
       knownProvider
         ? inspection.error.message
-        : 'Unknown SANDBOX_PROVIDER. Expected one of: e2b, daytona'
+        : 'Unknown SANDBOX_PROVIDER. Expected one of: e2b, daytona, boxd'
     ),
   }
 }

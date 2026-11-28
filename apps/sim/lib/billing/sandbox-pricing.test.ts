@@ -16,6 +16,7 @@ describe('sandbox pricing', () => {
   it.each([
     ['e2b', 0.1656],
     ['daytona', 0.16668],
+    ['boxd', 0.20696],
   ] as const)('prices one hour of the Function profile on %s', (provider, expected) => {
     const pricing = createSandboxPricing(provider, 'code', 1)
 
@@ -31,6 +32,7 @@ describe('sandbox pricing', () => {
   it.each([
     ['e2b', 0.3312],
     ['daytona', 0.33228],
+    ['boxd', 0.41296],
   ] as const)(
     'prices one hour of the Pi sandbox on %s at its build resources',
     (provider, expected) => {
