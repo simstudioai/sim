@@ -30,10 +30,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { VariableIcon } from '@/components/icons'
 import { ThinkingLoader } from '@/components/ui'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  createWorkflowCopilotChatContract,
-  deleteCopilotChatContract,
-} from '@/lib/api/contracts/copilot'
+import { createWorkflowCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { useSession } from '@/lib/auth/client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
@@ -79,6 +76,7 @@ import {
   type CopilotChatListItem,
   copilotChatsKeys,
   useCopilotChats,
+  useDeleteCopilotChat,
 } from '@/hooks/queries/copilot-chats'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -89,7 +87,6 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useChatStore } from '@/stores/chat/store'
 import { useVariablesModalStore } from '@/stores/modals/variables/store'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext, PanelTab } from '@/stores/panel'
 import { usePanelStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
@@ -393,23 +390,37 @@ export const Panel = memo(function Panel() {
     [setCopilotChatId]
   )
 
+  const { mutate: deleteCopilotChat, isPending: isDeletingCopilotChat } = useDeleteCopilotChat()
   const handleCopilotDeleteChat = useCallback(
     (chatId: string) => {
-      requestJson(deleteCopilotChatContract, { body: { chatId } })
-        .then(() => {
-          if (copilotChatId === chatId) {
-            setCopilotChatId(undefined)
-          }
-          // The draft store is persisted, so an unpruned key survives forever.
-          const draftKey = copilotDraftKey(workspaceId, copilotDraftWorkflowId, chatId)
-          if (draftKey) useMothershipDraftsStore.getState().clearDraft(draftKey)
-          loadCopilotChats()
-        })
-        .catch((err) => {
-          logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
-        })
+      // Leave the chat first: its deleted event drops the open transcript, which would refetch.
+      // Auto-select must not reopen it from the list while the delete is in flight.
+      if (copilotChatId === chatId) {
+        if (activeWorkflowId) autoSelectAttemptedFor.add(activeWorkflowId)
+        setCopilotChatId(undefined)
+      }
+      deleteCopilotChat(
+        {
+          chatId,
+          workflowId: activeWorkflowId ?? undefined,
+          draftKey: copilotDraftKey(workspaceId, copilotDraftWorkflowId, chatId),
+        },
+        {
+          onError: (err) => {
+            logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
+          },
+        }
+      )
     },
-    [copilotChatId, loadCopilotChats, setCopilotChatId, workspaceId, copilotDraftWorkflowId]
+    [
+      activeWorkflowId,
+      autoSelectAttemptedFor,
+      copilotChatId,
+      copilotDraftWorkflowId,
+      deleteCopilotChat,
+      setCopilotChatId,
+      workspaceId,
+    ]
   )
 
   const handleCopilotToolResult = useCallback(
@@ -1095,6 +1106,7 @@ export const Panel = memo(function Panel() {
                                 action={
                                   <DropdownMenuItemAction
                                     aria-label='Delete chat'
+                                    disabled={isDeletingCopilotChat}
                                     onClick={() => handleCopilotDeleteChat(chat.id)}
                                   >
                                     <Trash />
