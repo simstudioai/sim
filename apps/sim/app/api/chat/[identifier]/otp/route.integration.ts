@@ -17,7 +17,7 @@ vi.mock('@/lib/core/config/redis', async (importOriginal) => ({
   getRedisClient: () => redisClient.current,
 }))
 
-import { MAX_OTP_ATTEMPTS, storeOTP } from '@/lib/core/security/otp'
+import { MAX_OTP_ATTEMPTS, storeOTP, verifyOTP } from '@/lib/core/security/otp'
 import { PUT } from '@/app/api/chat/[identifier]/otp/route'
 
 const redisUrl = readTestRedisUrl()
@@ -29,15 +29,14 @@ const identifier = `otp-${chatId}`
 const email = `${generateId()}@otp.invalid`
 const CODE = '246810'
 const NEWER_CODE = '135791'
-const NO_CODE = 'No verification code found, request a new one'
-const INVALID = 'Invalid verification code'
-const LOCKED = 'Too many failed attempts. Please request a new code.'
+const FAILED = 'Invalid or expired verification code'
+const REJECTED = { status: 400, error: FAILED, cookie: null }
 
-async function verify(otp: string) {
+async function verify(otp: string, address = email) {
   const request = createMockRequest({
     method: 'PUT',
     url: `/api/chat/${identifier}/otp`,
-    body: { email, otp },
+    body: { email: address, otp },
   })
   const response = await PUT(request, createRouteContext({ identifier }))
   const body = (await response.json()) as { error?: string; message?: string }
@@ -111,39 +110,50 @@ describe('chat OTP verification', () => {
         .where(eq(chat.id, chatId))
     })
 
-    it.each([
-      {
-        rejection: 'the chat no longer uses email auth',
-        change: { authType: 'public' },
-        response: { status: 400, error: 'This chat does not use email authentication' },
-      },
-      {
-        rejection: 'the email is no longer allowed',
-        change: { allowedEmails: ['someone-else@otp.invalid'] },
-        response: { status: 403, error: 'Email not authorized' },
-      },
-    ])('rejects without spending the code when $rejection', async ({ change, response }) => {
-      await db.update(chat).set(change).where(eq(chat.id, chatId))
+    it('rejects without spending the code when the chat no longer uses email auth', async () => {
+      await db.update(chat).set({ authType: 'public' }).where(eq(chat.id, chatId))
       for (let attempt = 0; attempt < MAX_OTP_ATTEMPTS; attempt++) {
-        expect(await verify(CODE)).toMatchObject({ ...response, cookie: null })
+        expect(await verify(CODE)).toMatchObject({
+          status: 400,
+          error: 'This chat does not use email authentication',
+          cookie: null,
+        })
       }
-      await db
-        .update(chat)
-        .set({ authType: 'email', allowedEmails: [email] })
-        .where(eq(chat.id, chatId))
+      await db.update(chat).set({ authType: 'email' }).where(eq(chat.id, chatId))
       expect(await verify(CODE)).toMatchObject({ status: 200 })
     })
 
-    it('compares at most the attempt limit of guesses however many arrive concurrently', async () => {
-      const results = await Promise.all(wrongGuesses(30).map(verify))
+    it('spends but never accepts a correct code once the email leaves the allow-list', async () => {
+      await db
+        .update(chat)
+        .set({ allowedEmails: ['someone-else@otp.invalid'] })
+        .where(eq(chat.id, chatId))
+      expect(await verify(CODE)).toMatchObject(REJECTED)
+      await db
+        .update(chat)
+        .set({ allowedEmails: [email] })
+        .where(eq(chat.id, chatId))
+      expect(await verify(CODE)).toMatchObject(REJECTED)
+    })
 
-      const compared = results.filter((result) => result.error !== NO_CODE)
-      expect(compared).toHaveLength(MAX_OTP_ATTEMPTS)
-      expect(compared.filter((result) => result.error === INVALID)).toHaveLength(
-        MAX_OTP_ATTEMPTS - 1
+    it('compares at most the attempt limit of guesses however many arrive concurrently', async () => {
+      const results = await Promise.all(
+        wrongGuesses(30).map((guess) => verifyOTP('chat', chatId, email, guess))
       )
-      expect(compared.filter((result) => result.error === LOCKED)).toHaveLength(1)
-      expect(await verify(CODE)).toMatchObject({ status: 400, error: NO_CODE, cookie: null })
+
+      expect(results.filter((result) => result === 'invalid')).toHaveLength(MAX_OTP_ATTEMPTS - 1)
+      expect(results.filter((result) => result === 'locked')).toHaveLength(1)
+      expect(await verify(CODE)).toMatchObject(REJECTED)
+    })
+
+    it('answers an allow-listed email exactly like an unlisted one on every failure', async () => {
+      const unlisted = `${generateId()}@elsewhere.invalid`
+      const unlistedAnswer = await verify('000000', unlisted)
+
+      expect(unlistedAnswer).toEqual(REJECTED)
+      for (const guess of wrongGuesses(MAX_OTP_ATTEMPTS + 1)) {
+        expect(await verify(guess)).toEqual(unlistedAnswer)
+      }
     })
 
     it('lets only one of several concurrent correct submissions succeed', async () => {
@@ -167,31 +177,31 @@ describe('chat OTP verification', () => {
         return evaluate(...args)
       })
 
-      expect(await verify(CODE)).toMatchObject({ status: 400, error: NO_CODE, cookie: null })
+      expect(await verify(CODE)).toMatchObject(REJECTED)
       expect(await verify(NEWER_CODE)).toMatchObject({ status: 200 })
     })
 
     it('treats a code with no expiry as expired', async () => {
       const key = `otp:${email}:${chatId}`
       await redisClient.current?.set(key, `${CODE}:${MAX_OTP_ATTEMPTS - 1}`)
-      expect(await verify(CODE)).toMatchObject({ status: 400, error: NO_CODE, cookie: null })
+      expect(await verify(CODE)).toMatchObject(REJECTED)
       expect(await redisClient.current?.exists(key)).toBe(0)
     })
 
     it('accepts the correct code on the last remaining attempt and mints the auth cookie', async () => {
       for (const guess of wrongGuesses(MAX_OTP_ATTEMPTS - 1)) {
-        expect(await verify(guess)).toMatchObject({ status: 400, error: INVALID })
+        expect(await verify(guess)).toMatchObject(REJECTED)
       }
       const accepted = await verify(CODE)
       expect(accepted.status).toBe(200)
       expect(accepted.cookie).toContain(`chat_auth_${chatId}=`)
-      expect(await verify(CODE)).toMatchObject({ status: 400, error: NO_CODE })
+      expect(await verify(CODE)).toMatchObject(REJECTED)
     })
 
     it('keeps the code expiry when a failed attempt is recorded', async () => {
       const key = `otp:${email}:${chatId}`
       await redisClient.current?.pexpire(key, 900)
-      expect(await verify('999999')).toMatchObject({ status: 400, error: INVALID })
+      expect(await verify('999999')).toMatchObject(REJECTED)
       const ttl = await redisClient.current?.pttl(key)
       expect(ttl).toBeGreaterThan(0)
       expect(ttl).toBeLessThanOrEqual(900)

@@ -580,7 +580,11 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         return value?.split(':')[0]
       }
       expect(await storedCode('outsider@shared.invalid')).toBeUndefined()
-      const failure = { authorized: false, status: 400, error: 'Invalid verification code' }
+      const failure = {
+        authorized: false,
+        status: 400,
+        error: 'Invalid or expired verification code',
+      }
       expect(
         await verifyPublicFileShareOtp({
           token: share.token,

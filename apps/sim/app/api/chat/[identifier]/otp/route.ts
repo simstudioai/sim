@@ -14,6 +14,7 @@ import {
   OTP_EMAIL_RATE_LIMIT,
   OTP_IP_RATE_LIMIT,
   OTP_RESOURCE_RATE_LIMIT,
+  OTP_VERIFICATION_FAILED,
   storeOTP,
   verifyOTP,
 } from '@/lib/core/security/otp'
@@ -188,20 +189,13 @@ export const PUT = withRouteHandler(
       if (deployment.authType !== 'email') {
         return createCodedErrorResponse('This chat does not use email authentication', 400)
       }
-      if (!isEmailAllowed(email, deployment.allowedEmails)) {
-        return createCodedErrorResponse('Email not authorized', 403)
-      }
-
+      const allowed = isEmailAllowed(email, deployment.allowedEmails)
       const verification = await verifyOTP('chat', deployment.id, email, otp)
-      if (verification === 'missing') {
-        return createCodedErrorResponse('No verification code found, request a new one', 400)
-      }
       if (verification === 'locked') {
         logger.warn('OTP invalidated after max failed attempts', { chatId: deployment.id })
-        return createCodedErrorResponse('Too many failed attempts. Please request a new code.', 429)
       }
-      if (verification === 'invalid') {
-        return createCodedErrorResponse('Invalid verification code', 400)
+      if (!allowed || verification !== 'valid') {
+        return createCodedErrorResponse(OTP_VERIFICATION_FAILED, 400)
       }
 
       const response = createSuccessResponse({
