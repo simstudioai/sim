@@ -6,6 +6,23 @@ export const makeProfile: CompetitorProfile = {
   id: 'make',
   name: 'Make',
   mentions: ['Make.com', 'Integromat'],
+  leadAnswer: [
+    'Choose Sim over Make when your team needs custom AI agents that reason across multiple models and internal tools, with self-hosting and built-in controls for approvals and output checks. Choose Make when your work is mainly predictable SaaS app automation and you value its larger catalog of prebuilt integrations and templates.',
+  ],
+  sectionOutros: {
+    pricing: [
+      "A support flow that classifies a ticket, checks three customer records, drafts a reply, and logs the update can use about 8 to 10 module actions per ticket. At 1,000 tickets a month, that is about 8,000 to 10,000 Make credits before retries or extra verification passes. Make Core starts at $9 per month billed annually for 10,000 credits, so an extra pass can push the same ticket volume beyond that allowance. Sim also uses credits, but calls that run on a team's own model and tool keys carry no Sim usage charge, while the 1-credit base run charge still applies.",
+    ],
+  },
+  faqs: [
+    {
+      question: 'Which is best for a small business: Zapier, n8n, Make, or Sim?',
+      answer:
+        'Choose Zapier when setup speed for straightforward app connections matters most. Choose Make when you need visual data mapping and branching across SaaS apps. Choose n8n when you have engineering capacity for custom code and self-hosting. Choose Sim when internal processes depend on governed AI agents, multiple models, shared knowledge, and human approval. The best fit depends on whether the work is mainly app routing or AI reasoning.',
+    },
+  ],
+  migrationSteps:
+    "Before rebuilding, record each Make scenario's webhook triggers, connected tools, and prompt instructions. Test identical payloads in Make and Sim, compare outputs using Sim's block-by-block logs, then switch production traffic after the results match. Start with AI-heavy scenarios that use the most credits or need manual approval, while simpler app syncs continue in Make.",
   website: 'https://www.make.com',
   brand: {
     icon: MakeIcon,

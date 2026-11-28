@@ -17,6 +17,7 @@ import {
   dustProfile,
   gumloopProfile,
   langflowProfile,
+  makeProfile,
   microsoftCopilotProfile,
   n8nProfile,
   openaiAgentkitProfile,
@@ -525,6 +526,7 @@ async function run() {
       openaiAgentkitProfile,
       difyProfile,
       relevanceAiProfile,
+      makeProfile,
     ]) {
       const { status, body } = await get(`/comparisons/${profile.id}`)
       if (status !== 200) {
@@ -566,6 +568,24 @@ async function run() {
     }
     assert.deepEqual(failures, [])
   })
+
+  await check(
+    'a comparison section outro renders after its table and before the next section',
+    async () => {
+      const profile = makeProfile
+      const outro = profile.sectionOutros?.pricing
+      assert(outro, 'profile no longer exercises a section outro')
+      const { status, body } = await get(`/comparisons/${profile.id}`)
+      assert.equal(status, 200)
+      const $ = load(body)
+      const section = $('#comparison-section-pricing-heading').closest('section')
+      assert.equal(section.length, 1, 'pricing comparison section missing')
+      const expected = outro.map((part) => (typeof part === 'string' ? part : part.text)).join('')
+      const paragraph = section.children('p').last()
+      assert.equal(paragraph.text(), expected, 'pricing outro missing from its section')
+      assert(paragraph.prevAll('table, div').length > 0, 'pricing outro renders above its table')
+    }
+  )
 
   await check(
     'a comparison page answering its buyer questions in place keeps their order',
